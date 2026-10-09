@@ -74,9 +74,6 @@ pub enum ExecutionProfileEditorViewAction {
     SetFullTerminalUseModel {
         id: LLMId,
     },
-    SetComputerUseModel {
-        id: LLMId,
-    },
 
     SetApplyCodeDiffs {
         permission: ActionPermission,
@@ -93,9 +90,6 @@ pub enum ExecutionProfileEditorViewAction {
     },
     SetCallMcpServers {
         permission: ActionPermission,
-    },
-    SetComputerUse {
-        permission: super::ComputerUsePermission,
     },
     SetAskUserQuestion {
         permission: super::AskUserQuestionPermission,
@@ -146,13 +140,11 @@ pub struct ExecutionProfileEditorView {
     coding_model_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
     full_terminal_use_model_dropdown:
         ViewHandle<FilterableDropdown<ExecutionProfileEditorViewAction>>,
-    computer_use_model_dropdown: ViewHandle<FilterableDropdown<ExecutionProfileEditorViewAction>>,
     apply_code_diffs_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
     read_files_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
     execute_commands_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
     write_to_pty_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
     call_mcp_servers_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
-    computer_use_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
     ask_user_question_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
     command_allowlist_editor: ViewHandle<SubmittableTextInput>,
     command_denylist_editor: ViewHandle<SubmittableTextInput>,
@@ -312,34 +304,6 @@ impl ExecutionProfileEditorView {
             dropdown
         });
 
-        let computer_use_dropdown = ctx.add_typed_action_view(|ctx| {
-            let mut dropdown = Dropdown::new(ctx);
-            dropdown.set_items(
-                vec![
-                    DropdownItem::new(
-                        "Never",
-                        ExecutionProfileEditorViewAction::SetComputerUse {
-                            permission: super::ComputerUsePermission::Never,
-                        },
-                    ),
-                    DropdownItem::new(
-                        "Always ask",
-                        ExecutionProfileEditorViewAction::SetComputerUse {
-                            permission: super::ComputerUsePermission::AlwaysAsk,
-                        },
-                    ),
-                    DropdownItem::new(
-                        "Always allow",
-                        ExecutionProfileEditorViewAction::SetComputerUse {
-                            permission: super::ComputerUsePermission::AlwaysAllow,
-                        },
-                    ),
-                ],
-                ctx,
-            );
-            dropdown
-        });
-
         let ask_user_question_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_items(
@@ -431,11 +395,6 @@ impl ExecutionProfileEditorView {
             dropdown.set_menu_width(MODEL_MENU_WIDTH, ctx);
             dropdown
         });
-        let computer_use_model_dropdown = ctx.add_typed_action_view(|ctx| {
-            let mut dropdown = FilterableDropdown::new(ctx);
-            dropdown.set_menu_width(MODEL_MENU_WIDTH, ctx);
-            dropdown
-        });
         let command_allowlist_editor = ctx.add_typed_action_view(|ctx| {
             let mut input =
                 SubmittableTextInput::new(ctx).validate_on_edit(|s| Regex::new(s).is_ok());
@@ -518,13 +477,11 @@ impl ExecutionProfileEditorView {
             dragged_context_window_value: None,
             coding_model_dropdown,
             full_terminal_use_model_dropdown,
-            computer_use_model_dropdown,
             apply_code_diffs_dropdown,
             read_files_dropdown,
             execute_commands_dropdown,
             write_to_pty_dropdown,
             call_mcp_servers_dropdown,
-            computer_use_dropdown,
             ask_user_question_dropdown,
             command_allowlist_editor,
             command_denylist_editor,
@@ -625,14 +582,6 @@ impl ExecutionProfileEditorView {
                         |prefs, _| prefs.get_cli_agent_llm_choices().collect_vec(),
                         |id| ExecutionProfileEditorViewAction::SetFullTerminalUseModel { id },
                         |prefs, app| prefs.get_default_cli_agent_model(app).id.clone(),
-                        ctx,
-                    );
-                    Self::refresh_filterable_model_dropdown(
-                        &me.computer_use_model_dropdown,
-                        current_permissions.computer_use_model.clone(),
-                        |prefs, _| prefs.get_computer_use_llm_choices().collect_vec(),
-                        |id| ExecutionProfileEditorViewAction::SetComputerUseModel { id },
-                        |prefs, app| prefs.get_default_computer_use_model(app).id.clone(),
                         ctx,
                     );
                     me.sync_context_window_editor(ctx, false);
@@ -759,7 +708,6 @@ impl ExecutionProfileEditorView {
         let read_files_disabled = !ai_settings.is_read_files_permissions_editable();
         let execute_commands_disabled = !ai_settings.is_execute_commands_permissions_editable();
         let write_to_pty_disabled = !ai_settings.is_write_to_pty_permissions_editable();
-        let computer_use_disabled = !ai_settings.is_computer_use_permissions_editable();
         let ask_user_question_disabled = !ai_settings.is_ask_user_question_permissions_editable();
         let mcp_disabled = !ai_settings.is_mcp_permission_editable();
 
@@ -782,14 +730,6 @@ impl ExecutionProfileEditorView {
             |prefs, _| prefs.get_cli_agent_llm_choices().collect_vec(),
             |id| ExecutionProfileEditorViewAction::SetFullTerminalUseModel { id },
             |prefs, app| prefs.get_default_cli_agent_model(app).id.clone(),
-            ctx,
-        );
-        Self::refresh_filterable_model_dropdown(
-            &self.computer_use_model_dropdown,
-            current_permissions.computer_use_model.clone(),
-            |prefs, _| prefs.get_computer_use_llm_choices().collect_vec(),
-            |id| ExecutionProfileEditorViewAction::SetComputerUseModel { id },
-            |prefs, app| prefs.get_default_computer_use_model(app).id.clone(),
             ctx,
         );
 
@@ -821,12 +761,6 @@ impl ExecutionProfileEditorView {
             &self.call_mcp_servers_dropdown,
             current_permissions.mcp_permissions,
             mcp_disabled,
-            ctx,
-        );
-        Self::refresh_computer_use_dropdown_menu(
-            &self.computer_use_dropdown,
-            current_permissions.computer_use,
-            computer_use_disabled,
             ctx,
         );
         Self::refresh_ask_user_question_dropdown_menu(
@@ -896,31 +830,6 @@ impl ExecutionProfileEditorView {
                 WriteToPtyPermission::AlwaysAllow => 0,
                 WriteToPtyPermission::AlwaysAsk | WriteToPtyPermission::Unknown => 1,
                 WriteToPtyPermission::AskOnFirstWrite => 2,
-            };
-
-            menu.set_selected_by_index(active, ctx);
-            ctx.notify();
-        });
-        ctx.notify();
-    }
-
-    fn refresh_computer_use_dropdown_menu(
-        menu: &ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
-        current_permission: super::ComputerUsePermission,
-        disabled: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        menu.update(ctx, |menu, ctx| {
-            if !disabled {
-                menu.set_enabled(ctx);
-            } else {
-                menu.set_disabled(ctx);
-            }
-
-            let active = match current_permission {
-                super::ComputerUsePermission::Never | super::ComputerUsePermission::Unknown => 0,
-                super::ComputerUsePermission::AlwaysAsk => 1,
-                super::ComputerUsePermission::AlwaysAllow => 2,
             };
 
             menu.set_selected_by_index(active, ctx);
@@ -1395,12 +1304,6 @@ impl TypedActionView for ExecutionProfileEditorView {
                 });
                 ctx.notify();
             }
-            ExecutionProfileEditorViewAction::SetComputerUseModel { id } => {
-                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                    profiles_model.set_computer_use_model(&self.profile_id, Some(id.clone()), ctx);
-                });
-                ctx.notify();
-            }
             ExecutionProfileEditorViewAction::SetApplyCodeDiffs { permission } => {
                 AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
                     profiles_model.set_apply_code_diffs(&self.profile_id, permission, ctx);
@@ -1428,12 +1331,6 @@ impl TypedActionView for ExecutionProfileEditorView {
             ExecutionProfileEditorViewAction::SetCallMcpServers { permission } => {
                 AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
                     profiles_model.set_mcp_permissions(&self.profile_id, permission, ctx);
-                });
-                ctx.notify();
-            }
-            ExecutionProfileEditorViewAction::SetComputerUse { permission } => {
-                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                    profiles_model.set_computer_use(&self.profile_id, permission, ctx);
                 });
                 ctx.notify();
             }

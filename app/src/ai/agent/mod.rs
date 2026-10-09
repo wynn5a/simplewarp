@@ -1714,7 +1714,6 @@ pub enum SubagentType {
     Cli,
     Research,
     Advice,
-    ComputerUse,
     Summarization,
     ConversationSearch {
         query: Option<String>,
@@ -3103,9 +3102,6 @@ pub struct AIAgentExchange {
 
     /// The CLI agent model to which the request was sent.
     pub cli_agent_model_id: LLMId,
-
-    /// The computer use model to which the request was sent.
-    pub computer_use_model_id: LLMId,
 }
 
 impl AIAgentExchange {

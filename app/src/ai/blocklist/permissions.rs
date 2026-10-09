@@ -487,29 +487,6 @@ impl BlocklistAIPermissions {
         self.get_web_search_enabled_for_profile(ctx, active_profile.id())
     }
 
-    pub fn get_computer_use_setting_for_profile(
-        &self,
-        ctx: &AppContext,
-        profile_id: &ExecutionProfileId,
-    ) -> crate::ai::execution_profiles::ComputerUsePermission {
-        let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
-        profiles_model
-            .get_profile_by_id(profile_id, ctx)
-            .unwrap_or_else(|| profiles_model.default_profile(ctx))
-            .data()
-            .computer_use
-    }
-
-    pub fn get_computer_use_setting(
-        &self,
-        ctx: &AppContext,
-        terminal_view_id: Option<EntityId>,
-    ) -> crate::ai::execution_profiles::ComputerUsePermission {
-        let active_profile =
-            AIExecutionProfilesModel::as_ref(ctx).active_profile(terminal_view_id, ctx);
-        self.get_computer_use_setting_for_profile(ctx, active_profile.id())
-    }
-
     pub fn get_ask_user_question_setting_for_profile(
         &self,
         ctx: &AppContext,

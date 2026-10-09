@@ -240,8 +240,6 @@ pub(crate) enum LaunchMode {
         debug: bool,
         /// Whether this CLI invocation is running in a sandboxed environment.
         is_sandboxed: bool,
-        /// Override for computer use permission from CLI flags. If None, uses default behavior.
-        computer_use_override: Option<bool>,
     },
     /// Run a test - this may be an integration test or an eval.
     Test {
@@ -461,12 +459,11 @@ pub fn run() -> Result<()> {
                 return warp_cli::completions::generate_to_stdout(*shell);
             }
             warp_cli::Command::CommandLine(cmd) => {
-                let (is_sandboxed, computer_use_override) = match cmd.as_ref() {
-                    warp_cli::CliCommand::Agent(warp_cli::agent::AgentCommand::Run(run_args)) => (
-                        run_args.sandboxed,
-                        run_args.computer_use.computer_use_override(),
-                    ),
-                    _ => (false, None),
+                let is_sandboxed = match cmd.as_ref() {
+                    warp_cli::CliCommand::Agent(warp_cli::agent::AgentCommand::Run(run_args)) => {
+                        run_args.sandboxed
+                    }
+                    _ => false,
                 };
 
                 return run_internal(LaunchMode::CommandLine {
@@ -476,7 +473,6 @@ pub fn run() -> Result<()> {
                     },
                     debug: args.debug(),
                     is_sandboxed,
-                    computer_use_override,
                 });
             }
             warp_cli::Command::DumpDebugInfo => {

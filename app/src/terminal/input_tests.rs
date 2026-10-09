@@ -1536,7 +1536,6 @@ fn seed_in_progress_conversation(
             request_cost: None,
             coding_model_id: LLMId::from("test-coding-model"),
             cli_agent_model_id: LLMId::from("test-cli-agent-model"),
-            computer_use_model_id: LLMId::from("test-computer-use-model"),
         };
         let response_stream_id = ResponseStreamId::new_for_test();
         history

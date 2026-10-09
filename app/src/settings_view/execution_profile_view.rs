@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use uuid::Uuid;
-use warp_core::features::FeatureFlag;
 use warpui::elements::{
     ConstrainedBox, Container, CrossAxisAlignment, Flex, MainAxisAlignment, MainAxisSize,
     ParentElement, Shrinkable, Text, Wrap,
@@ -124,18 +123,6 @@ impl View for ExecutionProfileView {
                     .clone()
             });
 
-        let computer_use_model = profile
-            .computer_use_model
-            .as_ref()
-            .and_then(|id| llm_preferences.get_llm_info(id))
-            .map(|info| info.display_name.clone())
-            .unwrap_or_else(|| {
-                llm_preferences
-                    .get_default_computer_use_model(app)
-                    .display_name
-                    .clone()
-            });
-
         Container::new(
             Flex::column()
                 .with_child(
@@ -185,17 +172,6 @@ impl View for ExecutionProfileView {
                             is_any_ai_enabled,
                         ),
                     ));
-                    if FeatureFlag::LocalComputerUse.is_enabled() {
-                        model_flex.add_child(with_standard_vertical_margin(
-                            render_model_line_with_icon(
-                                Icon::Laptop,
-                                "Computer use:",
-                                computer_use_model,
-                                appearance,
-                                is_any_ai_enabled,
-                            ),
-                        ));
-                    }
                     Container::new(model_flex.finish())
                         .with_margin_top(16.)
                         .with_margin_bottom(8.)
@@ -292,18 +268,6 @@ impl View for ExecutionProfileView {
                                 is_any_ai_enabled,
                             ),
                         ));
-
-                        if FeatureFlag::LocalComputerUse.is_enabled() {
-                            permissions_column.add_child(with_standard_vertical_margin(
-                                render_computer_use_permission_line_with_icon(
-                                    Icon::Laptop,
-                                    "Computer use:",
-                                    &profile.computer_use,
-                                    appearance,
-                                    is_any_ai_enabled,
-                                ),
-                            ));
-                        }
 
                         permissions_column.add_child(with_standard_vertical_margin(
                             render_ask_user_question_permission_line_with_icon(
@@ -693,22 +657,6 @@ fn render_write_to_pty_permission_line_with_icon(
         WriteToPtyPermission::AlwaysAsk => "Always ask",
         WriteToPtyPermission::AskOnFirstWrite => "Ask on first write",
         WriteToPtyPermission::Unknown => "Unknown",
-    };
-    render_permission_line_with_icon(icon, label, permission_text, appearance, is_ai_enabled)
-}
-
-fn render_computer_use_permission_line_with_icon(
-    icon: Icon,
-    label: impl Into<String>,
-    permission: &crate::ai::execution_profiles::ComputerUsePermission,
-    appearance: &Appearance,
-    is_ai_enabled: bool,
-) -> Box<dyn Element> {
-    let permission_text = match permission {
-        crate::ai::execution_profiles::ComputerUsePermission::Never
-        | crate::ai::execution_profiles::ComputerUsePermission::Unknown => "Never",
-        crate::ai::execution_profiles::ComputerUsePermission::AlwaysAsk => "Always ask",
-        crate::ai::execution_profiles::ComputerUsePermission::AlwaysAllow => "Always allow",
     };
     render_permission_line_with_icon(icon, label, permission_text, appearance, is_ai_enabled)
 }

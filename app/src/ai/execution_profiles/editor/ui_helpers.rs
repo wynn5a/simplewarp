@@ -1,6 +1,5 @@
 use thousands::Separable;
 use uuid::Uuid;
-use warp_core::features::FeatureFlag;
 use warpui::elements::{
     ChildView, ConstrainedBox, Container, CrossAxisAlignment, Dismiss, Flex, MouseStateHandle,
     ParentElement, Shrinkable, Text,
@@ -256,15 +255,6 @@ pub fn render_models_section(
         &view.full_terminal_use_model_dropdown,
     ));
 
-    if FeatureFlag::LocalComputerUse.is_enabled() {
-        column.add_child(render_filterable_dropdown_row(
-            appearance,
-            "Computer use model",
-            "The model used when the agent takes control of your computer to interact with graphical applications through mouse movements, clicks, and keyboard input.",
-            &view.computer_use_model_dropdown,
-        ));
-    }
-
     Container::new(column.finish())
         .with_margin_bottom(12.)
         .finish()
@@ -484,16 +474,6 @@ pub fn render_permissions_section(
         &view.write_to_pty_dropdown,
         profile_data.write_to_pty.description(),
     ));
-
-    if FeatureFlag::LocalComputerUse.is_enabled() {
-        column.add_child(render_permission_row(
-            appearance,
-            Icon::Laptop,
-            "Computer use",
-            &view.computer_use_dropdown,
-            profile_data.computer_use.description(),
-        ));
-    }
 
     column.add_child(render_permission_row(
         appearance,

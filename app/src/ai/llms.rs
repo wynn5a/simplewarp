@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::OnceLock;
 
 use ai::api_keys::{ApiKeyManager, ApiKeyManagerEvent, CustomEndpoint, CustomEndpointModel};
 pub use ai::{LLMId, LLMProvider};
@@ -403,7 +402,7 @@ impl AvailableLLMs {
 /// it eventually lets us add feature-specific properties to an [`LLMInfo`].
 ///
 /// NOTE: This used to include a `planning` field; this was removed after planning via subagent was
-/// deprecated.
+/// deprecated. `computer_use` went with computer use; cached copies that still carry it load fine.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ModelsByFeature {
     pub agent_mode: AvailableLLMs,
@@ -412,10 +411,6 @@ pub struct ModelsByFeature {
     /// This field is optional during deserialization, as older clients might not have this field.
     #[serde(default)]
     pub cli_agent: Option<AvailableLLMs>,
-    /// The set of LLMs available for computer use agent.
-    /// This field is optional during deserialization, as older clients might not have this field.
-    #[serde(default)]
-    pub computer_use: Option<AvailableLLMs>,
 }
 
 impl ModelsByFeature {
@@ -481,7 +476,6 @@ impl Default for ModelsByFeature {
             agent_mode: builtin_available_llms(),
             coding: builtin_available_llms(),
             cli_agent: Some(builtin_available_llms()),
-            computer_use: Some(builtin_available_llms()),
         }
     }
 }
@@ -720,49 +714,6 @@ impl LLMPreferences {
             .cli_agent
             .as_ref()
             .unwrap_or(&self.models_by_feature.agent_mode)
-    }
-
-    /// Returns the set of LLMs available for computer use agent.
-    pub fn get_computer_use_llm_choices(&self) -> impl Iterator<Item = &LLMInfo> {
-        self.get_computer_use_available().choices.iter()
-    }
-
-    /// Returns the `LLMInfo` for the computer use agent model.
-    pub fn get_active_computer_use_model<'a>(
-        &'a self,
-        app: &'a AppContext,
-        terminal_view_id: Option<EntityId>,
-    ) -> &'a LLMInfo {
-        let profile = AIExecutionProfilesModel::as_ref(app).active_profile(terminal_view_id, app);
-
-        let available = self.get_computer_use_available();
-        profile
-            .data()
-            .computer_use_model
-            .clone()
-            .and_then(|id| available.info_for_id(&id))
-            .unwrap_or_else(|| self.get_default_computer_use_model(app))
-    }
-
-    /// Returns the effective default computer use model as a fallback: the
-    /// server default when usable, else the first usable choice, else the
-    /// (possibly disabled) server default. No custom-endpoint fallback here:
-    /// custom models aren't offered for computer use.
-    pub fn get_default_computer_use_model(&self, app: &AppContext) -> &LLMInfo {
-        let available = self.get_computer_use_available();
-        available
-            .usable_default_llm_info(app)
-            .unwrap_or_else(|| available.default_llm_info())
-    }
-
-    /// Helper to get the AvailableLLMs for computer_use.
-    /// Falls back to a computer-use-specific default if None.
-    fn get_computer_use_available(&self) -> &AvailableLLMs {
-        static DEFAULT: OnceLock<AvailableLLMs> = OnceLock::new();
-        self.models_by_feature
-            .computer_use
-            .as_ref()
-            .unwrap_or_else(|| DEFAULT.get_or_init(builtin_available_llms))
     }
 
     /// Returns metadata about an LLM, if the client knows about it.
@@ -1116,14 +1067,6 @@ impl LLMPreferences {
                         {
                             profiles.set_cli_agent_model(&profile_id, None, ctx);
                         }
-                    }
-                    if let Some(preferred_llm_id) = &profile.data().computer_use_model
-                        && self
-                            .get_computer_use_available()
-                            .usable_info_for_id(preferred_llm_id, ctx)
-                            .is_none()
-                    {
-                        profiles.set_computer_use_model(&profile_id, None, ctx);
                     }
                 }
             }

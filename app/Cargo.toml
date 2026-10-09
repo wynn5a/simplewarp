@@ -69,7 +69,6 @@ cloud_objects.workspace = true
 command = { workspace = true }
 command-corrections.workspace = true
 command-signatures-v2 = { workspace = true, optional = true }
-computer_use.workspace = true
 crc.workspace = true
 content_inspector = "0.2.4"
 concat-idents.workspace = true
@@ -341,7 +340,6 @@ ai = { workspace = true, features = ["test-util"] }
 async-process.workspace = true
 cloud_object_models = { workspace = true, features = ["test-util"] }
 cloud_objects = { workspace = true, features = ["test-util"] }
-computer_use = { workspace = true, features = ["test-util"] }
 jsonschema = { workspace = true, default-features = false }
 async-executor = "1.5.1"
 command = { workspace = true, features = ["test-util"] }
@@ -380,8 +378,6 @@ ai_resume_button = []
 figma_detection = []
 bundled_skills = []
 agent_mode = []
-agent_mode_computer_use = []
-background_computer_use = []
 agent_mode_debug = []
 ask_user_question = []
 async_find = []
@@ -469,8 +465,6 @@ default = [
     "list_skills",
     "ask_user_question",
     "bundled_skills",
-    "agent_mode_computer_use",
-    "background_computer_use",
     "agent_view",
     "agent_view_block_context",
     "agent_view_conversation_list_view",
@@ -702,7 +696,6 @@ kitty_keyboard_protocol = []
 ligatures = []
 trim_trailing_blank_lines = []
 list_skills = []
-local_computer_use = []
 local_docker_sandbox = []
 jupyter_notebook_rendering = []
 markdown_tables = []

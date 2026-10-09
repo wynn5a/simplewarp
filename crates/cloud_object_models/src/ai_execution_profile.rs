@@ -6,7 +6,6 @@ use cloud_objects::ids::GenericStringObjectId;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use warp_core::features::FeatureFlag;
 
 use crate::{JsonModel, JsonSerializer};
 
@@ -69,42 +68,6 @@ impl WriteToPtyPermission {
             }
             WriteToPtyPermission::Unknown => ActionPermission::Unknown.description(),
         }
-    }
-
-    pub fn is_always_allow(&self) -> bool {
-        matches!(self, Self::AlwaysAllow)
-    }
-}
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ComputerUsePermission {
-    #[default]
-    Never,
-    AlwaysAsk,
-    AlwaysAllow,
-    // This is intended to catch deserialization errors whenever we add new variants to this enum.
-    #[serde(other)]
-    Unknown,
-}
-
-impl ComputerUsePermission {
-    pub fn description(&self) -> &'static str {
-        match self {
-            ComputerUsePermission::Never => {
-                "Computer use tools are disabled and will not be available to the Agent."
-            }
-            ComputerUsePermission::AlwaysAsk => {
-                "Require explicit approval before the Agent uses computer use tools."
-            }
-            ComputerUsePermission::AlwaysAllow => {
-                "Give the Agent full autonomy to use computer use tools without approval."
-            }
-            ComputerUsePermission::Unknown => "Unknown setting.",
-        }
-    }
-
-    pub fn is_enabled(&self) -> bool {
-        !matches!(self, Self::Never | Self::Unknown)
     }
 
     pub fn is_always_allow(&self) -> bool {
@@ -339,9 +302,9 @@ cfg_if::cfg_if! {
 /// Core data structure representing an AI execution profile, which includes model configuration,
 /// behavior settings, and permissions.
 ///
-/// NOTE: `planning_model` was removed after planning via subagent was deprecated; serialized legacy
-/// profiles may include a `planning_model` field and this field name should remain reserved
-/// indefinitely.
+/// NOTE: `planning_model` was removed after planning via subagent was deprecated, and
+/// `computer_use` / `computer_use_model` went with computer use; serialized legacy profiles may
+/// still include those fields and the names should remain reserved indefinitely.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AIExecutionProfile {
@@ -368,12 +331,9 @@ pub struct AIExecutionProfile {
     pub mcp_allowlist: Vec<uuid::Uuid>,
     pub mcp_denylist: Vec<uuid::Uuid>,
 
-    pub computer_use: ComputerUsePermission,
-
     pub base_model: Option<LLMId>,
     pub coding_model: Option<LLMId>,
     pub cli_agent_model: Option<LLMId>,
-    pub computer_use_model: Option<LLMId>,
 
     pub context_window_limit: Option<u32>,
 
@@ -401,11 +361,9 @@ impl Default for AIExecutionProfile {
             directory_allowlist: Vec::new(),
             mcp_allowlist: Vec::new(),
             mcp_denylist: Vec::new(),
-            computer_use: ComputerUsePermission::Never,
             base_model: None,
             coding_model: None,
             cli_agent_model: None,
-            computer_use_model: None,
             context_window_limit: None,
             autosync_plans_to_warp_drive: true,
             web_search_enabled: true,
@@ -431,11 +389,9 @@ impl AIExecutionProfile {
             directory_allowlist: Vec::new(),
             mcp_allowlist: Vec::new(),
             mcp_denylist: Vec::new(),
-            computer_use: ComputerUsePermission::Never,
             base_model: None,
             coding_model: None,
             cli_agent_model: None,
-            computer_use_model: None,
             context_window_limit: None,
             autosync_plans_to_warp_drive: false,
             web_search_enabled: true,
@@ -444,25 +400,11 @@ impl AIExecutionProfile {
 
     /// This creates a CLI-specific profile that will never ask the user for permission,
     /// since we cannot do so in a non-interactive setting.
-    pub fn create_default_cli_profile(
-        is_sandboxed: bool,
-        computer_use_override: Option<bool>,
-    ) -> Self {
+    pub fn create_default_cli_profile(is_sandboxed: bool) -> Self {
         let command_denylist = if is_sandboxed {
             Vec::new()
         } else {
             DEFAULT_COMMAND_EXECUTION_DENYLIST.to_vec()
-        };
-
-        let computer_use_permission = match computer_use_override {
-            Some(true) => {
-                if is_sandboxed || FeatureFlag::LocalComputerUse.is_enabled() {
-                    ComputerUsePermission::AlwaysAllow
-                } else {
-                    ComputerUsePermission::Never
-                }
-            }
-            Some(false) | None => ComputerUsePermission::Never,
         };
 
         Self {
@@ -480,11 +422,9 @@ impl AIExecutionProfile {
             directory_allowlist: Vec::new(),
             mcp_allowlist: Vec::new(),
             mcp_denylist: Vec::new(),
-            computer_use: computer_use_permission,
             base_model: None,
             coding_model: None,
             cli_agent_model: None,
-            computer_use_model: None,
             context_window_limit: None,
             autosync_plans_to_warp_drive: false,
             web_search_enabled: true,

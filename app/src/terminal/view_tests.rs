@@ -650,7 +650,6 @@ fn exchange_with_inputs(inputs: Vec<AIAgentInput>) -> AIAgentExchange {
         request_cost: None,
         coding_model_id: LLMId::from("test-coding-model"),
         cli_agent_model_id: LLMId::from("test-cli-agent-model"),
-        computer_use_model_id: LLMId::from("test-computer-use-model"),
     }
 }
 

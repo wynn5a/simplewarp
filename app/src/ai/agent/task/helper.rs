@@ -34,7 +34,6 @@ pub trait ToolExt {
 pub trait SubagentExt {
     fn is_cli(&self) -> bool;
     fn is_advice(&self) -> bool;
-    fn is_computer_use(&self) -> bool;
     fn is_summarization(&self) -> bool;
     fn is_conversation_search(&self) -> bool;
     fn is_warp_documentation_search(&self) -> bool;
@@ -160,15 +159,6 @@ impl SubagentExt for api::message::tool_call::Subagent {
             matches!(
                 metadata,
                 api::message::tool_call::subagent::Metadata::Advice(_)
-            )
-        })
-    }
-
-    fn is_computer_use(&self) -> bool {
-        self.metadata.as_ref().is_some_and(|metadata| {
-            matches!(
-                metadata,
-                api::message::tool_call::subagent::Metadata::ComputerUse(_)
             )
         })
     }

@@ -349,16 +349,6 @@ pub enum FeatureFlag {
     /// Enables agent tips displayed below the warping indicator in Agent Mode.
     AgentTips,
 
-    /// Allows agent mode to use computer use tools.
-    AgentModeComputerUse,
-
-    /// Enables computer use functionality in local clients.
-    LocalComputerUse,
-
-    /// Enables background, per-window computer use: driving a specific window directly without
-    /// raising it or moving the cursor.  Currently only supported on macOS.
-    BackgroundComputerUse,
-
     /// Enables the "New agent" prompt chip in terminal mode when AgentView is enabled.
     ///
     /// When disabled (the default), the terminal message bar is shown instead.
@@ -535,7 +525,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::RunGeneratorsWithCmdExe,
     FeatureFlag::Projects,
     FeatureFlag::FileGlobV2Warnings,
-    FeatureFlag::LocalComputerUse,
     // These are enabled via 100% experiment on prod warp-server,
     // but we need to enable here for dogfood builds.
     FeatureFlag::CrossRepoContext,

@@ -143,10 +143,6 @@ fn build_merged_config_and_task(
         profile_id: args.profile.clone(),
         worker_host: file_merged.worker_host,
         skill_spec: file_merged.skill_spec,
-        computer_use_enabled: args
-            .computer_use
-            .computer_use_override()
-            .or(file_merged.computer_use_enabled),
         harness: harness_override,
         harness_auth_secrets: None,
         additional_source_repos: None,
@@ -219,11 +215,7 @@ impl warpui::Entity for AgentDriverRunner {
 impl warpui::SingletonEntity for AgentDriverRunner {}
 
 impl AgentDriverRunner {
-    #[tracing::instrument(skip_all, err, fields(
-        args.sandboxed = args.sandboxed,
-        args.computer_use = args.computer_use.computer_use,
-        args.no_computer_use = args.computer_use.no_computer_use
-    ))]
+    #[tracing::instrument(skip_all, err, fields(args.sandboxed = args.sandboxed))]
     async fn setup_and_run_driver(
         foreground: ModelSpawner<Self>,
         args: RunAgentArgs,

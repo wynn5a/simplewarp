@@ -66,16 +66,9 @@ impl ProfileSource {
                     }
                 }
             }
-            LaunchMode::CommandLine {
-                is_sandboxed,
-                computer_use_override,
-                ..
-            } => Self::Cli {
+            LaunchMode::CommandLine { is_sandboxed, .. } => Self::Cli {
                 id: ExecutionProfileId::new(),
-                profile: AIExecutionProfile::create_default_cli_profile(
-                    *is_sandboxed,
-                    *computer_use_override,
-                ),
+                profile: AIExecutionProfile::create_default_cli_profile(*is_sandboxed),
                 local_profiles: stored_or_implicit_profiles(ctx),
             },
         }
@@ -439,27 +432,6 @@ impl AIExecutionProfilesModel {
         if let Some(_model_id) = &model_id {}
     }
 
-    pub fn set_computer_use_model(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        model_id: Option<LLMId>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.computer_use_model != model_id {
-                    profile.computer_use_model = model_id.clone();
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        if let Some(_model_id) = &model_id {}
-    }
-
     pub fn set_context_window_limit(
         &mut self,
         profile_id: &ExecutionProfileId,
@@ -594,31 +566,6 @@ impl AIExecutionProfilesModel {
             },
             ctx,
         );
-    }
-
-    pub fn set_computer_use(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        permission: &super::ComputerUsePermission,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let current_value = self
-            .get_profile_by_id(profile_id, ctx)
-            .map(|p| p.data().computer_use);
-
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.computer_use != *permission {
-                    profile.computer_use = *permission;
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        if current_value != Some(*permission) {}
     }
 
     pub fn set_ask_user_question(
@@ -918,7 +865,7 @@ impl AIExecutionProfilesModel {
         is_sandboxed: bool,
         ctx: &mut ModelContext<Self>,
     ) {
-        let cli_profile = AIExecutionProfile::create_default_cli_profile(is_sandboxed, None);
+        let cli_profile = AIExecutionProfile::create_default_cli_profile(is_sandboxed);
         self.edit_profile_internal(
             profile_id,
             move |profile| {

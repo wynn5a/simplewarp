@@ -159,7 +159,6 @@ fn create_exchange_with_query(
         request_cost: None,
         coding_model_id: LLMId::from("test-coding-model"),
         cli_agent_model_id: LLMId::from("test-cli-agent-model"),
-        computer_use_model_id: LLMId::from("test-computer-use-model"),
     }
 }
 
@@ -567,7 +566,6 @@ fn prompt_history_candidates_seeds_from_snapshot_then_appends_session_prompts() 
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
                 cli_agent_model_id: exchange.cli_agent_model_id,
-                computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
                 supported_tools_override: None,
             };
@@ -663,7 +661,6 @@ fn test_ai_queries_for_terminal_view_up_arrow_history() {
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
                 cli_agent_model_id: exchange.cli_agent_model_id,
-                computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
                 supported_tools_override: None,
             };
@@ -708,7 +705,6 @@ fn test_ai_queries_for_terminal_view_up_arrow_history() {
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
                 cli_agent_model_id: exchange.cli_agent_model_id,
-                computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
                 supported_tools_override: None,
             };
@@ -767,7 +763,6 @@ fn test_ai_queries_for_terminal_view_up_arrow_history() {
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
                 cli_agent_model_id: exchange.cli_agent_model_id,
-                computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
                 supported_tools_override: None,
             };
@@ -820,7 +815,6 @@ fn test_transcript_viewer_terminal_view_is_not_marked_historical() {
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
                 cli_agent_model_id: exchange.cli_agent_model_id,
-                computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
                 supported_tools_override: None,
             };
@@ -1248,7 +1242,6 @@ fn test_all_cleared_conversations_includes_terminal_view_id() {
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
                 cli_agent_model_id: exchange.cli_agent_model_id,
-                computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
                 supported_tools_override: None,
             };
@@ -1573,7 +1566,6 @@ fn test_truncate_from_exchange_to_empty_persist_event_has_empty_updated_tasks() 
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
                 cli_agent_model_id: exchange.cli_agent_model_id,
-                computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
                 supported_tools_override: None,
             };
@@ -1804,7 +1796,6 @@ fn test_initialize_output_for_response_stream_persists_updated_conversation_stat
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
                 cli_agent_model_id: exchange.cli_agent_model_id,
-                computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
                 supported_tools_override: None,
             };
@@ -1948,7 +1939,6 @@ fn test_find_by_token_after_initialize_output_for_response_stream() {
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
                 cli_agent_model_id: exchange.cli_agent_model_id,
-                computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
                 supported_tools_override: None,
             };
@@ -2074,7 +2064,6 @@ fn test_find_by_token_after_mark_conversations_historical_for_terminal_surface()
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
                 cli_agent_model_id: exchange.cli_agent_model_id,
-                computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
                 supported_tools_override: None,
             };
@@ -2775,7 +2764,6 @@ fn statuses_after_stream_error(
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
                 cli_agent_model_id: exchange.cli_agent_model_id,
-                computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
                 supported_tools_override: None,
             };
@@ -3476,7 +3464,6 @@ fn straddle_rewind_followup_requests_are_clean_and_durable() {
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
                 cli_agent_model_id: exchange.cli_agent_model_id,
-                computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
                 supported_tools_override: None,
             };

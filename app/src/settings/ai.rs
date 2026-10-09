@@ -1000,10 +1000,6 @@ impl AISettings {
         self.is_any_ai_enabled()
     }
 
-    pub fn is_computer_use_permissions_editable(&self) -> bool {
-        self.is_any_ai_enabled()
-    }
-
     pub fn is_read_files_permissions_editable(&self) -> bool {
         self.is_any_ai_enabled()
     }

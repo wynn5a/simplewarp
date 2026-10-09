@@ -114,11 +114,7 @@ impl DocumentActionPresentation {
                 | AIAgentActionType::OpenCodeReview
                 | AIAgentActionType::ReadDocuments(_)
                 | AIAgentActionType::ReadShellCommandOutput { .. }
-                | AIAgentActionType::UseComputer(_)
                 | AIAgentActionType::InsertCodeReviewComments { .. }
-                | AIAgentActionType::RequestComputerUse(_)
-                | AIAgentActionType::StartRecording { .. }
-                | AIAgentActionType::StopRecording { .. }
                 | AIAgentActionType::ReadSkill(_)
                 | AIAgentActionType::FetchConversation { .. }
                 | AIAgentActionType::SendMessageToAgent { .. }

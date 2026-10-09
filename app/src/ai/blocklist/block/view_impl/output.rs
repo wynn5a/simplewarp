@@ -8,7 +8,7 @@ use std::path::{Component, Path};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use ai::agent::action::{RequestComputerUseRequest, SuggestPromptRequest, UseComputerRequest};
+use ai::agent::action::SuggestPromptRequest;
 use ai::agent::document_action_presentation::DocumentActionPresentation;
 use ai::agent::file_locations::group_file_contexts_for_display;
 use ai::skills::{ParsedSkill, SkillReference};
@@ -17,7 +17,6 @@ use itertools::Itertools;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
-use ui_components::{Component as _, Options as _, button};
 use warp_core::channel::ChannelState;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_error;
@@ -59,7 +58,7 @@ use crate::ai::agent::{
     AIAgentActionType, AIAgentCitation, AIAgentInput, AIAgentOutputMessage,
     AIAgentOutputMessageType, AIAgentText, AIAgentTextSection, CancellationOutcome, MessageId,
     ReadFilesFailedFile, ReadFilesRequest, ReadFilesResult, RequestCommandOutputResult,
-    SearchCodebaseFailureReason, SearchCodebaseResult, StartRecordingResult, StopRecordingResult,
+    SearchCodebaseFailureReason, SearchCodebaseResult,
     SubagentCall, SubagentType, SuggestNewConversationResult, SummarizationType, TodoOperation,
 };
 use crate::ai::blocklist::action_model::AIActionStatus;
@@ -126,7 +125,6 @@ pub(crate) struct Props<'a> {
     pub(crate) model: &'a dyn AIBlockModel<View = AIBlock>,
     pub(super) state_handles: &'a AIBlockStateHandles,
     pub(super) action_buttons: &'a HashMap<AIAgentActionId, ActionButtons>,
-    pub(super) view_screenshot_buttons: &'a HashMap<AIAgentActionId, ui_components::button::Button>,
     pub(crate) action_model: &'a ModelHandle<BlocklistAIActionModel>,
     pub(crate) active_session: &'a ModelHandle<ActiveSession>,
     pub(super) editor_views: &'a [EmbeddedCodeEditorView],
@@ -684,35 +682,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             }
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::UseComputer(request),
-                            id,
-                            ..
-                        }) => {
-                            should_render_footer = false;
-                            output_items.add_child(render_use_computer(props, id, request, app));
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::StartRecording { summary },
-                            id,
-                            ..
-                        }) => {
-                            should_render_footer = false;
-                            output_items.add_child(render_start_recording(
-                                props,
-                                id,
-                                summary.as_deref(),
-                                app,
-                            ));
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::StopRecording { .. },
-                            id,
-                            ..
-                        }) => {
-                            should_render_footer = false;
-                            output_items.add_child(render_stop_recording(props, id, app));
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
                             action: AIAgentActionType::ReadSkill(request),
                             id,
                             ..
@@ -724,15 +693,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                 &request.skill,
                                 app,
                             ));
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::RequestComputerUse(request),
-                            id,
-                            ..
-                        }) => {
-                            should_render_footer = false;
-                            output_items
-                                .add_child(render_request_computer_use(props, id, request, app));
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
                             action: AIAgentActionType::RunAgents(_req),
@@ -1693,28 +1653,6 @@ fn render_read_skill(
     }
 
     renderable_action.render(app).finish()
-}
-
-/// Renders the small secondary button placed on the trailing edge of a
-/// [`RenderableAction`] row (e.g. "View screenshot", "Open recording").
-fn render_inline_action_secondary_button(
-    appearance: &Appearance,
-    button: &ui_components::button::Button,
-    label: &'static str,
-    on_click: ui_components::MouseEventHandler,
-) -> Box<dyn Element> {
-    button.render(
-        appearance,
-        button::Params {
-            content: button::Content::Label(label.into()),
-            theme: &button::themes::Secondary,
-            options: button::Options {
-                size: button::Size::Small,
-                on_click: Some(on_click),
-                ..button::Options::default(appearance)
-            },
-        },
-    )
 }
 
 /// Renders successful and failed file reads as separate sections in one widget.
@@ -2679,256 +2617,6 @@ fn render_read_mcp_resource(
             .with_header(blocked_action_header(
                 action_id.clone(),
                 "OK if I read this MCP resource?",
-                buttons.run_button.clone(),
-                buttons.cancel_button.clone(),
-                props.action_model,
-                props.model,
-                app,
-            ))
-            .with_highlighted_border()
-            .with_background_color(appearance.theme().background().into_solid());
-    } else {
-        if (props.model.status(app).is_streaming()
-            && !props.model.is_first_action_in_output(action_id, app))
-            || status.as_ref().is_some_and(|s| s.is_queued())
-        {
-            renderable_action = renderable_action.with_font_color(blended_colors::text_disabled(
-                appearance.theme(),
-                appearance.theme().surface_2(),
-            ));
-        }
-        renderable_action = renderable_action
-            .with_icon(action_icon(action_id, props.action_model, props.model, app).finish());
-    }
-
-    renderable_action.render(app).finish()
-}
-
-fn recording_summary(props: Props, agent_summary: Option<&str>, app: &AppContext) -> String {
-    let title = props
-        .model
-        .conversation(app)
-        .and_then(|conversation| conversation.title());
-    agent_summary
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .or_else(|| title.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-        .map(ToString::to_string)
-        .unwrap_or_else(|| "Recording computer-use session".to_string())
-}
-
-#[derive(Debug, PartialEq, Eq)]
-struct RecordingCardText {
-    primary: String,
-    subtext: Option<String>,
-}
-
-fn start_recording_card_text(
-    description: &str,
-    result: Option<&StartRecordingResult>,
-) -> RecordingCardText {
-    match result {
-        Some(StartRecordingResult::Success(_)) => RecordingCardText {
-            primary: "Recording started".to_string(),
-            subtext: Some(description.to_string()),
-        },
-        Some(StartRecordingResult::Error(error)) => RecordingCardText {
-            primary: "Recording failed to start".to_string(),
-            subtext: Some(error.clone()),
-        },
-        Some(StartRecordingResult::Cancelled) => RecordingCardText {
-            primary: "Recording cancelled".to_string(),
-            subtext: None,
-        },
-        None => RecordingCardText {
-            primary: "Starting recording".to_string(),
-            subtext: Some(description.to_string()),
-        },
-    }
-}
-
-fn stop_recording_card_text(result: Option<&StopRecordingResult>) -> RecordingCardText {
-    match result {
-        Some(StopRecordingResult::Success(stopped)) => {
-            let duration = format_video_duration(stopped.duration);
-            let subtext = if matches!(
-                stopped.completion_status,
-                computer_use::RecordingCompletionStatus::Completed
-            ) {
-                duration
-            } else {
-                // TODO(vkodithala): Switch to typed, user-facing termination copy once finalization emits structured reasons.
-                format!("Partial recording • {duration}")
-            };
-            RecordingCardText {
-                primary: "Recording saved".to_string(),
-                subtext: Some(subtext),
-            }
-        }
-        Some(StopRecordingResult::Error(_)) | Some(StopRecordingResult::Cancelled) => {
-            RecordingCardText {
-                primary: "Recording could not be saved".to_string(),
-                subtext: None,
-            }
-        }
-        Some(StopRecordingResult::Discarded) => RecordingCardText {
-            primary: "Recording discarded".to_string(),
-            subtext: None,
-        },
-        None => RecordingCardText {
-            primary: "Saving recording".to_string(),
-            subtext: None,
-        },
-    }
-}
-
-fn format_video_duration(duration: std::time::Duration) -> String {
-    let seconds = duration.as_secs();
-    format!("{}:{:02}", seconds / 60, seconds % 60)
-}
-
-fn recording_icon(app: &AppContext) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let color = appearance.theme().ansi_fg_red();
-    ConstrainedBox::new(Icon::CircleFilled.to_warpui_icon(color.into()).finish())
-        .with_width(icon_size(app))
-        .with_height(icon_size(app))
-        .finish()
-}
-
-fn recording_card(text: RecordingCardText, app: &AppContext) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-    let primary = Text::new(
-        text.primary,
-        appearance.ui_font_family(),
-        appearance.monospace_font_size(),
-    )
-    .with_color(blended_colors::text_main(theme, theme.background()))
-    .finish();
-    let mut body = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Start);
-    body.add_child(primary);
-    if let Some(subtext) = text.subtext.filter(|subtext| !subtext.trim().is_empty()) {
-        body.add_child(
-            Text::new(
-                subtext,
-                appearance.ui_font_family(),
-                appearance.ui_font_size(),
-            )
-            .with_color(blended_colors::text_disabled(theme, theme.surface_2()))
-            .finish(),
-        );
-    }
-
-    RenderableAction::new_with_element(body.finish(), app)
-        .with_icon(recording_icon(app))
-        .render(app)
-        .finish()
-}
-
-fn render_start_recording(
-    props: Props,
-    action_id: &AIAgentActionId,
-    agent_summary: Option<&str>,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let result = props
-        .action_model
-        .as_ref(app)
-        .get_action_result(action_id)
-        .and_then(|result| match &result.result {
-            AIAgentActionResultType::StartRecording(result) => Some(result),
-            _ => None,
-        });
-    let text = start_recording_card_text(&recording_summary(props, agent_summary, app), result);
-    recording_card(text, app)
-}
-
-fn render_stop_recording(
-    props: Props,
-    action_id: &AIAgentActionId,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let result = props
-        .action_model
-        .as_ref(app)
-        .get_action_result(action_id)
-        .and_then(|result| match &result.result {
-            AIAgentActionResultType::StopRecording(result) => Some(result),
-            _ => None,
-        });
-    recording_card(stop_recording_card_text(result), app)
-}
-
-fn render_use_computer(
-    props: Props,
-    action_id: &AIAgentActionId,
-    request: &UseComputerRequest,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::handle(app).as_ref(app);
-
-    let mut renderable_action = RenderableAction::new(&request.action_summary, app)
-        .with_icon(action_icon(action_id, props.action_model, props.model, app).finish());
-
-    // Add a "View screenshot" button if the action result contains a screenshot.
-    let has_screenshot = props
-        .action_model
-        .as_ref(app)
-        .get_action_result(action_id)
-        .is_some_and(|result| {
-            matches!(
-                &result.result,
-                AIAgentActionResultType::UseComputer(
-                    crate::ai::agent::UseComputerResult::Success(action_result)
-                ) if action_result.screenshot.is_some()
-            )
-        });
-
-    if has_screenshot {
-        let action_id_clone = action_id.clone();
-        let view_screenshot_button = props.view_screenshot_buttons.get(action_id).map(|btn| {
-            render_inline_action_secondary_button(
-                appearance,
-                btn,
-                "View screenshot",
-                Box::new(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(AIBlockAction::ViewScreenshot {
-                        action_id: action_id_clone.clone(),
-                    });
-                }),
-            )
-        });
-
-        if let Some(button_element) = view_screenshot_button {
-            renderable_action = renderable_action.with_action_button(button_element);
-        }
-    }
-
-    renderable_action.render(app).finish()
-}
-
-fn render_request_computer_use(
-    props: Props,
-    action_id: &AIAgentActionId,
-    request: &RequestComputerUseRequest,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let status = props.action_model.as_ref(app).get_action_status(action_id);
-
-    let mut renderable_action = RenderableAction::new(&request.task_summary, app);
-
-    if status.as_ref().is_some_and(|status| status.is_blocked()) {
-        let buttons = props
-            .action_buttons
-            .get(action_id)
-            .expect("Button states must exist for each requested action.");
-
-        renderable_action = renderable_action
-            .with_header(blocked_action_header(
-                action_id.clone(),
-                "OK if I use computer control for this task?",
                 buttons.run_button.clone(),
                 buttons.cancel_button.clone(),
                 props.action_model,

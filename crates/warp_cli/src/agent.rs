@@ -72,28 +72,6 @@ impl PromptArg {
     }
 }
 
-/// Hidden variant of [`ComputerUseArgs`] for commands where computer use flags
-/// should be accepted but not shown in help output.
-#[derive(Debug, Clone, Args, Default)]
-pub struct HiddenComputerUseArgs {
-    /// Enable computer use capabilities for this agent run.
-    #[arg(long = "computer-use", conflicts_with = "no_computer_use", hide = true)]
-    pub computer_use: bool,
-
-    /// Disable computer use capabilities for this agent run.
-    #[arg(long = "no-computer-use", conflicts_with = "computer_use", hide = true)]
-    pub no_computer_use: bool,
-}
-
-impl HiddenComputerUseArgs {
-    pub fn computer_use_override(&self) -> Option<bool> {
-        match (self.computer_use, self.no_computer_use) {
-            (true, false) => Some(true),
-            (false, true) => Some(false),
-            _ => None,
-        }
-    }
-}
 const HARNESS_VALUE_VARIANTS: [Harness; 5] = [
     Harness::Oz,
     Harness::Claude,
@@ -329,9 +307,6 @@ pub struct RunAgentArgs {
     /// Whether we are running the agent in a sandboxed environment.
     #[arg(long = "sandboxed", hide = true)]
     pub sandboxed: bool,
-
-    #[command(flatten)]
-    pub computer_use: HiddenComputerUseArgs,
 
     /// Local agent profile to run with, by ID or name (see `agent profile list`).
     #[arg(long = "profile", value_name = "PROFILE")]

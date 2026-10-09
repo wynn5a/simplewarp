@@ -177,7 +177,6 @@ fn cli_launch_mode() -> LaunchMode {
         global_options: warp_cli::GlobalOptions::default(),
         debug: false,
         is_sandboxed: true,
-        computer_use_override: None,
     }
 }
 

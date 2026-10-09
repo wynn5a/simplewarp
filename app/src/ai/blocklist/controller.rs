@@ -163,7 +163,6 @@ pub struct RequestInput {
     pub model_id: LLMId,
     pub coding_model_id: LLMId,
     pub cli_agent_model_id: LLMId,
-    pub computer_use_model_id: LLMId,
     pub request_start_ts: DateTime<Local>,
     pub supported_tools_override: Option<Vec<ToolType>>,
 }
@@ -233,10 +232,6 @@ impl RequestInput {
             .get_active_cli_agent_model(app, Some(terminal_surface_id))
             .id
             .clone();
-        let computer_use_model_id = llm_prefs
-            .get_active_computer_use_model(app, Some(terminal_surface_id))
-            .id
-            .clone();
         let working_directory = active_session
             .as_ref(app)
             .current_working_directory()
@@ -249,7 +244,6 @@ impl RequestInput {
             model_id,
             coding_model_id,
             cli_agent_model_id,
-            computer_use_model_id,
             request_start_ts: Local::now(),
             supported_tools_override: None,
         }
@@ -1466,18 +1460,6 @@ impl BlocklistAIController {
         )
     }
 
-    /// Set the ID of the ambient agent task which owns this controller and its backing session.
-    pub fn set_ambient_agent_task_id(
-        &mut self,
-        id: Option<AmbientAgentTaskId>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.ambient_agent_task_id = id;
-        self.action_model.update(ctx, |action_model, ctx| {
-            action_model.set_ambient_agent_task_id(id, ctx);
-        });
-    }
-
     #[cfg(test)]
     pub fn get_ambient_agent_task_id(&self) -> Option<AmbientAgentTaskId> {
         self.ambient_agent_task_id
@@ -1792,14 +1774,6 @@ impl BlocklistAIController {
         reason: CancellationReason,
         ctx: &mut ModelContext<Self>,
     ) {
-        // Restore the user's keyboard focus if a background computer-use session is still active
-        // for this conversation. ctrl-c / stop / pane-close all funnel through here, and on
-        // cancellation the computer-use subagent never produces a normal SubagentResult, so the
-        // normal-completion teardown in `Conversation` is skipped. Scoped to this conversation so a
-        // concurrent background session in another conversation is left intact; idempotent and a
-        // no-op when this conversation has no active background session.
-        computer_use::end_background_session(&conversation_id.to_string());
-
         // Cancel any pending auto-resume for this conversation.
         if let Some(handle) = self.pending_auto_resume_handles.remove(&conversation_id) {
             handle.abort();

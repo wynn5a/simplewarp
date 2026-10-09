@@ -9,13 +9,11 @@ pub(super) mod read_documents;
 pub(super) mod read_files;
 pub(super) mod read_mcp_resource;
 pub(super) mod read_skill;
-pub(super) mod request_computer_use;
 pub(super) mod request_file_edits;
 pub(super) mod search_codebase;
 pub(super) mod shell_command;
 pub(super) mod suggest_new_conversation;
 pub(super) mod suggest_prompt;
-pub(super) mod use_computer;
 pub(super) mod wait_for_events;
 
 use std::any::Any;
@@ -24,8 +22,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use ai::agent::action_result::{
-    InsertReviewCommentsResult, RequestCommandOutputResult, RunAgentsResult, StartRecordingResult,
-    StopRecordingResult,
+    InsertReviewCommentsResult, RequestCommandOutputResult, RunAgentsResult,
 };
 pub use ask_user_question::AskUserQuestionExecutor;
 use call_mcp_tool::CallMCPToolExecutor;
@@ -43,14 +40,12 @@ use read_documents::ReadDocumentsExecutor;
 pub(super) use read_files::ReadFilesExecutor;
 use read_mcp_resource::ReadMCPResourceExecutor;
 use read_skill::ReadSkillExecutor;
-use request_computer_use::RequestComputerUseExecutor;
 pub use request_file_edits::RequestFileEditsExecutor;
 use serde::{Deserialize, Serialize};
 pub use shell_command::{ShellCommandExecutor, ShellCommandExecutorEvent};
 pub use suggest_new_conversation::NewConversationDecision;
 use suggest_new_conversation::SuggestNewConversationExecutor;
 pub use suggest_prompt::PromptSuggestionExecutor;
-use use_computer::UseComputerExecutor;
 use wait_for_events::WaitForEventsExecutor;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_files::{FileModel, TextFileReadResult};
@@ -67,7 +62,6 @@ use crate::ai::agent::{
     AIAgentActionType, AIAgentActionTypeDiscriminants, AnyFileContent, CancellationReason,
     FileContext, FileLocations, ReadFilesFailedFile, SendMessageToAgentResult, ServerOutputId,
 };
-use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
 use crate::ai::paths::host_native_absolute_path;
 use crate::terminal::model::session::active_session::ActiveSession;
@@ -232,8 +226,6 @@ pub struct BlocklistAIActionExecutor {
     read_documents_executor: ModelHandle<ReadDocumentsExecutor>,
     edit_documents_executor: ModelHandle<EditDocumentsExecutor>,
     create_documents_executor: ModelHandle<CreateDocumentsExecutor>,
-    use_computer_executor: ModelHandle<UseComputerExecutor>,
-    request_computer_use_executor: ModelHandle<RequestComputerUseExecutor>,
     read_skill_executor: ModelHandle<ReadSkillExecutor>,
     fetch_conversation_executor: ModelHandle<FetchConversationExecutor>,
     ask_user_question_executor: ModelHandle<AskUserQuestionExecutor>,
@@ -290,9 +282,6 @@ impl BlocklistAIActionExecutor {
         let edit_documents_executor = ctx.add_model(|_| EditDocumentsExecutor::new());
         let create_documents_executor = ctx
             .add_model(|_| CreateDocumentsExecutor::new(active_session.clone(), terminal_view_id));
-        let use_computer_executor = ctx.add_model(|_| UseComputerExecutor::new());
-        let request_computer_use_executor =
-            ctx.add_model(|_| RequestComputerUseExecutor::new(terminal_view_id));
         let read_skill_executor = ctx.add_model(|_| ReadSkillExecutor::new(active_session.clone()));
         let fetch_conversation_executor = ctx.add_model(|_| FetchConversationExecutor::new());
         let ask_user_question_executor =
@@ -313,8 +302,6 @@ impl BlocklistAIActionExecutor {
             read_documents_executor,
             edit_documents_executor,
             create_documents_executor,
-            use_computer_executor,
-            request_computer_use_executor,
             async_executing_actions: Default::default(),
             read_skill_executor,
             fetch_conversation_executor,
@@ -402,17 +389,6 @@ impl BlocklistAIActionExecutor {
         &self.ask_user_question_executor
     }
 
-    pub fn set_ambient_agent_task_id(
-        &self,
-        id: Option<AmbientAgentTaskId>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.request_computer_use_executor
-            .update(ctx, |executor, _| {
-                executor.set_ambient_agent_task_id(id);
-            });
-    }
-
     pub fn preprocess_action(
         &self,
         action: &AIAgentAction,
@@ -470,15 +446,6 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::CreateDocuments(_) => self
                 .create_documents_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::UseComputer(_) => self
-                .use_computer_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::RequestComputerUse(_) => self
-                .request_computer_use_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::StartRecording { .. } | AIAgentActionType::StopRecording { .. } => {
-                futures::future::ready(()).boxed()
-            }
             AIAgentActionType::ReadSkill(_) => self
                 .read_skill_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
@@ -638,26 +605,6 @@ impl BlocklistAIActionExecutor {
                     executor.execute(input, conversation_id, ctx)
                 })
                 .into(),
-            AIAgentActionType::UseComputer(_) => self
-                .use_computer_executor
-                .update(ctx, |executor, _| executor.execute(input))
-                .into(),
-            AIAgentActionType::RequestComputerUse(_) => self
-                .request_computer_use_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
-            AIAgentActionType::StartRecording { .. } => {
-                ActionExecution::<()>::Sync(AIAgentActionResultType::StartRecording(
-                    StartRecordingResult::Error(RECORDING_UNAVAILABLE.to_string()),
-                ))
-                .into()
-            }
-            AIAgentActionType::StopRecording { .. } => {
-                ActionExecution::<()>::Sync(AIAgentActionResultType::StopRecording(
-                    StopRecordingResult::Error(RECORDING_UNAVAILABLE.to_string()),
-                ))
-                .into()
-            }
             AIAgentActionType::ReadSkill(_) => self
                 .read_skill_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
@@ -897,15 +844,6 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::CreateDocuments(_) => self
                 .create_documents_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::UseComputer(_) => self
-                .use_computer_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::RequestComputerUse(_) => self
-                .request_computer_use_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::StartRecording { .. } | AIAgentActionType::StopRecording { .. } => {
-                true
-            }
             AIAgentActionType::ReadSkill(_) => self
                 .read_skill_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
@@ -950,10 +888,6 @@ pub enum BlocklistAIActionExecutorEvent {
         base_branch: Option<String>,
     },
 }
-
-/// Recordings were published only as server conversation artifacts, so the recording actions
-/// fail without capturing anything.
-const RECORDING_UNAVAILABLE: &str = "Screen recording is not available in this build.";
 
 /// Per-file byte limit for [`read_local_file_context`]. Binary files larger
 /// than this are skipped; text files are truncated at this limit.

@@ -300,7 +300,6 @@ impl Task {
             model_id: existing_exchange.model_id.clone(),
             coding_model_id: existing_exchange.coding_model_id.clone(),
             cli_agent_model_id: existing_exchange.cli_agent_model_id.clone(),
-            computer_use_model_id: existing_exchange.computer_use_model_id.clone(),
             request_cost: None,
         };
         new_exchange
@@ -433,7 +432,6 @@ impl Task {
             model_id: existing_exchange.model_id.clone(),
             coding_model_id: existing_exchange.coding_model_id.clone(),
             cli_agent_model_id: existing_exchange.cli_agent_model_id.clone(),
-            computer_use_model_id: existing_exchange.computer_use_model_id.clone(),
             request_cost: None,
         };
         new_exchange
@@ -491,16 +489,6 @@ impl Task {
                 .subagent_params
                 .as_ref()
                 .is_some_and(|params| params.call.is_advice()),
-            TaskImpl::Optimistic(_) => false,
-        }
-    }
-
-    pub fn is_computer_use_subagent(&self) -> bool {
-        match &self.data {
-            TaskImpl::Server(server_data) => server_data
-                .subagent_params
-                .as_ref()
-                .is_some_and(|params| params.call.is_computer_use()),
             TaskImpl::Optimistic(_) => false,
         }
     }

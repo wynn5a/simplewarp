@@ -117,7 +117,6 @@ dependencies = [
  "bytes",
  "cfg-if",
  "chrono",
- "computer_use",
  "derivative",
  "dirs 6.0.0",
  "dunce",
@@ -2297,16 +2296,6 @@ dependencies = [
  "ryu",
  "serde",
  "static_assertions",
-]
-
-[[package]]
-name = "computer_use"
-version = "0.0.0"
-dependencies = [
- "async-trait",
- "pathfinder_geometry",
- "serde",
- "serde_with",
 ]
 
 [[package]]
@@ -11855,7 +11844,6 @@ dependencies = [
  "command",
  "command-corrections",
  "command-signatures-v2",
- "computer_use",
  "concat-idents",
  "content_inspector",
  "core-foundation 0.10.1",

@@ -69,7 +69,6 @@ pub async fn generate_multi_agent_output(
             model_config: Some(api::request::settings::ModelConfig {
                 base: params.model.into(),
                 cli_agent: params.cli_agent_model.into(),
-                computer_use_agent: params.computer_use_model.into(),
                 base_model_context_window_limit: params.context_window_limit.unwrap_or(0),
                 ..Default::default()
             }),
@@ -105,8 +104,7 @@ pub async fn generate_multi_agent_output(
             supports_research_agent: params.research_agent_enabled,
             supports_orchestration_v2: false,
             supports_orchestration_runners: false,
-            supports_background_computer_use: FeatureFlag::BackgroundComputerUse.is_enabled()
-                && computer_use::background_supported(),
+            supports_background_computer_use: false,
             custom_model_providers: params.custom_model_providers,
             custom_model_routers: None,
         }),
@@ -265,11 +263,6 @@ fn get_supported_tools(params: &RequestParams) -> Vec<api::ToolType> {
             ]);
         }
         Some(SessionType::WarpifiedRemote) => {}
-    }
-
-    if FeatureFlag::AgentModeComputerUse.is_enabled() && params.computer_use_enabled {
-        supported_tools.extend(&[api::ToolType::UseComputer]);
-        supported_tools.extend(&[api::ToolType::RequestComputerUse]);
     }
 
     supported_tools.push(api::ToolType::InsertReviewComments);

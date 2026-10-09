@@ -82,7 +82,6 @@ pub struct RequestParams {
     #[allow(unused)]
     pub coding_model: LLMId,
     pub cli_agent_model: LLMId,
-    pub computer_use_model: LLMId,
     pub is_memory_enabled: bool,
     /// The user's own rules (the Knowledge page), as (name, content). Empty when rules are off.
     /// The Warp server used to read these from the user's account; the local adapter reads them
@@ -102,7 +101,6 @@ pub struct RequestParams {
     pub autonomy_level: warp_multi_agent_api::AutonomyLevel,
     pub isolation_level: warp_multi_agent_api::IsolationLevel,
     pub web_search_enabled: bool,
-    pub computer_use_enabled: bool,
     pub ask_user_question_enabled: bool,
     pub research_agent_enabled: bool,
     pub supported_tools_override: Option<Vec<warp_multi_agent_api::ToolType>>,
@@ -160,7 +158,6 @@ impl RequestParams {
             model: LLMId::from("test-model"),
             coding_model: LLMId::from("test-model"),
             cli_agent_model: LLMId::from("test-model"),
-            computer_use_model: LLMId::from("test-model"),
             is_memory_enabled: false,
             global_rules: vec![],
             context_window_limit: None,
@@ -173,7 +170,6 @@ impl RequestParams {
             autonomy_level: Default::default(),
             isolation_level: Default::default(),
             web_search_enabled: false,
-            computer_use_enabled: false,
             ask_user_question_enabled: false,
             research_agent_enabled: false,
             supported_tools_override: None,
@@ -291,13 +287,6 @@ impl RequestParams {
             .flatten()
             .and_then(|s| s.parse().ok())
             .unwrap_or_default();
-        let is_ambient_agent = conversation.ambient_agent_task_id.is_some();
-        let computer_use_enabled = FeatureFlag::AgentModeComputerUse.is_enabled()
-            && BlocklistAIPermissions::as_ref(app)
-                .get_computer_use_setting(app, terminal_view_id)
-                .is_enabled()
-            && computer_use::is_supported_on_current_platform()
-            && (FeatureFlag::LocalComputerUse.is_enabled() || is_ambient_agent);
         let ask_user_question_enabled = BlocklistAIPermissions::as_ref(app)
             .get_ask_user_question_setting(app, terminal_view_id)
             != crate::ai::execution_profiles::AskUserQuestionPermission::Never;
@@ -326,7 +315,6 @@ impl RequestParams {
             model: request_input.model_id.clone(),
             coding_model: request_input.coding_model_id.clone(),
             cli_agent_model: request_input.cli_agent_model_id.clone(),
-            computer_use_model: request_input.computer_use_model_id.clone(),
             is_memory_enabled,
             global_rules,
             mcp_context,
@@ -340,7 +328,6 @@ impl RequestParams {
             autonomy_level,
             isolation_level,
             web_search_enabled,
-            computer_use_enabled,
             ask_user_question_enabled,
             research_agent_enabled,
             supported_tools_override: request_input.supported_tools_override.clone(),

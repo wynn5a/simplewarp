@@ -1550,25 +1550,6 @@ impl AIConversation {
         })
     }
 
-    /// Returns an iterator over the IDs of all UseComputer actions across all exchanges
-    /// in this conversation.
-    pub fn use_computer_action_ids(&self) -> impl Iterator<Item = AIAgentActionId> + '_ {
-        self.all_exchanges().into_iter().flat_map(|exchange| {
-            exchange
-                .output_status
-                .output()
-                .into_iter()
-                .flat_map(|output| {
-                    output
-                        .get()
-                        .actions()
-                        .filter(|a| matches!(a.action, super::AIAgentActionType::UseComputer(_)))
-                        .map(|a| a.id.clone())
-                        .collect::<Vec<_>>()
-                })
-        })
-    }
-
     pub fn contains_action(&self, action_id: &AIAgentActionId) -> bool {
         self.task_store.tasks().any(|task| {
             task.exchanges()
@@ -1630,7 +1611,6 @@ impl AIConversation {
             model_id,
             coding_model_id,
             cli_agent_model_id,
-            computer_use_model_id,
             request_start_ts,
             ..
         } = request_input;
@@ -1653,7 +1633,6 @@ impl AIConversation {
                 model_id: model_id.clone(),
                 coding_model_id: coding_model_id.clone(),
                 cli_agent_model_id: cli_agent_model_id.clone(),
-                computer_use_model_id: computer_use_model_id.clone(),
                 request_cost: None,
             };
 
@@ -2320,8 +2299,7 @@ impl AIConversation {
                         );
 
                         // Subtasks can come pre-populated with messages (for example: an advice subagent
-                        // or computer use subagent task created with an initial tool call already present
-                        // in its task messages).
+                        // task created with an initial tool call already present in its task messages).
                         //
                         // In those cases, we need to ensure an AI block is created for the subtask's
                         // initial exchange; otherwise the first tool call/result can be "lost" from the
@@ -2330,7 +2308,6 @@ impl AIConversation {
                         // TODO(QUALITY-276): We should check if we can generally add exchanges from any
                         // subtask, or if that breaks things (e.g. in the CLI subagent).
                         let initial_exchange_ids: Vec<_> = if subtask.is_advice_subagent()
-                            || subtask.is_computer_use_subagent()
                             || subtask.is_conversation_search_subagent()
                         {
                             subtask.exchanges().map(|e| e.id).collect()
@@ -2523,15 +2500,6 @@ impl AIConversation {
                                     &task_id,
                                     &self.task_store,
                                 );
-                                // A computer-use subagent finishing normally ends its background
-                                // session; restore the user's keyboard focus so it no longer
-                                // targets the driven window. Scoped to this conversation so a
-                                // concurrent background session in another conversation is left
-                                // intact. Idempotent and a no-op when this conversation has no
-                                // active background session (e.g. other subagent types). The
-                                // ctrl-c / cancel path, where no SubagentResult is produced, is
-                                // handled in `BlocklistAIController::cancel_conversation_progress`.
-                                computer_use::end_background_session(&self.id.to_string());
                             }
                         }
                         Some(api::message::Message::ModelUsed(model_used)) => {

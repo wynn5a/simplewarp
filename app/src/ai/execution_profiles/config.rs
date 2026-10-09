@@ -14,7 +14,7 @@ use itertools::Itertools as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use super::{
-    AIExecutionProfile, ActionPermission, AskUserQuestionPermission, ComputerUsePermission,
+    AIExecutionProfile, ActionPermission, AskUserQuestionPermission,
     RunAgentsPermission, WriteToPtyPermission,
 };
 use crate::ai::llms::LLMId;
@@ -421,43 +421,6 @@ impl From<FileRunAgentsPermission> for RunAgentsPermission {
     }
 }
 
-// Domain-only `Unknown` values fail closed to `never`.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[schemars(
-    description = "File-safe representation of computer-use permissions.",
-    rename_all = "snake_case"
-)]
-enum FileComputerUsePermission {
-    #[schemars(description = "Computer use is disabled.")]
-    #[default]
-    Never,
-    #[schemars(description = "Each computer-use request requires approval.")]
-    AlwaysAsk,
-    #[schemars(description = "Computer use may proceed without approval.")]
-    AlwaysAllow,
-}
-
-impl From<ComputerUsePermission> for FileComputerUsePermission {
-    fn from(value: ComputerUsePermission) -> Self {
-        match value {
-            ComputerUsePermission::Never | ComputerUsePermission::Unknown => Self::Never,
-            ComputerUsePermission::AlwaysAsk => Self::AlwaysAsk,
-            ComputerUsePermission::AlwaysAllow => Self::AlwaysAllow,
-        }
-    }
-}
-
-impl From<FileComputerUsePermission> for ComputerUsePermission {
-    fn from(value: FileComputerUsePermission) -> Self {
-        match value {
-            FileComputerUsePermission::Never => Self::Never,
-            FileComputerUsePermission::AlwaysAsk => Self::AlwaysAsk,
-            FileComputerUsePermission::AlwaysAllow => Self::AlwaysAllow,
-        }
-    }
-}
-
 // `is_default_profile` is omitted because the containing map key owns that
 // invariant. String-backed regex and UUID fields are validated while converting
 // back to [`AIExecutionProfile`].
@@ -491,16 +454,12 @@ struct ExecutionProfileFile {
     mcp_allowlist: Vec<String>,
     #[schemars(description = "MCP server IDs that must require approval.")]
     mcp_denylist: Vec<String>,
-    #[schemars(description = "Permission to use the computer-use tool.")]
-    computer_use: FileComputerUsePermission,
     #[schemars(description = "Optional base-model override.")]
     base_model: Option<String>,
     #[schemars(description = "Optional coding-model override.")]
     coding_model: Option<String>,
     #[schemars(description = "Optional full-terminal-use model override.")]
     cli_agent_model: Option<String>,
-    #[schemars(description = "Optional computer-use model override.")]
-    computer_use_model: Option<String>,
     #[schemars(
         description = "Optional context window limit in tokens. The valid range is model-dependent and determined server-side; the value is automatically clamped to the selected model's supported context window. Consult the selected model's documentation for its actual supported range."
     )]
@@ -549,11 +508,9 @@ impl From<&AIExecutionProfile> for ExecutionProfileFile {
                 .iter()
                 .map(ToString::to_string)
                 .collect(),
-            computer_use: profile.computer_use.into(),
             base_model: profile.base_model.clone().map(Into::into),
             coding_model: profile.coding_model.clone().map(Into::into),
             cli_agent_model: profile.cli_agent_model.clone().map(Into::into),
-            computer_use_model: profile.computer_use_model.clone().map(Into::into),
             context_window_limit: profile.context_window_limit,
             autosync_plans_to_warp_drive: profile.autosync_plans_to_warp_drive,
             web_search_enabled: profile.web_search_enabled,
@@ -600,11 +557,9 @@ impl TryFrom<ExecutionProfileFile> for AIExecutionProfile {
             directory_allowlist: file.directory_allowlist,
             mcp_allowlist: parse_uuids(file.mcp_allowlist)?,
             mcp_denylist: parse_uuids(file.mcp_denylist)?,
-            computer_use: file.computer_use.into(),
             base_model: file.base_model.map(LLMId::from),
             coding_model: file.coding_model.map(LLMId::from),
             cli_agent_model: file.cli_agent_model.map(LLMId::from),
-            computer_use_model: file.computer_use_model.map(LLMId::from),
             context_window_limit: file.context_window_limit,
             autosync_plans_to_warp_drive: file.autosync_plans_to_warp_drive,
             web_search_enabled: file.web_search_enabled,

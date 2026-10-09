@@ -219,14 +219,8 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::InteractiveConversationManagementView,
         #[cfg(feature = "agent_tips")]
         FeatureFlag::AgentTips,
-        #[cfg(feature = "agent_mode_computer_use")]
-        FeatureFlag::AgentModeComputerUse,
-        #[cfg(feature = "local_computer_use")]
-        FeatureFlag::LocalComputerUse,
         #[cfg(feature = "local_docker_sandbox")]
         FeatureFlag::LocalDockerSandbox,
-        #[cfg(feature = "background_computer_use")]
-        FeatureFlag::BackgroundComputerUse,
         #[cfg(feature = "agent_toolbar_editor")]
         FeatureFlag::AgentToolbarEditor,
         #[cfg(feature = "configurable_toolbar")]
@@ -342,22 +336,6 @@ mod tests {
             FeatureFlag::UseTantivySearch,
         ] {
             assert!(enabled.contains(&flag), "{flag:?} should be enabled");
-        }
-    }
-
-    // The local agent never offers the model a computer-use tool, so SimpleWarp ships none of its
-    // surface (the permission rows, the request and result blocks).
-    #[test]
-    #[cfg(feature = "simplewarp")]
-    fn simplewarp_leaves_computer_use_off() {
-        use super::*;
-        let enabled = enabled_features();
-        for flag in [
-            FeatureFlag::AgentModeComputerUse,
-            FeatureFlag::LocalComputerUse,
-            FeatureFlag::BackgroundComputerUse,
-        ] {
-            assert!(!enabled.contains(&flag), "{flag:?} should be off");
         }
     }
 }
