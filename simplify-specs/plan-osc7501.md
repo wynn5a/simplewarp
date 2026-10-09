@@ -37,10 +37,10 @@ an unknown `state` drops the whole report; a malformed report is skipped.
 | `state` | required | `idle`, `working`, `done`, `blocked`, `error` |
 | `id` | path | `/`-separated hierarchy, `build/test` is a child of `build`; parent need not exist; absent = root record; ≤128 B total |
 | `kind` | enum, only with `blocked` | `permission`, `question`, `auth` |
-| `progress` | int 0–100 | only meaningful with `working`; absent = indeterminate |
+| `progress` | int 0–100 | only with `working` or `blocked`, ignored otherwise; anything else is treated as absent (not clamped) |
 | `app` | `[A-Za-z0-9_.+-]{1,32}` | stable machine-readable name |
-| `title`, `msg` | base64 of UTF-8 | `msg` decoded ≤2048 B; MUST refuse a report whose decoded text contains a control character |
-| `clear` | not a state | removes the addressed record **and every record beneath it** |
+| `title`, `msg` | base64 of UTF-8 | `msg` ≤2048 B decoded, `title` ≤192 B decoded; a report is discarded whole if over a limit, bad base64, or decoded text contains a control character |
+| `state=clear` | a state | removes the addressed record **and every record beneath it**; with no `id`, every record on the terminal |
 
 Semantics that drive the code:
 - Each report **completely replaces** its record (no field merging).
@@ -89,18 +89,18 @@ New `app/src/terminal/program_status/protocol.rs`:
 - `fn parse(body: &[u8]) -> Option<ProgramStatusReport>` — split pairs on `:`, split each on the first `=`; ignore unknown keys; return `None` on unknown `state`, over-limit sequence, non-UTF-8, or a decoded `msg`/`title` containing a control char. Base64: try padded `STANDARD`, then `NO_PAD` (shell `base64 | tr -d '\n'` produces both shapes depending on platform).
 - Limit consts from the spec: `MAX_SEQUENCE_BYTES = 4096`, `MAX_MSG_BYTES = 2048`, `MAX_ID_BYTES = 128`, `MAX_RECORDS = 256`.
 
-Pinned parsing rules (each one gets a test; confirm the ones marked * against the spec text before coding):
-- `kind` with a state other than `blocked` → field ignored*. `progress` with a state other than `working` → field ignored*; non-integer or out of 0–100 → clamp to 0–100 if numeric, ignore the field if not an integer*.
-- `id`: reject empty segments (`a//b`, leading/trailing `/`)* and anything over `MAX_ID_BYTES`.
-- `title` is capped like `msg` (`MAX_MSG_BYTES`), and both are refused if the decoded text contains a C0/C1 control character or a bidi control (U+202A–202E, U+2066–2069, U+200E/F).
-- A `;` inside the rejoined body is a malformed report → `None` (values contain no `;`).
+Pinned parsing rules (each has a test; confirmed against the spec text):
+- `kind` with a state other than `blocked` → ignored; unrecognized → absent. `progress` with a state other than `working`/`blocked` → ignored; non-integer or out of 0–100 → absent.
+- `id`: each segment `[A-Za-z0-9_.+-]{1,32}`, at most 8 segments and 128 B total; a report whose `id` does not match is ignored. `app` follows the same charset (≤32 B); an invalid `app` is treated as absent.
+- `title` ≤192 B and `msg` ≤2048 B decoded, and both are refused if the decoded text contains a C0/C1 control character or a bidi control (U+202A–202E, U+2066–2069, U+200E/F).
+- A `;` inside the rejoined body is part of a value, so it fails that key's validation (unknown `state` etc.); malformed `key=value` pairs are skipped and the rest of the report is processed.
 
 Exhaustive `match` only — no wildcard arms, per AGENTS.md.
 
 ### 7501.2 — Parse arm, handler methods, detection reply
 
-- `ansi/mod.rs`: new arm `b"7501" if FeatureFlag::ProgramStatusProtocol.is_enabled()`. Rejoin `params[1..].join(&b';')` before parsing (OSC 7 precedent). Body `?` → `self.handler.program_status_query(writer)`, which writes `\x1b]7501;?\x1b\\`; otherwise parse → `self.handler.program_status(report)`. Malformed bodies are dropped silently: **never** fall through to `unhandled(params)`, which `debug!`s the raw bytes (and `msg` is untrusted, never-logged text). With the flag off the arm's guard fails and the generic fallthrough would log — add an explicit flag-off `b"7501" => ()` arm below it.
-- `ansi/handler.rs`: `fn program_status(&mut self, _report: ProgramStatusReport) {}` and `fn program_status_query<W: io::Write>(&mut self, _writer: &mut W) {}`, placed with `pluggable_notification`.
+- `ansi/mod.rs`: new arm `b"7501" if FeatureFlag::ProgramStatusProtocol.is_enabled()`. Rejoin `params[1..].join(&b';')` before parsing (OSC 7 precedent). Body `?` → the performer writes `\x1b]7501;?` plus the received terminator straight to the PTY writer (no handler method needed); otherwise parse → `self.handler.program_status(report, source)`. Malformed bodies are dropped silently: **never** fall through to `unhandled(params)`, which `debug!`s the raw bytes (and `msg` is untrusted, never-logged text). With the flag off the arm's guard fails and the generic fallthrough would log — add an explicit flag-off `b"7501" => ()` arm below it.
+- `ansi/handler.rs`: `fn program_status(&mut self, _report: ProgramStatusReport, _source: ReportSource) {}`, placed with `pluggable_notification`.
 
 ### 7501.3 — Store + singleton
 
@@ -116,12 +116,12 @@ New `app/src/terminal/program_status/store.rs` + `mod.rs`:
 All mutations reach the store through events, so ordering relative to reports is the PTY channel's FIFO order and the PTY thread never needs `AppContext`.
 
 - `Event::ProgramStatus { report }` → `ModelEvent::ProgramStatus` → `view.rs` calls `ProgramStatusModel::apply_report` for `self.view_id` and `ctx.notify()`, following **:9336-9370**. `Event`/`ModelEvent` Debug output redacts the payload (`event.rs` **:441** pattern), as does the store's `Debug`.
-- Process exit / prompt drops `working`/`blocked` (`drop_running`), driven by existing view-side events, no new emitters: `ModelEvent::Precmd`, `ModelEvent::AfterBlockCompleted` (covers `command_finished`; the outer shell's precmd also covers ssh/subshells with no Warp hooks), and `ModelEvent::Exit` (PTY gone). `done`/`error` survive. Do **not** hook `exit_shell`.
+- Process exit / prompt drops `working`/`blocked` (`drop_running`), driven by existing view-side events, no new emitters: `ModelEvent::BlockCompleted` for a user block (the same place CLI agent sessions end; covers ssh/subshells with no Warp hooks because the outer command finishes) and `ModelEvent::Exit` (PTY gone). `done`/`error` survive. Do **not** hook `exit_shell`.
 - Full reset: `TerminalModel::reset_state` emits a new `Event::ProgramStatusReset` → `ModelEvent::ProgramStatusReset` → `ProgramStatusModel::reset` (clears records **and** `saw_program_status`). Only RIS reaches it; soft reset does not exist in this terminal, so there is nothing to guard. Alt-screen enter/leave does not touch the store (the handler is not routed through the grid/alt-screen delegates).
 - Keystroke dismissal (`drop_finished`, `done`/`error` only; `idle`/`working`/`blocked` untouched; focused terminal only) must cover the three real input paths, because at an idle prompt typing goes to the input editor, not through the terminal view:
   1. `keydown_on_terminal` (`view.rs` **:6700**) — control/non-printable keys, both branches (long-running and not).
   2. `typed_characters_on_terminal` (`view.rs` **:6740**) — printable keys written to the PTY.
-  3. The input editor's buffer-edited event as observed by the terminal view — printable keys typed at the prompt. Locate the existing subscription during implementation and drop on the first edit event.
+  3. A new `input::Event::UserTyped`, emitted by the input editor for `EditOrigin::UserTyped` edits and handled in `handle_input_event` — printable keys typed at the prompt.
 
 ### 7501.5 — OSC 9;4 bridge
 
@@ -191,3 +191,10 @@ surfacing child records (`id`) anywhere other than the store.
 - **Untrusted text in UI and logs.** `msg`/`title` are attacker-controlled bytes from any process writing to the PTY; control/bidi refusal, no-logging (including the `unhandled()` fallthrough) and Debug redaction are the whole defence.
 - **vte feature unification.** The workspace pins vte with `default-features = false`, so `osc_raw` is an unbounded `Vec` and our 4096 B cap is the only limit. If any crate in the graph enables vte's `no_std` feature the buffer becomes 1024 B and long `msg` values truncate silently into a still-parseable report; check `cargo tree -e features -i vte` once.
 - **Hookless sessions.** With no Warp hooks (e.g. a nested shell), nothing but the outer shell's precmd clears a stale `working`; there is no heartbeat in the protocol.
+
+## Status
+
+Implemented in two rounds: protocol/store/event plumbing/9;4 bridge, then the UI (`Neutral` badge,
+tab pill, pane header, workspace redraw) and the three dismissal paths. Not verified in the running
+GUI — only by unit and view tests. Hover text for `app`/`msg` is not implemented; no tooltip
+mechanism was confirmed on the pill or header.
