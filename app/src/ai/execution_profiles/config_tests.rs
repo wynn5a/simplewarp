@@ -56,6 +56,28 @@ fn file_collection_round_trips_multiple_profiles() {
 }
 
 #[test]
+fn file_collection_ignores_keys_of_removed_permissions() {
+    // Profile files written before child agents, web search and computer use were removed still
+    // carry their keys; they must keep loading.
+    let file_value = serde_json::json!({
+        "default": {
+            "name": "Default",
+            "apply_code_diffs": "always_allow",
+            "run_agents": "always_ask",
+            "ask_user_question": "ask_except_in_auto_approve",
+            "web_search_enabled": true,
+            "computer_use": "always_ask",
+        }
+    });
+
+    let decoded = ExecutionProfilesConfig::from_file_value(&file_value).unwrap();
+    let profile = decoded
+        .profile(&ExecutionProfileId::default_profile())
+        .expect("profile should load");
+    assert_eq!(profile.apply_code_diffs, ActionPermission::AlwaysAllow);
+}
+
+#[test]
 fn file_collection_rejects_invalid_values_as_a_unit() {
     for value in [
         serde_json::json!({"custom": {"name": "Missing default"}}),

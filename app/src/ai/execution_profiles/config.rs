@@ -13,7 +13,7 @@ use indexmap::IndexMap;
 use itertools::Itertools as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use super::{AIExecutionProfile, ActionPermission, RunAgentsPermission, WriteToPtyPermission};
+use super::{AIExecutionProfile, ActionPermission, WriteToPtyPermission};
 use crate::ai::llms::LLMId;
 use crate::cloud_object::model::generic_string_model::StringModel as _;
 use crate::settings::AgentModeCommandExecutionPredicate;
@@ -342,43 +342,6 @@ impl From<FileWriteToPtyPermission> for WriteToPtyPermission {
     }
 }
 
-// Domain-only `Unknown` values fail closed to `never_allow`.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[schemars(
-    description = "File-safe representation of child-agent launch permissions.",
-    rename_all = "snake_case"
-)]
-enum FileRunAgentsPermission {
-    #[schemars(description = "Child agents may not be launched.")]
-    NeverAllow,
-    #[schemars(description = "Child agents may be launched without approval.")]
-    AlwaysAllow,
-    #[schemars(description = "Child-agent launches require approval.")]
-    #[default]
-    AlwaysAsk,
-}
-
-impl From<RunAgentsPermission> for FileRunAgentsPermission {
-    fn from(value: RunAgentsPermission) -> Self {
-        match value {
-            RunAgentsPermission::NeverAllow | RunAgentsPermission::Unknown => Self::NeverAllow,
-            RunAgentsPermission::AlwaysAllow => Self::AlwaysAllow,
-            RunAgentsPermission::AlwaysAsk => Self::AlwaysAsk,
-        }
-    }
-}
-
-impl From<FileRunAgentsPermission> for RunAgentsPermission {
-    fn from(value: FileRunAgentsPermission) -> Self {
-        match value {
-            FileRunAgentsPermission::NeverAllow => Self::NeverAllow,
-            FileRunAgentsPermission::AlwaysAllow => Self::AlwaysAllow,
-            FileRunAgentsPermission::AlwaysAsk => Self::AlwaysAsk,
-        }
-    }
-}
-
 // `is_default_profile` is omitted because the containing map key owns that
 // invariant. String-backed regex and UUID fields are validated while converting
 // back to [`AIExecutionProfile`].
@@ -398,8 +361,6 @@ struct ExecutionProfileFile {
     write_to_pty: FileWriteToPtyPermission,
     #[schemars(description = "Permission to call MCP servers.")]
     mcp_permissions: FileActionPermission,
-    #[schemars(description = "Permission to launch child agents.")]
-    run_agents: FileRunAgentsPermission,
     #[schemars(description = "Command patterns that must always require approval.")]
     command_denylist: Vec<String>,
     #[schemars(description = "Command patterns that may execute without approval.")]
@@ -439,7 +400,6 @@ impl From<&AIExecutionProfile> for ExecutionProfileFile {
             execute_commands: profile.execute_commands.into(),
             write_to_pty: profile.write_to_pty.into(),
             mcp_permissions: profile.mcp_permissions.into(),
-            run_agents: profile.run_agents.into(),
             command_denylist: profile
                 .command_denylist
                 .iter()
@@ -502,7 +462,6 @@ impl TryFrom<ExecutionProfileFile> for AIExecutionProfile {
             execute_commands: file.execute_commands.into(),
             write_to_pty: file.write_to_pty.into(),
             mcp_permissions: file.mcp_permissions.into(),
-            run_agents: file.run_agents.into(),
             command_denylist: parse_commands(file.command_denylist)?,
             command_allowlist: parse_commands(file.command_allowlist)?,
             directory_allowlist: file.directory_allowlist,

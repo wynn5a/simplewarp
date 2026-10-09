@@ -404,7 +404,8 @@ that only it used:
   config map + `OrchestrationConfigUpdated` event on conversations, the
   `orchestration_message_display_mode` setting with its settings-page dropdown, command-palette
   entries and context flags, the received-message collapsible/avatar state in `AIBlock`, and the
-  `skill_path_origin` plumbing that only fed `RunAgents`. Saved calls/results restore as nothing;
+  `skill_path_origin` plumbing that only fed `RunAgents`, and the profile `run_agents`
+  permission (`RunAgentsPermission`; old profile files with the key still load, covered by a test). Saved calls/results restore as nothing;
   the persisted `FetchConversation` action row becomes a tombstone (`FetchConversation {}`).
   A stored `orchestration_message_display_mode` key in settings.toml is simply ignored.
   Still there: the child-agent conversation model (`parent_conversation_id`, `agent_name`, harness,
