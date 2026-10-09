@@ -51,7 +51,7 @@ This is a Rust-based terminal emulator with a custom UI framework called **WarpU
 
 The **GUI desktop app** is the `app/` crate on the WarpUI pixel/GPU framework (`warpui`,
 `crates/warpui_core`): `Element`/`View` layout, GPU/WGSL rendering, mouse input, `.app` bundles.
-Run with `cargo run` / `./script/run`; verify visually with `computer_use` or the real-display
+Run with `cargo run` / `./script/run`; verify visually by running the app or with the real-display
 integration framework (`crates/integration`).
 
 SimpleWarp removed the headless TUI front-end in Phase 4, in full: the `crates/warp_tui` crate,

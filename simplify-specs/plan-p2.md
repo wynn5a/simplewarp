@@ -318,16 +318,14 @@ P9–P11 above, plus:
   `features::tests`). The unused `ServerExperiment` diesel structs went too; the
   `server_experiments` table stays in the schema.
 - **Computer use**: the mac/linux/windows backends, the `use_computer` bin and the native deps
-  (~7,000 lines) are gone; `crates/computer_use` keeps its data types and a no-op actor because
-  saved conversations still hold these actions. `agent_mode_computer_use`,
-  `background_computer_use` and `local_computer_use` are off in simplewarp (this reverses the 4id
-  enable). **Not done:** the executors (`request_computer_use.rs`, `use_computer.rs`), the
-  profile permission rows and the `crates/ai` action types are still there, dead behind the off
-  flags. Removing them touches ~50 files and the persisted action shapes.
+  (~7,000 lines) are gone, and (round 4, below) so is everything else: `crates/computer_use`, the
+  executors, the action/result types and block cards, the profile `computer_use` /
+  `computer_use_model` rows, the `--computer-use` flags, `computer_use_enabled` in agent configs, the
+  per-model preference and the three flags.
 - **Upstream baggage**: `specs/`, `agents/specs`, `.agents/specs`, the `.github` issue/PR
   templates, triage config, dependabot and three bot workflows, ten agent skills, seven
-  `.warp/workflows`. `CONTRIBUTING.md`, `FAQ.md` and `README.md` still describe the upstream
-  contribution flow and now link to the deleted `specs/`.
+  `.warp/workflows`. (Round 4 rewrote `README.md`, `CONTRIBUTING.md`, `FAQ.md` and `SECURITY.md`
+  for simplewarp and dropped `images/`.)
 - Verification: workspace nextest 6474 / 6485; the 11 failures are `integration` GUI tests that
   fail the same way on b79567e7c (8 settings/palette tests time out, 3 report "test not found").
 
@@ -371,5 +369,37 @@ Not done, same family: the `ServerId`-backed `NotebookId` / `WorkflowId` / `Fold
 server-provided artifact could fill), and the other dead `JsonObjectType`s (`MCPServer`,
 `CloudEnvironment`, `ScheduledAmbientAgent`, `CloudAgentConfig`, `AIExecutionProfile`).
 
-Still open from the local-only survey: Windows/Linux platform code (user decision: **keep**) and
-the dead tool UIs (P5/P6).
+Still open from the local-only survey: Windows/Linux platform code (user decision: **keep**).
+
+## 10. Dead tool UIs (2026-10-09, round 4)
+
+The local agent offers seven tools (`local_inference/src/tools.rs`), so every other tool's UI was
+unreachable. Removed, each with its executor, inline view, speedbump/permission, flag and the code
+that only it used:
+
+- **Computer use** (see §9) incl. `StartRecording`/`StopRecording`.
+- **Web search / web fetch**: the inline views, `WebSearchStatus`/`WebFetchStatus`, `WebSearchUI` /
+  `WebFetchUI`, the profile `web_search_enabled` field and the request param.
+- **AskUserQuestion**: executor, `AskUserQuestionView`, the session state machine in `crates/ai`, the
+  number-shortcut/numbered-button/compact-input widgets, the speedbump footer and setting, the
+  profile "Ask questions" permission, flag.
+- **ReadSkill** and **SearchCodebase**: executors, cards, the codebase-search speedbump, the
+  `GetRelevantFilesController` plumbing through `TerminalView`, `SearchCodebaseUI`.
+
+Saved conversations: calls and results of these tools restore as nothing (`NoClientRepresentation`
+for calls, `None` for results). Persisted `PersistedAIAgentActionType` rows that hold one still
+deserialize through empty tombstone variants (`UseComputer {}`, `RequestComputerUse {}`,
+`GetRelevantFiles {}`, `AskUserQuestion {}`) and never restore. Old profile/config files that carry
+the removed keys still load (profile files ignore unknown keys); `computer_use_enabled` in an agent
+config file is now rejected (that file type denies unknown keys).
+
+Verification: workspace nextest 6407 / 6417; the same 10 `integration::integration` GUI tests fail
+as before the round.
+
+**Not done**, because each is tied to something still live: `InsertReviewComments` (the
+`code_review/comments` import path and its flag), `ReadDocuments`/`EditDocuments`/`CreateDocuments`
+(the whole AI-document/plan pane, ~94 `AIDocumentModel` uses), `TransferShellCommandControlToUser`
+(the long-running-command controls in `shell_command.rs`/`cli_controller.rs`), `SuggestPrompt`
+(passive suggestions), and the orchestration family (`RunAgents`, `SendMessageToAgent`,
+`WaitForEvents`, `FetchConversation`, with the profile "run agents" permission). MCP tool calls stay
+(Phase 3b). Dogfood-only skills under `resources/channel-gated-skills` still mention computer use.
