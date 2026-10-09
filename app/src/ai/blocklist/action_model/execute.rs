@@ -1,5 +1,4 @@
 pub(super) mod call_mcp_tool;
-pub(super) mod fetch_conversation;
 pub(super) mod file_glob;
 pub(super) mod grep;
 pub(super) mod read_files;
@@ -8,19 +7,15 @@ pub(super) mod request_file_edits;
 pub(super) mod shell_command;
 pub(super) mod suggest_new_conversation;
 pub(super) mod suggest_prompt;
-pub(super) mod wait_for_events;
 
 use std::any::Any;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use ai::agent::action_result::{
-    InsertReviewCommentsResult, RequestCommandOutputResult, RunAgentsResult,
-};
+use ai::agent::action_result::{InsertReviewCommentsResult, RequestCommandOutputResult};
 use call_mcp_tool::CallMCPToolExecutor;
 pub(crate) use call_mcp_tool::coerce_integer_args;
-use fetch_conversation::FetchConversationExecutor;
 use file_glob::FileGlobExecutor;
 use futures::future::BoxFuture;
 use futures::{AsyncReadExt, FutureExt};
@@ -35,7 +30,6 @@ pub use shell_command::{ShellCommandExecutor, ShellCommandExecutorEvent};
 pub use suggest_new_conversation::NewConversationDecision;
 use suggest_new_conversation::SuggestNewConversationExecutor;
 pub use suggest_prompt::PromptSuggestionExecutor;
-use wait_for_events::WaitForEventsExecutor;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_files::{FileModel, TextFileReadResult};
 use warp_util::file::FileLoadError;
@@ -48,7 +42,7 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResult, AIAgentActionResultType,
     AIAgentActionType, AIAgentActionTypeDiscriminants, AnyFileContent, CancellationReason,
-    FileContext, FileLocations, ReadFilesFailedFile, SendMessageToAgentResult, ServerOutputId,
+    FileContext, FileLocations, ReadFilesFailedFile, ServerOutputId,
 };
 use crate::ai::paths::host_native_absolute_path;
 use crate::terminal::model::session::active_session::ActiveSession;
@@ -209,8 +203,6 @@ pub struct BlocklistAIActionExecutor {
     call_mcp_tool_executor: ModelHandle<CallMCPToolExecutor>,
     suggest_new_conversation_executor: ModelHandle<SuggestNewConversationExecutor>,
     suggest_prompt_executor: ModelHandle<PromptSuggestionExecutor>,
-    fetch_conversation_executor: ModelHandle<FetchConversationExecutor>,
-    wait_for_events_executor: ModelHandle<WaitForEventsExecutor>,
     /// The actions currently executing asynchronously, keyed by action ID.
     /// We track them per action rather than as a single slot so multiple actions from the same
     /// parallel phase can complete independently.
@@ -250,9 +242,6 @@ impl BlocklistAIActionExecutor {
         let suggest_new_conversation_executor =
             ctx.add_model(|_| SuggestNewConversationExecutor::new());
         let suggest_prompt_executor = ctx.add_model(|_| PromptSuggestionExecutor::new());
-        let fetch_conversation_executor = ctx.add_model(|_| FetchConversationExecutor::new());
-        let wait_for_events_executor =
-            ctx.add_model(|ctx| WaitForEventsExecutor::new(terminal_view_id, ctx));
         Self {
             shell_command_executor,
             read_files_executor,
@@ -264,8 +253,6 @@ impl BlocklistAIActionExecutor {
             suggest_new_conversation_executor,
             suggest_prompt_executor,
             async_executing_actions: Default::default(),
-            fetch_conversation_executor,
-            wait_for_events_executor,
         }
     }
 
@@ -273,29 +260,6 @@ impl BlocklistAIActionExecutor {
         self.async_executing_actions
             .get(action_id)
             .map(|running| &running.action)
-    }
-
-    /// Returns the action_id of any running WaitForEvents action for the
-    /// given conversation. There is at most one (wait_for_events is
-    /// documented as exclusive within a turn).
-    pub(super) fn find_running_wait_for_events(
-        &self,
-        conversation_id: AIConversationId,
-    ) -> Option<AIAgentActionId> {
-        self.async_executing_actions
-            .iter()
-            .find_map(|(action_id, running)| {
-                if running.conversation_id == conversation_id
-                    && matches!(
-                        running.action.action,
-                        AIAgentActionType::WaitForEvents { .. }
-                    )
-                {
-                    Some(action_id.clone())
-                } else {
-                    None
-                }
-            })
     }
 
     pub fn shell_command_executor(&self) -> &ModelHandle<ShellCommandExecutor> {
@@ -382,14 +346,6 @@ impl BlocklistAIActionExecutor {
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
             AIAgentActionType::SuggestPrompt { .. } => self
                 .suggest_prompt_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::FetchConversation { .. } => self
-                .fetch_conversation_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::SendMessageToAgent { .. } => futures::future::ready(()).boxed(),
-            AIAgentActionType::RunAgents(_) => futures::future::ready(()).boxed(),
-            AIAgentActionType::WaitForEvents { .. } => self
-                .wait_for_events_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
         }
     }
@@ -518,28 +474,6 @@ impl BlocklistAIActionExecutor {
                 .suggest_prompt_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
                 .into(),
-            AIAgentActionType::FetchConversation { .. } => self
-                .fetch_conversation_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
-            // No local channel reaches a child agent; the action only appears in restored
-            // conversations.
-            AIAgentActionType::SendMessageToAgent { .. } => ActionExecution::<()>::Sync(
-                AIAgentActionResultType::SendMessageToAgent(SendMessageToAgentResult::Error(
-                    "SimpleWarp cannot send messages to child agents".to_owned(),
-                )),
-            )
-            .into(),
-            AIAgentActionType::RunAgents(_) => ActionExecution::<()>::Sync(
-                AIAgentActionResultType::RunAgents(RunAgentsResult::Failure {
-                    error: "Orchestration is no longer supported".to_owned(),
-                }),
-            )
-            .into(),
-            AIAgentActionType::WaitForEvents { .. } => self
-                .wait_for_events_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
         };
 
         let action_id = action_clone.id.clone();
@@ -635,15 +569,6 @@ impl BlocklistAIActionExecutor {
                 self.shell_command_executor.update(ctx, |executor, ctx| {
                     executor.cancel_execution(&running.action.id, ctx);
                 });
-            } else if let AIAgentActionType::WaitForEvents { tool_call_id, .. } =
-                &running.action.action
-            {
-                // Drop the executor's pending entry; the shared cancel
-                // path emits FinishedAction(Cancelled).
-                let tool_call_id = tool_call_id.clone();
-                self.wait_for_events_executor.update(ctx, |executor, _| {
-                    executor.cancel_execution(&tool_call_id);
-                });
             }
             let result = running.action.action.cancelled_result();
             ctx.emit(BlocklistAIActionExecutorEvent::FinishedAction {
@@ -732,14 +657,6 @@ impl BlocklistAIActionExecutor {
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::SuggestPrompt { .. } => self
                 .suggest_prompt_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::FetchConversation { .. } => self
-                .fetch_conversation_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::SendMessageToAgent { .. } => true,
-            AIAgentActionType::RunAgents(_) => false,
-            AIAgentActionType::WaitForEvents { .. } => self
-                .wait_for_events_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
         }
     }

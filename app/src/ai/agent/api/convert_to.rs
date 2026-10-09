@@ -339,44 +339,6 @@ fn convert_input_to_user_input(
             ))
         }
         AIAgentInput::ActionResult { result, .. } => result.try_into(),
-        AIAgentInput::MessagesReceivedFromAgents { messages } => Ok(
-            api::request::input::user_inputs::user_input::Input::MessagesReceivedFromAgents(
-                api::request::input::user_inputs::MessagesReceivedFromAgents {
-                    messages: messages
-                        .into_iter()
-                        .map(
-                            |msg| api::request::input::user_inputs::messages_received_from_agents::ReceivedMessage {
-                                message_id: msg.message_id,
-                                sender_agent_id: msg.sender_agent_id,
-                                addresses: msg.addresses,
-                                subject: msg.subject,
-                                message_body: msg.message_body,
-                            },
-                        )
-                        .collect(),
-                },
-            ),
-        ),
-        AIAgentInput::EventsFromAgents { events } => Ok(
-            api::request::input::user_inputs::user_input::Input::EventsFromAgents(
-                api::request::input::user_inputs::EventsFromAgents {
-                    agent_events: events,
-                },
-            ),
-        ),
-        AIAgentInput::OrchestrationConfigUpdate {
-            plan_id,
-            config,
-            status,
-        } => Ok(
-            api::request::input::user_inputs::user_input::Input::OrchestrationConfigUpdate(
-                api::OrchestrationConfigUpdate {
-                    plan_id,
-                    config: Some(config.to_proto()),
-                    status: status.to_proto(),
-                },
-            ),
-        ),
         AIAgentInput::ResumeConversation { .. } => Err(ConvertToAPITypeError::Ignore),
         AIAgentInput::InitProjectRules { .. } => Err(ConvertToAPITypeError::Ignore),
         AIAgentInput::CodeReview { .. } => Err(ConvertToAPITypeError::Ignore),
@@ -594,20 +556,8 @@ impl TryFrom<AIAgentActionResult> for api::request::input::user_inputs::user_inp
             AIAgentActionResultType::ReadShellCommandOutput(read_shell_command_output_result) => {
                 Some(read_shell_command_output_result.try_into()?)
             }
-            AIAgentActionResultType::FetchConversation(fetch_conversation_result) => {
-                Some(fetch_conversation_result.try_into()?)
-            }
-            AIAgentActionResultType::SendMessageToAgent(send_message_result) => {
-                Some(send_message_result.into())
-            }
             AIAgentActionResultType::TransferShellCommandControlToUser(transfer_control_result) => {
                 Some(transfer_control_result.try_into()?)
-            }
-            AIAgentActionResultType::RunAgents(orchestrate_result) => {
-                Some(orchestrate_result.try_into()?)
-            }
-            AIAgentActionResultType::WaitForEvents(wait_for_events_result) => {
-                Some(wait_for_events_result.try_into()?)
             }
         };
         Ok(

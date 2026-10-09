@@ -3279,10 +3279,7 @@ pub(super) fn query_prefix_highlight_len(
             | AIAgentInput::CodeReview { .. }
             | AIAgentInput::SummarizeConversation { .. }
             | AIAgentInput::StartFromAmbientRunPrompt { .. }
-            | AIAgentInput::ActionResult { .. }
-            | AIAgentInput::MessagesReceivedFromAgents { .. }
-            | AIAgentInput::EventsFromAgents { .. }
-            | AIAgentInput::OrchestrationConfigUpdate { .. } => None,
+            | AIAgentInput::ActionResult { .. } => None,
         }
     }
 }

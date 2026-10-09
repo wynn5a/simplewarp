@@ -977,7 +977,6 @@ fn handle_ai_history_event(
         | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
         | BlocklistAIHistoryEvent::ConversationServerTokenAssigned { .. }
         | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalSurfaces { .. }
-        | BlocklistAIHistoryEvent::OrchestrationConfigUpdated { .. }
         | BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated { .. } => (),
     }
 }

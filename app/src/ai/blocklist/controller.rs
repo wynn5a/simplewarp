@@ -1878,11 +1878,6 @@ impl BlocklistAIController {
                             }
                             warp_multi_agent_api::response_event::Type::ClientActions(actions) => {
                                 let client_actions = actions.actions;
-                                let skill_path_origin = SessionContext::from_session(
-                                    self.active_session.as_ref(ctx),
-                                    ctx,
-                                )
-                                .skill_path_origin();
                                 let apply_result =
                                     history_model.update(ctx, |history_model, ctx| {
                                         history_model.apply_client_actions(
@@ -1890,7 +1885,6 @@ impl BlocklistAIController {
                                             client_actions,
                                             conversation_id,
                                             self.terminal_surface_id,
-                                            &skill_path_origin,
                                             ctx,
                                         )
                                     });

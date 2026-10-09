@@ -2,7 +2,6 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
-use ai::skills::SkillPathOrigin;
 use anyhow::anyhow;
 use chrono::{DateTime, Local, NaiveDateTime};
 use diesel::SqliteConnection;
@@ -1479,7 +1478,6 @@ impl BlocklistAIHistoryModel {
         client_actions: Vec<warp_multi_agent_api::ClientAction>,
         conversation_id: AIConversationId,
         terminal_surface_id: EntityId,
-        skill_path_origin: &SkillPathOrigin,
         ctx: &mut ModelContext<Self>,
     ) -> Result<(), UpdateHistoryError> {
         let mut current_conversation_id = conversation_id;
@@ -1508,7 +1506,6 @@ impl BlocklistAIHistoryModel {
                         response_stream_id,
                         terminal_surface_id,
                         action,
-                        skill_path_origin,
                         ctx,
                     )?;
                 }
@@ -2408,12 +2405,6 @@ pub enum BlocklistAIHistoryEvent {
         new_terminal_surface_id: EntityId,
     },
 
-    /// Emitted when a conversation's orchestration config is updated
-    /// (live wire snapshot, user edit, or restore-hydration).
-    OrchestrationConfigUpdated {
-        conversation_id: AIConversationId,
-    },
-
     /// Emitted when a conversation's `conversation_usage_metadata` is updated
     /// (for example after a `StreamFinished` event). Subscribers that derive
     /// data from cross-conversation usage — e.g. the orchestration credit
@@ -2514,9 +2505,6 @@ impl BlocklistAIHistoryEvent {
                 terminal_surface_id,
                 ..
             } => *terminal_surface_id,
-            // OrchestrationConfigUpdated is conversation-scoped and has no
-            // terminal_surface_id.
-            BlocklistAIHistoryEvent::OrchestrationConfigUpdated { .. } => None,
             // ConversationUsageMetadataUpdated is conversation-scoped and
             // has no terminal_surface_id. Cross-pane consumers (e.g. the
             // orchestrator footer reading descendant credits) can't be

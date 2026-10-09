@@ -4,7 +4,6 @@ mod citation;
 pub mod convert;
 pub mod file_locations;
 pub mod harness;
-pub mod orchestration_config;
 pub mod task_state;
 pub use citation::{AIAgentCitation, UnknownCitationTypeError};
 pub use file_locations::{FileLocations, group_file_contexts_for_display};

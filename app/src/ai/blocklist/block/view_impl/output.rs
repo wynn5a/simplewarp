@@ -632,26 +632,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             }
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::RunAgents(_req),
-                            ..
-                        }) => {
-                            should_render_footer = false;
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action:
-                                AIAgentActionType::SendMessageToAgent {
-                                    addresses,
-                                    subject,
-                                    message,
-                                },
-                            ..
-                        }) => {
-                            should_render_footer = false;
-                            output_items.add_child(render_send_message_fallback(
-                                addresses, subject, message, app,
-                            ));
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
                             action: AIAgentActionType::InsertCodeReviewComments { repo_path, .. },
                             id,
                             ..
@@ -687,16 +667,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                 app,
                             ) {
                                 output_items.add_child(element);
-                            }
-                        }
-                        AIAgentOutputMessageType::MessagesReceivedFromAgents { messages } => {
-                            for msg in messages {
-                                output_items.add_child(render_send_message_fallback(
-                                    &msg.addresses,
-                                    &msg.subject,
-                                    &msg.message_body,
-                                    app,
-                                ));
                             }
                         }
                         AIAgentOutputMessageType::DebugOutput { text } => {
@@ -2372,40 +2342,6 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
     Some(flex.finish().with_content_item_spacing().finish())
 }
 
-/// Renders a compact fallback row for agent-to-agent messages so restored
-/// transcripts that contain them stay legible; the full orchestration UI is gone.
-fn render_send_message_fallback(
-    addresses: &[String],
-    subject: &str,
-    message: &str,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-    let color = theme.sub_text_color(theme.background());
-    let recipients = if addresses.is_empty() {
-        String::from("agents")
-    } else {
-        addresses.join(", ")
-    };
-    let label = format!("Message to {recipients}: {subject}");
-    Flex::column()
-        .with_cross_axis_alignment(CrossAxisAlignment::Start)
-        .with_child(
-            Text::new(label, appearance.ui_font_family(), 12.)
-                .with_color(color.into())
-                .with_selectable(false)
-                .finish(),
-        )
-        .with_child(
-            Text::new(message.to_string(), appearance.ui_font_family(), 12.)
-                .with_color(color.into())
-                .with_selectable(false)
-                .finish(),
-        )
-        .finish()
-}
-
 /// Renders the usage button that, on click, will expand & collapse the usage summary footer.
 fn render_usage_button(props: Props, app: &AppContext) -> Box<dyn Element> {
     let Some(conversation) = props.model.conversation(app) else {
@@ -2965,9 +2901,6 @@ fn conversation_search_phase(task: &crate::ai::agent::task::Task) -> Conversatio
         for message in &output.messages {
             if let AIAgentOutputMessageType::Action(action) = &message.message {
                 let new_phase = match &action.action {
-                    AIAgentActionType::FetchConversation { .. } => {
-                        Some(ConversationSearchPhase::ListingMessages)
-                    }
                     AIAgentActionType::Grep { queries, .. } if !queries.is_empty() => {
                         Some(ConversationSearchPhase::Grepping {
                             patterns: queries.clone(),

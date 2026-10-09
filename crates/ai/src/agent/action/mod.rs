@@ -17,16 +17,14 @@ pub use warp_multi_agent_api::LifecycleEventType;
 use warp_terminal::model::BlockId;
 
 use crate::agent::action_result::{
-    AIAgentActionResultType, CallMCPToolResult, FetchConversationResult, FileGlobResult,
-    FileGlobV2Result, GrepResult, InsertReviewCommentsResult, ReadFilesResult,
-    ReadMCPResourceResult, ReadShellCommandOutputResult, RequestCommandOutputResult,
-    RequestFileEditsResult, RunAgentsResult, SendMessageToAgentResult,
+    AIAgentActionResultType, CallMCPToolResult, FileGlobResult, FileGlobV2Result, GrepResult,
+    InsertReviewCommentsResult, ReadFilesResult, ReadMCPResourceResult,
+    ReadShellCommandOutputResult, RequestCommandOutputResult, RequestFileEditsResult,
     SuggestNewConversationResult, SuggestPromptResult, TransferShellCommandControlToUserResult,
-    WaitForEventsResult, WriteToLongRunningShellCommandResult,
+    WriteToLongRunningShellCommandResult,
 };
 use crate::agent::{AIAgentCitation, FileLocations};
 use crate::diff_validation::ParsedDiff;
-use crate::skills::SkillReference;
 
 #[derive(Debug, Clone, Eq, PartialEq, EnumDiscriminants)]
 pub enum AIAgentActionType {
@@ -124,89 +122,10 @@ pub enum AIAgentActionType {
         base_branch: Option<String>,
     },
 
-    FetchConversation {
-        conversation_id: String,
-    },
-
-    SendMessageToAgent {
-        addresses: Vec<String>,
-        subject: String,
-        message: String,
-    },
     /// Transfer control of a running shell command to the user.
     TransferShellCommandControlToUser {
         /// The reason provided by the agent for transferring control.
         reason: String,
-    },
-
-    /// AI requested batched orchestration of one-or-more child agents that
-    /// share run-wide configuration (model, harness, execution mode).
-    /// The full per-child prompt is computed at dispatch time as
-    /// `base_prompt + "\n\n" + agent_run_configs[i].prompt` (or just
-    /// `base_prompt` when the per-agent `prompt` is empty).
-    RunAgents(RunAgentsRequest),
-
-    /// Synthesized from a server-emitted Message::ToolCall::WaitForEvents;
-    /// dispatched by WaitForEventsExecutor.
-    WaitForEvents {
-        /// tool_call_id of the unresolved WaitForEvents call; used to
-        /// match inbound resume signals.
-        tool_call_id: String,
-        /// 0 means "unset" (prost flat-scalar convention); the executor
-        /// falls back to a default.
-        idle_timeout_seconds: i32,
-    },
-}
-
-/// Run-wide + per-agent configuration for a `RunAgents` tool call.
-///
-/// Mirrors the proto `RunAgents` message. Server-resolved fields
-/// (`model_id`, `harness_type`, `execution_mode`) are
-/// folded in by the server's final tool-call re-emission once the
-/// payload is complete; the client renders the full layout from a
-/// fully-resolved instance only.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct RunAgentsRequest {
-    pub summary: String,
-    pub base_prompt: String,
-    pub skills: Vec<SkillReference>,
-    pub model_id: String,
-    pub harness_type: String,
-    pub execution_mode: RunAgentsExecutionMode,
-    pub agent_run_configs: Vec<RunAgentsAgentRunConfig>,
-    pub plan_id: String,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum RunAgentsExecutionMode {
-    Local,
-    /// A server-resolved remote run from persisted conversation data. This build has no
-    /// remote workers, so dispatching one fails; an edited request is always `Local`.
-    Remote,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct RunAgentsAgentRunConfig {
-    pub name: String,
-    pub prompt: String,
-    pub title: String,
-    /// Optional model override for this specific child agent. When non-empty,
-    /// overrides the batch-level `model_id` for this child only. When empty,
-    /// the child inherits the batch-level model.
-    pub model_id: String,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum StartAgentExecutionMode {
-    Local {
-        /// `None` selects the legacy embedded local child-agent flow.
-        /// `Some(...)` selects a third-party CLI harness to launch locally.
-        harness_type: Option<String>,
-        /// `None` inherits the parent agent's preferred LLM (legacy behavior).
-        /// `Some(_)` overrides the child's preferred LLM with the supplied
-        /// model id (used by the orchestrate confirmation card so the user's
-        /// model selection is honored on local launches).
-        model_id: Option<String>,
     },
 }
 
@@ -270,20 +189,10 @@ impl AIAgentActionType {
             Self::InsertCodeReviewComments { .. } => {
                 AIAgentActionResultType::InsertReviewComments(InsertReviewCommentsResult::Cancelled)
             }
-            Self::FetchConversation { .. } => {
-                AIAgentActionResultType::FetchConversation(FetchConversationResult::Cancelled)
-            }
-            Self::SendMessageToAgent { .. } => {
-                AIAgentActionResultType::SendMessageToAgent(SendMessageToAgentResult::Cancelled)
-            }
             Self::TransferShellCommandControlToUser { .. } => {
                 AIAgentActionResultType::TransferShellCommandControlToUser(
                     TransferShellCommandControlToUserResult::Cancelled,
                 )
-            }
-            Self::RunAgents(_) => AIAgentActionResultType::RunAgents(RunAgentsResult::Cancelled),
-            Self::WaitForEvents { .. } => {
-                AIAgentActionResultType::WaitForEvents(WaitForEventsResult::Cancelled)
             }
         }
     }
@@ -313,15 +222,9 @@ impl AIAgentActionType {
             Self::InsertCodeReviewComments { comments, .. } => {
                 format!("Insert {} code review comments", comments.len())
             }
-            Self::FetchConversation { .. } => "Fetch conversation".to_string(),
-            Self::SendMessageToAgent { subject, .. } => format!("Send message: {subject}"),
             Self::TransferShellCommandControlToUser { .. } => {
                 "Transfer shell command control to user".to_string()
             }
-            Self::RunAgents(req) => {
-                format!("Orchestrate {} agent(s)", req.agent_run_configs.len())
-            }
-            Self::WaitForEvents { .. } => "Wait for events".to_string(),
         }
     }
 }
@@ -439,38 +342,8 @@ impl Display for AIAgentActionType {
                     file_paths
                 )
             }
-            AIAgentActionType::FetchConversation { conversation_id } => {
-                write!(f, "FetchConversation: {conversation_id}")
-            }
-            AIAgentActionType::SendMessageToAgent {
-                addresses, subject, ..
-            } => {
-                write!(
-                    f,
-                    "SendMessageToAgent: to=[{}] subject={subject}",
-                    addresses.join(", ")
-                )
-            }
             AIAgentActionType::TransferShellCommandControlToUser { reason } => {
                 write!(f, "TransferShellCommandControlToUser: {reason}")
-            }
-            AIAgentActionType::RunAgents(req) => {
-                let names = req
-                    .agent_run_configs
-                    .iter()
-                    .map(|c| c.name.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                write!(f, "Orchestrate: summary='{}' agents=[{names}]", req.summary,)
-            }
-            AIAgentActionType::WaitForEvents {
-                tool_call_id,
-                idle_timeout_seconds,
-            } => {
-                write!(
-                    f,
-                    "WaitForEvents: tool_call_id={tool_call_id} idle_timeout_seconds={idle_timeout_seconds}"
-                )
             }
         }
     }

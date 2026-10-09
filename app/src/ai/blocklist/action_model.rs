@@ -565,73 +565,6 @@ impl BlocklistAIActionModel {
         }
     }
 
-    /// Dispatches a `RunAgents` action with the user-edited request
-    /// from the confirmation card.
-    pub fn execute_run_agents(
-        &mut self,
-        action_id: &AIAgentActionId,
-        request: ai::agent::action::RunAgentsRequest,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let mut found = None;
-        for (conv_id, queue) in self.pending_actions.iter_mut() {
-            if let Some(action) = queue.iter_mut().find(|action| &action.id == action_id) {
-                found = Some((*conv_id, action));
-                break;
-            }
-        }
-        let Some((conversation_id, action)) = found else {
-            log::warn!(
-                "BlocklistAIActionModel::execute_run_agents: no pending action for {action_id:?}"
-            );
-            return;
-        };
-        if !matches!(action.action, AIAgentActionType::RunAgents(_)) {
-            log::warn!(
-                "BlocklistAIActionModel::execute_run_agents: pending action {action_id:?} is not RunAgents"
-            );
-            return;
-        }
-        action.action = AIAgentActionType::RunAgents(request);
-        self.execute_action(action_id, conversation_id, ctx);
-    }
-
-    /// Removes a pending `RunAgents` action and records a `Denied`
-    /// result. Used when the orchestration config is disapproved at
-    /// the time the action becomes blocked on user confirmation.
-    pub fn deny_run_agents(
-        &mut self,
-        action_id: &AIAgentActionId,
-        reason: String,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let mut found: Option<(AIConversationId, AIAgentAction)> = None;
-        for (conv_id, queue) in self.pending_actions.iter_mut() {
-            if let Some(idx) = queue.iter().position(|a| &a.id == action_id) {
-                if let Some(action) = queue.remove(idx) {
-                    found = Some((*conv_id, action));
-                }
-                break;
-            }
-        }
-        let Some((conversation_id, action)) = found else {
-            log::warn!(
-                "BlocklistAIActionModel::deny_run_agents: no pending action for {action_id:?}"
-            );
-            return;
-        };
-        let result =
-            AIAgentActionResultType::RunAgents(ai::agent::action_result::RunAgentsResult::Denied {
-                reason,
-            });
-        let result = Arc::new(AIAgentActionResult {
-            id: action.id,
-            task_id: action.task_id,
-            result,
-        });
-        self.handle_action_result(conversation_id, result, None, ctx);
-    }
-
     /// Attempts to execute the next pending action for the active conversation.
     pub fn execute_next_action_for_user(
         &mut self,
@@ -765,25 +698,18 @@ impl BlocklistAIActionModel {
 
         let action_id = action.id.clone();
         let phase = self.action_phase_for_action(&action, ctx);
-        // WaitForEvents owns its own status transition; skip the default
-        // in-progress update.
-        let is_wait_for_events = matches!(action.action, AIAgentActionType::WaitForEvents { .. });
         let execute_result = self.executor.update(ctx, |executor, ctx| {
             executor.try_to_execute_action(action, conversation_id, is_user_initiated, ctx)
         });
 
         match execute_result {
             TryExecuteResult::ExecutedAsync => {
-                if !is_wait_for_events {
-                    self.update_conversation_in_progress_status(conversation_id, ctx);
-                }
+                self.update_conversation_in_progress_status(conversation_id, ctx);
                 self.add_running_action(conversation_id, action_id, phase);
                 Some(StartedAction::Async { phase })
             }
             TryExecuteResult::ExecutedSync => {
-                if !is_wait_for_events {
-                    self.update_conversation_in_progress_status(conversation_id, ctx);
-                }
+                self.update_conversation_in_progress_status(conversation_id, ctx);
                 Some(StartedAction::Sync)
             }
             TryExecuteResult::NotExecuted { reason, action } => {
@@ -933,27 +859,6 @@ impl BlocklistAIActionModel {
         self.running_actions
             .get(&conversation_id)
             .is_some_and(|r| r.contains(action_id))
-    }
-
-    /// Cancels any in-flight WaitForEvents action for the given conversation.
-    pub fn cancel_wait_for_events_for_conversation(
-        &mut self,
-        conversation_id: AIConversationId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let action_id = self.executor.update(ctx, |executor, _| {
-            executor.find_running_wait_for_events(conversation_id)
-        });
-        if let Some(action_id) = action_id {
-            self.cancel_action_with_id(
-                conversation_id,
-                &action_id,
-                CancellationReason::FollowUpSubmitted {
-                    is_for_same_conversation: true,
-                },
-                ctx,
-            );
-        }
     }
 
     pub(super) fn cancel_all_pending_actions(

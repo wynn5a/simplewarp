@@ -5,7 +5,6 @@ use std::collections::HashSet;
 use std::fmt::Display;
 use std::ops::Deref;
 
-use ai::skills::SkillPathOrigin;
 use anyhow::Context as _;
 use field_mask::{FieldMaskError, FieldMaskOperation};
 use helper::{MessageExt, SubagentExt, ToolCallExt};
@@ -167,7 +166,6 @@ pub struct Task {
 pub(super) struct TaskMessageContext<'a> {
     pub(super) current_todo_list: Option<&'a AIAgentTodoList>,
     pub(super) active_code_review: Option<&'a CodeReview>,
-    pub(super) skill_path_origin: &'a SkillPathOrigin,
 }
 
 impl Task {
@@ -196,7 +194,6 @@ impl Task {
         parent_task: Option<&api::Task>,
         current_todo_list: Option<&AIAgentTodoList>,
         active_code_review: Option<&CodeReview>,
-        skill_path_origin: &SkillPathOrigin,
     ) -> Result<Self, UpgradeOptimisticTaskError> {
         match self.data {
             TaskImpl::Optimistic(optimistic::Task::Root) => {
@@ -245,7 +242,6 @@ impl Task {
                 TaskMessageContext {
                     current_todo_list,
                     active_code_review,
-                    skill_path_origin,
                 },
             )
             .context(
@@ -279,7 +275,6 @@ impl Task {
         existing_exchange: &AIAgentExchange,
         current_todo_list: Option<&AIAgentTodoList>,
         active_code_review: Option<&CodeReview>,
-        skill_path_origin: &SkillPathOrigin,
     ) -> Self {
         let subagent_call_and_id = parent_task.messages.iter().find_map(|message| {
             let tool_call = message.tool_call()?;
@@ -332,7 +327,6 @@ impl Task {
             TaskMessageContext {
                 current_todo_list,
                 active_code_review,
-                skill_path_origin,
             },
         )
         .expect("Exchange exists and output is in 'streaming' state.");
@@ -687,7 +681,6 @@ impl Task {
                 task_id: &id,
                 current_todo_list: message_context.current_todo_list,
                 active_code_review: message_context.active_code_review,
-                skill_path_origin: message_context.skill_path_origin,
             },
         )?;
 
@@ -728,7 +721,6 @@ impl Task {
                 task_id: &id,
                 current_todo_list: message_context.current_todo_list,
                 active_code_review: message_context.active_code_review,
-                skill_path_origin: message_context.skill_path_origin,
             },
         )?;
 
@@ -872,7 +864,6 @@ impl Task {
                         task_id: &self.id,
                         current_todo_list: message_context.current_todo_list,
                         active_code_review: message_context.active_code_review,
-                        skill_path_origin: message_context.skill_path_origin,
                     }) {
                         Ok(MaybeAIAgentOutputMessage::Message(m)) => Some(Ok(m)),
                         Ok(MaybeAIAgentOutputMessage::NoClientRepresentation) => None,

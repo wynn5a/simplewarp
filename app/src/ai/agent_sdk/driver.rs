@@ -1774,7 +1774,6 @@ impl AgentDriver {
                 | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
                 | BlocklistAIHistoryEvent::ConversationServerTokenAssigned { .. }
                 | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalSurfaces { .. }
-                | BlocklistAIHistoryEvent::OrchestrationConfigUpdated { .. }
                 | BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated { .. } => (),
             }
         });

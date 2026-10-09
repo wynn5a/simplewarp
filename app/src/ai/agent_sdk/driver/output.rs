@@ -5,7 +5,6 @@ pub mod text {
 
     const CANCELLED_MESSAGE: &str = "<cancelled>";
 
-    use ai::agent::action_result::FetchConversationResult;
     use itertools::Itertools;
 
     use crate::AIAgentActionResultType;
@@ -33,10 +32,7 @@ pub mod text {
             | AIAgentInput::CreateEnvironment { .. }
             | AIAgentInput::SummarizeConversation { .. }
             | AIAgentInput::InvokeSkill { .. }
-            | AIAgentInput::StartFromAmbientRunPrompt { .. }
-            | AIAgentInput::MessagesReceivedFromAgents { .. }
-            | AIAgentInput::EventsFromAgents { .. }
-            | AIAgentInput::OrchestrationConfigUpdate { .. } => {
+            | AIAgentInput::StartFromAmbientRunPrompt { .. } => {
                 // Do not include the user query, since it's already provided as input to the agent.
                 Ok(())
             }
@@ -235,21 +231,6 @@ pub mod text {
                 AIAgentActionResultType::InitProject => Ok(()),
                 AIAgentActionResultType::ReadShellCommandOutput { .. } => Ok(()),
                 AIAgentActionResultType::TransferShellCommandControlToUser { .. } => Ok(()),
-                AIAgentActionResultType::FetchConversation(result) => match result {
-                    FetchConversationResult::Success { directory_path } => {
-                        writeln!(w, "Fetched conversation to {directory_path}")
-                    }
-                    FetchConversationResult::Error(error) => {
-                        writeln!(w, "Fetch conversation error: {error}")
-                    }
-                    FetchConversationResult::Cancelled => writeln!(w, "{CANCELLED_MESSAGE}"),
-                },
-                // SendMessageToAgent is a client-side orchestration action, not used in SDK
-                AIAgentActionResultType::SendMessageToAgent(_) => Ok(()),
-                // RunAgents is a desktop-client-only action; not used in the SDK.
-                AIAgentActionResultType::RunAgents(_) => Ok(()),
-                // No user-visible payload to emit.
-                AIAgentActionResultType::WaitForEvents(_) => Ok(()),
             },
         }
     }
@@ -334,21 +315,6 @@ pub mod text {
                     AIAgentActionType::InitProject => (),
                     AIAgentActionType::ReadShellCommandOutput { .. }
                     | AIAgentActionType::TransferShellCommandControlToUser { .. } => (),
-                    AIAgentActionType::FetchConversation { conversation_id } => {
-                        writeln!(w, "Fetching conversation {conversation_id}")?;
-                    }
-                    AIAgentActionType::SendMessageToAgent {
-                        addresses, subject, ..
-                    } => {
-                        writeln!(
-                            w,
-                            "Sending message to [{}]: {subject}",
-                            addresses.join(", ")
-                        )?;
-                    }
-                    // RunAgents is desktop-client-only; SDK driver renders nothing.
-                    AIAgentActionType::RunAgents(_) => (),
-                    AIAgentActionType::WaitForEvents { .. } => (),
                 },
                 AIAgentOutputMessageType::TodoOperation(operation) => match operation {
                     TodoOperation::UpdateTodos { todos } => {
@@ -391,12 +357,6 @@ pub mod text {
                 },
                 AIAgentOutputMessageType::SkillInvoked(invoked_skill) => {
                     writeln!(w, "Skill Read: {}", invoked_skill.name)?;
-                }
-                AIAgentOutputMessageType::MessagesReceivedFromAgents { messages } => {
-                    writeln!(w, "Received {} messages", messages.len())?;
-                }
-                AIAgentOutputMessageType::EventsFromAgents { event_ids } => {
-                    writeln!(w, "Received {} agent events", event_ids.len())?;
                 }
             }
         }
@@ -650,10 +610,7 @@ pub mod json {
                 | AIAgentInput::CreateEnvironment { .. }
                 | AIAgentInput::SummarizeConversation { .. }
                 | AIAgentInput::InvokeSkill { .. }
-                | AIAgentInput::StartFromAmbientRunPrompt { .. }
-                | AIAgentInput::MessagesReceivedFromAgents { .. }
-                | AIAgentInput::EventsFromAgents { .. }
-                | AIAgentInput::OrchestrationConfigUpdate { .. } => None,
+                | AIAgentInput::StartFromAmbientRunPrompt { .. } => None,
                 // These input types should not occur in a SDK-run agent.
                 AIAgentInput::ResumeConversation { .. }
                 | AIAgentInput::TriggerPassiveSuggestion { .. } => None,
@@ -917,13 +874,7 @@ pub mod json {
                     | AIAgentActionType::OpenCodeReview
                     | AIAgentActionType::InsertCodeReviewComments { .. }
                     | AIAgentActionType::ReadShellCommandOutput { .. }
-                    | AIAgentActionType::FetchConversation { .. }
-                    | AIAgentActionType::SendMessageToAgent { .. }
                     | AIAgentActionType::TransferShellCommandControlToUser { .. } => None,
-                    // RunAgents is desktop-client-only; SDK has no JSON
-                    // representation for it.
-                    AIAgentActionType::RunAgents(_) => None,
-                    AIAgentActionType::WaitForEvents { .. } => None,
                 },
                 AIAgentOutputMessageType::TodoOperation(operation) => match operation {
                     TodoOperation::UpdateTodos { todos } => Some(JsonMessage::UpdateTodos {
@@ -952,8 +903,6 @@ pub mod json {
                         name: &invoked_skill.name,
                     })
                 }
-                AIAgentOutputMessageType::MessagesReceivedFromAgents { .. }
-                | AIAgentOutputMessageType::EventsFromAgents { .. } => None,
             }
         }
     }

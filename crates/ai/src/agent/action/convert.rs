@@ -323,14 +323,6 @@ impl From<api::message::tool_call::TransferShellCommandControlToUser> for AIAgen
     }
 }
 
-impl From<api::message::tool_call::FetchConversation> for AIAgentActionType {
-    fn from(value: api::message::tool_call::FetchConversation) -> Self {
-        AIAgentActionType::FetchConversation {
-            conversation_id: value.conversation_id,
-        }
-    }
-}
-
 fn prost_to_serde_json(x: prost_types::Value) -> Result<serde_json::Value, String> {
     use prost_types::value::Kind::*;
     use serde_json::Value::*;

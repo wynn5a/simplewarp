@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use ai::agent::UnknownCitationTypeError;
 use ai::agent::convert::ToolToAIAgentActionError;
-use ai::skills::{SkillPathOrigin, skill_reference_from_api_skill_ref};
 use warp_core::channel::ChannelState;
 use warp_multi_agent_api as api;
 
@@ -13,8 +12,7 @@ use crate::ai::agent::todos::AIAgentTodoList;
 use crate::ai::agent::util::parse_markdown_into_text_and_code_sections;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionType, AIAgentAttachment, AIAgentCitation, AIAgentOutputMessage,
-    AIAgentText, AIAgentTodo, ArtifactCreatedData, MessageId, RunAgentsAgentRunConfig,
-    RunAgentsExecutionMode, RunAgentsRequest, SubagentCall, SubagentType,
+    AIAgentText, AIAgentTodo, ArtifactCreatedData, MessageId, SubagentCall, SubagentType,
     SuggestedAgentModeWorkflow, SuggestedRule, Suggestions, SummarizationType, TodoOperation,
     UserQueryMode,
 };
@@ -55,68 +53,6 @@ pub(crate) fn convert_user_query_mode(mode: Option<&api::UserQueryMode>) -> User
     }
 }
 
-/// Maps the proto `Harness` oneof to a client-side string identifier
-/// (e.g. "oz", "claude"). Returns `None` for an unset variant.
-pub(crate) fn convert_run_agents_harness(harness: Option<&api::Harness>) -> Option<String> {
-    let variant = harness?.variant.as_ref()?;
-    Some(
-        match variant {
-            api::harness::Variant::Oz(_) => "oz",
-            api::harness::Variant::ClaudeCode(_) => "claude",
-            api::harness::Variant::OpenCode(_) => "opencode",
-            api::harness::Variant::Gemini(_) => "gemini",
-            api::harness::Variant::Codex(_) => "codex",
-        }
-        .to_string(),
-    )
-}
-
-fn convert_run_agents_execution_mode(
-    execution_mode: Option<api::run_agents::ExecutionModeOneOf>,
-) -> RunAgentsExecutionMode {
-    match execution_mode {
-        Some(api::run_agents::ExecutionModeOneOf::Remote(_)) => RunAgentsExecutionMode::Remote,
-        Some(api::run_agents::ExecutionModeOneOf::Local(_)) | None => RunAgentsExecutionMode::Local,
-    }
-}
-
-fn convert_run_agents(
-    run_agents: api::RunAgents,
-    skill_path_origin: &SkillPathOrigin,
-) -> AIAgentActionType {
-    let api::RunAgents {
-        summary,
-        base_prompt,
-        skills,
-        model_id,
-        harness,
-        agent_run_configs,
-        execution_mode,
-        plan_id,
-    } = run_agents;
-    AIAgentActionType::RunAgents(RunAgentsRequest {
-        summary,
-        base_prompt,
-        skills: skills
-            .into_iter()
-            .filter_map(|skill| skill_reference_from_api_skill_ref(skill, skill_path_origin))
-            .collect(),
-        model_id,
-        harness_type: convert_run_agents_harness(harness.as_ref()).unwrap_or_default(),
-        execution_mode: convert_run_agents_execution_mode(execution_mode),
-        agent_run_configs: agent_run_configs
-            .into_iter()
-            .map(|config| RunAgentsAgentRunConfig {
-                name: config.name,
-                prompt: config.prompt,
-                title: config.title,
-                model_id: config.model_id,
-            })
-            .collect(),
-        plan_id,
-    })
-}
-
 /// Unexpected errors when trying to convert an [`api::Message`] to an [`AIAgentOutputMessage`].
 #[derive(Debug, thiserror::Error)]
 pub enum MessageToAIAgentOutputMessageError {
@@ -151,7 +87,6 @@ pub struct ConversionParams<'a> {
     pub task_id: &'a TaskId,
     pub current_todo_list: Option<&'a AIAgentTodoList>,
     pub active_code_review: Option<&'a CodeReview>,
-    pub skill_path_origin: &'a SkillPathOrigin,
 }
 
 /// Trait for converting an [`api::Message`] to an [`AIAgentOutputMessage`].
@@ -450,37 +385,6 @@ impl ConvertAPIMessageToClientOutputMessage for api::Message {
                     Ok(MaybeAIAgentOutputMessage::NoClientRepresentation)
                 }
             },
-            api::message::Message::MessagesReceivedFromAgents(messages_received_from_agents) => {
-                let messages = messages_received_from_agents
-                    .messages
-                    .into_iter()
-                    .map(|msg| crate::ai::agent::ReceivedMessageDisplay {
-                        message_id: msg.message_id,
-                        sender_agent_id: msg.sender_agent_id,
-                        addresses: msg.addresses,
-                        subject: msg.subject,
-                        message_body: msg.message_body,
-                    })
-                    .collect();
-                Ok(MaybeAIAgentOutputMessage::Message(
-                    AIAgentOutputMessage::messages_received_from_agents(
-                        MessageId::new(self.id),
-                        messages,
-                    )
-                    .with_citations(citations),
-                ))
-            }
-            api::message::Message::EventsFromAgents(events) => {
-                let event_ids = events
-                    .agent_events
-                    .iter()
-                    .map(|e| e.event_id.clone())
-                    .collect();
-                Ok(MaybeAIAgentOutputMessage::Message(
-                    AIAgentOutputMessage::events_from_agents(MessageId::new(self.id), event_ids)
-                        .with_citations(citations),
-                ))
-            }
             // These messages don't indicate an error but they don't translate to a client-side output message.
             api::message::Message::UserQuery(_)
             | api::message::Message::SystemQuery(_)
@@ -489,6 +393,10 @@ impl ConvertAPIMessageToClientOutputMessage for api::Message {
             | api::message::Message::ServerEvent(_)
             | api::message::Message::InvokeSkill(_)
             | api::message::Message::PassiveSuggestionResult(_)
+            // Orchestration messages: the local agent has no sub-agents, so saved ones
+            // are not shown.
+            | api::message::Message::MessagesReceivedFromAgents(_)
+            | api::message::Message::EventsFromAgents(_)
             // Stage 2 plan-card config snapshot: hydrated separately by the
             // plan card's `AIDocumentModel` subscription, not via the
             // exchange/output stream. No client output message representation.
@@ -606,7 +514,11 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
             | api::message::tool_call::Tool::UseComputer(_)
             | api::message::tool_call::Tool::RequestComputerUse(_)
             | api::message::tool_call::Tool::StartRecording(_)
-            | api::message::tool_call::Tool::StopRecording(_) => {
+            | api::message::tool_call::Tool::StopRecording(_)
+            | api::message::tool_call::Tool::RunAgents(_)
+            | api::message::tool_call::Tool::SendMessageToAgent(_)
+            | api::message::tool_call::Tool::FetchConversation(_)
+            | api::message::tool_call::Tool::WaitForEvents(_) => {
                 Ok(MaybeAIAgentAction::NoClientRepresentation)
             }
             api::message::tool_call::Tool::Subagent(subagent) => {
@@ -653,32 +565,13 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
                     subagent_type,
                 }))
             }
-            api::message::tool_call::Tool::RunAgents(orchestrate) => {
-                create_standard_action(convert_run_agents(orchestrate, params.skill_path_origin))
-            }
-            api::message::tool_call::Tool::SendMessageToAgent(send_message) => {
-                create_standard_action(AIAgentActionType::SendMessageToAgent {
-                    addresses: send_message.addresses,
-                    subject: send_message.subject,
-                    message: send_message.message,
-                })
-            }
             api::message::tool_call::Tool::InsertReviewComments(insert_review_comments) => {
                 create_standard_action(insert_review_comments.into())
-            }
-            api::message::tool_call::Tool::FetchConversation(fetch_conversation) => {
-                create_standard_action(fetch_conversation.into())
             }
             // Clients do not need to know how to parse server tool-calls but receiving
             // them is not an error.
             api::message::tool_call::Tool::Server(_) => {
                 Ok(MaybeAIAgentAction::NoClientRepresentation)
-            }
-            api::message::tool_call::Tool::WaitForEvents(payload) => {
-                create_standard_action(AIAgentActionType::WaitForEvents {
-                    tool_call_id: self.tool_call_id.clone(),
-                    idle_timeout_seconds: payload.idle_timeout_seconds,
-                })
             }
             _ => Err(ToolToAIAgentActionError::UnexpectedTool),
         }

@@ -81,10 +81,7 @@ impl TryFrom<&AIAgentInput> for PersistedAIInputType {
             | AIAgentInput::CodeReview { .. }
             | AIAgentInput::SummarizeConversation { .. }
             | AIAgentInput::InvokeSkill { .. }
-            | AIAgentInput::StartFromAmbientRunPrompt { .. }
-            | AIAgentInput::MessagesReceivedFromAgents { .. }
-            | AIAgentInput::EventsFromAgents { .. }
-            | AIAgentInput::OrchestrationConfigUpdate { .. } => Err(anyhow::anyhow!(
+            | AIAgentInput::StartFromAmbientRunPrompt { .. } => Err(anyhow::anyhow!(
                 "This input type is not persisted. Only Query inputs are persisted for up-arrow history."
             )),
         }
@@ -265,10 +262,7 @@ pub(crate) enum PersistedAIAgentActionType {
     UseComputer {},
     RequestComputerUse {},
     AskUserQuestion {},
-
-    FetchConversation {
-        conversation_id: String,
-    },
+    FetchConversation {},
 
     /// Actions that don't need data persisted (since they're restored from conversation tasks) can be mapped to this.
     NotPersisted,
@@ -343,17 +337,6 @@ impl From<&AIAgentActionType> for PersistedAIAgentActionType {
             AIAgentActionType::InitProject => Self::InitProject,
             AIAgentActionType::ReadShellCommandOutput { .. }
             | AIAgentActionType::TransferShellCommandControlToUser { .. } => Self::NotPersisted,
-            AIAgentActionType::FetchConversation { conversation_id } => Self::FetchConversation {
-                conversation_id: conversation_id.clone(),
-            },
-            AIAgentActionType::SendMessageToAgent { .. } => Self::NotPersisted,
-            // Orchestrate is rendered from the in-history tool call message;
-            // there is no per-action state we need to persist locally.
-            AIAgentActionType::RunAgents(_) => Self::NotPersisted,
-            // The wait is dropped on restart; the unresolved tool call
-            // stays in the transcript as an orphan until the next
-            // outbound request triggers the server's supersede.
-            AIAgentActionType::WaitForEvents { .. } => Self::NotPersisted,
         }
     }
 }
@@ -445,11 +428,9 @@ impl TryFrom<PersistedAIAgentActionType> for AIAgentActionType {
             PersistedAIAgentActionType::GetRelevantFiles {}
             | PersistedAIAgentActionType::UseComputer {}
             | PersistedAIAgentActionType::RequestComputerUse {}
-            | PersistedAIAgentActionType::AskUserQuestion {} => {
+            | PersistedAIAgentActionType::AskUserQuestion {}
+            | PersistedAIAgentActionType::FetchConversation {} => {
                 Err(anyhow!("That tool is no longer supported."))
-            }
-            PersistedAIAgentActionType::FetchConversation { conversation_id } => {
-                Ok(Self::FetchConversation { conversation_id })
             }
             PersistedAIAgentActionType::NotPersisted => Err(anyhow!(
                 "Restoration is handled through conversation tasks, not persisted blocks."

@@ -1,4 +1,3 @@
-use ai::skills::SkillPathOrigin;
 use warp_multi_agent_api as api;
 
 use super::{ConversionParams, ConvertAPIMessageToClientOutputMessage, MaybeAIAgentOutputMessage};
@@ -94,7 +93,6 @@ fn upload_artifact_tool_call_has_no_client_representation() {
             task_id: &task_id,
             current_todo_list: None,
             active_code_review: None,
-            skill_path_origin: &SkillPathOrigin::Local,
         })
         .expect("conversion should succeed");
 
@@ -115,7 +113,6 @@ fn converts_file_artifact_created_message_with_filename() {
             task_id: &task_id,
             current_todo_list: None,
             active_code_review: None,
-            skill_path_origin: &SkillPathOrigin::Local,
         })
         .expect("conversion should succeed");
 
@@ -159,7 +156,6 @@ fn transfer_control_tool_call_converts_to_action_message() {
             task_id: &task_id,
             current_todo_list: None,
             active_code_review: None,
-            skill_path_origin: &SkillPathOrigin::Local,
         })
         .expect("transfer-control conversion should succeed");
 

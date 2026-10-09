@@ -1237,10 +1237,7 @@ impl AIAgentInput {
             | AIAgentInput::SummarizeConversation { .. }
             | AIAgentInput::InvokeSkill { .. }
             | AIAgentInput::StartFromAmbientRunPrompt { .. }
-            | AIAgentInput::ActionResult { .. }
-            | AIAgentInput::MessagesReceivedFromAgents { .. }
-            | AIAgentInput::EventsFromAgents { .. }
-            | AIAgentInput::OrchestrationConfigUpdate { .. } => None,
+            | AIAgentInput::ActionResult { .. } => None,
         }
     }
 }

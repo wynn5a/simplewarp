@@ -15500,24 +15500,6 @@ impl Workspace {
             }
         }
 
-        match ai_settings.orchestration_message_display_mode {
-            crate::settings::OrchestrationMessageDisplayMode::ShowAndCollapse => {
-                context
-                    .set
-                    .insert(flags::ORCHESTRATION_MESSAGE_DISPLAY_SHOW_AND_COLLAPSE);
-            }
-            crate::settings::OrchestrationMessageDisplayMode::AlwaysShow => {
-                context
-                    .set
-                    .insert(flags::ORCHESTRATION_MESSAGE_DISPLAY_ALWAYS_SHOW);
-            }
-            crate::settings::OrchestrationMessageDisplayMode::AlwaysCollapse => {
-                context
-                    .set
-                    .insert(flags::ORCHESTRATION_MESSAGE_DISPLAY_ALWAYS_COLLAPSE);
-            }
-        }
-
         match ai_settings.default_prompt_submission_mode {
             crate::settings::PromptSubmissionMode::Interrupt => {
                 context.set.insert(flags::PROMPT_SUBMISSION_INTERRUPT);

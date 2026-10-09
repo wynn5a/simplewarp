@@ -397,6 +397,20 @@ that only it used:
   the schema. Notebooks keep their `ai_document_id` field (and the "Plan" label/icon) as data.
   `AIAgentAttachment::DocumentContent` stays because it is a persisted shape.
 
+- **Orchestration** (round 6, 2026-10-09): `RunAgents`, `SendMessageToAgent`, `WaitForEvents`,
+  `FetchConversation` (actions, results, executors, the yaml export `conversation_yaml.rs` and the
+  temp-dir cleanup it needed), the `MessagesReceivedFromAgents`/`EventsFromAgents` output messages
+  and inputs, `OrchestrationConfigUpdate`, `crates/ai` `orchestration_config` and the per-plan
+  config map + `OrchestrationConfigUpdated` event on conversations, the
+  `orchestration_message_display_mode` setting with its settings-page dropdown, command-palette
+  entries and context flags, the received-message collapsible/avatar state in `AIBlock`, and the
+  `skill_path_origin` plumbing that only fed `RunAgents`. Saved calls/results restore as nothing;
+  the persisted `FetchConversation` action row becomes a tombstone (`FetchConversation {}`).
+  A stored `orchestration_message_display_mode` key in settings.toml is simply ignored.
+  Still there: the child-agent conversation model (`parent_conversation_id`, `agent_name`, harness,
+  pinned, event sequence, pill-bar visibility) because it is persisted data and entangled with the
+  history model and pane code.
+
 Saved conversations: calls and results of these tools restore as nothing (`NoClientRepresentation`
 for calls, `None` for results). Persisted `PersistedAIAgentActionType` rows that hold one still
 deserialize through empty tombstone variants (`UseComputer {}`, `RequestComputerUse {}`,
@@ -404,15 +418,14 @@ deserialize through empty tombstone variants (`UseComputer {}`, `RequestComputer
 the removed keys still load (profile files ignore unknown keys); `computer_use_enabled` in an agent
 config file is now rejected (that file type denies unknown keys).
 
-Verification: workspace nextest 6385 / 6395 after the documents round (6407 / 6417 before it); the
+Verification: workspace nextest 6355 / 6365 after the orchestration round (6385 / 6395 after the documents round, 6407 / 6417 before it); the
 failing 10 are `integration::integration` GUI tests that time out the same way without these
 changes (one of them flips between runs).
 
 **Not done**, because each is tied to something still live: `InsertReviewComments` (the
 `code_review/comments` import path and its flag), `TransferShellCommandControlToUser` (the
 long-running-command controls in `shell_command.rs`/`cli_controller.rs`), `SuggestPrompt` (passive
-suggestions), and the orchestration family (`RunAgents`, `SendMessageToAgent`, `WaitForEvents`,
-`FetchConversation`, `OrchestrationConfigUpdate`, with the profile "run agents" permission). The todo
+suggestions), and the child-agent conversation model listed under the orchestration round. The todo
 list (`UpdateTodos`, the todo chip and popup) is also unreachable, since no offered tool creates one.
 MCP tool calls stay
 (Phase 3b). Dogfood-only skills under `resources/channel-gated-skills` still mention computer use.

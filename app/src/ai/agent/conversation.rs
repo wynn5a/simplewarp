@@ -1,8 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 
-use ai::agent::orchestration_config::{OrchestrationConfig, OrchestrationConfigStatus};
-use ai::skills::SkillPathOrigin;
 use anyhow::Context as _;
 use chrono::{DateTime, Local, TimeZone};
 use itertools::Itertools as _;
@@ -344,11 +342,6 @@ pub struct AIConversation {
     /// re-delivering already-processed events.
     last_event_sequence: Option<i64>,
 
-    /// Per-plan orchestration configs hydrated from
-    /// `OrchestrationConfigSnapshot` messages in the conversation's task list.
-    /// Keyed by `plan_id`; snapshots with empty `plan_id` are ignored.
-    orchestration_configs: HashMap<String, (OrchestrationConfig, OrchestrationConfigStatus)>,
-
     /// Whether the user has pinned this child agent in the orchestration
     /// pill bar. Persisted via `AgentConversationData.pinned`.
     pinned: bool,
@@ -402,7 +395,6 @@ impl AIConversation {
             orchestration_harness_type: None,
             parent_conversation_id: None,
             last_event_sequence: None,
-            orchestration_configs: HashMap::new(),
             pinned: false,
         }
     }
@@ -647,7 +639,6 @@ impl AIConversation {
             orchestration_harness_type,
             parent_conversation_id,
             last_event_sequence,
-            orchestration_configs: HashMap::new(),
             pinned,
         })
     }
@@ -743,7 +734,7 @@ impl AIConversation {
             .remove(&root_task_id)
             .expect("root task should exist for upgrade-in-place test helper");
         let server_root = root_task
-            .into_server_created_task(server_task, None, None, None, &SkillPathOrigin::Unavailable)
+            .into_server_created_task(server_task, None, None, None)
             .expect("upgrading optimistic root to a server-backed task should succeed");
         self.task_store.set_root_task(server_root);
     }
@@ -1085,69 +1076,6 @@ impl AIConversation {
     /// driver-hosted processes).
     pub fn is_child_agent_conversation(&self) -> bool {
         self.parent_conversation_id.is_some() || self.parent_agent_id.is_some()
-    }
-
-    /// Returns the orchestration config and status for a specific plan,
-    /// or `None` if no config has been hydrated for that plan.
-    pub fn orchestration_config_for_plan(
-        &self,
-        plan_id: &str,
-    ) -> Option<(&OrchestrationConfig, OrchestrationConfigStatus)> {
-        self.orchestration_configs
-            .get(plan_id)
-            .map(|(config, status)| (config, *status))
-    }
-
-    /// Returns `true` if at least one plan has an orchestration config.
-    pub fn has_any_orchestration_config(&self) -> bool {
-        !self.orchestration_configs.is_empty()
-    }
-
-    /// Inserts or replaces the orchestration config for a specific plan.
-    /// Returns `true` if the value actually changed.
-    pub fn set_orchestration_config_for_plan(
-        &mut self,
-        plan_id: String,
-        config: OrchestrationConfig,
-        status: OrchestrationConfigStatus,
-    ) -> bool {
-        use std::collections::hash_map::Entry;
-        match self.orchestration_configs.entry(plan_id) {
-            Entry::Occupied(mut entry) => {
-                let existing = entry.get();
-                if existing.0 != config || existing.1 != status {
-                    entry.insert((config, status));
-                    true
-                } else {
-                    false
-                }
-            }
-            Entry::Vacant(entry) => {
-                entry.insert((config, status));
-                true
-            }
-        }
-    }
-
-    /// Returns a reference to the full per-plan config map.
-    pub fn orchestration_configs(
-        &self,
-    ) -> &HashMap<String, (OrchestrationConfig, OrchestrationConfigStatus)> {
-        &self.orchestration_configs
-    }
-
-    /// Bulk-replaces all orchestration configs (used during hydration).
-    /// Returns `true` if the map actually changed.
-    pub fn set_orchestration_configs(
-        &mut self,
-        configs: HashMap<String, (OrchestrationConfig, OrchestrationConfigStatus)>,
-    ) -> bool {
-        if self.orchestration_configs != configs {
-            self.orchestration_configs = configs;
-            true
-        } else {
-            false
-        }
     }
 
     /// Returns a flat list of linearized messages across all tasks, interpolating subtask messages
@@ -2175,7 +2103,6 @@ impl AIConversation {
         response_stream_id: &ResponseStreamId,
         terminal_surface_id: EntityId,
         action: warp_multi_agent_api::client_action::Action,
-        skill_path_origin: &SkillPathOrigin,
         ctx: &mut ModelContext<BlocklistAIHistoryModel>,
     ) -> Result<(), UpdateConversationError> {
         use warp_multi_agent_api::client_action::*;
@@ -2225,7 +2152,6 @@ impl AIConversation {
                             parent_task.source(),
                             self.todo_lists.last(),
                             self.code_review.as_ref(),
-                            skill_path_origin,
                         )?;
                         ctx.emit(BlocklistAIHistoryEvent::UpgradedTask {
                             optimistic_id: optimistic_id.clone(),
@@ -2262,7 +2188,6 @@ impl AIConversation {
                             existing_exchange,
                             self.todo_lists.last(),
                             self.code_review.as_ref(),
-                            skill_path_origin,
                         );
 
                         // Subtasks can come pre-populated with messages (for example: an advice subagent
@@ -2319,7 +2244,6 @@ impl AIConversation {
                             None,
                             self.todo_lists.last(),
                             self.code_review.as_ref(),
-                            skill_path_origin,
                         )?;
                         ctx.emit(BlocklistAIHistoryEvent::UpgradedTask {
                             optimistic_id: old_id,
@@ -2432,43 +2356,6 @@ impl AIConversation {
                                 None => {}
                             }
                         }
-                        Some(api::message::Message::OrchestrationConfigSnapshot(
-                            snapshot,
-                        )) => {
-                            if !snapshot.plan_id.is_empty()
-                                && let Some(config) = snapshot
-                                    .config
-                                    .as_ref()
-                                    .map(OrchestrationConfig::from_proto)
-                                {
-                                    let status = OrchestrationConfigStatus::from_proto(
-                                        snapshot.status.as_ref(),
-                                    );
-                                    if self.set_orchestration_config_for_plan(
-                                        snapshot.plan_id.clone(),
-                                        config,
-                                        status,
-                                    ) {
-                                        ctx.emit(
-                                            BlocklistAIHistoryEvent::OrchestrationConfigUpdated {
-                                                conversation_id: self.id,
-                                            },
-                                        );
-                                    }
-                                }
-                        }
-                        Some(api::message::Message::ToolCallResult(tcr)) => {
-                            if matches!(
-                                &tcr.result,
-                                Some(api::message::tool_call_result::Result::Subagent(_))
-                            ) {
-                                cleanup_conversation_search_temp_dir(
-                                    &tcr.tool_call_id,
-                                    &task_id,
-                                    &self.task_store,
-                                );
-                            }
-                        }
                         Some(api::message::Message::ModelUsed(model_used)) => {
                             let prompt_cache_expires_at = model_used
                                 .prompt_cache_expires_at
@@ -2545,7 +2432,6 @@ impl AIConversation {
                     TaskMessageContext {
                         current_todo_list: current_todo_list.as_ref(),
                         active_code_review: current_comment_state.as_ref(),
-                        skill_path_origin,
                     },
                 )?;
 
@@ -2592,29 +2478,6 @@ impl AIConversation {
                 message: Some(message),
                 mask: Some(mask),
             }) => {
-                // Process OrchestrationConfigSnapshot if the updated
-                // message carries one (e.g. create_orchestration_config
-                // tool call result updating a single message in place).
-                if let Some(api::message::Message::OrchestrationConfigSnapshot(snapshot)) =
-                    &message.message
-                    && !snapshot.plan_id.is_empty()
-                    && let Some(config) = snapshot
-                        .config
-                        .as_ref()
-                        .map(OrchestrationConfig::from_proto)
-                {
-                    let status = OrchestrationConfigStatus::from_proto(snapshot.status.as_ref());
-                    if self.set_orchestration_config_for_plan(
-                        snapshot.plan_id.clone(),
-                        config,
-                        status,
-                    ) {
-                        ctx.emit(BlocklistAIHistoryEvent::OrchestrationConfigUpdated {
-                            conversation_id: self.id,
-                        });
-                    }
-                }
-
                 let task_id = TaskId::new(task_id);
                 let exchange_id = self
                     .added_exchanges_by_response
@@ -2637,7 +2500,6 @@ impl AIConversation {
                             TaskMessageContext {
                                 current_todo_list: current_todo_list.as_ref(),
                                 active_code_review: current_comment_state.as_ref(),
-                                skill_path_origin,
                             },
                             mask,
                         )
@@ -2686,7 +2548,6 @@ impl AIConversation {
                             TaskMessageContext {
                                 current_todo_list: current_todo_list.as_ref(),
                                 active_code_review: current_comment_state.as_ref(),
-                                skill_path_origin,
                             },
                             mask,
                         )
@@ -3813,62 +3674,6 @@ pub(super) fn update_comment_from_comment_operation(
     }
 
     resolved_count
-}
-
-/// Cleans up temporary directories created by conversation search subagents.
-///
-/// When a SubagentResult comes back for a conversation_search subagent, the temp
-/// directory containing materialized YAML files is no longer needed and should be removed.
-fn cleanup_conversation_search_temp_dir(
-    tool_call_id: &str,
-    parent_task_id: &str,
-    task_store: &TaskStore,
-) {
-    let parent_task_id = TaskId::new(parent_task_id.to_string());
-    let Some(parent_task) = task_store.get(&parent_task_id) else {
-        return;
-    };
-
-    // Find the Subagent tool call matching this tool_call_id.
-    let subtask_id = parent_task.messages().find_map(|m| {
-        let tc = m.tool_call()?;
-        if tc.tool_call_id != tool_call_id {
-            return None;
-        }
-        let sub = tc.subagent()?;
-        sub.is_conversation_search().then(|| sub.task_id.clone())
-    });
-
-    let Some(subtask_id) = subtask_id else {
-        return;
-    };
-
-    // Find the subtask and look for a FetchConversationResult with a directory_path.
-    let subtask_id = TaskId::new(subtask_id);
-    let Some(subtask) = task_store.get(&subtask_id) else {
-        return;
-    };
-
-    let base_dir = super::conversation_yaml::base_dir();
-    for msg in subtask.messages() {
-        if let Some(api::message::Message::ToolCallResult(tcr)) = &msg.message
-            && let Some(api::message::tool_call_result::Result::FetchConversation(result)) =
-                &tcr.result
-            && let Some(api::fetch_conversation_result::Result::Success(success)) = &result.result
-        {
-            let dir = std::path::Path::new(&success.directory_path);
-            if dir.starts_with(&base_dir) {
-                if let Err(e) = std::fs::remove_dir_all(dir) {
-                    log::warn!(
-                        "Failed to clean up conversation search temp dir {}: {e}",
-                        dir.display(),
-                    );
-                } else {
-                    log::info!("Cleaned up conversation search temp dir: {}", dir.display(),);
-                }
-            }
-        }
-    }
 }
 
 #[derive(Debug, thiserror::Error)]

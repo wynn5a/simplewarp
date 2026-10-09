@@ -250,10 +250,6 @@ fn get_supported_tools(params: &RequestParams) -> Vec<api::ToolType> {
         api::ToolType::SuggestPrompt,
     ];
 
-    if FeatureFlag::ConversationsAsContext.is_enabled() {
-        supported_tools.push(api::ToolType::FetchConversation);
-    }
-
     match params.session_context.session_type() {
         None | Some(SessionType::Local) => {
             supported_tools.extend(&[api::ToolType::ReadFiles, api::ToolType::ApplyFileDiffs]);
