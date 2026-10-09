@@ -466,8 +466,6 @@ struct ExecutionProfileFile {
     context_window_limit: Option<u32>,
     #[schemars(description = "Unused; kept so existing profile files still load.")]
     autosync_plans_to_warp_drive: bool,
-    #[schemars(description = "Whether the web-search tool is available.")]
-    web_search_enabled: bool,
 }
 
 impl Default for ExecutionProfileFile {
@@ -513,7 +511,6 @@ impl From<&AIExecutionProfile> for ExecutionProfileFile {
             cli_agent_model: profile.cli_agent_model.clone().map(Into::into),
             context_window_limit: profile.context_window_limit,
             autosync_plans_to_warp_drive: profile.autosync_plans_to_warp_drive,
-            web_search_enabled: profile.web_search_enabled,
         }
     }
 }
@@ -562,7 +559,6 @@ impl TryFrom<ExecutionProfileFile> for AIExecutionProfile {
             cli_agent_model: file.cli_agent_model.map(LLMId::from),
             context_window_limit: file.context_window_limit,
             autosync_plans_to_warp_drive: file.autosync_plans_to_warp_drive,
-            web_search_enabled: file.web_search_enabled,
         })
     }
 }

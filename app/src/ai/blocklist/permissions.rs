@@ -464,29 +464,6 @@ impl BlocklistAIPermissions {
         self.get_mcp_denylist_for_profile(ctx, active_profile.id())
     }
 
-    pub fn get_web_search_enabled_for_profile(
-        &self,
-        ctx: &AppContext,
-        profile_id: &ExecutionProfileId,
-    ) -> bool {
-        let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
-        profiles_model
-            .get_profile_by_id(profile_id, ctx)
-            .unwrap_or_else(|| profiles_model.default_profile(ctx))
-            .data()
-            .web_search_enabled
-    }
-
-    pub fn get_web_search_enabled(
-        &self,
-        ctx: &AppContext,
-        terminal_view_id: Option<EntityId>,
-    ) -> bool {
-        let active_profile =
-            AIExecutionProfilesModel::as_ref(ctx).active_profile(terminal_view_id, ctx);
-        self.get_web_search_enabled_for_profile(ctx, active_profile.id())
-    }
-
     pub fn get_ask_user_question_setting_for_profile(
         &self,
         ctx: &AppContext,

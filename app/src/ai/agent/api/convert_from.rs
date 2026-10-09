@@ -20,7 +20,7 @@ use crate::ai::agent::{
     AIAgentText, AIAgentTodo, ArtifactCreatedData, MessageId, RunAgentsAgentRunConfig,
     RunAgentsExecutionMode, RunAgentsRequest, SubagentCall, SubagentType,
     SuggestedAgentModeWorkflow, SuggestedRule, Suggestions, SummarizationType, TodoOperation,
-    UserQueryMode, WebFetchStatus, WebSearchStatus,
+    UserQueryMode,
 };
 use crate::ai::artifact_download::sanitized_basename;
 
@@ -225,75 +225,9 @@ impl ConvertAPIMessageToClientOutputMessage for api::Message {
                     Ok(MaybeAIAgentOutputMessage::NoClientRepresentation)
                 }
             },
-            api::message::Message::WebSearch(web_search) => {
-                let status = match &web_search.status {
-                    Some(api::message::web_search::Status {
-                        r#type: Some(api::message::web_search::status::Type::Searching(searching)),
-                    }) => WebSearchStatus::Searching {
-                        query: if searching.query.is_empty() {
-                            None
-                        } else {
-                            Some(searching.query.clone())
-                        },
-                    },
-                    Some(api::message::web_search::Status {
-                        r#type: Some(api::message::web_search::status::Type::Success(success)),
-                    }) => WebSearchStatus::Success {
-                        query: success.query.clone(),
-                        pages: success
-                            .pages
-                            .iter()
-                            .map(|p| (p.url.clone(), p.title.clone()))
-                            .collect(),
-                    },
-                    Some(api::message::web_search::Status {
-                        r#type: Some(api::message::web_search::status::Type::Error(_)),
-                    }) => {
-                        // Error type doesn't have a query field currently, use empty string
-                        WebSearchStatus::Error {
-                            query: String::new(),
-                        }
-                    }
-                    _ => {
-                        // Unknown or missing status
-                        return Ok(MaybeAIAgentOutputMessage::NoClientRepresentation);
-                    }
-                };
-
-                Ok(MaybeAIAgentOutputMessage::Message(
-                    AIAgentOutputMessage::web_search(MessageId::new(self.id), status)
-                        .with_citations(citations),
-                ))
-            }
-            api::message::Message::WebFetch(web_fetch) => {
-                let status = match &web_fetch.status {
-                    Some(api::message::web_fetch::Status {
-                        r#type: Some(api::message::web_fetch::status::Type::Fetching(fetching)),
-                    }) => WebFetchStatus::Fetching {
-                        urls: fetching.urls.clone(),
-                    },
-                    Some(api::message::web_fetch::Status {
-                        r#type: Some(api::message::web_fetch::status::Type::Success(success)),
-                    }) => WebFetchStatus::Success {
-                        pages: success
-                            .pages
-                            .iter()
-                            .map(|p| (p.url.clone(), p.title.clone(), p.success))
-                            .collect(),
-                    },
-                    Some(api::message::web_fetch::Status {
-                        r#type: Some(api::message::web_fetch::status::Type::Error(_)),
-                    }) => WebFetchStatus::Error,
-                    _ => {
-                        // Unknown or missing status
-                        return Ok(MaybeAIAgentOutputMessage::NoClientRepresentation);
-                    }
-                };
-
-                Ok(MaybeAIAgentOutputMessage::Message(
-                    AIAgentOutputMessage::web_fetch(MessageId::new(self.id), status)
-                        .with_citations(citations),
-                ))
+            // Web search and fetch ran on the server; there is nothing to draw for saved ones.
+            api::message::Message::WebSearch(_) | api::message::Message::WebFetch(_) => {
+                Ok(MaybeAIAgentOutputMessage::NoClientRepresentation)
             }
             api::message::Message::ModelUsed(_) => {
                 Ok(MaybeAIAgentOutputMessage::NoClientRepresentation)

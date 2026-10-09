@@ -30,7 +30,6 @@ apply_code_diffs = "always_allow"
 read_files = "always_ask"
 command_denylist = ["rm .*"]
 directory_allowlist = ["/repo"]
-web_search_enabled = true
 "#;
 
 const RELOADED_PROFILES: &str = r#"
@@ -82,7 +81,6 @@ pub fn test_execution_profiles_load_from_settings_file() -> Builder {
                                 profile.name == "Code Review"
                                     && profile.apply_code_diffs_always_allow
                                     && profile.directory_allowlist == [PathBuf::from("/repo")]
-                                    && profile.web_search_enabled
                             })
                             && has_multiple_execution_profiles(app),
                         "Expected the execution profile model to expose the complete collection loaded from settings.toml"

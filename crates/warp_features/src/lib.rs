@@ -287,12 +287,6 @@ pub enum FeatureFlag {
     /// Groups MCP tools and resources by their originating server when sending context to the AI backend.
     MCPGroupedServerContext,
 
-    /// Enables the web search UI (when the model executes a web search).
-    WebSearchUI,
-
-    /// Enables the web fetch UI (when the model fetches content from URLs).
-    WebFetchUI,
-
     /// Enables rendering Mermaid diagrams in markdown notebooks.
     MarkdownMermaid,
     /// Enables editable Mermaid diagrams to behave atomically in notebook and plan editors.

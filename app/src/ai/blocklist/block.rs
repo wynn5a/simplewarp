@@ -81,7 +81,7 @@ use super::{
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResultType, AIAgentActionType, AIAgentAttachment,
-    AIAgentCitation, AIAgentContext, AIAgentInput, AIAgentOutput, AIAgentOutputMessage,
+    AIAgentCitation, AIAgentContext, AIAgentInput, AIAgentOutput,
     AIAgentOutputMessageType, AIAgentTextSection, AIIdentifiers, CancellationReason,
     CreateDocumentsRequest, CreateDocumentsResult, DocumentToCreate, EditDocumentsResult,
     MessageId, PassiveSuggestionTrigger, ProgrammingLanguage, RequestCommandOutputResult,
@@ -109,8 +109,6 @@ use crate::ai::blocklist::inline_action::search_codebase::{
 use crate::ai::blocklist::inline_action::suggested_unit_tests::{
     SuggestedUnitTestsEvent, SuggestedUnitTestsView,
 };
-use crate::ai::blocklist::inline_action::web_fetch::WebFetchView;
-use crate::ai::blocklist::inline_action::web_search::WebSearchView;
 use crate::ai::blocklist::permissions::{
     CommandExecutionPermission, CommandExecutionPermissionDeniedReason,
 };
@@ -817,12 +815,6 @@ pub struct AIBlock {
     /// Map from a search codebase action ID to its view handle and status.
     search_codebase_view: HashMap<AIAgentActionId, ViewHandle<SearchCodebaseView>>,
 
-    /// Map from web search message IDs to their view handles.
-    web_search_views: HashMap<MessageId, ViewHandle<WebSearchView>>,
-
-    /// Map from web fetch message IDs to their view handles.
-    web_fetch_views: HashMap<MessageId, ViewHandle<WebFetchView>>,
-
     /// Map from todo list IDs to their states.
     todo_list_states: HashMap<MessageId, TodoListElementState>,
 
@@ -1268,8 +1260,6 @@ impl AIBlock {
             terminal_view_id,
             action_buttons: Default::default(),
             search_codebase_view: Default::default(),
-            web_search_views: Default::default(),
-            web_fetch_views: Default::default(),
             requested_commands_to_auto_collapse: Default::default(),
             review_changes_button,
             open_all_comments_button,
@@ -1644,16 +1634,6 @@ impl AIBlock {
             {
                 self.todo_list_states.entry(message.id.clone()).or_default();
             }
-        }
-
-        if FeatureFlag::WebSearchUI.is_enabled() {
-            // Handle WebSearch messages
-            self.handle_web_search_messages(&output.messages, ctx);
-        }
-
-        if FeatureFlag::WebFetchUI.is_enabled() {
-            // Handle WebFetch messages
-            self.handle_web_fetch_messages(&output.messages, ctx);
         }
 
         for action in output.actions() {
@@ -2103,8 +2083,6 @@ impl AIBlock {
                 | AIAgentOutputMessageType::Subagent(_)
                 | AIAgentOutputMessageType::Action(_)
                 | AIAgentOutputMessageType::TodoOperation(_)
-                | AIAgentOutputMessageType::WebSearch(_)
-                | AIAgentOutputMessageType::WebFetch(_)
                 | AIAgentOutputMessageType::CommentsAddressed { .. }
                 | AIAgentOutputMessageType::DebugOutput { .. }
                 | AIAgentOutputMessageType::ArtifactCreated(_)
@@ -3364,66 +3342,6 @@ impl AIBlock {
         let output = self.model.status(app).output_to_render()?;
         let output = output.get();
         output.calculate_action_index(target_action_id)
-    }
-
-    fn handle_web_search_messages(
-        &mut self,
-        messages: &[AIAgentOutputMessage],
-        ctx: &mut ViewContext<Self>,
-    ) {
-        for message in messages {
-            // Check if this is a WebSearch message
-            let AIAgentOutputMessageType::WebSearch(status) = &message.message else {
-                continue;
-            };
-
-            if let Some(view) = self.web_search_views.get(&message.id) {
-                // Update existing view
-                view.update(ctx, |view, ctx| {
-                    view.set_status(status);
-                    ctx.notify();
-                });
-            } else {
-                let view = ctx.add_typed_action_view(|_ctx| {
-                    let mut view = WebSearchView::new(String::new());
-                    view.set_status(status);
-                    view
-                });
-
-                self.web_search_views.insert(message.id.clone(), view);
-                ctx.notify();
-            }
-        }
-    }
-
-    fn handle_web_fetch_messages(
-        &mut self,
-        messages: &[AIAgentOutputMessage],
-        ctx: &mut ViewContext<Self>,
-    ) {
-        for message in messages {
-            // Check if this is a WebFetch message
-            let AIAgentOutputMessageType::WebFetch(status) = &message.message else {
-                continue;
-            };
-
-            if let Some(view) = self.web_fetch_views.get(&message.id) {
-                // Update existing view
-                view.update(ctx, |view, ctx| {
-                    view.set_status(status);
-                    ctx.notify();
-                });
-            } else {
-                let view = ctx.add_typed_action_view(|_ctx| {
-                    let mut view = WebFetchView::new(Vec::new());
-                    view.set_status(status);
-                    view
-                });
-
-                self.web_fetch_views.insert(message.id.clone(), view);
-                ctx.notify();
-            }
-        }
     }
 
     /// Note this is called when the search codebase tool call definition finishes streaming, not when the search actually completes.

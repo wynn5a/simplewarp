@@ -93,7 +93,7 @@ pub async fn generate_multi_agent_output(
             api_keys,
             autonomy_level: params.autonomy_level.into(),
             isolation_level: params.isolation_level.into(),
-            web_search_enabled: params.web_search_enabled,
+            web_search_enabled: false,
             supported_cli_agent_tools: supported_cli_agent_tools
                 .into_iter()
                 .map(Into::into)

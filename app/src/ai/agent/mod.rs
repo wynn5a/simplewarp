@@ -626,8 +626,6 @@ impl AIAgentOutput {
                 }
                 AIAgentOutputMessageType::Reasoning { .. } => continue,
                 AIAgentOutputMessageType::Summarization { .. } => continue,
-                AIAgentOutputMessageType::WebSearch(_) => continue,
-                AIAgentOutputMessageType::WebFetch(_) => continue,
                 AIAgentOutputMessageType::DebugOutput { text } => {
                     result.push(format!("[DEBUG] {text}"));
                     last_was_action = false;
@@ -1785,8 +1783,6 @@ pub enum AIAgentOutputMessageType {
     Subagent(SubagentCall),
     Action(AIAgentAction),
     TodoOperation(TodoOperation),
-    WebSearch(WebSearchStatus),
-    WebFetch(WebFetchStatus),
     CommentsAddressed {
         comments: Vec<ReviewComment>,
     },
@@ -1832,37 +1828,6 @@ pub enum ArtifactCreatedData {
 pub enum SummarizationType {
     ConversationSummary,
     ToolCallResultSummary,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum WebSearchStatus {
-    Searching {
-        query: Option<String>,
-    },
-    Success {
-        query: String,
-        pages: Vec<(String, String)>,
-    },
-    Error {
-        query: String,
-    },
-}
-
-/// Status of a web fetch operation (fetching content from specific URLs).
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum WebFetchStatus {
-    /// Currently fetching content from URLs.
-    Fetching {
-        /// The URLs being fetched.
-        urls: Vec<String>,
-    },
-    /// Successfully fetched content from URLs.
-    Success {
-        /// The fetched pages: (url, title, success).
-        pages: Vec<(String, String, bool)>,
-    },
-    /// Failed to fetch content.
-    Error,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -1952,25 +1917,6 @@ impl Display for AIAgentOutputMessage {
             AIAgentOutputMessageType::Action(action) => write!(f, "Action: {action}")?,
             AIAgentOutputMessageType::TodoOperation(todo) => write!(f, "Todo: {todo}")?,
             AIAgentOutputMessageType::Subagent(subagent) => write!(f, "Subagent: {subagent}")?,
-            AIAgentOutputMessageType::WebSearch(status) => match status {
-                WebSearchStatus::Searching { query } => match query {
-                    Some(q) => write!(f, "Searching web for: {q}")?,
-                    None => write!(f, "Searching web")?,
-                },
-                WebSearchStatus::Success { query, pages } => {
-                    write!(f, "Searched web for: {query} ({} results)", pages.len())?
-                }
-                WebSearchStatus::Error { query } => write!(f, "Web search failed for: {query}")?,
-            },
-            AIAgentOutputMessageType::WebFetch(status) => match status {
-                WebFetchStatus::Fetching { urls } => {
-                    write!(f, "Fetching {} web pages...", urls.len())?
-                }
-                WebFetchStatus::Success { pages } => {
-                    write!(f, "Fetched {} web pages", pages.len())?
-                }
-                WebFetchStatus::Error => write!(f, "Web fetch failed")?,
-            },
             AIAgentOutputMessageType::CommentsAddressed {
                 comments: comment_ids,
             } => write!(f, "Addressed {} comments", comment_ids.len())?,
@@ -2088,22 +2034,6 @@ impl AIAgentOutputMessage {
                 summarization_type,
                 token_count,
             },
-            citations: vec![],
-        }
-    }
-
-    pub fn web_search(id: MessageId, status: WebSearchStatus) -> Self {
-        Self {
-            id,
-            message: AIAgentOutputMessageType::WebSearch(status),
-            citations: vec![],
-        }
-    }
-
-    pub fn web_fetch(id: MessageId, status: WebFetchStatus) -> Self {
-        Self {
-            id,
-            message: AIAgentOutputMessageType::WebFetch(status),
             citations: vec![],
         }
     }

@@ -51,7 +51,7 @@ use crate::ai::agent::icons::yellow_stop_icon;
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
     AIAgentActionType, AIAgentInput, AIAgentOutput, AIAgentOutputMessageType, AIAgentPtyWriteMode,
-    AIAgentText, AIAgentTextSection, CancellationReason, ProgrammingLanguage, WebSearchStatus,
+    AIAgentText, AIAgentTextSection, CancellationReason, ProgrammingLanguage,
 };
 use crate::ai::blocklist::block::TextLocation;
 use crate::ai::blocklist::block::view_impl::common::{
@@ -60,7 +60,7 @@ use crate::ai::blocklist::block::view_impl::common::{
     BLOCKED_ACTION_MESSAGE_FOR_WRITE_TO_LONG_RUNNING_SHELL_COMMAND,
     LOAD_OUTPUT_MESSAGE_FOR_FILE_GLOB, LOAD_OUTPUT_MESSAGE_FOR_GREP,
     LOAD_OUTPUT_MESSAGE_FOR_READING_FILES, LOAD_OUTPUT_MESSAGE_FOR_SEARCH_CODEBASE,
-    LOAD_OUTPUT_MESSAGE_FOR_WEB_SEARCH, UserQueryProps, render_query_text,
+    UserQueryProps, render_query_text,
 };
 use crate::ai::blocklist::code_block::CodeSnippetButtonHandles;
 use crate::ai::blocklist::inline_action::inline_action_icons::icon_size;
@@ -1133,33 +1133,6 @@ impl View for CLISubagentView {
                             );
                         }
                     }
-                    AIAgentOutputMessageType::WebSearch(WebSearchStatus::Searching { query }) => {
-                        if !should_hide_responses {
-                            result.add_child(
-                                render_scrollable_container(
-                                    ScrollableContainerProps {
-                                        scroll_state: self
-                                            .state_handles
-                                            .action_scroll_state
-                                            .clone(),
-                                        child: render_web_search(query.clone(), app),
-                                        background_color: internal_colors::neutral_2(
-                                            appearance.theme(),
-                                        ),
-                                        border: Some(
-                                            Border::all(1.).with_border_fill(
-                                                internal_colors::neutral_3(theme),
-                                            ),
-                                        ),
-                                        max_height: resizable_height,
-                                    },
-                                    app,
-                                )
-                                .with_margin_bottom(8.)
-                                .finish(),
-                            );
-                        }
-                    }
                     _ => (),
                 }
             }
@@ -1580,47 +1553,6 @@ fn render_action(action: AIAgentActionType, app: &AppContext) -> Option<Box<dyn 
         .finish();
 
     Some(row)
-}
-
-fn render_web_search(query: Option<String>, app: &AppContext) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-
-    let text = if let Some(q) = query {
-        format!("Searching the web for \"{q}\"")
-    } else {
-        LOAD_OUTPUT_MESSAGE_FOR_WEB_SEARCH.to_string()
-    };
-
-    let icon = Container::new(
-        ConstrainedBox::new(
-            warpui::elements::Icon::new(Icon::Search.into(), internal_colors::neutral_5(theme))
-                .finish(),
-        )
-        .with_width(icon_size(app))
-        .with_height(icon_size(app))
-        .finish(),
-    )
-    .with_margin_right(AVATAR_RIGHT_MARGIN)
-    .finish();
-
-    let text = Expanded::new(
-        1.,
-        Text::new(
-            text,
-            appearance.monospace_font_family(),
-            appearance.monospace_font_size(),
-        )
-        .with_color(blended_colors::text_main(theme, theme.surface_1()))
-        .finish(),
-    )
-    .finish();
-
-    Flex::row()
-        .with_cross_axis_alignment(CrossAxisAlignment::Center)
-        .with_main_axis_alignment(MainAxisAlignment::Center)
-        .with_children([icon, text])
-        .finish()
 }
 
 struct DismissableContainerProps {

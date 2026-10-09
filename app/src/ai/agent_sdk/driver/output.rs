@@ -14,7 +14,7 @@ pub mod text {
         ArtifactCreatedData, CallMCPToolResult, FileGlobResult, FileGlobV2Result, GrepResult,
         ReadFilesResult, ReadMCPResourceResult, RequestCommandOutputResult, RequestFileEditsResult,
         SearchCodebaseResult, SuggestNewConversationResult, SuggestPromptResult, TodoOperation,
-        WebFetchStatus, WebSearchStatus, WriteToLongRunningShellCommandResult,
+        WriteToLongRunningShellCommandResult,
     };
 
     /// Format an agent input as a human-readable string. For action results, it's assumed that
@@ -404,29 +404,6 @@ pub mod text {
                 AIAgentOutputMessageType::Subagent(subagent) => {
                     writeln!(w, "{subagent}")?;
                 }
-                AIAgentOutputMessageType::WebSearch(status) => match status {
-                    WebSearchStatus::Searching { query } => match query {
-                        Some(q) => writeln!(w, "Searching web for: {q}")?,
-                        None => writeln!(w, "Searching web")?,
-                    },
-                    WebSearchStatus::Success { query, pages } => {
-                        writeln!(w, "Searched web for: {query} ({} results)", pages.len())?;
-                    }
-                    WebSearchStatus::Error { query } => {
-                        writeln!(w, "Web search failed for: {query}")?;
-                    }
-                },
-                AIAgentOutputMessageType::WebFetch(status) => match status {
-                    WebFetchStatus::Fetching { urls } => {
-                        writeln!(w, "Fetching {} web pages...", urls.len())?;
-                    }
-                    WebFetchStatus::Success { pages } => {
-                        writeln!(w, "Fetched {} web pages", pages.len())?;
-                    }
-                    WebFetchStatus::Error => {
-                        writeln!(w, "Web fetch failed")?;
-                    }
-                },
                 AIAgentOutputMessageType::CommentsAddressed {
                     comments: comment_ids,
                 } => {
@@ -1029,8 +1006,6 @@ pub mod json {
                 AIAgentOutputMessageType::Subagent(SubagentCall { task_id, .. }) => {
                     Some(JsonMessage::Subagent { task_id })
                 }
-                AIAgentOutputMessageType::WebSearch(_) => None,
-                AIAgentOutputMessageType::WebFetch(_) => None,
                 AIAgentOutputMessageType::DebugOutput { .. } => None,
                 AIAgentOutputMessageType::CommentsAddressed { comments } => {
                     Some(JsonMessage::CommentsAddressed {

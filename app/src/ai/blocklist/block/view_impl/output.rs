@@ -87,8 +87,6 @@ use crate::ai::blocklist::inline_action::requested_action::{
 use crate::ai::blocklist::inline_action::requested_command::RequestedCommand;
 use crate::ai::blocklist::inline_action::search_codebase::SearchCodebaseView;
 use crate::ai::blocklist::inline_action::suggested_unit_tests::SuggestedUnitTestsView;
-use crate::ai::blocklist::inline_action::web_fetch::WebFetchView;
-use crate::ai::blocklist::inline_action::web_search::WebSearchView;
 use crate::ai::blocklist::keyboard_navigable_buttons::KeyboardNavigableButtons;
 use crate::ai::blocklist::secret_redaction::SecretRedactionState;
 use crate::ai::blocklist::view_util::{
@@ -147,8 +145,6 @@ pub(crate) struct Props<'a> {
     pub(super) keyboard_navigable_buttons: Option<&'a ViewHandle<KeyboardNavigableButtons>>,
     pub(super) response_rating: &'a OnceCell<AIBlockResponseRating>,
     pub(super) search_codebase_view: &'a HashMap<AIAgentActionId, ViewHandle<SearchCodebaseView>>,
-    pub(super) web_search_views: &'a HashMap<MessageId, ViewHandle<WebSearchView>>,
-    pub(super) web_fetch_views: &'a HashMap<MessageId, ViewHandle<WebFetchView>>,
     pub(super) review_changes_button: &'a ViewHandle<ActionButton>,
     pub(super) open_all_comments_button: &'a ViewHandle<ActionButton>,
     pub(super) current_todo_list: Option<&'a AIAgentTodoList>,
@@ -750,42 +746,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                 app,
                             ) {
                                 output_items.add_child(element);
-                            }
-                        }
-                        AIAgentOutputMessageType::WebSearch(web_search_status) => {
-                            if !FeatureFlag::WebSearchUI.is_enabled() {
-                                continue;
-                            }
-
-                            // Render the WebSearch inline at its first position in the message stream
-                            if let Some(web_search_view) =
-                                props.web_search_views.get(&output_message.id)
-                            {
-                                output_items.add_child(ChildView::new(web_search_view).finish());
-                            } else {
-                                // No view yet, log warning
-                                log::warn!(
-                                    "[WebSearch] No view found for WebSearch message id={:?}, status={web_search_status:?}",
-                                    output_message.id
-                                );
-                            }
-                        }
-                        AIAgentOutputMessageType::WebFetch(web_fetch_status) => {
-                            if !FeatureFlag::WebFetchUI.is_enabled() {
-                                continue;
-                            }
-
-                            // Render the WebFetch inline at its first position in the message stream
-                            if let Some(web_fetch_view) =
-                                props.web_fetch_views.get(&output_message.id)
-                            {
-                                output_items.add_child(ChildView::new(web_fetch_view).finish());
-                            } else {
-                                // No view yet, log warning
-                                log::warn!(
-                                    "[WebFetch] No view found for WebFetch message id={:?}, status={web_fetch_status:?}",
-                                    output_message.id
-                                );
                             }
                         }
                         AIAgentOutputMessageType::MessagesReceivedFromAgents { messages } => {

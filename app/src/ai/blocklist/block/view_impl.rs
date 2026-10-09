@@ -1058,8 +1058,6 @@ impl View for AIBlock {
                 keyboard_navigable_buttons: self.keyboard_navigable_buttons.as_ref(),
                 response_rating: &self.response_rating,
                 search_codebase_view: &self.search_codebase_view,
-                web_search_views: &self.web_search_views,
-                web_fetch_views: &self.web_fetch_views,
                 review_changes_button: &self.review_changes_button,
                 open_all_comments_button: &self.open_all_comments_button,
                 has_accepted_edits,

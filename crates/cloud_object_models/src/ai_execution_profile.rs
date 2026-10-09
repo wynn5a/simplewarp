@@ -303,7 +303,7 @@ cfg_if::cfg_if! {
 /// behavior settings, and permissions.
 ///
 /// NOTE: `planning_model` was removed after planning via subagent was deprecated, and
-/// `computer_use` / `computer_use_model` went with computer use; serialized legacy profiles may
+/// `computer_use` / `computer_use_model` / `web_search_enabled` went with those tools; serialized legacy profiles may
 /// still include those fields and the names should remain reserved indefinitely.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -339,9 +339,6 @@ pub struct AIExecutionProfile {
 
     /// Orphaned: kept so persisted profiles round-trip; nothing reads it.
     pub autosync_plans_to_warp_drive: bool,
-
-    /// Whether the agent may use web search when helpful for completing tasks
-    pub web_search_enabled: bool,
 }
 
 impl Default for AIExecutionProfile {
@@ -366,7 +363,6 @@ impl Default for AIExecutionProfile {
             cli_agent_model: None,
             context_window_limit: None,
             autosync_plans_to_warp_drive: true,
-            web_search_enabled: true,
         }
     }
 }
@@ -394,7 +390,6 @@ impl AIExecutionProfile {
             cli_agent_model: None,
             context_window_limit: None,
             autosync_plans_to_warp_drive: false,
-            web_search_enabled: true,
         }
     }
 
@@ -427,7 +422,6 @@ impl AIExecutionProfile {
             cli_agent_model: None,
             context_window_limit: None,
             autosync_plans_to_warp_drive: false,
-            web_search_enabled: true,
         }
     }
 }
