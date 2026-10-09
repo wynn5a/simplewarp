@@ -81,6 +81,7 @@ use crate::terminal::model::index::Side;
 use crate::terminal::model::session::{SessionInfo, SessionType};
 use crate::terminal::model::terminal_model::BlockIndex;
 use crate::terminal::model_events::ModelEvent;
+use crate::terminal::program_status::ProgramStatusModel;
 use crate::terminal::resizable_data::ResizableData;
 use crate::terminal::shell::ShellType;
 use crate::terminal::universal_developer_input::UniversalDeveloperInputButtonBarEvent;
@@ -219,6 +220,7 @@ pub fn initialize_app(app: &mut App) {
     // history model is in place.
     app.add_singleton_model(crate::ai::blocklist::QueuedQueryModel::new);
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());
+    app.add_singleton_model(|_| ProgramStatusModel::new());
     app.add_singleton_model(|_| ActiveAgentViewsModel::new());
     app.add_singleton_model(AgentNotificationsModel::new);
     app.add_singleton_model(BlocklistAIPermissions::new);

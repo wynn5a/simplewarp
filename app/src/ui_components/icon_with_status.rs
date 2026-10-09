@@ -80,10 +80,12 @@ fn corner_overlay_offset(total: f32, overlay_extra_overhang_ratio: f32) -> f32 {
 
 /// What to render inside the circle.
 pub(crate) enum IconWithStatusVariant {
-    /// A generic icon with a given color on an overlay background.
+    /// A generic icon with a given color on an overlay background, with an optional status
+    /// badge.
     Neutral {
         icon: WarpIcon,
         icon_color: WarpThemeFill,
+        status: Option<ConversationStatus>,
     },
     /// A pre-built icon element on an overlay background.
     NeutralElement { icon_element: Box<dyn Element> },
@@ -115,11 +117,28 @@ pub(crate) fn render_icon_with_status(
     let sub_text = theme.sub_text_color(theme.background());
 
     match variant {
-        IconWithStatusVariant::Neutral { icon, icon_color } => render_neutral_circle(
-            icon.to_warpui_icon(icon_color).finish(),
-            internal_colors::fg_overlay_2(theme),
-            total_size,
-        ),
+        IconWithStatusVariant::Neutral {
+            icon,
+            icon_color,
+            status,
+        } => {
+            let circle = render_neutral_circle(
+                icon.to_warpui_icon(icon_color).finish(),
+                internal_colors::fg_overlay_2(theme),
+                total_size,
+            );
+            match status {
+                Some(status) => render_with_optional_status_badge(
+                    circle,
+                    Some(&status),
+                    total_size,
+                    overlay_extra_overhang_ratio,
+                    theme,
+                    status_container_background,
+                ),
+                None => circle,
+            }
+        }
         IconWithStatusVariant::NeutralElement { icon_element } => render_neutral_circle(
             icon_element,
             internal_colors::fg_overlay_2(theme),

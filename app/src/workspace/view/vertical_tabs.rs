@@ -56,7 +56,7 @@ use crate::terminal::session_settings::SessionSettings;
 use crate::terminal::view::TerminalViewState;
 use crate::terminal::{CLIAgent, TerminalView};
 use crate::themes::theme::Fill as ThemeFill;
-use crate::ui_components::agent_icon::terminal_view_agent_icon_variant;
+use crate::ui_components::agent_icon::{program_status_badge, terminal_view_agent_icon_variant};
 use crate::ui_components::buttons::combo_inner_button;
 use crate::ui_components::icon_with_status::{IconWithStatusVariant, render_icon_with_status};
 use crate::ui_components::icons::Icon as UiIcon;
@@ -3293,6 +3293,7 @@ fn resolve_icon_with_status_variant(
                     IconWithStatusVariant::Neutral {
                         icon: WarpIcon::Terminal,
                         icon_color: main_text,
+                        status: program_status_badge(terminal_view.id(), app),
                     }
                 }
             }
@@ -3301,42 +3302,50 @@ fn resolve_icon_with_status_variant(
             Some(icon_element) => IconWithStatusVariant::NeutralElement { icon_element },
             _ => IconWithStatusVariant::Neutral {
                 icon: WarpIcon::Code2,
+                status: None,
                 icon_color: sub_text,
             },
         },
         // Settings and environment management use the foreground color per design spec
         TypedPane::Settings => IconWithStatusVariant::Neutral {
             icon: typed.icon(),
+            status: None,
             icon_color: main_text,
         },
         // Warp Drive object types use their established index colors
         TypedPane::Notebook { is_plan } => IconWithStatusVariant::Neutral {
             icon: typed.icon(),
+            status: None,
             icon_color: drive_color(DriveObjectType::Notebook {
                 is_ai_document: *is_plan,
             }),
         },
         TypedPane::Workflow { is_ai_prompt: true } => IconWithStatusVariant::Neutral {
             icon: typed.icon(),
+            status: None,
             icon_color: drive_color(DriveObjectType::AgentModeWorkflow),
         },
         TypedPane::Workflow {
             is_ai_prompt: false,
         } => IconWithStatusVariant::Neutral {
             icon: typed.icon(),
+            status: None,
             icon_color: drive_color(DriveObjectType::Workflow),
         },
         TypedPane::EnvVarCollection => IconWithStatusVariant::Neutral {
             icon: typed.icon(),
+            status: None,
             icon_color: drive_color(DriveObjectType::EnvVarCollection),
         },
         TypedPane::AIFact => IconWithStatusVariant::Neutral {
             icon: typed.icon(),
+            status: None,
             icon_color: drive_color(DriveObjectType::AIFact),
         },
         // Other pane types use sub-text color
         other => IconWithStatusVariant::Neutral {
             icon: other.icon(),
+            status: None,
             icon_color: sub_text,
         },
     }

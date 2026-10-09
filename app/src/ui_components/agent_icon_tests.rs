@@ -15,7 +15,7 @@ use warp_cli::agent::Harness;
 
 use super::{
     CLISessionInputs, TerminalIconInputs, agent_conversation_entry_icon_variant,
-    agent_icon_variant_for_run, agent_icon_variant_from_terminal_inputs,
+    agent_icon_variant_for_run, agent_icon_variant_from_terminal_inputs, badge_for_program_state,
 };
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::agent_conversations_model::entry::{
@@ -26,6 +26,7 @@ use crate::ai::agent_conversations_model::{
     AgentConversationEntry, AgentConversationEntryId, AgentRunDisplayStatus,
 };
 use crate::terminal::CLIAgent;
+use crate::terminal::program_status::ProgramState;
 use crate::ui_components::icon_with_status::IconWithStatusVariant;
 
 /// Projection of the fields we care about for cross-surface equivalence.
@@ -122,11 +123,13 @@ impl CanonicalRunState {
         match self {
             PlainTerminal => TerminalIconInputs {
                 cli_session: None,
+                program_status: None,
                 selected_conversation_status: None,
                 has_selected_conversation: false,
             },
             LocalOzInProgress => TerminalIconInputs {
                 cli_session: None,
+                program_status: None,
                 selected_conversation_status: Some(ConversationStatus::InProgress),
                 has_selected_conversation: true,
             },
@@ -137,6 +140,7 @@ impl CanonicalRunState {
                     status: ConversationStatus::InProgress,
                     supports_rich_status: true,
                 }),
+                program_status: None,
                 selected_conversation_status: None,
                 has_selected_conversation: false,
             },
@@ -149,6 +153,7 @@ impl CanonicalRunState {
                     },
                     supports_rich_status: true,
                 }),
+                program_status: None,
                 selected_conversation_status: None,
                 has_selected_conversation: false,
             },
@@ -159,6 +164,7 @@ impl CanonicalRunState {
                     status: ConversationStatus::InProgress,
                     supports_rich_status: false,
                 }),
+                program_status: None,
                 selected_conversation_status: None,
                 has_selected_conversation: false,
             },
@@ -257,5 +263,86 @@ fn entry_icon_uses_harness() {
             cli_agent: Some(CLIAgent::Codex),
             status: Some(ConversationStatus::Success),
         }
+    );
+}
+
+#[test]
+fn program_status_badge_maps_every_state() {
+    assert_eq!(badge_for_program_state(ProgramState::Idle), None);
+    assert_eq!(
+        badge_for_program_state(ProgramState::Working),
+        Some(ConversationStatus::InProgress)
+    );
+    assert_eq!(
+        badge_for_program_state(ProgramState::Done),
+        Some(ConversationStatus::Success)
+    );
+    assert_eq!(
+        badge_for_program_state(ProgramState::Blocked),
+        Some(ConversationStatus::Blocked {
+            blocked_action: String::new()
+        })
+    );
+    assert_eq!(
+        badge_for_program_state(ProgramState::Error),
+        Some(ConversationStatus::Error)
+    );
+}
+
+#[test]
+fn program_status_alone_does_not_make_a_terminal_an_agent() {
+    let inputs = TerminalIconInputs {
+        cli_session: None,
+        program_status: Some(ConversationStatus::InProgress),
+        selected_conversation_status: None,
+        has_selected_conversation: false,
+    };
+    assert!(agent_icon_variant_from_terminal_inputs(&inputs).is_none());
+}
+
+fn claude_session(has_listener: bool, supports_rich_status: bool) -> CLISessionInputs {
+    CLISessionInputs {
+        agent: CLIAgent::Claude,
+        has_listener,
+        status: ConversationStatus::Blocked {
+            blocked_action: String::new(),
+        },
+        supports_rich_status,
+    }
+}
+
+fn cli_status(inputs: &TerminalIconInputs) -> Option<ConversationStatus> {
+    match agent_icon_variant_from_terminal_inputs(inputs) {
+        Some(IconWithStatusVariant::CLIAgent { status, .. }) => status,
+        _ => panic!("expected a CLI agent variant"),
+    }
+}
+
+#[test]
+fn program_status_fills_in_for_a_cli_session_without_rich_status() {
+    for session in [claude_session(false, false), claude_session(true, false)] {
+        let inputs = TerminalIconInputs {
+            cli_session: Some(session),
+            program_status: Some(ConversationStatus::InProgress),
+            selected_conversation_status: None,
+            has_selected_conversation: false,
+        };
+        assert_eq!(cli_status(&inputs), Some(ConversationStatus::InProgress));
+    }
+}
+
+#[test]
+fn rich_cli_status_wins_over_program_status() {
+    let inputs = TerminalIconInputs {
+        cli_session: Some(claude_session(true, true)),
+        program_status: Some(ConversationStatus::InProgress),
+        selected_conversation_status: None,
+        has_selected_conversation: false,
+    };
+    assert_eq!(
+        cli_status(&inputs),
+        Some(ConversationStatus::Blocked {
+            blocked_action: String::new()
+        })
     );
 }

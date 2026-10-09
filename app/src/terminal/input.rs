@@ -798,6 +798,8 @@ pub enum InputEmptyStateChangeReason {
 }
 
 pub enum Event {
+    /// The user typed into the input editor.
+    UserTyped,
     AutosuggestionAccepted,
     ClearSelectedBlock,
     PageUp,
@@ -7439,6 +7441,10 @@ impl Input {
                     EditOrigin::UserTyped | EditOrigin::UserInitiated
                 ) {
                     self.model.lock().set_is_input_dirty(true);
+                }
+
+                if *edit_origin == EditOrigin::UserTyped {
+                    ctx.emit(Event::UserTyped);
                 }
 
                 if *edit_origin == EditOrigin::UserTyped

@@ -6696,9 +6696,17 @@ impl TerminalView {
         });
     }
 
+    /// Drops the `done`/`error` program status records: the user has moved on from the result.
+    fn dismiss_finished_program_status(&self, ctx: &mut ViewContext<Self>) {
+        ProgramStatusModel::handle(ctx).update(ctx, |model, ctx| {
+            model.drop_finished(self.view_id, ctx);
+        });
+    }
+
     /// Receiving the warpui::Event::KeyDown event from a child element.
     /// Generally, this should be control characters rather than printable characters.
     fn keydown_on_terminal(&mut self, characters: &str, ctx: &mut ViewContext<Self>) {
+        self.dismiss_finished_program_status(ctx);
         if self.is_long_running() {
             self.highlighted_link.invalidate();
             self.report_possible_typeahead(characters);
@@ -6739,6 +6747,7 @@ impl TerminalView {
     /// We can assume `characters` consists of all printable characters, and therefore,
     /// can go into the input box.
     fn typed_characters_on_terminal(&mut self, characters: &str, ctx: &mut ViewContext<Self>) {
+        self.dismiss_finished_program_status(ctx);
         if self.should_write_typed_chars_to_pty(ctx) {
             self.highlighted_link.invalidate();
             self.report_possible_typeahead(characters);
@@ -9344,11 +9353,13 @@ impl TerminalView {
                 ProgramStatusModel::handle(ctx).update(ctx, |model, ctx| {
                     model.apply_report(self.view_id, report.clone(), *source, ctx);
                 });
+                ctx.notify();
             }
             ModelEvent::ProgramStatusReset => {
                 ProgramStatusModel::handle(ctx).update(ctx, |model, ctx| {
                     model.reset(self.view_id, ctx);
                 });
+                ctx.notify();
             }
             ModelEvent::PluggableNotification { title, body } => {
                 // Intercept structured CLI agent notifications (e.g. from Claude Code plugin).
@@ -15962,6 +15973,7 @@ impl TerminalView {
                 ctx.emit(Event::Escape)
             }
             InputEvent::InputStateChanged(_) => {}
+            InputEvent::UserTyped => self.dismiss_finished_program_status(ctx),
             InputEvent::InputEmptyStateChanged { is_empty, reason } => {
                 // Update the universal developer input button bar with the new empty state
                 let universal_developer_input_button_bar = self

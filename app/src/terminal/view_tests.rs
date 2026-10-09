@@ -6378,3 +6378,74 @@ fn paste_raw_image_clipboard_in_cli_agent_sends_correct_bytes() {
     run_for_agent(CLIAgent::OpenCode);
     run_for_agent(CLIAgent::Codex);
 }
+
+mod program_status_tests {
+    use warpui::{App, SingletonEntity};
+
+    use super::super::*;
+    use super::{add_window_with_terminal, initialize_app_for_terminal_view};
+    use crate::terminal::input::Event as InputEvent;
+    use crate::terminal::program_status::protocol::parse;
+    use crate::terminal::program_status::{ProgramState, ProgramStatusModel, ReportSource};
+
+    fn report_event(body: &str) -> ModelEvent {
+        ModelEvent::ProgramStatus {
+            report: parse(body.as_bytes()).unwrap(),
+            source: ReportSource::Osc7501,
+        }
+    }
+
+    fn state(terminal: &TerminalView, ctx: &AppContext) -> Option<ProgramState> {
+        ProgramStatusModel::as_ref(ctx)
+            .status(terminal.id())
+            .map(|record| record.state)
+    }
+
+    #[test]
+    fn finished_status_is_dismissed_by_typing_but_running_status_is_not() {
+        App::test((), |mut app| async move {
+            initialize_app_for_terminal_view(&mut app);
+            let terminal = add_window_with_terminal(&mut app, None);
+
+            terminal.update(&mut app, |view, ctx| {
+                view.handle_terminal_event(&report_event("state=working"), ctx);
+                assert_eq!(state(view, ctx), Some(ProgramState::Working));
+                view.keydown_on_terminal("x", ctx);
+                view.typed_characters_on_terminal("x", ctx);
+                view.handle_input_event(&InputEvent::UserTyped, ctx);
+                assert_eq!(state(view, ctx), Some(ProgramState::Working));
+            });
+
+            // Every input path dismisses a finished status.
+            for dismiss in [
+                (|view: &mut TerminalView, ctx: &mut ViewContext<TerminalView>| {
+                    view.keydown_on_terminal("x", ctx)
+                }) as fn(&mut TerminalView, &mut ViewContext<TerminalView>),
+                |view, ctx| view.typed_characters_on_terminal("x", ctx),
+                |view, ctx| view.handle_input_event(&InputEvent::UserTyped, ctx),
+            ] {
+                terminal.update(&mut app, |view, ctx| {
+                    view.handle_terminal_event(&report_event("state=done"), ctx);
+                    assert_eq!(state(view, ctx), Some(ProgramState::Done));
+                    dismiss(view, ctx);
+                    assert_eq!(state(view, ctx), None);
+                });
+            }
+        });
+    }
+
+    #[test]
+    fn full_reset_clears_the_status() {
+        App::test((), |mut app| async move {
+            initialize_app_for_terminal_view(&mut app);
+            let terminal = add_window_with_terminal(&mut app, None);
+
+            terminal.update(&mut app, |view, ctx| {
+                view.handle_terminal_event(&report_event("state=blocked:kind=auth"), ctx);
+                assert_eq!(state(view, ctx), Some(ProgramState::Blocked));
+                view.handle_terminal_event(&ModelEvent::ProgramStatusReset, ctx);
+                assert_eq!(state(view, ctx), None);
+            });
+        });
+    }
+}

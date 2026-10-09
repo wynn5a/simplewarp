@@ -235,6 +235,7 @@ use crate::terminal::ligature_settings::should_use_ligature_rendering;
 use crate::terminal::local_tty::docker_sandbox::resolve_sbx_path_from_user_shell;
 use crate::terminal::model::blockgrid::BlockGrid;
 use crate::terminal::model::session::{Session, SessionId};
+use crate::terminal::program_status::{ProgramStatusModel, ProgramStatusModelEvent};
 use crate::terminal::resizable_data::{
     DEFAULT_LEFT_PANEL_WIDTH, DEFAULT_RIGHT_PANEL_WIDTH, ModalSizes, ModalType, ResizableData,
 };
@@ -1885,6 +1886,12 @@ impl Workspace {
         );
         ctx.subscribe_to_model(&CLIAgentSessionsModel::handle(ctx), |me, _, event, ctx| {
             me.handle_cli_agent_sessions_event(event, ctx);
+        });
+        ctx.subscribe_to_model(&ProgramStatusModel::handle(ctx), |me, _, event, ctx| {
+            let ProgramStatusModelEvent::Changed { terminal_view_id } = event;
+            if me.workspace_contains_terminal_view(*terminal_view_id, ctx) {
+                ctx.notify();
+            }
         });
 
         ctx.subscribe_to_model(

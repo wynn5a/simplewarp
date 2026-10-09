@@ -45,6 +45,7 @@ use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::history::History;
 use crate::terminal::keys::TerminalKeybindings;
 use crate::terminal::local_tty::spawner::PtySpawner;
+use crate::terminal::program_status::ProgramStatusModel;
 use crate::terminal::resizable_data::ResizableData;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::tips::TipsCompleted;
@@ -96,6 +97,7 @@ fn initialize_app_with_history(app: &mut App, conversations: Vec<AgentConversati
     // history model is in place.
     app.add_singleton_model(QueuedQueryModel::new);
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());
+    app.add_singleton_model(|_| ProgramStatusModel::new());
     app.add_singleton_model(|_| ActiveAgentViewsModel::new());
     app.add_singleton_model(crate::ai::blocklist::BlocklistAIPermissions::new);
     app.add_singleton_model(AgentNotificationsModel::new);

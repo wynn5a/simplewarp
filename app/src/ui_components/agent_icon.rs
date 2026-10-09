@@ -9,12 +9,13 @@
 //! [`render_icon_with_status`]. The pure inner functions in this module are exercised
 //! directly by the cross-surface consistency tests in `agent_icon_tests.rs`.
 use warp_cli::agent::Harness;
-use warpui::{AppContext, SingletonEntity};
+use warpui::{AppContext, EntityId, SingletonEntity};
 
 use crate::ai::agent::conversation::ConversationStatus;
 use crate::ai::agent_conversations_model::AgentConversationEntry;
 use crate::terminal::CLIAgent;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
+use crate::terminal::program_status::{ProgramState, ProgramStatusModel};
 use crate::terminal::view::TerminalView;
 use crate::ui_components::icon_with_status::IconWithStatusVariant;
 
@@ -23,7 +24,8 @@ use crate::ui_components::icon_with_status::IconWithStatusVariant;
 ///
 /// Resolution order:
 /// 1. A [`CLIAgentSessionsModel`] session with a known agent wins. Plugin-backed sessions
-///    surface rich status; command-detected sessions don't.
+///    surface rich status; command-detected sessions show the status the program reported
+///    itself through OSC 7501, if any.
 /// 2. A selected local conversation gets the conversation waterfall.
 /// 3. Everything else returns `None` so the caller renders a plain-terminal indicator.
 pub(crate) fn terminal_view_agent_icon_variant(
@@ -39,12 +41,36 @@ pub(crate) fn terminal_view_agent_icon_variant(
             status: session.status.to_conversation_status(),
             supports_rich_status: session.supports_rich_status(),
         }),
+        program_status: program_status_badge(terminal_view.id(), app),
         selected_conversation_status: terminal_view.selected_conversation_status_for_display(app),
         has_selected_conversation: terminal_view
             .selected_conversation_display_title(app)
             .is_some(),
     };
     agent_icon_variant_from_terminal_inputs(&inputs)
+}
+
+/// The status badge for what the programs in a terminal reported through OSC 7501, or `None`
+/// when they reported nothing worth showing.
+pub(crate) fn program_status_badge(
+    terminal_view_id: EntityId,
+    app: &AppContext,
+) -> Option<ConversationStatus> {
+    let record = ProgramStatusModel::as_ref(app).status(terminal_view_id)?;
+    badge_for_program_state(record.state)
+}
+
+fn badge_for_program_state(state: ProgramState) -> Option<ConversationStatus> {
+    match state {
+        ProgramState::Idle => None,
+        ProgramState::Working => Some(ConversationStatus::InProgress),
+        ProgramState::Done => Some(ConversationStatus::Success),
+        // The reported text is untrusted, so it is never carried into the status.
+        ProgramState::Blocked => Some(ConversationStatus::Blocked {
+            blocked_action: String::new(),
+        }),
+        ProgramState::Error => Some(ConversationStatus::Error),
+    }
 }
 
 pub(crate) fn agent_conversation_entry_icon_variant(
@@ -58,6 +84,8 @@ pub(crate) fn agent_conversation_entry_icon_variant(
 /// [`TerminalView`] / [`AppContext`].
 struct TerminalIconInputs {
     cli_session: Option<CLISessionInputs>,
+    /// The badge for what the programs in the terminal reported through OSC 7501.
+    program_status: Option<ConversationStatus>,
     /// The conversation status that the terminal view would surface in its status-icon slot.
     selected_conversation_status: Option<ConversationStatus>,
     /// Whether the terminal view currently has a selected conversation.
@@ -81,15 +109,19 @@ struct CLISessionInputs {
 fn agent_icon_variant_from_terminal_inputs(
     inputs: &TerminalIconInputs,
 ) -> Option<IconWithStatusVariant> {
-    // 1. CLI session with a known (non-Unknown) agent wins. Status is only meaningful when
-    //    the session is plugin-backed and the handler exposes rich status.
+    // 1. CLI session with a known (non-Unknown) agent wins. Its own status is only meaningful
+    //    when the session is plugin-backed and the handler exposes rich status; otherwise the
+    //    program's self-reported status stands in.
     if let Some(session) = inputs
         .cli_session
         .as_ref()
         .filter(|s| !matches!(s.agent, CLIAgent::Unknown))
     {
-        let status =
-            (session.has_listener && session.supports_rich_status).then(|| session.status.clone());
+        let status = if session.has_listener && session.supports_rich_status {
+            Some(session.status.clone())
+        } else {
+            inputs.program_status.clone()
+        };
         return Some(IconWithStatusVariant::CLIAgent {
             agent: session.agent,
             status,

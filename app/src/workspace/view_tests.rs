@@ -52,6 +52,7 @@ use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::history::History;
 use crate::terminal::keys::TerminalKeybindings;
 use crate::terminal::local_tty::spawner::PtySpawner;
+use crate::terminal::program_status::ProgramStatusModel;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::undo_close::UndoCloseSettings;
 use crate::user_config::tab_configs_dir;
@@ -91,6 +92,7 @@ pub(crate) fn initialize_app(app: &mut App) {
     // history model is in place.
     app.add_singleton_model(crate::ai::blocklist::QueuedQueryModel::new);
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());
+    app.add_singleton_model(|_| ProgramStatusModel::new());
     app.add_singleton_model(|_| ActiveAgentViewsModel::new());
     app.add_singleton_model(AgentNotificationsModel::new);
     app.add_singleton_model(AgentConversationsModel::new);

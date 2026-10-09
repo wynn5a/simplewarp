@@ -28,9 +28,9 @@ use crate::pane_group::pane::{PaneStack, view};
 use crate::pane_group::{BackingView, SplitPaneState, TOGGLE_MAXIMIZE_PANE_BINDING_NAME};
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::{TerminalManager, TerminalView};
-use crate::ui_components::agent_icon::terminal_view_agent_icon_variant;
+use crate::ui_components::agent_icon::{program_status_badge, terminal_view_agent_icon_variant};
 use crate::ui_components::buttons::icon_button_with_color;
-use crate::ui_components::icon_with_status::render_icon_with_status;
+use crate::ui_components::icon_with_status::{IconWithStatusVariant, render_icon_with_status};
 use crate::ui_components::{blended_colors, icons};
 use crate::util::bindings::keybinding_name_to_display_string;
 use crate::workspace::tab_settings::TabSettings;
@@ -230,7 +230,9 @@ impl TerminalView {
             // local conversations and a CLIAgent variant for the (rare) CLI-backed terminal.
             terminal_view_agent_icon_variant(self, app).map(render_agent_circle)
         } else {
-            self.render_terminal_mode_indicator(app)
+            self.render_program_status_indicator(app)
+                .map(render_agent_circle)
+                .or_else(|| self.render_terminal_mode_indicator(app))
         };
 
         let is_pane_dragging = header_ctx.draggable_state.is_dragging();
@@ -513,6 +515,21 @@ impl TerminalView {
 
     /// Render the indicator for terminal mode (no conversation selected).
     /// Shows error indicator if terminal is in error state, otherwise shell indicator on Windows.
+    /// The terminal glyph with a status badge for what the programs in this terminal reported
+    /// through OSC 7501. Errors in the terminal itself take priority over it.
+    fn render_program_status_indicator(&self, app: &AppContext) -> Option<IconWithStatusVariant> {
+        if matches!(self.current_state.state, TerminalViewState::Errored) {
+            return None;
+        }
+        let status = program_status_badge(self.id(), app)?;
+        let theme = Appearance::as_ref(app).theme();
+        Some(IconWithStatusVariant::Neutral {
+            icon: icons::Icon::Terminal,
+            icon_color: theme.main_text_color(theme.background()),
+            status: Some(status),
+        })
+    }
+
     fn render_terminal_mode_indicator(&self, app: &AppContext) -> Option<Box<dyn Element>> {
         let appearance = Appearance::as_ref(app);
         let font_size = appearance.ui_font_size();
