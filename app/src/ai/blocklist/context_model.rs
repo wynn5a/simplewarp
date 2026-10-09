@@ -19,7 +19,6 @@ use super::{ConversationSelectionEvent, ConversationSelectionHandle};
 use crate::ai::agent::conversation::{
     AIConversation, AIConversationAutoexecuteMode, AIConversationId, ConversationStatus,
 };
-use crate::ai::agent::todos::AIAgentTodoList;
 use crate::ai::agent::{
     AIAgentAttachment, AIAgentContext, AnyFileContent, FileContext, ImageContext,
 };
@@ -652,22 +651,6 @@ impl BlocklistAIContextModel {
         self.conversation_selection
             .as_ref(ctx)
             .selected_conversation(ctx)
-    }
-
-    pub fn selected_conversation_todolist<'a>(
-        &self,
-        ctx: &'a AppContext,
-    ) -> Option<&'a AIAgentTodoList> {
-        self.selected_conversation(ctx)
-            .and_then(|c| c.active_todo_list())
-            .and_then(|todo_list| {
-                // Don't show todo list if it's empty or finished
-                if todo_list.is_empty() || todo_list.is_finished() {
-                    None
-                } else {
-                    Some(todo_list)
-                }
-            })
     }
 
     pub fn pending_query_autoexecute_override(

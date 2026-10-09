@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use warpui::SingletonEntity;
 
 use super::editor::AgentToolbarEditorMode;
-use crate::context_chips::{ContextChipKind, agent_footer_available_chips, available_chips};
+use crate::context_chips::{ContextChipKind, available_chips};
 use crate::features::FeatureFlag;
 use crate::settings::CodeSettings;
 use crate::ui_components::icons::Icon;
@@ -162,7 +162,6 @@ impl AgentToolbarItemKind {
     /// Default right-side items for the agent view footer.
     pub fn default_right() -> Vec<Self> {
         vec![
-            Self::ContextChip(ContextChipKind::AgentPlanAndTodoList),
             Self::ContextWindowUsage,
             Self::ModelSelector,
             Self::FileAttach,
@@ -171,7 +170,7 @@ impl AgentToolbarItemKind {
 
     /// All items available for the agent view footer configurator.
     pub fn all_available() -> Vec<Self> {
-        let mut items: Vec<Self> = agent_footer_available_chips()
+        let mut items: Vec<Self> = available_chips()
             .into_iter()
             .map(Self::ContextChip)
             .collect();

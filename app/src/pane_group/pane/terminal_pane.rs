@@ -836,7 +836,6 @@ fn handle_ai_history_event(
         | BlocklistAIHistoryEvent::UpdatedConversationStatus { .. }
         | BlocklistAIHistoryEvent::ReassignedExchange { .. }
         | BlocklistAIHistoryEvent::SetActiveConversation { .. }
-        | BlocklistAIHistoryEvent::UpdatedTodoList { .. }
         | BlocklistAIHistoryEvent::UpdatedAutoexecuteOverride { .. }
         | BlocklistAIHistoryEvent::SplitConversation { .. }
         | BlocklistAIHistoryEvent::RestoredConversations { .. }

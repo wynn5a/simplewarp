@@ -4,20 +4,6 @@ use warp_core::ui::theme::AnsiColorIdentifier;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 
-pub fn todo_list_icon(appearance: &Appearance) -> warpui::elements::Icon {
-    warpui::elements::Icon::new(
-        Icon::BulletedListBlock.into(),
-        blended_colors::neutral_7(appearance.theme()),
-    )
-}
-
-pub fn pending_icon(appearance: &Appearance) -> warpui::elements::Icon {
-    warpui::elements::Icon::new(
-        Icon::Queued.into(),
-        blended_colors::neutral_5(appearance.theme()),
-    )
-}
-
 pub fn in_progress_icon(appearance: &Appearance) -> warpui::elements::Icon {
     warpui::elements::Icon::new(
         Icon::Circle.into(),

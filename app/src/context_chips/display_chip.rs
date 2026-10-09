@@ -32,7 +32,6 @@ use super::{
     render_text_from_kind,
 };
 use crate::ai::blocklist::agent_view::AgentViewController;
-use crate::ai::blocklist::prompt::plan_and_todo_list::PlanAndTodoListView;
 use crate::ai::blocklist::{BlocklistAIContextModel, BlocklistAIInputModel};
 use crate::appearance::Appearance;
 use crate::code::editor::{add_color, remove_color};
@@ -621,9 +620,6 @@ pub enum DisplayChipKind {
         popup_open: bool,
         popup: ViewHandle<crate::context_chips::node_version_popup::NodeVersionPopupView>,
     },
-    AgentPlanAndTodoList {
-        plan_and_todo_list: ViewHandle<PlanAndTodoListView>,
-    },
     GitBranch {
         menu_open: bool,
         menu: ViewHandle<DisplayChipMenu>,
@@ -652,8 +648,7 @@ impl DisplayChipKind {
             | DisplayChipKind::Ssh
             | DisplayChipKind::Subshell
             | DisplayChipKind::VirtualEnvironment
-            | DisplayChipKind::CondaEnvironment
-            | DisplayChipKind::AgentPlanAndTodoList { .. } => false,
+            | DisplayChipKind::CondaEnvironment => false,
         }
     }
 }
@@ -882,20 +877,9 @@ impl DisplayChip {
         });
 
         let display_chip_kind = match chip_result.kind {
-            ContextChipKind::AgentPlanAndTodoList => {
-                let context_model = config.ai_context_model.clone();
-                let view_id = config.terminal_view_id;
-                let plan_and_todo_list = ctx.add_typed_action_view(|ctx| {
-                    PlanAndTodoListView::new(
-                        context_model,
-                        config.menu_positioning_provider.clone(),
-                        view_id,
-                        ctx,
-                    )
-                });
-
-                DisplayChipKind::AgentPlanAndTodoList { plan_and_todo_list }
-            }
+            // A retired chip that old toolbar layouts may still list; it never gets a definition,
+            // so it is not built.
+            ContextChipKind::AgentPlanAndTodoList => DisplayChipKind::Text,
             ContextChipKind::ShellGitBranch => DisplayChipKind::GitBranch {
                 menu_open: false,
                 menu: Self::git_branch_menu(&chip_result.on_click_values, ctx),
@@ -1207,7 +1191,6 @@ impl DisplayChip {
             | DisplayChipKind::VirtualEnvironment
             | DisplayChipKind::CondaEnvironment
             | DisplayChipKind::NodeVersion { .. }
-            | DisplayChipKind::AgentPlanAndTodoList { .. }
             | DisplayChipKind::GithubPullRequest => {}
         }
         false
@@ -1302,15 +1285,6 @@ impl DisplayChip {
             .finish(),
         );
         row.finish()
-    }
-
-    pub fn should_render(&self, app: &AppContext) -> bool {
-        match &self.display_chip_kind {
-            DisplayChipKind::AgentPlanAndTodoList { plan_and_todo_list } => {
-                plan_and_todo_list.as_ref(app).should_render(app)
-            }
-            _ => true,
-        }
     }
 
     fn git_branch_chip(
@@ -1940,9 +1914,6 @@ impl DisplayChip {
                 Some(self.node_version_chip(popup, *popup_open, app))
             }
             DisplayChipKind::CondaEnvironment => Some(self.conda_environment_chip(app)),
-            DisplayChipKind::AgentPlanAndTodoList { plan_and_todo_list } => {
-                Some(ChildView::new(plan_and_todo_list).finish())
-            }
             DisplayChipKind::GitBranch { menu_open, menu } => {
                 Some(self.git_branch_chip(*menu_open, menu, app))
             }
@@ -2064,7 +2035,6 @@ impl TypedActionView for DisplayChip {
                 | DisplayChipKind::Subshell
                 | DisplayChipKind::VirtualEnvironment
                 | DisplayChipKind::CondaEnvironment
-                | DisplayChipKind::AgentPlanAndTodoList { .. }
                 | DisplayChipKind::Text
                 | DisplayChipKind::GithubPullRequest
                 | DisplayChipKind::GitDiffStats { .. } => {}

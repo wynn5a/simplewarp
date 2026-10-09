@@ -335,8 +335,7 @@ impl AgentInputFooter {
                         me.model_selector.update(ctx, |_, ctx| ctx.notify());
                         ctx.notify();
                     }
-                    BlocklistAIHistoryEvent::UpdatedTodoList { .. }
-                    | BlocklistAIHistoryEvent::UpdatedConversationStatus { .. }
+                    BlocklistAIHistoryEvent::UpdatedConversationStatus { .. }
                     | BlocklistAIHistoryEvent::AppendedExchange { .. }
                     | BlocklistAIHistoryEvent::UpdatedStreamingExchange { .. } => {
                         me.update_context_window_button(ctx);
@@ -458,7 +457,6 @@ impl AgentInputFooter {
         self.cli_display_chips
             .iter()
             .find(|chip| chip.as_ref(app).chip_kind() == &chip_kind)
-            .filter(|chip| chip.as_ref(app).should_render(app))
             .map(|chip| ChildView::new(chip).finish())
     }
 
@@ -753,7 +751,6 @@ impl AgentInputFooter {
                 chips
                     .iter()
                     .find(|chip| chip.as_ref(app).chip_kind() == chip_kind)
-                    .filter(|chip| chip.as_ref(app).should_render(app))
                     .map(|chip| ChildView::new(chip).finish())
             }
             AgentToolbarItemKind::ModelSelector => {

@@ -1594,9 +1594,6 @@ impl AgentDriver {
             }
 
             match event {
-                BlocklistAIHistoryEvent::UpdatedTodoList { .. } => {
-                    // TODO: Log TODO list updates.
-                }
                 BlocklistAIHistoryEvent::AppendedExchange {
                     exchange_id,
                     conversation_id,

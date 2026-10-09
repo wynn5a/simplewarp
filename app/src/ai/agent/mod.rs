@@ -1,5 +1,4 @@
 pub(crate) mod conversation;
-pub(crate) mod todos;
 
 pub(crate) mod api;
 pub(crate) mod comment;
@@ -554,15 +553,6 @@ impl AIAgentOutput {
             })
     }
 
-    pub fn todo_operations(&self) -> impl Iterator<Item = &TodoOperation> {
-        self.messages
-            .iter()
-            .filter_map(|message| match &message.message {
-                AIAgentOutputMessageType::TodoOperation(operation) => Some(operation),
-                _ => None,
-            })
-    }
-
     /// Format this output for copying to clipboard.
     /// This extracts all content (text, code, and action results) with proper formatting.
     pub fn format_for_copy(
@@ -607,10 +597,6 @@ impl AIAgentOutput {
                         result.push(String::new());
                         last_was_action = true;
                     }
-                }
-                AIAgentOutputMessageType::TodoOperation(operation) => {
-                    result.push(format!("{operation}"));
-                    last_was_action = false;
                 }
                 AIAgentOutputMessageType::Subagent(subagent) => {
                     result.push(format!("{subagent}"));
@@ -1555,76 +1541,6 @@ pub struct AIAgentText {
     pub sections: Vec<AIAgentTextSection>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct AIAgentTodoId(String);
-
-impl AsRef<str> for AIAgentTodoId {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
-impl From<String> for AIAgentTodoId {
-    fn from(value: String) -> Self {
-        Self(value)
-    }
-}
-
-impl From<AIAgentTodoId> for String {
-    fn from(value: AIAgentTodoId) -> Self {
-        value.0
-    }
-}
-
-impl Display for AIAgentTodoId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct AIAgentTodo {
-    pub id: AIAgentTodoId,
-    pub title: String,
-    pub description: String,
-}
-
-impl AIAgentTodo {
-    pub fn new(id: AIAgentTodoId, title: String, description: String) -> Self {
-        Self {
-            id,
-            title,
-            description,
-        }
-    }
-}
-
-impl Display for AIAgentTodo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.id, self.title)?;
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum TodoOperation {
-    UpdateTodos { todos: Vec<AIAgentTodo> },
-    MarkAsCompleted { completed_todos: Vec<AIAgentTodo> },
-}
-
-impl Display for TodoOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TodoOperation::UpdateTodos { todos } => {
-                write!(f, "UpdateTodos: {} items", todos.len())
-            }
-            TodoOperation::MarkAsCompleted { completed_todos } => {
-                write!(f, "MarkAsCompleted: {} items", completed_todos.len())
-            }
-        }
-    }
-}
-
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum SubagentType {
     Cli,
@@ -1690,7 +1606,6 @@ pub enum AIAgentOutputMessageType {
     },
     Subagent(SubagentCall),
     Action(AIAgentAction),
-    TodoOperation(TodoOperation),
     CommentsAddressed {
         comments: Vec<ReviewComment>,
     },
@@ -1815,7 +1730,6 @@ impl Display for AIAgentOutputMessage {
                 }
             }
             AIAgentOutputMessageType::Action(action) => write!(f, "Action: {action}")?,
-            AIAgentOutputMessageType::TodoOperation(todo) => write!(f, "Todo: {todo}")?,
             AIAgentOutputMessageType::Subagent(subagent) => write!(f, "Subagent: {subagent}")?,
             AIAgentOutputMessageType::CommentsAddressed {
                 comments: comment_ids,
@@ -1885,14 +1799,6 @@ impl AIAgentOutputMessage {
                 text,
                 finished_duration: duration,
             },
-            citations: vec![],
-        }
-    }
-
-    pub fn todo_operation(id: MessageId, operation: TodoOperation) -> Self {
-        Self {
-            id,
-            message: AIAgentOutputMessageType::TodoOperation(operation),
             citations: vec![],
         }
     }

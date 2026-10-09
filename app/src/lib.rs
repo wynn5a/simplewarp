@@ -102,8 +102,7 @@ pub mod tab_configs;
 pub mod terminal;
 pub mod themes;
 use ::ai::project_context::model::ProjectContextModel;
-pub use ai::agent::todos::AIAgentTodoList;
-pub use ai::agent::{AIAgentActionResultType, FileEdit, TodoOperation};
+pub use ai::agent::{AIAgentActionResultType, FileEdit};
 use ai::agent_conversations_model::AgentConversationsModel;
 use ai::agent_management::AgentNotificationsModel;
 use ai::blocklist::{BlocklistAIHistoryModel, BlocklistAIPermissions};
@@ -1110,7 +1109,6 @@ pub(crate) fn initialize_app(
     context_chips::display_menu::init(ctx);
     context_chips::node_version_popup::init(ctx);
     env_vars::view::env_var_collection::init(ctx);
-    ai::agent::todos::popup::init(ctx);
     coding_entrypoints::project_buttons::init(ctx);
     if FeatureFlag::CodeReviewSaveChanges.is_enabled() {
         code_review::init(ctx);

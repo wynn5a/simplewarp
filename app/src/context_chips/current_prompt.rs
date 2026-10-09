@@ -1392,7 +1392,7 @@ impl CurrentPrompt {
                     .states
                     .get(&chip_kind)
                     .is_some_and(|state| state.last_computed_value.is_some());
-                if has_value && chip_kind.is_copyable() {
+                if has_value {
                     if let Some(chip) = chip_kind.to_chip() {
                         Some(
                             MenuItemFields::new(format!("Copy {}", chip.title()))

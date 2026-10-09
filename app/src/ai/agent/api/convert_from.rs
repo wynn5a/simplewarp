@@ -8,13 +8,11 @@ use warp_multi_agent_api as api;
 
 use crate::ai::agent::comment::CodeReview;
 use crate::ai::agent::task::TaskId;
-use crate::ai::agent::todos::AIAgentTodoList;
 use crate::ai::agent::util::parse_markdown_into_text_and_code_sections;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionType, AIAgentAttachment, AIAgentCitation, AIAgentOutputMessage,
-    AIAgentText, AIAgentTodo, ArtifactCreatedData, MessageId, SubagentCall, SubagentType,
-    SuggestedAgentModeWorkflow, SuggestedRule, Suggestions, SummarizationType, TodoOperation,
-    UserQueryMode,
+    AIAgentText, ArtifactCreatedData, MessageId, SubagentCall, SubagentType,
+    SuggestedAgentModeWorkflow, SuggestedRule, Suggestions, SummarizationType, UserQueryMode,
 };
 use crate::ai::artifact_download::sanitized_basename;
 
@@ -85,7 +83,6 @@ enum MaybeAIAgentAction {
 
 pub struct ConversionParams<'a> {
     pub task_id: &'a TaskId,
-    pub current_todo_list: Option<&'a AIAgentTodoList>,
     pub active_code_review: Option<&'a CodeReview>,
 }
 
@@ -148,84 +145,9 @@ impl ConvertAPIMessageToClientOutputMessage for api::Message {
             api::message::Message::WebSearch(_) | api::message::Message::WebFetch(_) => {
                 Ok(MaybeAIAgentOutputMessage::NoClientRepresentation)
             }
-            api::message::Message::ModelUsed(_) => {
+            // The local agent has no todo list; saved updates are not drawn.
+            api::message::Message::ModelUsed(_) | api::message::Message::UpdateTodos(_) => {
                 Ok(MaybeAIAgentOutputMessage::NoClientRepresentation)
-            }
-            api::message::Message::UpdateTodos(update_todos) => {
-                if let Some(operation) = update_todos.operation {
-                    match operation {
-                        api::message::update_todos::Operation::CreateTodoList(create_todo_list) => {
-                            Ok(MaybeAIAgentOutputMessage::Message(
-                                AIAgentOutputMessage::todo_operation(
-                                    MessageId::new(self.id),
-                                    TodoOperation::UpdateTodos {
-                                        todos: create_todo_list
-                                            .initial_todos
-                                            .into_iter()
-                                            .map(Into::into)
-                                            .collect(),
-                                    },
-                                )
-                                .with_citations(citations),
-                            ))
-                        }
-                        api::message::update_todos::Operation::UpdatePendingTodos(
-                            update_pending_todos,
-                        ) => Ok(MaybeAIAgentOutputMessage::Message(
-                            AIAgentOutputMessage::todo_operation(
-                                MessageId::new(self.id),
-                                TodoOperation::UpdateTodos {
-                                    todos: params
-                                        .current_todo_list
-                                        .iter()
-                                        .flat_map(|list| list.completed_items().iter().cloned())
-                                        .chain(
-                                            update_pending_todos
-                                                .updated_pending_todos
-                                                .into_iter()
-                                                .map(Into::into),
-                                        )
-                                        .collect(),
-                                },
-                            )
-                            .with_citations(citations),
-                        )),
-                        api::message::update_todos::Operation::MarkTodosCompleted(
-                            mark_todos_completed,
-                        ) => {
-                            if mark_todos_completed.todo_ids.is_empty() {
-                                Ok(MaybeAIAgentOutputMessage::NoClientRepresentation)
-                            } else {
-                                // This is a mark as completed operation
-                                Ok(MaybeAIAgentOutputMessage::Message(
-                                    AIAgentOutputMessage::todo_operation(
-                                        MessageId::new(self.id),
-                                        TodoOperation::MarkAsCompleted {
-                                            completed_todos: mark_todos_completed
-                                                .todo_ids
-                                                .into_iter()
-                                                .filter_map(|todo_id| {
-                                                    params.current_todo_list.and_then(|todo_list| {
-                                                        todo_list
-                                                            .completed_items()
-                                                            .iter()
-                                                            .find(|item| {
-                                                                item.id.as_ref() == todo_id.as_str()
-                                                            })
-                                                            .cloned()
-                                                    })
-                                                })
-                                                .collect(),
-                                        },
-                                    )
-                                    .with_citations(citations),
-                                ))
-                            }
-                        }
-                    }
-                } else {
-                    Ok(MaybeAIAgentOutputMessage::NoClientRepresentation)
-                }
             }
             api::message::Message::Summarization(summarization) => {
                 let duration = summarization
@@ -599,16 +521,6 @@ impl From<api::Suggestions> for Suggestions {
                     logging_id: workflow.logging_id.into(),
                 })
                 .collect(),
-        }
-    }
-}
-
-impl From<api::TodoItem> for AIAgentTodo {
-    fn from(value: api::TodoItem) -> Self {
-        AIAgentTodo {
-            id: value.id.into(),
-            title: value.title,
-            description: value.description,
         }
     }
 }

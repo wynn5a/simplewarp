@@ -419,6 +419,15 @@ that only it used:
   request params, and the `run_id` on the remove/delete conversation events. Conversation eviction
   in `persistence/agent.rs` is now plain freshest-first (it used to keep whole parent/child trees).
 
+- **Todo list** (round 8, 2026-10-09): `AIAgentTodo`/`AIAgentTodoList`/`TodoOperation`, the
+  `UpdateTodos` output message, the in-block todo rendering and "Stopped task n/m" label, the todo
+  popup and `ToggleTodoPopup`/`CloseTodoPopup`, `PlanAndTodoListView`, `DisplayChipKind::AgentPlanAndTodoList`,
+  the `UpdatedTodoList` history event, conversation todo state (replayed from tasks on restore, rewind),
+  the SDK `update_todos`/`complete_todos` JSON messages, and the matching integration assertions. Saved
+  `UpdateTodos` messages restore as nothing. `ContextChipKind::AgentPlanAndTodoList` stays as an
+  undefined, never-rendered variant so saved footer layouts that list it still parse (like
+  `VoiceInput`). The request now reports `supports_todos_ui: false`.
+
 Saved conversations: calls and results of these tools restore as nothing (`NoClientRepresentation`
 for calls, `None` for results). Persisted `PersistedAIAgentActionType` rows that hold one still
 deserialize through empty tombstone variants (`UseComputer {}`, `RequestComputerUse {}`,
@@ -426,14 +435,13 @@ deserialize through empty tombstone variants (`UseComputer {}`, `RequestComputer
 the removed keys still load (profile files ignore unknown keys); `computer_use_enabled` in an agent
 config file is now rejected (that file type denies unknown keys).
 
-Verification: workspace nextest 6329 / 6339 after the child-agent round (6355 / 6365 after the orchestration round 6385 / 6395 after the documents round, 6407 / 6417 before it); the
+Verification: workspace nextest 6328 / 6338 after the todo round (6329 / 6339 after the child-agent round, 6355 / 6365 after the orchestration round 6385 / 6395 after the documents round, 6407 / 6417 before it); the
 failing 10 are `integration::integration` GUI tests that time out the same way without these
 changes (one of them flips between runs).
 
 **Not done**, because each is tied to something still live: `InsertReviewComments` (the
 `code_review/comments` import path and its flag), `TransferShellCommandControlToUser` (the
 long-running-command controls in `shell_command.rs`/`cli_controller.rs`), `SuggestPrompt` (passive
-suggestions). The todo
-list (`UpdateTodos`, the todo chip and popup) is also unreachable, since no offered tool creates one.
+suggestions).
 MCP tool calls stay
 (Phase 3b). Dogfood-only skills under `resources/channel-gated-skills` still mention computer use.

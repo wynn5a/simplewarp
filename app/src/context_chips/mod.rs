@@ -200,7 +200,8 @@ pub enum ContextChipKind {
     #[serde(alias = "RemoteLogin")]
     Ssh,
     Subshell,
-    /// A chip that shows the plan and todo list for the current conversation.
+    /// Retired: the agent plan/todo chip. The variant stays so persisted toolbar layouts that
+    /// list it still parse; it has no definition and is never rendered.
     AgentPlanAndTodoList,
 }
 
@@ -361,17 +362,8 @@ impl ContextChipKind {
                 builtins::subshell,
                 RefreshConfig::OnDemandOnly,
             )),
-            Self::AgentPlanAndTodoList => Some(ContextChip::builtin(
-                "Agent Plan and Todo List",
-                |_| Some(ChipValue::Text(String::new())),
-                RefreshConfig::OnDemandOnly,
-            )),
+            Self::AgentPlanAndTodoList => None,
         }
-    }
-
-    /// Whether the context chip has a copyable value.
-    pub fn is_copyable(&self) -> bool {
-        !matches!(self, Self::AgentPlanAndTodoList)
     }
 
     /// Returns a generator to be used for the first fetch of
@@ -539,13 +531,6 @@ impl ContextChipKind {
             Self::Custom { .. } => None,
         }
     }
-}
-
-/// Returns the set of chips that are available for use in the agent footer.
-pub fn agent_footer_available_chips() -> Vec<ContextChipKind> {
-    let mut chips = available_chips();
-    chips.push(ContextChipKind::AgentPlanAndTodoList);
-    chips
 }
 
 /// TODO: this needs to also fetch the custom chips from sqlite

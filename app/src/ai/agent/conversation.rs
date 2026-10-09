@@ -25,14 +25,13 @@ use super::task::helper::*;
 use super::task::transaction::{SavedTask, Transaction};
 use super::task::{
     ExtractMessagesError, Task, TaskId, TaskMessageContext, UpdateTaskError,
-    UpgradeOptimisticTaskError, derive_todo_lists_from_root_task,
+    UpgradeOptimisticTaskError,
 };
 use super::task_store::TaskStore;
 use super::{
     AIAgentAction, AIAgentActionId, AIAgentContext, AIAgentExchange, AIAgentExchangeId,
-    AIAgentInput, AIAgentOutput, AIAgentOutputStatus, AIAgentTodo, AIAgentTodoId,
-    FinishedAIAgentOutput, MessageId, OutputModelInfo, RenderableAIError, RequestCost,
-    ServerOutputId, Shared, Suggestions,
+    AIAgentInput, AIAgentOutput, AIAgentOutputStatus, FinishedAIAgentOutput, MessageId,
+    OutputModelInfo, RenderableAIError, RequestCost, ServerOutputId, Shared, Suggestions,
 };
 use crate::ai::agent::api::convert_conversation::{
     ConvertToExchanges, proto_timestamp_to_local_datetime,
@@ -42,7 +41,6 @@ use crate::ai::agent::icons::{
     failed_icon, gray_stop_icon, in_progress_icon, succeeded_icon, yellow_stop_icon,
 };
 use crate::ai::agent::linearization::compute_task_depths;
-use crate::ai::agent::todos::AIAgentTodoList;
 use crate::ai::agent::{
     AIAgentOutputMessage, AIAgentOutputMessageType, CancellationOutcome, CancellationReason,
     MessageToAIAgentOutputMessageError, SummarizationType,
@@ -65,21 +63,6 @@ use crate::terminal::model::block::{
 };
 use crate::ui_components::icons::Icon;
 use crate::{BlocklistAIHistoryModel, GlobalResourceHandlesProvider};
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TodoStatus {
-    Pending,
-    InProgress,
-    Completed,
-    Cancelled,
-    Stopped,
-}
-
-impl TodoStatus {
-    pub fn is_cancelled(&self) -> bool {
-        matches!(self, TodoStatus::Cancelled)
-    }
-}
 
 fn footer_model_token_usage(
     usage_metadata: &stream_finished::ConversationUsageMetadata,
@@ -233,9 +216,6 @@ pub struct AIConversation {
     task_store: TaskStore,
     optimistic_cli_subagent_subtask_id: Option<TaskId>,
 
-    /// TODO lists created during the conversation, ordered by creation time. The last list (if any) is the active list.
-    todo_lists: Vec<AIAgentTodoList>,
-
     /// Current the code review in this conversation, `None` if the has never tried to address
     /// comments in this conversation.
     code_review: Option<CodeReview>,
@@ -332,7 +312,6 @@ impl AIConversation {
             optimistic_cli_subagent_subtask_id: None,
             code_review: None,
             is_cli_agent_transcript,
-            todo_lists: vec![],
             status: ConversationStatus::InProgress,
             status_error: None,
             has_opened_code_review: false,
@@ -368,9 +347,6 @@ impl AIConversation {
         Self::new_restored_synthesizing_on_empty(id, tasks, conversation_data)
     }
 
-    // TODO: derive todo list state from tasks instead of taking args. This
-    // would make it possible to fully restore a convo from tasks, instead of
-    // having to persist this additional data.
     /// Lenient restore: when `tasks` is empty, synthesizes a fresh in-memory
     /// conversation with a new `Optimistic(Root)` root task and the persisted
     /// overlay metadata applied (mirroring the shape `AIConversation::new()`
@@ -382,13 +358,13 @@ impl AIConversation {
         tasks: Vec<api::Task>,
         conversation_data: Option<AgentConversationData>,
     ) -> Result<Self, RestoreConversationError> {
-        let (task_store, todo_lists, status) = if tasks.is_empty() {
+        let (task_store, status) = if tasks.is_empty() {
             // Bypass `derive_status_from_root_task`: it would return `Success`
             // for a root with no exchanges, silently misclassifying a restored
             // "child waiting on server response" as done.
             let root_task = Task::new_optimistic_root();
             let task_store = TaskStore::with_root_task(root_task);
-            (task_store, Vec::new(), ConversationStatus::InProgress)
+            (task_store, ConversationStatus::InProgress)
         } else {
             let api_tasks_by_id: HashMap<String, api::Task> =
                 tasks.into_iter().map(|t| (t.id.clone(), t)).collect();
@@ -459,8 +435,6 @@ impl AIConversation {
             };
             let root_task = Task::new_restored_root(root_api_task, root_exchanges.into_iter());
 
-            // Derive todo lists from tasks by replaying UpdateTodos operations
-            let todo_lists = derive_todo_lists_from_root_task(&root_task);
             let root_task_id = root_task.id().clone();
             tasks_by_id.insert(root_task.id().clone(), root_task);
 
@@ -468,7 +442,7 @@ impl AIConversation {
             let status = Self::derive_status_from_root_task(&tasks_by_id.get(&root_task_id));
 
             let task_store = TaskStore::from_tasks(tasks_by_id, root_task_id);
-            (task_store, todo_lists, status)
+            (task_store, status)
         };
 
         let (
@@ -544,7 +518,6 @@ impl AIConversation {
             task_store,
             status,
             status_error: None,
-            todo_lists,
             // TODO(alokedesai): Support session restoration for code review comments.
             code_review: None,
             has_opened_code_review: false,
@@ -658,7 +631,7 @@ impl AIConversation {
             .remove(&root_task_id)
             .expect("root task should exist for upgrade-in-place test helper");
         let server_root = root_task
-            .into_server_created_task(server_task, None, None, None)
+            .into_server_created_task(server_task, None, None)
             .expect("upgrading optimistic root to a server-backed task should succeed");
         self.task_store.set_root_task(server_root);
     }
@@ -1971,7 +1944,6 @@ impl AIConversation {
                         let server_subtask = optimistic_subtask.into_server_created_task(
                             task,
                             parent_task.source(),
-                            self.todo_lists.last(),
                             self.code_review.as_ref(),
                         )?;
                         ctx.emit(BlocklistAIHistoryEvent::UpgradedTask {
@@ -2007,7 +1979,6 @@ impl AIConversation {
                                 .source()
                                 .ok_or(UpdateConversationError::TaskNotInitialized)?,
                             existing_exchange,
-                            self.todo_lists.last(),
                             self.code_review.as_ref(),
                         );
 
@@ -2063,7 +2034,6 @@ impl AIConversation {
                         root_task = root_task.into_server_created_task(
                             task,
                             None,
-                            self.todo_lists.last(),
                             self.code_review.as_ref(),
                         )?;
                         ctx.emit(BlocklistAIHistoryEvent::UpgradedTask {
@@ -2099,17 +2069,6 @@ impl AIConversation {
             Action::AddMessagesToTask(AddMessagesToTask { task_id, messages }) => {
                 for message in messages.iter() {
                     match message.message.as_ref() {
-                        Some(api::message::Message::UpdateTodos(update)) => {
-                            if let Some(todos_op) = update.operation.as_ref() {
-                                update_todo_list_from_todo_op(
-                                    &mut self.todo_lists,
-                                    todos_op.clone(),
-                                );
-                                ctx.emit(BlocklistAIHistoryEvent::UpdatedTodoList {
-                                    terminal_surface_id,
-                                });
-                            }
-                        }
                         Some(api::message::Message::UpdateReviewComments(comments)) => {
                             if let Some(comments_op) = comments.operation.as_ref() {
                                 if let Some(active_code_review) = self.code_review.as_mut() {
@@ -2205,7 +2164,6 @@ impl AIConversation {
 
                 let task_id = TaskId::new(task_id);
                 self.checkpoint_task(&task_id);
-                let current_todo_list = self.todo_lists.last().cloned();
 
                 // Remove the task to relinquish mutable borrow on self, we add it back later.
                 let mut task = self
@@ -2251,7 +2209,6 @@ impl AIConversation {
                     messages,
                     exchange_id,
                     TaskMessageContext {
-                        current_todo_list: current_todo_list.as_ref(),
                         active_code_review: current_comment_state.as_ref(),
                     },
                 )?;
@@ -2310,30 +2267,20 @@ impl AIConversation {
                     })
                     .ok_or(UpdateConversationError::ExchangeNotFound)?;
 
-                let current_todo_list = self.todo_lists.last().cloned();
                 let current_comment_state = self.code_review.as_ref().cloned();
-                let todos_op = self
-                    .task_store
+                self.task_store
                     .modify_task(&task_id, |task| {
                         task.upsert_message(
                             message,
                             exchange_id,
                             TaskMessageContext {
-                                current_todo_list: current_todo_list.as_ref(),
                                 active_code_review: current_comment_state.as_ref(),
                             },
                             mask,
                         )
-                        .map(|msg| msg.todos_op().cloned())
+                        .map(|_| ())
                     })
                     .ok_or(UpdateConversationError::TaskNotFound)??;
-                // Update todo list if needed
-                if let Some(todos_op) = todos_op {
-                    update_todo_list_from_todo_op(&mut self.todo_lists, todos_op);
-                    ctx.emit(BlocklistAIHistoryEvent::UpdatedTodoList {
-                        terminal_surface_id,
-                    });
-                }
                 ctx.emit(BlocklistAIHistoryEvent::UpdatedStreamingExchange {
                     exchange_id,
                     terminal_surface_id,
@@ -2357,31 +2304,20 @@ impl AIConversation {
                     })
                     .ok_or(UpdateConversationError::ExchangeNotFound)?;
 
-                let current_todo_list = self.todo_lists.last().cloned();
                 let current_comment_state = self.code_review.as_ref().cloned();
-                // Update the message and get the updated todos op, if any.
-                let todos_op = self
-                    .task_store
+                self.task_store
                     .modify_task(&task_id, |task| {
                         task.append_to_message_content(
                             message,
                             exchange_id,
                             TaskMessageContext {
-                                current_todo_list: current_todo_list.as_ref(),
                                 active_code_review: current_comment_state.as_ref(),
                             },
                             mask,
                         )
-                        .map(|msg| msg.todos_op().cloned())
+                        .map(|_| ())
                     })
                     .ok_or(UpdateConversationError::TaskNotFound)??;
-                // Update todo list if needed
-                if let Some(todos_op) = todos_op {
-                    update_todo_list_from_todo_op(&mut self.todo_lists, todos_op);
-                    ctx.emit(BlocklistAIHistoryEvent::UpdatedTodoList {
-                        terminal_surface_id,
-                    });
-                }
                 ctx.emit(BlocklistAIHistoryEvent::UpdatedStreamingExchange {
                     exchange_id,
                     terminal_surface_id,
@@ -2591,58 +2527,6 @@ impl AIConversation {
                     .is_subagent_task_finished(task.id())
                     .is_ok_and(|finished| !finished)
         })
-    }
-
-    pub fn todo_lists(&self) -> &Vec<AIAgentTodoList> {
-        &self.todo_lists
-    }
-
-    /// Replaces the conversation's todo lists directly, bypassing the normal
-    /// todo-operation replay, for projection tests.
-    #[cfg(any(test, feature = "test-util"))]
-    pub fn set_todo_lists_for_test(&mut self, todo_lists: Vec<AIAgentTodoList>) {
-        self.todo_lists = todo_lists;
-    }
-
-    pub fn active_todo_list(&self) -> Option<&AIAgentTodoList> {
-        self.todo_lists.last()
-    }
-
-    pub fn active_todo(&self) -> Option<&AIAgentTodo> {
-        self.active_todo_list()
-            .and_then(|todo_list| todo_list.in_progress_item())
-    }
-
-    pub fn todo_status(&self, todo_id: &AIAgentTodoId) -> Option<TodoStatus> {
-        for (i, list) in self.todo_lists.iter().rev().enumerate() {
-            let is_active_list = i == 0;
-            if let Some(pos) = list
-                .pending_items()
-                .iter()
-                .position(|item| &item.id == todo_id)
-            {
-                if is_active_list {
-                    if pos == 0 {
-                        return if self.status.is_in_progress() {
-                            Some(TodoStatus::InProgress)
-                        } else {
-                            Some(TodoStatus::Stopped)
-                        };
-                    } else {
-                        return Some(TodoStatus::Pending);
-                    }
-                } else {
-                    return Some(TodoStatus::Cancelled);
-                }
-            } else if list
-                .completed_items()
-                .iter()
-                .any(|item| &item.id == todo_id)
-            {
-                return Some(TodoStatus::Completed);
-            }
-        }
-        None
     }
 
     pub fn begin_transaction(&mut self) {
@@ -3300,15 +3184,10 @@ impl AIConversation {
             message_ids_to_remove.extend(extra_ids);
         }
 
-        if let Some(new_todo_lists) = self.task_store.modify_root_task(|root_task| {
+        self.task_store.modify_root_task(|root_task| {
             root_task.truncate_exchanges_from(from_exchange_id);
             root_task.remove_messages(&message_ids_to_remove);
-
-            // Return updated todo state
-            derive_todo_lists_from_root_task(root_task)
-        }) {
-            self.todo_lists = new_todo_lists;
-        }
+        });
 
         // Remove the rewound messages from every non-root task as well.
         // Summarization (`MoveMessagesToNewTask`) relocates rewound root
@@ -3419,42 +3298,6 @@ fn subagent_pair_message_ids_to_remove(
         }
     }
     extra_ids
-}
-
-pub(super) fn update_todo_list_from_todo_op(
-    todo_lists: &mut Vec<AIAgentTodoList>,
-    op: api::message::update_todos::Operation,
-) {
-    use api::message::update_todos::Operation;
-
-    match op {
-        Operation::CreateTodoList(create_todo_list) => {
-            todo_lists.push(
-                AIAgentTodoList::default().with_pending_items(
-                    create_todo_list
-                        .initial_todos
-                        .into_iter()
-                        .map(Into::into)
-                        .collect(),
-                ),
-            );
-        }
-        Operation::UpdatePendingTodos(update_pending_todos) => {
-            let updated_todo_list = todo_lists.pop().unwrap_or_default().with_pending_items(
-                update_pending_todos
-                    .updated_pending_todos
-                    .into_iter()
-                    .map(Into::into)
-                    .collect(),
-            );
-            todo_lists.push(updated_todo_list);
-        }
-        Operation::MarkTodosCompleted(completed_items) => {
-            if let Some(todo_list) = todo_lists.last_mut() {
-                todo_list.mark_todos_complete(completed_items.todo_ids);
-            }
-        }
-    }
 }
 
 pub(super) fn update_comment_from_comment_operation(

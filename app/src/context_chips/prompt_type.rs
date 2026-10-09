@@ -48,7 +48,7 @@ impl PromptType {
         self.chips(ctx)
             .into_iter()
             .filter_map(|chip_result| {
-                if chip_result.value.is_some() && chip_result.kind.is_copyable() {
+                if chip_result.value.is_some() {
                     if let Some(chip) = chip_result.kind.to_chip() {
                         Some(
                             MenuItemFields::new(format!("Copy {}", chip.title()))

@@ -163,7 +163,6 @@ use crate::ai::agent::UserQueryMode;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId, ConversationStatus};
 use crate::ai::agent::redaction::redact_secrets;
-use crate::ai::agent::todos::popup::{AgentTodosPopupEvent, AgentTodosPopupView};
 use crate::ai::agent::{
     AIAgentActionId, AIAgentActionType, AIAgentCitation, AIAgentContext, AIAgentExchangeId,
     AIAgentInput, AIAgentOutputStatus, AIAgentPtyWriteMode, AIAgentTextSection,
@@ -2187,10 +2186,6 @@ pub struct TerminalView {
 
     model_events_handle: ModelHandle<ModelEventDispatcher>,
 
-    is_todo_popup_visible: bool,
-
-    agent_todos_popup: ViewHandle<AgentTodosPopupView>,
-
     /// Per-repo git status model for the current repository, if any.
     git_repo_status: Option<ModelHandle<GitRepoStatusModel>>,
 
@@ -3312,8 +3307,6 @@ impl TerminalView {
             }
         });
 
-        let agent_todos_popup = Self::build_agent_todos_popup(ai_context_model.clone(), ctx);
-
         let terminal_view_id = ctx.view_id();
         let agent_input_footer = input.as_ref(ctx).agent_input_footer().clone();
         let use_agent_button_bar = ctx.add_typed_action_view(|ctx| {
@@ -3478,8 +3471,6 @@ impl TerminalView {
             active_session,
             pty_spawn_failed: false,
             model_events_handle,
-            is_todo_popup_visible: false,
-            agent_todos_popup,
             git_repo_status: None,
             github_repo_model: None,
             deferred_code_review_open: None,
@@ -4196,22 +4187,6 @@ impl TerminalView {
         }
     }
 
-    fn build_agent_todos_popup(
-        ai_context_model: ModelHandle<BlocklistAIContextModel>,
-        ctx: &mut ViewContext<Self>,
-    ) -> ViewHandle<AgentTodosPopupView> {
-        let terminal_view_id = ctx.view_id();
-        let agent_todos_popup = ctx.add_typed_action_view(move |ctx| {
-            AgentTodosPopupView::new(terminal_view_id, ai_context_model, ctx)
-        });
-
-        ctx.subscribe_to_view(&agent_todos_popup, |me, _, event, ctx| {
-            me.handle_agent_todos_popup_event(event, ctx);
-        });
-
-        agent_todos_popup
-    }
-
     pub fn attach_path_as_context(&mut self, path: &Path, ctx: &mut ViewContext<Self>) {
         let content = path.to_string_lossy().to_string();
 
@@ -4232,20 +4207,6 @@ impl TerminalView {
             .selected_conversation_id(ctx)
             .map(|id| id == *conversation_id)
             .unwrap_or(false)
-    }
-
-    fn handle_agent_todos_popup_event(
-        &mut self,
-        event: &AgentTodosPopupEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            AgentTodosPopupEvent::Close => {
-                self.is_todo_popup_visible = false;
-                ctx.focus_self();
-                ctx.notify();
-            }
-        }
     }
 
     fn handle_ai_context_model_event(
@@ -4436,7 +4397,6 @@ impl TerminalView {
             | BlocklistAIHistoryEvent::SetActiveConversation { .. }
             | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
             | BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface { .. }
-            | BlocklistAIHistoryEvent::UpdatedTodoList { .. }
             | BlocklistAIHistoryEvent::UpdatedAutoexecuteOverride { .. }
             | BlocklistAIHistoryEvent::SplitConversation { .. }
             | BlocklistAIHistoryEvent::RemoveConversation { .. }
@@ -4819,7 +4779,6 @@ impl TerminalView {
                 self.maybe_send_lrc_queued_prompts_after_subagent_handoff(*conversation_id, ctx);
             }
             BlocklistAIHistoryEvent::UpdatedAutoexecuteOverride { .. }
-            | BlocklistAIHistoryEvent::UpdatedTodoList { .. }
             | BlocklistAIHistoryEvent::RestoredConversations { .. }
             | BlocklistAIHistoryEvent::UpgradedTask { .. }
             | BlocklistAIHistoryEvent::UpdatedConversationMetadata { .. }
@@ -14961,9 +14920,6 @@ impl TerminalView {
                 // This means an AI block may "finish" before the entire AI response is complete.
                 if self.active_ai_block(ctx).is_none() {
                     self.maybe_send_agent_mode_desktop_notification(&conversation_id, ctx);
-                    if self.is_todo_popup_visible {
-                        self.is_todo_popup_visible = false;
-                    }
                 }
                 self.redetermine_terminal_focus(ctx);
                 ctx.notify();
@@ -20073,8 +20029,6 @@ impl TypedActionView for TerminalView {
             | OpenAttachmentLightbox { .. }
             | ToggleAutoexecuteMode
             | ToggleQueueNextPrompt
-            | ToggleTodoPopup
-            | CloseTodoPopup
             | ToggleCodeReviewPane { .. }
             | OpenProjectRulesPane
             | InitProject
@@ -20745,18 +20699,6 @@ impl TypedActionView for TerminalView {
                         });
                     }
                 }
-            }
-            ToggleTodoPopup => {
-                self.is_todo_popup_visible = !self.is_todo_popup_visible;
-                // Focus the todos popup for esc key handling
-                if self.is_todo_popup_visible {
-                    ctx.focus(&self.agent_todos_popup);
-                }
-                ctx.notify();
-            }
-            CloseTodoPopup => {
-                self.is_todo_popup_visible = false;
-                ctx.notify();
             }
             ToggleCodeReviewPane { entrypoint } => {
                 ctx.emit(Event::ToggleCodeReviewPane(CodeReviewPanelArg {

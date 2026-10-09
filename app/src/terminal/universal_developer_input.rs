@@ -471,7 +471,6 @@ impl UniversalDeveloperInputButtonBar {
                 match event {
                     BlocklistAIHistoryEvent::StartedNewConversation { .. }
                     | BlocklistAIHistoryEvent::SetActiveConversation { .. }
-                    | BlocklistAIHistoryEvent::UpdatedTodoList { .. }
                     | BlocklistAIHistoryEvent::UpdatedConversationStatus { .. } => {
                         ctx.notify();
                     }

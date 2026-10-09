@@ -79,7 +79,7 @@ use crate::ai::agent::{
     AIAgentCitation, AIAgentContext, AIAgentInput, AIAgentOutput, AIAgentOutputMessageType,
     AIAgentTextSection, AIIdentifiers, CancellationReason, MessageId, PassiveSuggestionTrigger,
     ProgrammingLanguage, RequestCommandOutputResult, RequestFileEditsResult, ServerOutputId,
-    SuggestPromptRequest, SuggestPromptResult, SummarizationType, TodoOperation,
+    SuggestPromptRequest, SuggestPromptResult, SummarizationType,
 };
 use crate::ai::blocklist::action_model::NewConversationDecision;
 use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewEntryOrigin};
@@ -140,7 +140,7 @@ use crate::view_components::action_button::{
 use crate::view_components::compactible_action_button::CompactibleActionButton;
 use crate::view_components::find::FindEvent;
 use crate::workspace::{ForkAIConversationParams, ForkedConversationDestination, WorkspaceAction};
-use crate::{AIAgentTodoList, Appearance, FileEdit, ToastStack};
+use crate::{Appearance, FileEdit, ToastStack};
 
 const HAS_PENDING_ACTION: &str = "HasPendingAction";
 const DISPATCHED_REQUESTED_EDIT_KEYMAP_CONTEXT: &str = "PendingAIRequestedEdits";
@@ -381,22 +381,6 @@ pub enum AutonomySettingSpeedbump {
         /// Set at render-time.
         shown: Arc<Mutex<bool>>,
     },
-}
-
-/// State for the todo list preview element in the AI block.
-/// Displayed whenever an agent creates a todo list.
-struct TodoListElementState {
-    header_toggle_mouse_state: MouseStateHandle,
-    is_expanded: bool,
-}
-
-impl Default for TodoListElementState {
-    fn default() -> Self {
-        Self {
-            header_toggle_mouse_state: MouseStateHandle::new(Default::default()),
-            is_expanded: true,
-        }
-    }
 }
 
 pub(super) struct ImportedCommentElementState {
@@ -706,9 +690,6 @@ pub struct AIBlock {
     /// Uses IndexMap to preserve insertion order for correct revert ordering.
     requested_edits: IndexMap<AIAgentActionId, RequestedEdit>,
 
-    /// Map from todo list IDs to their states.
-    todo_list_states: HashMap<MessageId, TodoListElementState>,
-
     comment_states: HashMap<CommentId, CommentElementState>,
 
     /// Map from collapsible block message IDs (reasoning or summarization) to their states.
@@ -941,7 +922,6 @@ impl AIBlock {
                 {
                     match event {
                         BlocklistAIHistoryEvent::AppendedExchange { .. }
-                        | BlocklistAIHistoryEvent::UpdatedTodoList { .. }
                         | BlocklistAIHistoryEvent::UpdatedAutoexecuteOverride { .. }
                         | BlocklistAIHistoryEvent::StartedNewConversation { .. }
                         | BlocklistAIHistoryEvent::SetActiveConversation { .. } => {
@@ -1102,7 +1082,6 @@ impl AIBlock {
             requested_commands: Default::default(),
             requested_mcp_tools: Default::default(),
             requested_edits: Default::default(),
-            todo_list_states: Default::default(),
             comment_states,
             collapsible_block_states: Default::default(),
             unit_tests_suggestions: Default::default(),
@@ -1482,15 +1461,6 @@ impl AIBlock {
     }
 
     fn handle_updated_output(&mut self, output: &AIAgentOutput, ctx: &mut ViewContext<Self>) {
-        // Ensure ui state handles are initialized for todo operation output messages.
-        for message in &output.messages {
-            if let AIAgentOutputMessageType::TodoOperation(TodoOperation::UpdateTodos { .. }) =
-                &message.message
-            {
-                self.todo_list_states.entry(message.id.clone()).or_default();
-            }
-        }
-
         for action in output.actions() {
             let new_action_ids: HashSet<AIAgentActionId> =
                 output.actions().map(|action| action.id.clone()).collect();
@@ -2273,14 +2243,6 @@ impl AIBlock {
                 });
             }
         }
-    }
-
-    pub fn current_todo_list<'a>(&'a self, app: &'a AppContext) -> Option<&'a AIAgentTodoList> {
-        self.model.conversation_id(app).and_then(|id| {
-            BlocklistAIHistoryModel::as_ref(app)
-                .conversation(&id)
-                .and_then(|conversation| conversation.active_todo_list())
-        })
     }
 
     fn enable_autoexecute_override(&mut self, ctx: &mut ViewContext<Self>) {
@@ -4641,7 +4603,6 @@ pub enum AIBlockAction {
     OpenCodeInWarp {
         source: CodeSource,
     },
-    ToggleTodoListExpanded(MessageId),
     ToggleCollapsibleBlockExpanded(MessageId),
     SetCollapsibleBlockPinnedToBottom {
         message_id: MessageId,
@@ -5038,11 +4999,6 @@ impl TypedActionView for AIBlock {
                         .open_file_layout
                         .value();
                     ctx.emit(open_code_action_event(source, layout));
-                }
-            }
-            AIBlockAction::ToggleTodoListExpanded(id) => {
-                if let Some(state) = self.todo_list_states.get_mut(id) {
-                    state.is_expanded = !state.is_expanded;
                 }
             }
             AIBlockAction::ToggleCollapsibleBlockExpanded(id) => {

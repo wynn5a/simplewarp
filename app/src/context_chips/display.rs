@@ -15,10 +15,7 @@ use super::display_chip::{DisplayChip, DisplayChipConfig, PromptDisplayChipEvent
 use super::prompt_type::PromptType;
 use super::{ChipResult, ContextChipKind, git_line_changes_from_chips};
 use crate::ai::blocklist::agent_view::AgentViewController;
-use crate::ai::blocklist::{
-    BlocklistAIContextModel, BlocklistAIHistoryEvent, BlocklistAIHistoryModel,
-    BlocklistAIInputEvent, BlocklistAIInputModel,
-};
+use crate::ai::blocklist::{BlocklistAIContextModel, BlocklistAIInputEvent, BlocklistAIInputModel};
 use crate::completer::SessionContext;
 use crate::context_chips::display_chip::{DisplayChipAction, PromptChipShellCommand};
 use crate::settings::InputSettings;
@@ -110,22 +107,6 @@ impl PromptDisplay {
                 }
             }
         });
-
-        // Subscribe todo list updates to refresh the todo list chip visibility
-        ctx.subscribe_to_model(
-            &BlocklistAIHistoryModel::handle(ctx),
-            |me, _, event, ctx| {
-                if let BlocklistAIHistoryEvent::UpdatedTodoList {
-                    terminal_surface_id,
-                } = event
-                {
-                    if *terminal_surface_id != me.terminal_view_id {
-                        return;
-                    }
-                    ctx.notify();
-                }
-            },
-        );
 
         ctx.subscribe_to_model(&agent_view_controller, |_, _, _, ctx| {
             ctx.notify();
@@ -380,13 +361,11 @@ impl View for PromptDisplay {
 
         self.display_chips.iter().for_each(|display_chip| {
             let chip = display_chip.as_ref(app);
-            // AgentPlanAndTodoList is only shown in the agent input footer
+            // Retired chip kind that old layouts may still list.
             if matches!(chip.chip_kind(), ContextChipKind::AgentPlanAndTodoList) {
                 return;
             }
-            if chip.should_render(app) {
-                row.add_child(ChildView::new(display_chip).finish());
-            }
+            row.add_child(ChildView::new(display_chip).finish());
         });
 
         // This is a hack to apply horizontal clipping without vertical clipping (for padding).

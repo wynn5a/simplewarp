@@ -16,7 +16,6 @@ impl TaskExt for api::Task {
 }
 
 pub trait MessageExt {
-    fn todos_op(&self) -> Option<&api::message::update_todos::Operation>;
     fn tool_call(&self) -> Option<&api::message::ToolCall>;
     fn tool_call_mut(&mut self) -> Option<&mut api::message::ToolCall>;
     fn tool_call_result(&self) -> Option<&api::message::ToolCallResult>;
@@ -36,16 +35,6 @@ pub trait SubagentExt {
 }
 
 impl MessageExt for api::Message {
-    fn todos_op(&self) -> Option<&api::message::update_todos::Operation> {
-        self.message.as_ref().and_then(|message| {
-            if let api::message::Message::UpdateTodos(update) = message {
-                update.operation.as_ref()
-            } else {
-                None
-            }
-        })
-    }
-
     fn tool_call(&self) -> Option<&api::message::ToolCall> {
         self.message.as_ref().and_then(|message| {
             if let api::message::Message::ToolCall(tool_call) = message {

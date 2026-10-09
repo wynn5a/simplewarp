@@ -26,7 +26,6 @@ mod imported_comments;
 mod input;
 pub mod output;
 pub mod query;
-mod todos;
 
 use std::collections::{HashMap, HashSet};
 
@@ -967,7 +966,6 @@ impl View for AIBlock {
                 requested_mcp_tools: &self.requested_mcp_tools,
                 requested_edits: &self.requested_edits,
                 unit_test_suggestions: &self.unit_tests_suggestions,
-                todo_list_states: &self.todo_list_states,
                 collapsible_block_states: &self.collapsible_block_states,
                 is_selecting_text: self.state_handles.selection_handle.is_selecting(),
                 is_ai_input_enabled: self
@@ -988,7 +986,6 @@ impl View for AIBlock {
                 review_changes_button: &self.review_changes_button,
                 open_all_comments_button: &self.open_all_comments_button,
                 has_accepted_edits,
-                current_todo_list: self.current_todo_list(app),
                 finish_reason: self.finish_reason.as_ref(),
                 is_usage_footer_expanded: self.is_usage_footer_expanded,
                 terminal_view_id: self.terminal_view_id,

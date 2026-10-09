@@ -9,11 +9,10 @@ pub mod text {
 
     use crate::AIAgentActionResultType;
     use crate::ai::agent::{
-        AIAgentActionType, AIAgentInput, AIAgentOutput, AIAgentOutputMessageType, AIAgentTodo,
+        AIAgentActionType, AIAgentInput, AIAgentOutput, AIAgentOutputMessageType,
         ArtifactCreatedData, CallMCPToolResult, FileGlobResult, FileGlobV2Result, GrepResult,
         ReadFilesResult, ReadMCPResourceResult, RequestCommandOutputResult, RequestFileEditsResult,
-        SuggestNewConversationResult, SuggestPromptResult, TodoOperation,
-        WriteToLongRunningShellCommandResult,
+        SuggestNewConversationResult, SuggestPromptResult, WriteToLongRunningShellCommandResult,
     };
 
     /// Format an agent input as a human-readable string. For action results, it's assumed that
@@ -316,16 +315,6 @@ pub mod text {
                     AIAgentActionType::ReadShellCommandOutput { .. }
                     | AIAgentActionType::TransferShellCommandControlToUser { .. } => (),
                 },
-                AIAgentOutputMessageType::TodoOperation(operation) => match operation {
-                    TodoOperation::UpdateTodos { todos } => {
-                        writeln!(w, "Updated TODO list:")?;
-                        format_todos(todos, w)?;
-                    }
-                    TodoOperation::MarkAsCompleted { completed_todos } => {
-                        writeln!(w, "Completed TODOs:")?;
-                        format_todos(completed_todos, w)?;
-                    }
-                },
                 AIAgentOutputMessageType::Subagent(subagent) => {
                     writeln!(w, "{subagent}")?;
                 }
@@ -366,14 +355,6 @@ pub mod text {
         Ok(())
     }
 
-    /// Format a list of TODO items.
-    fn format_todos<W: Write>(todos: &[AIAgentTodo], w: &mut W) -> io::Result<()> {
-        for todo in todos {
-            writeln!(w, "* {}", todo.title)?;
-        }
-        Ok(())
-    }
-
     /// Report that the agent conversation has started. This debug ID can be reported to us for troubleshooting.
     pub fn conversation_started<W: Write>(conversation_id: &str, w: &mut W) -> io::Result<()> {
         writeln!(
@@ -402,10 +383,10 @@ pub mod json {
     use crate::ai::agent::comment::ReviewComment;
     use crate::ai::agent::{
         AIAgentActionType, AIAgentInput, AIAgentOutput, AIAgentOutputMessage,
-        AIAgentOutputMessageType, AIAgentTodo, ArtifactCreatedData, CallMCPToolResult, FileContext,
+        AIAgentOutputMessageType, ArtifactCreatedData, CallMCPToolResult, FileContext,
         FileGlobResult, FileGlobV2Result, GrepResult, ReadFilesFailedFile, ReadFilesResult,
         ReadMCPResourceResult, RequestCommandOutputResult, RequestFileEditsResult, SubagentCall,
-        TodoOperation, WriteToLongRunningShellCommandResult,
+        WriteToLongRunningShellCommandResult,
     };
     use crate::code::buffer_location::LocalOrRemotePath;
 
@@ -431,14 +412,6 @@ pub mod json {
         #[serde(rename = "agent_reasoning")]
         AgentReasoning {
             text: String,
-        },
-        #[serde(rename = "update_todos")]
-        UpdateTodos {
-            todo_list: Vec<JsonTodo<'a>>,
-        },
-        #[serde(rename = "complete_todos")]
-        MarkTodosCompleted {
-            completed_todos: Vec<JsonTodo<'a>>,
         },
         Subagent {
             task_id: &'a str,
@@ -559,12 +532,6 @@ pub mod json {
     #[derive(Serialize)]
     struct JsonCallMcpToolResult<'a> {
         result: &'a rmcp::model::CallToolResult,
-    }
-
-    #[derive(Serialize)]
-    struct JsonTodo<'a> {
-        title: &'a str,
-        description: &'a str,
     }
 
     #[derive(Serialize)]
@@ -876,16 +843,6 @@ pub mod json {
                     | AIAgentActionType::ReadShellCommandOutput { .. }
                     | AIAgentActionType::TransferShellCommandControlToUser { .. } => None,
                 },
-                AIAgentOutputMessageType::TodoOperation(operation) => match operation {
-                    TodoOperation::UpdateTodos { todos } => Some(JsonMessage::UpdateTodos {
-                        todo_list: JsonTodo::from_todos(todos),
-                    }),
-                    TodoOperation::MarkAsCompleted { completed_todos } => {
-                        Some(JsonMessage::MarkTodosCompleted {
-                            completed_todos: JsonTodo::from_todos(completed_todos),
-                        })
-                    }
-                },
                 AIAgentOutputMessageType::Subagent(SubagentCall { task_id, .. }) => {
                     Some(JsonMessage::Subagent { task_id })
                 }
@@ -939,21 +896,6 @@ pub mod json {
                     .map(LocalOrRemotePath::display_path),
                 line_number: review_comment.diff.line_number,
                 head_title: review_comment.head_title.as_deref(),
-            }
-        }
-    }
-
-    impl<'a> JsonTodo<'a> {
-        fn from_todos(todos: &'a [AIAgentTodo]) -> Vec<Self> {
-            todos.iter().map(Self::from).collect()
-        }
-    }
-
-    impl<'a> From<&'a AIAgentTodo> for JsonTodo<'a> {
-        fn from(todo: &'a AIAgentTodo) -> Self {
-            Self {
-                title: todo.title.as_str(),
-                description: todo.description.as_str(),
             }
         }
     }

@@ -10,11 +10,10 @@ use warpui::{EntityId, SingletonEntity as _, integration_assert};
 use super::llm_judge::{LLMJudge, LLMJudgeConfig};
 use crate::BlocklistAIHistoryModel;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId, ConversationStatus};
-use crate::ai::agent::todos::AIAgentTodoList;
 use crate::ai::agent::{
     AIAgentActionResultType, AIAgentActionType, AIAgentExchange, AIAgentInput,
     AIAgentOutputMessageType, AIAgentOutputStatus, AIAgentTextSection, FileEdit,
-    FinishedAIAgentOutput, ReadFilesRequest, TodoOperation,
+    FinishedAIAgentOutput, ReadFilesRequest,
 };
 use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::integration_testing::view_getters::terminal_view;
@@ -132,45 +131,6 @@ pub fn assert_exchange_action_result(
                 exchange_index,
                 history_model,
             )
-        })
-    })
-}
-
-// Asserts on the todo operations in the latest exchange.
-// Will check continuously until the assertion succeeds or it times out.
-// The assertion is run against all todo operations in the exchange.
-pub fn assert_todo_operation(
-    assertion: impl Fn(&TodoOperation) -> bool + 'static + Clone,
-) -> AssertionCallback {
-    Box::new(move |app, window_id| {
-        let terminal_view = terminal_view(app, window_id, 0, 0);
-        BlocklistAIHistoryModel::handle(app).update(app, |history_model, _| {
-            match get_exchange_todo_operations(
-                ConversationTarget::Active,
-                terminal_view.id(),
-                get_exchange_count(terminal_view.id(), history_model) - 1,
-                history_model,
-            ) {
-                Ok(todo_operations) => {
-                    if todo_operations.is_empty() {
-                        return AssertionOutcome::failure(
-                            "Exchange output has no todo operations".to_owned(),
-                        );
-                    };
-
-                    // Run assertion against all todo operations
-                    for todo_operation in &todo_operations {
-                        if assertion(todo_operation) {
-                            return AssertionOutcome::Success;
-                        }
-                    }
-
-                    AssertionOutcome::failure(format!(
-                        "No todo operations match assertion. Found operations: {todo_operations:?}"
-                    ))
-                }
-                Err(outcome) => outcome,
-            }
         })
     })
 }
@@ -452,31 +412,6 @@ pub fn assert_any_exchange_requests_file_edit(
                 AssertionOutcome::immediate_failure(format!(
                     "File edits do not match assertion. Found {} file edits",
                     all_file_edits.len()
-                ))
-            }
-        })
-    })
-}
-
-/// Asserts on the todo items in the active conversation's todo list.
-pub fn assert_todo_list(
-    assertion: impl Fn(&AIAgentTodoList) -> bool + 'static + Clone,
-) -> AssertionCallback {
-    Box::new(move |app, window_id| {
-        let terminal_view = terminal_view(app, window_id, 0, 0);
-        BlocklistAIHistoryModel::handle(app).update(app, |history_model, _| {
-            let Some(conversation) = history_model.active_conversation(terminal_view.id()) else {
-                return AssertionOutcome::failure("No active conversation".to_owned());
-            };
-            let Some(todo_list) = conversation.active_todo_list() else {
-                return AssertionOutcome::failure("No todo list".to_owned());
-            };
-
-            if assertion(todo_list) {
-                AssertionOutcome::Success
-            } else {
-                AssertionOutcome::failure(format!(
-                    "Todo items do not match assertion: {todo_list:?}"
                 ))
             }
         })
@@ -933,45 +868,6 @@ fn exchange_succeeds_with_expected_output(
             AssertionOutcome::Success
         }
         Err(outcome) => outcome,
-    }
-}
-
-/// Get all todo operations from the exchange at exchange_index.
-/// Returns an error if the exchange is not finished.
-fn get_exchange_todo_operations(
-    conversation_target: ConversationTarget,
-    terminal_view_id: EntityId,
-    exchange_index: usize,
-    history_model: &BlocklistAIHistoryModel,
-) -> Result<Vec<TodoOperation>, AssertionOutcome> {
-    let exchange = get_exchange_index_from_conversation(
-        conversation_target,
-        terminal_view_id,
-        exchange_index,
-        history_model,
-    )?;
-
-    let AIAgentOutputStatus::Finished { finished_output } = &exchange.output_status else {
-        return Err(AssertionOutcome::failure(
-            "Exchange is not finished".to_owned(),
-        ));
-    };
-
-    // Once the output is finished, we make plain assertions to immediately fail the test on failure, instead
-    // of waiting for something to change.
-    match finished_output {
-        FinishedAIAgentOutput::Success { output } => {
-            let ai_output = output.get();
-            let todo_operations = ai_output.todo_operations().cloned().collect::<Vec<_>>();
-
-            Ok(todo_operations)
-        }
-        FinishedAIAgentOutput::Error { error, .. } => Err(AssertionOutcome::immediate_failure(
-            format!("Exchange failed with error: {error:?}"),
-        )),
-        FinishedAIAgentOutput::Cancelled { .. } => Err(AssertionOutcome::immediate_failure(
-            "Exchange was cancelled".to_owned(),
-        )),
     }
 }
 

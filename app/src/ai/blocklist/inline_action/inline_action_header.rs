@@ -3,10 +3,9 @@ use std::rc::Rc;
 
 use pathfinder_color::ColorU;
 use warp_core::ui::appearance::Appearance;
-use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
-    Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DispatchEventResult,
-    EventHandler, Expanded, Flex, FormattedTextElement, Hoverable, MainAxisAlignment, MainAxisSize,
+    ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DispatchEventResult, EventHandler,
+    Expanded, Flex, FormattedTextElement, Hoverable, MainAxisAlignment, MainAxisSize,
     MouseStateHandle, ParentElement, Radius, Shrinkable, SizeConstraintCondition,
     SizeConstraintSwitch, Text,
 };
@@ -113,7 +112,6 @@ pub struct HeaderConfig {
     /// Whether to parse the title as markdown when rendering.
     pub use_markdown: bool,
     pub icon: Option<warpui::elements::Icon>,
-    pub badge: Option<String>,
     pub interaction_mode: Option<InteractionMode>,
     pub is_text_selectable: bool,
     pub font_color_override: Option<ColorU>,
@@ -128,7 +126,6 @@ impl HeaderConfig {
             font_family: Appearance::as_ref(app).ui_font_family(),
             use_markdown: false,
             icon: None,
-            badge: None,
             interaction_mode: None,
             is_text_selectable: false,
             font_color_override: None,
@@ -149,11 +146,6 @@ impl HeaderConfig {
 
     pub fn with_icon(mut self, icon: warpui::elements::Icon) -> Self {
         self.icon = Some(icon);
-        self
-    }
-
-    pub fn with_badge(mut self, badge: String) -> Self {
-        self.badge = Some(badge);
         self
     }
 
@@ -253,27 +245,6 @@ impl HeaderConfig {
             )
             .finish(),
         );
-
-        if let Some(badge) = self.badge {
-            left_content_container.add_child(
-                Container::new(
-                    Text::new(
-                        badge,
-                        appearance.ui_font_family(),
-                        appearance.ui_font_size(),
-                    )
-                    .with_color(internal_colors::fg_overlay_5(theme).into())
-                    .finish(),
-                )
-                .with_horizontal_padding(8.)
-                .with_vertical_padding(4.)
-                .with_margin_right(8.)
-                .with_border(Border::all(1.0).with_border_fill(theme.outline()))
-                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(2.)))
-                .with_background(theme.surface_1())
-                .finish(),
-            );
-        }
 
         header_row.add_child(Shrinkable::new(1., left_content_container.finish()).finish());
 

@@ -91,7 +91,6 @@ fn upload_artifact_tool_call_has_no_client_representation() {
     let output = message
         .to_client_output_message(ConversionParams {
             task_id: &task_id,
-            current_todo_list: None,
             active_code_review: None,
         })
         .expect("conversion should succeed");
@@ -111,7 +110,6 @@ fn converts_file_artifact_created_message_with_filename() {
     let output = message
         .to_client_output_message(ConversionParams {
             task_id: &task_id,
-            current_todo_list: None,
             active_code_review: None,
         })
         .expect("conversion should succeed");
@@ -154,7 +152,6 @@ fn transfer_control_tool_call_converts_to_action_message() {
     let converted = message
         .to_client_output_message(ConversionParams {
             task_id: &task_id,
-            current_todo_list: None,
             active_code_review: None,
         })
         .expect("transfer-control conversion should succeed");

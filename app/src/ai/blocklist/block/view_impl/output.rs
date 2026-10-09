@@ -40,12 +40,12 @@ use super::common::{
     render_text_sections,
 };
 use super::imported_comments::render_imported_comments;
-use super::todos::{render_completed_todo_items, render_todos};
 use super::{
     CONTENT_HORIZONTAL_PADDING, CONTENT_ITEM_VERTICAL_MARGIN, WithContentItemSpacing,
     add_highlights_to_rich_text, render_autonomy_checkbox_setting_speedbump_footer,
     render_citation_chips,
 };
+use crate::FeatureFlag;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::comment::ReviewComment;
 use crate::ai::agent::icons::{self, gray_stop_icon, yellow_stop_icon};
@@ -55,7 +55,7 @@ use crate::ai::agent::{
     AIAgentActionType, AIAgentCitation, AIAgentInput, AIAgentOutputMessage,
     AIAgentOutputMessageType, AIAgentText, AIAgentTextSection, CancellationOutcome, MessageId,
     ReadFilesFailedFile, ReadFilesRequest, ReadFilesResult, RequestCommandOutputResult,
-    SubagentCall, SubagentType, SuggestNewConversationResult, SummarizationType, TodoOperation,
+    SubagentCall, SubagentType, SuggestNewConversationResult, SummarizationType,
 };
 use crate::ai::blocklist::action_model::AIActionStatus;
 use crate::ai::blocklist::block::model::{AIBlockModel, AIBlockModelHelper, AIBlockOutputStatus};
@@ -66,7 +66,7 @@ use crate::ai::blocklist::block::view_impl::common::{
 use crate::ai::blocklist::block::{
     AIBlock, AIBlockAction, AIBlockStateHandles, ActionButtons, AutonomySettingSpeedbump,
     CollapsibleElementState, CollapsibleExpansionState, EmbeddedCodeEditorView, FinishReason,
-    ImportedCommentGroup, RequestedEdit, TextLocation, TodoListElementState,
+    ImportedCommentGroup, RequestedEdit, TextLocation,
 };
 use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
 use crate::ai::blocklist::inline_action::inline_action_header::{
@@ -106,7 +106,6 @@ use crate::view_components::action_button::ActionButton;
 use crate::view_components::compactible_action_button::{
     CompactibleActionButton, RenderCompactibleActionButton, SMALL_SIZE_SWITCH_THRESHOLD,
 };
-use crate::{AIAgentTodoList, FeatureFlag};
 
 /// Data required to render the AI block output component.
 #[derive(Copy, Clone)]
@@ -126,7 +125,6 @@ pub(crate) struct Props<'a> {
     pub(super) requested_edits: &'a IndexMap<AIAgentActionId, RequestedEdit>,
     pub(super) unit_test_suggestions:
         &'a HashMap<AIAgentActionId, ViewHandle<SuggestedUnitTestsView>>,
-    pub(super) todo_list_states: &'a HashMap<MessageId, TodoListElementState>,
     pub(super) collapsible_block_states: &'a HashMap<MessageId, CollapsibleElementState>,
     pub(crate) is_selecting_text: bool,
     pub(super) is_ai_input_enabled: bool,
@@ -137,7 +135,6 @@ pub(crate) struct Props<'a> {
     pub(super) response_rating: &'a OnceCell<AIBlockResponseRating>,
     pub(super) review_changes_button: &'a ViewHandle<ActionButton>,
     pub(super) open_all_comments_button: &'a ViewHandle<ActionButton>,
-    pub(super) current_todo_list: Option<&'a AIAgentTodoList>,
     pub(super) has_accepted_edits: bool,
     pub(super) finish_reason: Option<&'a FinishReason>,
     pub(super) is_usage_footer_expanded: bool,
@@ -587,32 +584,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                     .add_child(render_comment_addressed_header(comment, app));
                             }
                         }
-                        AIAgentOutputMessageType::TodoOperation(todo) => match todo {
-                            TodoOperation::UpdateTodos { todos } if !todos.is_empty() => {
-                                if let Some(conversation) = props.model.conversation(app)
-                                    && let Some(state) =
-                                        props.todo_list_states.get(&output_message.id)
-                                {
-                                    output_items.add_child(render_todos(
-                                        &output_message.id,
-                                        todos,
-                                        conversation,
-                                        state,
-                                        app,
-                                    ));
-                                }
-                            }
-                            TodoOperation::MarkAsCompleted { completed_todos } => {
-                                if let Some(completed_text) = render_completed_todo_items(
-                                    completed_todos,
-                                    props.current_todo_list,
-                                    app,
-                                ) {
-                                    output_items.add_child(completed_text);
-                                }
-                            }
-                            _ => (),
-                        },
                         AIAgentOutputMessageType::Action(AIAgentAction {
                             action:
                                 AIAgentActionType::SuggestPrompt(
@@ -1355,21 +1326,6 @@ fn render_stopped_output(props: Props, app: &AppContext) -> Box<dyn Element> {
         .and_then(|conversation_id| {
             let history = BlocklistAIHistoryModel::as_ref(app);
             let conversation = history.conversation(&conversation_id)?;
-
-            if let Some(todo_list) = conversation.active_todo_list()
-                && let Some((item, item_index)) = todo_list.in_progress_item().and_then(|item| {
-                    todo_list
-                        .get_item_index(&item.id)
-                        .map(|index| (item, index))
-                })
-            {
-                return Some(format!(
-                    "Stopped task {}/{}: \"{}\"",
-                    item_index + 1,
-                    todo_list.len(),
-                    item.title
-                ));
-            }
 
             conversation
                 .initial_query()

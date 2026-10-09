@@ -19,13 +19,12 @@ use warp_multi_agent_api::{self as api};
 
 use super::api::{ConversionParams, ConvertAPIMessageToClientOutputMessage};
 use super::comment::CodeReview;
-use super::conversation::{context_in_exchanges, update_todo_list_from_todo_op};
+use super::conversation::context_in_exchanges;
 use super::{
     AIAgentContext, AIAgentExchange, AIAgentExchangeId, AIAgentOutput, AIAgentOutputMessage,
     AIAgentOutputStatus, MaybeAIAgentOutputMessage, MessageId, MessageToAIAgentOutputMessageError,
     Shared,
 };
-use crate::AIAgentTodoList;
 use crate::terminal::model::block::BlockId;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -164,7 +163,6 @@ pub struct Task {
 }
 #[derive(Clone, Copy)]
 pub(super) struct TaskMessageContext<'a> {
-    pub(super) current_todo_list: Option<&'a AIAgentTodoList>,
     pub(super) active_code_review: Option<&'a CodeReview>,
 }
 
@@ -192,7 +190,6 @@ impl Task {
         mut self,
         task: api::Task,
         parent_task: Option<&api::Task>,
-        current_todo_list: Option<&AIAgentTodoList>,
         active_code_review: Option<&CodeReview>,
     ) -> Result<Self, UpgradeOptimisticTaskError> {
         match self.data {
@@ -240,7 +237,6 @@ impl Task {
                 messages,
                 exchange_id,
                 TaskMessageContext {
-                    current_todo_list,
                     active_code_review,
                 },
             )
@@ -273,7 +269,6 @@ impl Task {
         subtask: api::Task,
         parent_task: &api::Task,
         existing_exchange: &AIAgentExchange,
-        current_todo_list: Option<&AIAgentTodoList>,
         active_code_review: Option<&CodeReview>,
     ) -> Self {
         let subagent_call_and_id = parent_task.messages.iter().find_map(|message| {
@@ -324,10 +319,7 @@ impl Task {
         me.update_exchange_from_messages(
             messages_clone,
             new_exchange_id,
-            TaskMessageContext {
-                current_todo_list,
-                active_code_review,
-            },
+            TaskMessageContext { active_code_review },
         )
         .expect("Exchange exists and output is in 'streaming' state.");
         me
@@ -679,7 +671,6 @@ impl Task {
             &updated_message,
             ConversionParams {
                 task_id: &id,
-                current_todo_list: message_context.current_todo_list,
                 active_code_review: message_context.active_code_review,
             },
         )?;
@@ -719,7 +710,6 @@ impl Task {
             &updated_message,
             ConversionParams {
                 task_id: &id,
-                current_todo_list: message_context.current_todo_list,
                 active_code_review: message_context.active_code_review,
             },
         )?;
@@ -862,7 +852,6 @@ impl Task {
                 .filter_map(|m| {
                     match m.to_client_output_message(ConversionParams {
                         task_id: &self.id,
-                        current_todo_list: message_context.current_todo_list,
                         active_code_review: message_context.active_code_review,
                     }) {
                         Ok(MaybeAIAgentOutputMessage::Message(m)) => Some(Ok(m)),
@@ -874,23 +863,6 @@ impl Task {
         output.get_mut().messages.extend(output_messages?);
         Ok(())
     }
-}
-
-/// Derives todo lists from tasks by replaying UpdateTodos operations in message order.
-pub fn derive_todo_lists_from_root_task(root_task: &Task) -> Vec<AIAgentTodoList> {
-    let mut todo_lists = Vec::new();
-
-    // Sort messages by their index in the task (messages are already in order within each task)
-    // For simplicity, we'll iterate through messages and apply UpdateTodos operations
-    for message in root_task.messages() {
-        if let Some(api::message::Message::UpdateTodos(update)) = &message.message
-            && let Some(operation) = &update.operation
-        {
-            update_todo_list_from_todo_op(&mut todo_lists, operation.clone());
-        }
-    }
-
-    todo_lists
 }
 
 impl AIAgentExchange {

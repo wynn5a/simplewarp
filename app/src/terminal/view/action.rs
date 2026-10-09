@@ -297,8 +297,6 @@ pub enum TerminalAction {
     AgentModeSetupSpeedbumpBanner(AgentModeSetupSpeedbumpBannerAction),
     ResumeConversation,
     ForkConversationFromLastKnownGoodState,
-    ToggleTodoPopup,
-    CloseTodoPopup,
     ToggleCodeReviewPane {
         entrypoint: CodeReviewPaneEntrypoint,
     },
@@ -538,8 +536,6 @@ impl fmt::Debug for TerminalAction {
             ForkConversationFromLastKnownGoodState => {
                 write!(f, "ForkConversationFromLastKnownGoodState")
             }
-            ToggleTodoPopup => write!(f, "ToggleTodoPopup"),
-            CloseTodoPopup => write!(f, "CloseTodoPopup"),
             ToggleCodeReviewPane { .. } => write!(f, "ToggleCodeReviewPane"),
             InitProject => write!(f, "InitProject"),
             AddProjectAtCurrentDirectory => write!(f, "AddProjectAtCurrentDirectory"),

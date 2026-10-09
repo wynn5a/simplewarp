@@ -16,9 +16,7 @@ use crate::ai::agent::api::convert_from::{
     ConversionParams, ConvertAPIMessageToClientOutputMessage, MaybeAIAgentOutputMessage,
     convert_user_query_mode,
 };
-use crate::ai::agent::conversation::update_todo_list_from_todo_op;
 use crate::ai::agent::task::TaskId;
-use crate::ai::agent::todos::AIAgentTodoList;
 use crate::ai::agent::{
     AIAgentActionResult, AIAgentActionResultType, AIAgentContext, AIAgentExchange,
     AIAgentExchangeId, AIAgentInput, AIAgentOutput, AIAgentOutputMessage, AIAgentOutputStatus,
@@ -210,7 +208,6 @@ impl ConvertToExchanges for &api::Task {
     /// Note: for now, we only restore messages from the root task (task with no parent).
     fn into_exchanges(self) -> Vec<AIAgentExchange> {
         let mut exchanges = Vec::new();
-        let mut todo_lists: Vec<AIAgentTodoList> = Vec::new();
 
         // Build a map of message_id -> message for quick lookup
         let mut message_map: HashMap<&str, &api::Message> = HashMap::new();
@@ -355,13 +352,6 @@ impl ConvertToExchanges for &api::Task {
 
                     true
                 }
-                api::message::Message::UpdateTodos(update) => {
-                    if let Some(operation) = &update.operation {
-                        update_todo_list_from_todo_op(&mut todo_lists, operation.clone());
-                    }
-
-                    false
-                }
                 api::message::Message::InvokeSkill(invoke_skill) => {
                     if let Some(api_skill) = invoke_skill.skill.clone()
                         && let Ok(parsed_skill) = ParsedSkill::try_from_api_with_origin(
@@ -404,6 +394,7 @@ impl ConvertToExchanges for &api::Task {
                 | api::message::Message::EventsFromAgents(_)
                 | api::message::Message::ModelUsed(_)
                 | api::message::Message::PassiveSuggestionResult(_)
+                | api::message::Message::UpdateTodos(_)
                 | api::message::Message::OrchestrationConfigSnapshot(_) => false,
             };
 
@@ -411,7 +402,6 @@ impl ConvertToExchanges for &api::Task {
                 && let Ok(MaybeAIAgentOutputMessage::Message(output_msg)) = (*api_message)
                     .clone()
                     .to_client_output_message(ConversionParams {
-                        current_todo_list: todo_lists.last(),
                         // TODO(alokedesai): Support persistence for the code review state.
                         active_code_review: None,
                         task_id: &TaskId::new(api_message.task_id.clone()),

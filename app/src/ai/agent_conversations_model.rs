@@ -426,7 +426,6 @@ impl AgentConversationsModel {
             BlocklistAIHistoryEvent::CreatedSubtask { .. }
             | BlocklistAIHistoryEvent::UpgradedTask { .. }
             | BlocklistAIHistoryEvent::ReassignedExchange { .. }
-            | BlocklistAIHistoryEvent::UpdatedTodoList { .. }
             | BlocklistAIHistoryEvent::UpdatedAutoexecuteOverride { .. }
             // UpdatedStreamingExchange covers streaming and other exchange-level updates but
             // doesn't change any ConversationNavigationData fields (title comes from

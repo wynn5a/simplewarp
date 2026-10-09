@@ -21,15 +21,14 @@ use super::persistence::{PersistedAIInput, PersistedAIInputType};
 use crate::GlobalResourceHandlesProvider;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{
-    AIConversation, AIConversationId, ConversationStatus, TodoStatus, UpdateConversationError,
+    AIConversation, AIConversationId, ConversationStatus, UpdateConversationError,
 };
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::task::helper::{MessageExt, ToolCallExt};
-use crate::ai::agent::todos::AIAgentTodoList;
 use crate::ai::agent::{
     AIAgentActionId, AIAgentExchange, AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus,
-    AIAgentTodoId, CancellationReason, FinishedAIAgentOutput, MessageId, RenderableAIError,
-    RequestCost, Suggestions,
+    CancellationReason, FinishedAIAgentOutput, MessageId, RenderableAIError, RequestCost,
+    Suggestions,
 };
 use crate::ai::artifacts::Artifact;
 use crate::input_suggestions::HistoryOrder;
@@ -481,23 +480,6 @@ impl BlocklistAIHistoryModel {
                     None
                 }
             })
-    }
-
-    /// Returns the render status of one todo item in the conversation's todo
-    /// history (see [`AIConversation::todo_status`]) — a narrow projection
-    /// for consumers that don't need the whole `AIConversation`.
-    pub fn todo_status(
-        &self,
-        conversation_id: &AIConversationId,
-        todo_id: &AIAgentTodoId,
-    ) -> Option<TodoStatus> {
-        self.conversation(conversation_id)?.todo_status(todo_id)
-    }
-
-    /// Returns the conversation's active (most recent) todo list, if any — a
-    /// narrow projection (see [`Self::todo_status`]).
-    pub fn active_todo_list(&self, conversation_id: &AIConversationId) -> Option<&AIAgentTodoList> {
-        self.conversation(conversation_id)?.active_todo_list()
     }
 
     /// Returns the terminal surface ID for the given conversation, if any.
@@ -2036,10 +2018,6 @@ pub enum BlocklistAIHistoryEvent {
         cleared_conversation_ids: Vec<AIConversationId>,
     },
 
-    UpdatedTodoList {
-        terminal_surface_id: EntityId,
-    },
-
     UpdatedAutoexecuteOverride {
         terminal_surface_id: EntityId,
     },
@@ -2157,10 +2135,6 @@ impl BlocklistAIHistoryEvent {
                 ..
             }
             | BlocklistAIHistoryEvent::ReassignedExchange {
-                terminal_surface_id,
-                ..
-            }
-            | BlocklistAIHistoryEvent::UpdatedTodoList {
                 terminal_surface_id,
                 ..
             }
