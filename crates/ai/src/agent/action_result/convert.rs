@@ -469,112 +469,6 @@ impl TryFrom<CallMCPToolResult> for api::request::input::tool_call_result::Resul
     }
 }
 
-impl TryFrom<ReadDocumentsResult> for api::request::input::tool_call_result::Result {
-    type Error = ConvertToAPITypeError;
-
-    fn try_from(result: ReadDocumentsResult) -> Result<Self, Self::Error> {
-        match result {
-            ReadDocumentsResult::Success { documents } => {
-                let docs: Vec<api::DocumentContent> = documents
-                    .into_iter()
-                    .flat_map(Into::<Vec<api::DocumentContent>>::into)
-                    .collect();
-                Ok(
-                    api::request::input::tool_call_result::Result::ReadDocuments(
-                        api::ReadDocumentsResult {
-                            result: Some(api::read_documents_result::Result::Success(
-                                api::read_documents_result::Success { documents: docs },
-                            )),
-                        },
-                    ),
-                )
-            }
-            ReadDocumentsResult::Error(error) => Ok(
-                api::request::input::tool_call_result::Result::ReadDocuments(
-                    api::ReadDocumentsResult {
-                        result: Some(api::read_documents_result::Result::Error(
-                            api::read_documents_result::Error { message: error },
-                        )),
-                    },
-                ),
-            ),
-            ReadDocumentsResult::Cancelled => Err(ConvertToAPITypeError::Ignore),
-        }
-    }
-}
-
-impl TryFrom<EditDocumentsResult> for api::request::input::tool_call_result::Result {
-    type Error = ConvertToAPITypeError;
-
-    fn try_from(result: EditDocumentsResult) -> Result<Self, Self::Error> {
-        match result {
-            EditDocumentsResult::Success { updated_documents } => {
-                let docs: Vec<api::DocumentContent> = updated_documents
-                    .into_iter()
-                    .flat_map(Into::<Vec<api::DocumentContent>>::into)
-                    .collect();
-                Ok(
-                    api::request::input::tool_call_result::Result::EditDocuments(
-                        api::EditDocumentsResult {
-                            result: Some(api::edit_documents_result::Result::Success(
-                                api::edit_documents_result::Success {
-                                    updated_documents: docs,
-                                },
-                            )),
-                        },
-                    ),
-                )
-            }
-            EditDocumentsResult::Error(error) => Ok(
-                api::request::input::tool_call_result::Result::EditDocuments(
-                    api::EditDocumentsResult {
-                        result: Some(api::edit_documents_result::Result::Error(
-                            api::edit_documents_result::Error { message: error },
-                        )),
-                    },
-                ),
-            ),
-            EditDocumentsResult::Cancelled => Err(ConvertToAPITypeError::Ignore),
-        }
-    }
-}
-
-impl TryFrom<CreateDocumentsResult> for api::request::input::tool_call_result::Result {
-    type Error = ConvertToAPITypeError;
-
-    fn try_from(result: CreateDocumentsResult) -> Result<Self, Self::Error> {
-        match result {
-            CreateDocumentsResult::Success { created_documents } => {
-                let docs: Vec<api::DocumentContent> = created_documents
-                    .into_iter()
-                    .flat_map(Into::<Vec<api::DocumentContent>>::into)
-                    .collect();
-                Ok(
-                    api::request::input::tool_call_result::Result::CreateDocuments(
-                        api::CreateDocumentsResult {
-                            result: Some(api::create_documents_result::Result::Success(
-                                api::create_documents_result::Success {
-                                    created_documents: docs,
-                                },
-                            )),
-                        },
-                    ),
-                )
-            }
-            CreateDocumentsResult::Error(error) => Ok(
-                api::request::input::tool_call_result::Result::CreateDocuments(
-                    api::CreateDocumentsResult {
-                        result: Some(api::create_documents_result::Result::Error(
-                            api::create_documents_result::Error { message: error },
-                        )),
-                    },
-                ),
-            ),
-            CreateDocumentsResult::Cancelled => Err(ConvertToAPITypeError::Ignore),
-        }
-    }
-}
-
 impl TryFrom<ReadShellCommandOutputResult> for api::request::input::tool_call_result::Result {
     type Error = ConvertToAPITypeError;
 
@@ -796,42 +690,6 @@ impl From<FileGlobV2Match> for api::file_glob_v2_result::success::FileGlobMatch 
     }
 }
 
-impl From<DocumentContext> for Vec<api::DocumentContent> {
-    fn from(context: DocumentContext) -> Self {
-        let content = context.content.clone();
-        if context.line_ranges.is_empty() {
-            return vec![api::DocumentContent {
-                document_id: context.document_id.to_string(),
-                content,
-                line_range: None,
-            }];
-        }
-
-        let lines: Vec<_> = content.lines().collect();
-        context
-            .line_ranges
-            .iter()
-            .filter_map(|range| {
-                let start = range.start.saturating_sub(1).min(lines.len());
-                let end = range.end.min(lines.len());
-                if start >= end {
-                    None
-                } else {
-                    let fragment = lines[start..end].join("\n");
-                    Some(api::DocumentContent {
-                        document_id: context.document_id.to_string(),
-                        content: fragment,
-                        line_range: Some(api::FileContentLineRange {
-                            start: range.start as u32,
-                            end: range.end as u32,
-                        }),
-                    })
-                }
-            })
-            .collect()
-    }
-}
-
 fn convert_mcp_resource_content(val: rmcp::model::ResourceContents) -> api::McpResourceContent {
     use api::mcp_resource_content::*;
     match val {
@@ -859,24 +717,6 @@ fn convert_mcp_resource_content(val: rmcp::model::ResourceContents) -> api::McpR
                 mime_type: mime_type.unwrap_or_default(),
             })),
         },
-    }
-}
-
-impl From<CreateDocumentsResult> for AIAgentActionResultType {
-    fn from(result: CreateDocumentsResult) -> Self {
-        AIAgentActionResultType::CreateDocuments(result)
-    }
-}
-
-impl From<EditDocumentsResult> for AIAgentActionResultType {
-    fn from(result: EditDocumentsResult) -> Self {
-        AIAgentActionResultType::EditDocuments(result)
-    }
-}
-
-impl From<ReadDocumentsResult> for AIAgentActionResultType {
-    fn from(result: ReadDocumentsResult) -> Self {
-        AIAgentActionResultType::ReadDocuments(result)
     }
 }
 

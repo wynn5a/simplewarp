@@ -7,15 +7,13 @@ use warp_multi_agent_api as api;
 
 use crate::agent::FileLocations;
 use crate::agent::action::{
-    AIAgentActionType, AIAgentPtyWriteMode, CommentSide, CreateDocumentsRequest, DocumentDiff,
-    DocumentToCreate, EditDocumentsRequest, FileEdit, InsertReviewComment, InsertedCommentLine,
-    InsertedCommentLocation, ReadDocumentsRequest, ReadFilesRequest, ShellCommandDelay,
+    AIAgentActionType, AIAgentPtyWriteMode, CommentSide, FileEdit, InsertReviewComment,
+    InsertedCommentLine, InsertedCommentLocation, ReadFilesRequest, ShellCommandDelay,
     SuggestPromptRequest,
 };
 use crate::agent::action_result::{AnyFileContent, FileContext};
 use crate::agent::convert::ToolToAIAgentActionError;
 use crate::diff_validation::{ParsedDiff, V4AHunk};
-use crate::document::{AIDocumentId, DEFAULT_PLANNING_DOCUMENT_TITLE};
 
 impl From<api::message::tool_call::RunShellCommand> for AIAgentActionType {
     fn from(value: api::message::tool_call::RunShellCommand) -> Self {
@@ -294,57 +292,6 @@ impl From<warp_multi_agent_api::AnyFileContent> for FileContext {
             }
             None => unreachable!("AnyFileContent should always have a content"),
         }
-    }
-}
-
-impl From<api::message::tool_call::ReadDocuments> for AIAgentActionType {
-    fn from(value: api::message::tool_call::ReadDocuments) -> Self {
-        AIAgentActionType::ReadDocuments(ReadDocumentsRequest {
-            document_ids: value
-                .documents
-                .into_iter()
-                .filter_map(|doc| AIDocumentId::try_from(doc.document_id).ok())
-                .collect(),
-        })
-    }
-}
-
-impl From<api::message::tool_call::EditDocuments> for AIAgentActionType {
-    fn from(value: api::message::tool_call::EditDocuments) -> Self {
-        AIAgentActionType::EditDocuments(EditDocumentsRequest {
-            diffs: value
-                .diffs
-                .into_iter()
-                .filter_map(|diff| {
-                    AIDocumentId::try_from(diff.document_id)
-                        .map(|document_id| DocumentDiff {
-                            document_id,
-                            search: diff.search,
-                            replace: diff.replace,
-                        })
-                        .ok()
-                })
-                .collect(),
-        })
-    }
-}
-
-impl From<api::message::tool_call::CreateDocuments> for AIAgentActionType {
-    fn from(value: api::message::tool_call::CreateDocuments) -> Self {
-        AIAgentActionType::CreateDocuments(CreateDocumentsRequest {
-            documents: value
-                .new_documents
-                .into_iter()
-                .map(|doc| DocumentToCreate {
-                    content: doc.content,
-                    title: if doc.title.is_empty() {
-                        DEFAULT_PLANNING_DOCUMENT_TITLE.to_owned()
-                    } else {
-                        doc.title
-                    },
-                })
-                .collect(),
-        })
     }
 }
 

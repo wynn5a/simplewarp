@@ -1280,54 +1280,6 @@ impl<'a> std::fmt::Display for MarkdownActionResult<'a> {
                 }
                 GrepResult::Cancelled => write!(f, "\n_Grep cancelled_"),
             },
-            AIAgentActionResultType::ReadDocuments(result) => match result {
-                ReadDocumentsResult::Success { documents } => {
-                    write!(f, "\n\n**Documents Read:**\n\n")?;
-                    for document in documents {
-                        writeln!(f, "**Document {}**", document.document_id)?;
-                        if !document.content.trim().is_empty() {
-                            writeln!(f, "```\n{}\n```\n", document.content)?;
-                        }
-                    }
-                    Ok(())
-                }
-                ReadDocumentsResult::Error(error) => {
-                    write!(f, "\n_Read documents error: {error} _")
-                }
-                ReadDocumentsResult::Cancelled => write!(f, "\n_Read documents cancelled_"),
-            },
-            AIAgentActionResultType::EditDocuments(result) => match result {
-                EditDocumentsResult::Success { updated_documents } => {
-                    write!(f, "\n\n**Documents Edited:**\n\n")?;
-                    for document in updated_documents {
-                        writeln!(f, "**Document {}**", document.document_id)?;
-                        if !document.content.trim().is_empty() {
-                            writeln!(f, "```\n{}\n```\n", document.content)?;
-                        }
-                    }
-                    Ok(())
-                }
-                EditDocumentsResult::Error(error) => {
-                    write!(f, "\n_Edit documents error: {error} _")
-                }
-                EditDocumentsResult::Cancelled => write!(f, "\n_Edit documents cancelled_"),
-            },
-            AIAgentActionResultType::CreateDocuments(result) => match result {
-                CreateDocumentsResult::Success { created_documents } => {
-                    write!(f, "\n\n**Documents Created:**\n\n")?;
-                    for document in created_documents {
-                        writeln!(f, "**Document {}**", document.document_id)?;
-                        if !document.content.trim().is_empty() {
-                            writeln!(f, "```\n{}\n```\n", document.content)?;
-                        }
-                    }
-                    Ok(())
-                }
-                CreateDocumentsResult::Error(error) => {
-                    write!(f, "\n_Create documents error: {error} _")
-                }
-                CreateDocumentsResult::Cancelled => write!(f, "\n_Create documents cancelled_"),
-            },
             AIAgentActionResultType::ReadShellCommandOutput(result) => match result {
                 ReadShellCommandOutputResult::CommandFinished { output, .. } => {
                     write!(f, "\n```\n{output}\n```")

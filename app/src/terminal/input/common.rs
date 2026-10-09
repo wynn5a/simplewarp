@@ -311,8 +311,6 @@ pub(super) fn add_input_suggestions_overlays(
         InputSuggestionsMode::InlineHistoryMenu { .. } => {}
         // Repos menu is rendered separately via inline_repos_menu_view
         InputSuggestionsMode::IndexedReposMenu => {}
-        // Plan menu is rendered separately via inline_plan_menu_view
-        InputSuggestionsMode::PlanMenu { .. } => {}
         InputSuggestionsMode::Closed => {}
     }
 }

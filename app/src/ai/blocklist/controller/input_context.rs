@@ -8,12 +8,9 @@ use warp_core::features::FeatureFlag;
 use warpui::{AppContext, SingletonEntity};
 
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::agent::{
-    AIAgentAttachment, AIAgentContext, DocumentContentAttachmentSource, DriveObjectPayload,
-};
+use crate::ai::agent::{AIAgentAttachment, AIAgentContext, DriveObjectPayload};
 use crate::ai::block_context::BlockContext;
 use crate::ai::blocklist::{BlocklistAIContextModel, SessionContext};
-use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel};
 use crate::ai::facts::CloudAIFactModel;
 use crate::ai::skills::list_skills_if_changed;
 use crate::cloud_object::model::generic_string_model::{CloudStringObject, GenericStringObjectId};
@@ -118,59 +115,24 @@ pub(super) fn parse_context_attachments(
             let object_type_str = object_type_match.as_str();
             let id_str = object_id_match.as_str();
 
-            if object_type_str == "plan" {
-                // For plans, id_str is ai_document_id
-                let ai_doc_id = match AIDocumentId::try_from(id_str) {
-                    Ok(id) => id,
-                    Err(_) => {
-                        log::warn!("Invalid ai_document_id in plan reference: {id_str}");
-                        continue;
-                    }
-                };
+            let object_type = match object_type_str {
+                "workflow" => ObjectType::Workflow,
+                "notebook" => ObjectType::Notebook,
+                "rule" => ObjectType::GenericStringObject(GenericStringObjectFormat::Json(
+                    JsonObjectType::AIFact,
+                )),
+                _ => continue, // Skip unknown object types
+            };
 
-                // Prefer live editor content from AIDocumentModel (picks up unsaved user edits).
-                // Fall back to the synced CloudModel notebook if the document isn't loaded in
-                // the current session.
-                let content = AIDocumentModel::as_ref(ctx)
-                    .get_document_content(&ai_doc_id, ctx)
-                    .or_else(|| {
-                        CloudModel::as_ref(ctx)
-                            .get_all_active_notebooks()
-                            .find(|nb| nb.model().ai_document_id.as_ref() == Some(&ai_doc_id))
-                            .map(|nb| nb.model().data.clone())
-                    });
+            // Try to get the object data from CloudModel
+            let payload = get_object_attachment_payload(id_str, object_type, ctx);
 
-                if let Some(content) = content {
-                    let attachment = AIAgentAttachment::DocumentContent {
-                        document_id: id_str.to_string(),
-                        content,
-                        source: DocumentContentAttachmentSource::UserAttached,
-                        line_range: None,
-                    };
-                    referenced_attachments.insert(reference_string, attachment);
-                } else {
-                    log::warn!("Plan not found for ai_document_id: {ai_doc_id}");
-                }
-            } else {
-                let object_type = match object_type_str {
-                    "workflow" => ObjectType::Workflow,
-                    "notebook" => ObjectType::Notebook,
-                    "rule" => ObjectType::GenericStringObject(GenericStringObjectFormat::Json(
-                        JsonObjectType::AIFact,
-                    )),
-                    _ => continue, // Skip unknown object types
-                };
-
-                // Try to get the object data from CloudModel
-                let payload = get_object_attachment_payload(id_str, object_type, ctx);
-
-                // Create a DriveObject attachment with the object UID and payload
-                let attachment = AIAgentAttachment::DriveObject {
-                    uid: id_str.to_string(),
-                    payload,
-                };
-                referenced_attachments.insert(reference_string, attachment);
-            }
+            // Create a DriveObject attachment with the object UID and payload
+            let attachment = AIAgentAttachment::DriveObject {
+                uid: id_str.to_string(),
+                payload,
+            };
+            referenced_attachments.insert(reference_string, attachment);
         }
     }
 
@@ -185,21 +147,6 @@ pub(super) fn parse_context_attachments(
                 referenced_attachments.insert(reference_string, attachment.clone());
             }
         }
-    }
-
-    // Add pending AI document as attachment if present
-    if let Some(document_id) = context_model.pending_document_id()
-        && let Some(content) = AIDocumentModel::as_ref(ctx).get_document_content(&document_id, ctx)
-    {
-        let document_id_str = document_id.to_string();
-        let attachment = AIAgentAttachment::DocumentContent {
-            document_id: document_id_str.clone(),
-            content,
-            source: DocumentContentAttachmentSource::PlanEdited,
-            line_range: None,
-        };
-        // Use the document ID as the reference key
-        referenced_attachments.insert(document_id_str, attachment);
     }
 
     referenced_attachments

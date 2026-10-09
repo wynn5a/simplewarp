@@ -192,18 +192,6 @@ impl InputSuggestionsModeModel {
         matches!(self.mode, InputSuggestionsMode::IndexedReposMenu)
     }
 
-    pub fn is_plan_menu(&self) -> bool {
-        matches!(self.mode, InputSuggestionsMode::PlanMenu { .. })
-    }
-
-    /// Returns the conversation_id if the current mode is PlanMenu.
-    pub fn plan_menu_conversation_id(&self) -> Option<AIConversationId> {
-        match &self.mode {
-            InputSuggestionsMode::PlanMenu { conversation_id } => Some(*conversation_id),
-            _ => None,
-        }
-    }
-
     pub fn inline_menu_type(&self) -> Option<InlineMenuType> {
         InlineMenuType::from_suggestions_mode(&self.mode)
     }

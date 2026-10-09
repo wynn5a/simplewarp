@@ -1,15 +1,12 @@
 use std::sync::Arc;
 
 use pathfinder_geometry::vector::vec2f;
-use warp_core::features::FeatureFlag;
-use warp_core::ui::Icon;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-    DEFAULT_UI_LINE_HEIGHT_RATIO, Empty, Fill, Flex, Hoverable, MouseStateHandle,
-    OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius, SavePosition,
-    Stack, Text,
+    DEFAULT_UI_LINE_HEIGHT_RATIO, Flex, Hoverable, MouseStateHandle, OffsetPositioning,
+    ParentAnchor, ParentElement, ParentOffsetBounds, Radius, SavePosition, Stack, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::platform::Cursor;
@@ -24,41 +21,27 @@ use crate::ai::agent::todos::popup::{AgentTodosPopupEvent, AgentTodosPopupView};
 use crate::ai::blocklist::{
     BlocklistAIContextEvent, BlocklistAIContextModel, BlocklistAIHistoryEvent,
 };
-use crate::ai::document::ai_document_model::{
-    AIDocumentId, AIDocumentModel, AIDocumentModelEvent, AIDocumentVersion,
-};
 use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};
 use crate::ui_components::blended_colors;
 use crate::{AIAgentTodoList, BlocklistAIHistoryModel};
 
 const TODO_BUTTON_SAVE_POSITION_ID: &str = "plan_and_todo_list::todo_button";
 
-/// A context chip that shows the todo list and plan for the active conversation
+/// A context chip that shows the todo list for the active conversation
 pub struct PlanAndTodoListView {
     context_model: ModelHandle<BlocklistAIContextModel>,
     menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
     terminal_view_id: EntityId,
     todo_button_mouse_state: MouseStateHandle,
-    plan_button_mouse_state: MouseStateHandle,
     agent_todos_popup: ViewHandle<AgentTodosPopupView>,
     is_todo_popup_open: bool,
-    is_in_agent_view: bool,
 }
 
-pub enum PlanAndTodoListEvent {
-    OpenAIDocument {
-        document_id: AIDocumentId,
-        document_version: AIDocumentVersion,
-    },
-}
+pub enum PlanAndTodoListEvent {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlanAndTodoListAction {
     ToggleTodoPopup,
-    OpenAIDocument {
-        document_id: AIDocumentId,
-        document_version: AIDocumentVersion,
-    },
 }
 
 impl PlanAndTodoListView {
@@ -66,7 +49,6 @@ impl PlanAndTodoListView {
         context_model: ModelHandle<BlocklistAIContextModel>,
         menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
         terminal_view_id: EntityId,
-        is_in_agent_view: bool,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let agent_todos_popup = ctx.add_typed_action_view(|ctx| {
@@ -78,20 +60,6 @@ impl PlanAndTodoListView {
                 ctx.notify();
             }
         });
-
-        ctx.subscribe_to_model(
-            &AIDocumentModel::handle(ctx),
-            |me, _, event, ctx| match event {
-                AIDocumentModelEvent::DocumentUserEditStatusUpdated { document_id, .. } => {
-                    if me.ai_document_id(ctx).is_some_and(|id| id == *document_id) {
-                        ctx.notify();
-                    }
-                }
-                AIDocumentModelEvent::DocumentUpdated { .. }
-                | AIDocumentModelEvent::StreamingDocumentsCleared
-                | AIDocumentModelEvent::DocumentVisibilityChanged => {}
-            },
-        );
 
         ctx.subscribe_to_model(
             &BlocklistAIHistoryModel::handle(ctx),
@@ -130,15 +98,13 @@ impl PlanAndTodoListView {
             menu_positioning_provider,
             terminal_view_id,
             todo_button_mouse_state: Default::default(),
-            plan_button_mouse_state: Default::default(),
             agent_todos_popup,
-            is_in_agent_view,
             is_todo_popup_open: false,
         }
     }
 
     pub fn should_render(&self, app: &AppContext) -> bool {
-        self.ai_document_id(app).is_some() || self.todo_list(app).is_some()
+        self.todo_list(app).is_some()
     }
 
     fn render_chip_button(
@@ -195,119 +161,6 @@ impl PlanAndTodoListView {
         .with_cursor(Cursor::PointingHand)
     }
 
-    fn render_plan_button(
-        &self,
-        ai_document_id: AIDocumentId,
-        has_todo_list: bool,
-        icon_size: f32,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let theme = appearance.theme();
-        let icon_element = Container::new(
-            ConstrainedBox::new(
-                Icon::Compass
-                    .to_warpui_icon(if self.is_in_agent_view {
-                        theme.sub_text_color(blended_colors::neutral_1(theme).into())
-                    } else {
-                        internal_colors::fg_overlay_7(appearance.theme())
-                    })
-                    .finish(),
-            )
-            .with_height(icon_size)
-            .with_width(icon_size)
-            .finish(),
-        )
-        .finish();
-
-        // Set height to match other UDI elements
-        let udi_font_size = appearance.monospace_font_size() - 1.;
-        let content_line_height = app
-            .font_cache()
-            .line_height(udi_font_size, appearance.line_height_ratio());
-        let chip_content = Flex::row()
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(icon_element)
-            .finish();
-        let chip_content = ConstrainedBox::new(chip_content).with_height(content_line_height);
-
-        let corner_radius = if has_todo_list {
-            CornerRadius::with_left(Radius::Pixels(4.))
-        } else {
-            CornerRadius::with_all(Radius::Pixels(4.))
-        };
-
-        let conversation_is_streaming = self
-            .context_model
-            .as_ref(app)
-            .selected_conversation(app)
-            .is_some_and(|conversation| conversation.status().is_in_progress());
-        let is_document_dirty = AIDocumentModel::as_ref(app)
-            .get_current_document(&ai_document_id)
-            .map(|doc| doc.user_edit_status.is_dirty())
-            .unwrap_or(false);
-
-        let is_agent_unaware_of_plan_edits = conversation_is_streaming && is_document_dirty;
-
-        let plan_button = self
-            .render_chip_button(
-                chip_content.finish(),
-                self.plan_button_mouse_state.clone(),
-                if is_agent_unaware_of_plan_edits {
-                    "Agent is unaware of recent plan edits".to_string()
-                } else {
-                    "View plan".to_string()
-                },
-                corner_radius,
-                appearance,
-            )
-            .on_click(move |ctx, app, _| {
-                let Some(document_version) = AIDocumentModel::as_ref(app)
-                    .get_current_document(&ai_document_id)
-                    .map(|doc| doc.version)
-                else {
-                    log::warn!("No current document found for AI document ID: {ai_document_id}");
-                    return;
-                };
-
-                ctx.dispatch_typed_action(PlanAndTodoListAction::OpenAIDocument {
-                    document_id: ai_document_id,
-                    document_version,
-                });
-            })
-            .finish();
-
-        if is_agent_unaware_of_plan_edits {
-            // Show a circle indicator to the top right of the plan button
-            let circle_diameter = 6.;
-            let circle_element = Container::new(
-                ConstrainedBox::new(Empty::new().finish())
-                    .with_height(circle_diameter)
-                    .with_width(circle_diameter)
-                    .finish(),
-            )
-            .with_corner_radius(CornerRadius::with_all(Radius::Percentage(50.)))
-            .with_background(Fill::Solid(
-                internal_colors::fg_overlay_7(appearance.theme()).into(),
-            ))
-            .finish();
-
-            let mut stack = Stack::new().with_child(plan_button);
-            stack.add_positioned_child(
-                circle_element,
-                OffsetPositioning::offset_from_parent(
-                    vec2f(circle_diameter / 2., -(circle_diameter / 2.)),
-                    ParentOffsetBounds::Unbounded,
-                    ParentAnchor::TopRight,
-                    ChildAnchor::TopRight,
-                ),
-            );
-            stack.finish()
-        } else {
-            plan_button
-        }
-    }
-
     fn todo_list(&self, app: &AppContext) -> Option<AIAgentTodoList> {
         let todo_list = self
             .context_model
@@ -329,19 +182,9 @@ impl PlanAndTodoListView {
         None
     }
 
-    fn ai_document_id(&self, app: &AppContext) -> Option<AIDocumentId> {
-        self.context_model
-            .as_ref(app)
-            .selected_conversation_id(app)
-            .and_then(|conversation_id| {
-                AIDocumentModel::as_ref(app).get_document_id_by_conversation_id(conversation_id)
-            })
-    }
-
     fn render_todo_button(
         &self,
         todo_list: &AIAgentTodoList,
-        has_planning_document: bool,
         icon_size: f32,
         appearance: &Appearance,
         app: &AppContext,
@@ -401,11 +244,7 @@ impl PlanAndTodoListView {
             .with_child(Container::new(total_text).with_margin_left(2.).finish())
             .finish();
 
-        let corner_radius = if has_planning_document {
-            CornerRadius::with_right(Radius::Pixels(4.))
-        } else {
-            CornerRadius::with_all(Radius::Pixels(4.))
-        };
+        let corner_radius = CornerRadius::with_all(Radius::Pixels(4.));
 
         let todo_button = self
             .render_chip_button(
@@ -479,29 +318,10 @@ impl View for PlanAndTodoListView {
         let icon_size = (base_icon_size * 1.1).min(text_line_height);
 
         let todo_list = self.todo_list(app);
-        let ai_document_id = self.ai_document_id(app);
 
         let mut row = Flex::row();
-        // Only show plan chip when AgentView is not enabled
-        if !FeatureFlag::AgentView.is_enabled()
-            && let Some(ai_document_id) = ai_document_id
-        {
-            row.add_child(self.render_plan_button(
-                ai_document_id,
-                todo_list.is_some(),
-                icon_size,
-                appearance,
-                app,
-            ));
-        }
         if let Some(todo_list) = todo_list {
-            row.add_child(self.render_todo_button(
-                &todo_list,
-                ai_document_id.is_some() && !FeatureFlag::AgentView.is_enabled(),
-                icon_size,
-                appearance,
-                app,
-            ));
+            row.add_child(self.render_todo_button(&todo_list, icon_size, appearance, app));
         }
 
         row.finish()
@@ -522,15 +342,6 @@ impl TypedActionView for PlanAndTodoListView {
                     ctx.focus(&self.agent_todos_popup);
                 }
                 ctx.notify();
-            }
-            PlanAndTodoListAction::OpenAIDocument {
-                document_id,
-                document_version,
-            } => {
-                ctx.emit(PlanAndTodoListEvent::OpenAIDocument {
-                    document_id: *document_id,
-                    document_version: *document_version,
-                });
             }
         }
     }

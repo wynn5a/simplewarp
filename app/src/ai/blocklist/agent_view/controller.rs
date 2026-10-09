@@ -108,8 +108,6 @@ pub enum AgentViewEntryOrigin {
     AgentModeHomepage,
     /// Entered agent view by clicking an existing agent view block.
     AgentViewBlock,
-    /// Entered agent view from the AI document pane.
-    AIDocument,
     /// Entered agent view due to an automatic follow-up (not a direct user selection).
     AutoFollowUp,
     /// Entered agent view due to conversation restoration on startup or forking.

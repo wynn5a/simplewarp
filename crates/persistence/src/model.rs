@@ -9,13 +9,13 @@ use warp_multi_agent_api::response_event::stream_finished;
 use warp_multi_agent_api::{self as api};
 
 use super::schema::{
-    active_mcp_servers, agent_conversations, agent_tasks, ai_document_panes, ai_memory_panes,
-    ambient_agent_panes, app, blocks, code_pane_tabs, code_panes, code_review_panes, commands,
-    env_var_collection_panes, folders, generic_string_objects, ignored_suggestions,
-    mcp_environment_variables, mcp_server_installations, mcp_server_panes, notebook_panes,
-    notebooks, object_actions, object_metadata, object_permissions, pane_branches, pane_leaves,
-    pane_nodes, panels, project_rules, projects, settings_panes, tab_groups, tabs, terminal_panes,
-    windows, workflow_panes, workflows, workspace_language_server, workspace_metadata,
+    active_mcp_servers, agent_conversations, agent_tasks, ai_memory_panes, ambient_agent_panes,
+    app, blocks, code_pane_tabs, code_panes, code_review_panes, commands, env_var_collection_panes,
+    folders, generic_string_objects, ignored_suggestions, mcp_environment_variables,
+    mcp_server_installations, mcp_server_panes, notebook_panes, notebooks, object_actions,
+    object_metadata, object_permissions, pane_branches, pane_leaves, pane_nodes, panels,
+    project_rules, projects, settings_panes, tab_groups, tabs, terminal_panes, windows,
+    workflow_panes, workflows, workspace_language_server, workspace_metadata,
 };
 
 #[derive(Insertable)]
@@ -804,28 +804,6 @@ pub struct AgentTaskRecord {
     pub task_id: String,
     pub task: Vec<u8>,
     pub last_modified_at: NaiveDateTime,
-}
-
-#[derive(Debug, PartialEq, Queryable, Selectable, Clone)]
-#[diesel(table_name = ai_document_panes)]
-#[diesel(primary_key(id))]
-pub struct AIDocumentPane {
-    pub id: i32,
-    pub kind: String,
-    pub document_id: String,
-    pub version: i32,
-    pub content: Option<String>,
-    pub title: Option<String>,
-}
-
-#[derive(Debug, Insertable)]
-#[diesel(table_name = ai_document_panes)]
-pub struct NewAIDocumentPane {
-    pub id: i32,
-    pub document_id: String,
-    pub version: i32,
-    pub content: Option<String>,
-    pub title: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Default, Clone)]

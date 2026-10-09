@@ -341,10 +341,7 @@ impl From<&AIAgentActionType> for PersistedAIAgentActionType {
             AIAgentActionType::OpenCodeReview => Self::OpenCodeReview,
             AIAgentActionType::InsertCodeReviewComments { .. } => Self::NotPersisted,
             AIAgentActionType::InitProject => Self::InitProject,
-            AIAgentActionType::ReadDocuments(_)
-            | AIAgentActionType::EditDocuments(_)
-            | AIAgentActionType::CreateDocuments(_)
-            | AIAgentActionType::ReadShellCommandOutput { .. }
+            AIAgentActionType::ReadShellCommandOutput { .. }
             | AIAgentActionType::TransferShellCommandControlToUser { .. } => Self::NotPersisted,
             AIAgentActionType::FetchConversation { conversation_id } => Self::FetchConversation {
                 conversation_id: conversation_id.clone(),

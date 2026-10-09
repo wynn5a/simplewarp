@@ -233,10 +233,6 @@ pub mod text {
                 AIAgentActionResultType::OpenCodeReview => Ok(()),
                 AIAgentActionResultType::InsertReviewComments(_) => Ok(()),
                 AIAgentActionResultType::InitProject => Ok(()),
-                // Document operations - not yet implemented for SDK
-                AIAgentActionResultType::ReadDocuments(_)
-                | AIAgentActionResultType::EditDocuments(_)
-                | AIAgentActionResultType::CreateDocuments(_) => Ok(()),
                 AIAgentActionResultType::ReadShellCommandOutput { .. } => Ok(()),
                 AIAgentActionResultType::TransferShellCommandControlToUser { .. } => Ok(()),
                 AIAgentActionResultType::FetchConversation(result) => match result {
@@ -336,11 +332,7 @@ pub mod text {
                     AIAgentActionType::OpenCodeReview => (),
                     AIAgentActionType::InsertCodeReviewComments { .. } => (),
                     AIAgentActionType::InitProject => (),
-                    // Document operations - not yet implemented for SDK
-                    AIAgentActionType::ReadDocuments(_)
-                    | AIAgentActionType::EditDocuments(_)
-                    | AIAgentActionType::CreateDocuments(_)
-                    | AIAgentActionType::ReadShellCommandOutput { .. }
+                    AIAgentActionType::ReadShellCommandOutput { .. }
                     | AIAgentActionType::TransferShellCommandControlToUser { .. } => (),
                     AIAgentActionType::FetchConversation { conversation_id } => {
                         writeln!(w, "Fetching conversation {conversation_id}")?;
@@ -924,9 +916,6 @@ pub mod json {
                     | AIAgentActionType::InitProject
                     | AIAgentActionType::OpenCodeReview
                     | AIAgentActionType::InsertCodeReviewComments { .. }
-                    | AIAgentActionType::ReadDocuments(_)
-                    | AIAgentActionType::EditDocuments(_)
-                    | AIAgentActionType::CreateDocuments(_)
                     | AIAgentActionType::ReadShellCommandOutput { .. }
                     | AIAgentActionType::FetchConversation { .. }
                     | AIAgentActionType::SendMessageToAgent { .. }

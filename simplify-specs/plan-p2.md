@@ -386,6 +386,17 @@ that only it used:
 - **ReadSkill** and **SearchCodebase**: executors, cards, the codebase-search speedbump, the
   `GetRelevantFilesController` plumbing through `TerminalView`, `SearchCodebaseUI`.
 
+- **Documents / plans** (round 5, 2026-10-09): `ReadDocuments`/`EditDocuments`/`CreateDocuments`
+  and the whole plan subsystem they fed: `AIDocumentModel`, `AIDocumentView` and its pane
+  (`IPaneType::AIDocument`, `LeafContents::AIDocument`, the deferred-pane restore pass), the
+  `terminal/input/plans` menu and `InputSuggestionsMode::PlanMenu`, the plan chip in the todo chip,
+  the "view plan" hint, `cmdorctrl-alt-p`, the "Execute this plan" suggestion, plan attachments
+  (`<plan:id>`, the pending-document context), `AttachPlanAsContext`, the dirty orchestration events
+  that rode on the document model, `crates/ai` `DocumentContext`/`AIDocumentVersion`. Old pane rows
+  of kind `ai_document` fail to restore (like legacy MCP panes) and are dropped; the table stays in
+  the schema. Notebooks keep their `ai_document_id` field (and the "Plan" label/icon) as data.
+  `AIAgentAttachment::DocumentContent` stays because it is a persisted shape.
+
 Saved conversations: calls and results of these tools restore as nothing (`NoClientRepresentation`
 for calls, `None` for results). Persisted `PersistedAIAgentActionType` rows that hold one still
 deserialize through empty tombstone variants (`UseComputer {}`, `RequestComputerUse {}`,
@@ -393,13 +404,15 @@ deserialize through empty tombstone variants (`UseComputer {}`, `RequestComputer
 the removed keys still load (profile files ignore unknown keys); `computer_use_enabled` in an agent
 config file is now rejected (that file type denies unknown keys).
 
-Verification: workspace nextest 6407 / 6417; the same 10 `integration::integration` GUI tests fail
-as before the round.
+Verification: workspace nextest 6385 / 6395 after the documents round (6407 / 6417 before it); the
+failing 10 are `integration::integration` GUI tests that time out the same way without these
+changes (one of them flips between runs).
 
 **Not done**, because each is tied to something still live: `InsertReviewComments` (the
-`code_review/comments` import path and its flag), `ReadDocuments`/`EditDocuments`/`CreateDocuments`
-(the whole AI-document/plan pane, ~94 `AIDocumentModel` uses), `TransferShellCommandControlToUser`
-(the long-running-command controls in `shell_command.rs`/`cli_controller.rs`), `SuggestPrompt`
-(passive suggestions), and the orchestration family (`RunAgents`, `SendMessageToAgent`,
-`WaitForEvents`, `FetchConversation`, with the profile "run agents" permission). MCP tool calls stay
+`code_review/comments` import path and its flag), `TransferShellCommandControlToUser` (the
+long-running-command controls in `shell_command.rs`/`cli_controller.rs`), `SuggestPrompt` (passive
+suggestions), and the orchestration family (`RunAgents`, `SendMessageToAgent`, `WaitForEvents`,
+`FetchConversation`, `OrchestrationConfigUpdate`, with the profile "run agents" permission). The todo
+list (`UpdateTodos`, the todo chip and popup) is also unreachable, since no offered tool creates one.
+MCP tool calls stay
 (Phase 3b). Dogfood-only skills under `resources/channel-gated-skills` still mention computer use.

@@ -300,10 +300,4 @@ pub enum ModelEvent {
         block_id: String,
         agent_view_visibility: SerializedAgentViewVisibility,
     },
-    SaveAIDocumentContent {
-        document_id: String,
-        content: String,
-        version: i32,
-        title: String,
-    },
 }

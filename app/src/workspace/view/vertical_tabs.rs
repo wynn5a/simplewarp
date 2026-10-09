@@ -898,7 +898,6 @@ pub(super) enum SummaryPaneKind {
     Settings,
     EnvVarCollection,
     AIFact,
-    AIDocument,
     ExecutionProfileEditor,
     Other,
 }
@@ -3532,7 +3531,6 @@ enum TypedPane<'a> {
     Settings,
     EnvVarCollection,
     AIFact,
-    AIDocument,
     ExecutionProfileEditor,
     Other,
 }
@@ -3565,7 +3563,6 @@ impl TypedPane<'_> {
             TypedPane::Settings => SummaryPaneKind::Settings,
             TypedPane::EnvVarCollection => SummaryPaneKind::EnvVarCollection,
             TypedPane::AIFact => SummaryPaneKind::AIFact,
-            TypedPane::AIDocument => SummaryPaneKind::AIDocument,
             TypedPane::ExecutionProfileEditor => SummaryPaneKind::ExecutionProfileEditor,
             TypedPane::Other => SummaryPaneKind::Other,
         }
@@ -3590,7 +3587,6 @@ impl TypedPane<'_> {
             TypedPane::Settings => "Settings",
             TypedPane::EnvVarCollection => "Environment Variables",
             TypedPane::AIFact => "Rules",
-            TypedPane::AIDocument => "Plan",
             TypedPane::ExecutionProfileEditor => "Execution Profile",
             TypedPane::Other => "Other",
         }
@@ -3611,7 +3607,6 @@ impl TypedPane<'_> {
             | TypedPane::Settings
             | TypedPane::EnvVarCollection
             | TypedPane::AIFact
-            | TypedPane::AIDocument
             | TypedPane::ExecutionProfileEditor
             | TypedPane::Other => None,
         }
@@ -3632,7 +3627,6 @@ impl TypedPane<'_> {
             TypedPane::Settings => WarpIcon::Gear,
             TypedPane::EnvVarCollection => WarpIcon::EnvVarCollection,
             TypedPane::AIFact => WarpIcon::BookOpen,
-            TypedPane::AIDocument => WarpIcon::Compass,
             TypedPane::ExecutionProfileEditor => WarpIcon::Lightning,
             TypedPane::Other => WarpIcon::File,
         }
@@ -3774,7 +3768,6 @@ fn build_vertical_tabs_summary_data(
             | TypedPane::Settings
             | TypedPane::EnvVarCollection
             | TypedPane::AIFact
-            | TypedPane::AIDocument
             | TypedPane::ExecutionProfileEditor
             | TypedPane::Other => {
                 push_normalized_unique_summary_label(
@@ -3914,7 +3907,6 @@ impl<'a> PaneProps<'a> {
             | TypedPane::Settings
             | TypedPane::EnvVarCollection
             | TypedPane::AIFact
-            | TypedPane::AIDocument
             | TypedPane::ExecutionProfileEditor
             | TypedPane::Other => {
                 non_terminal_search_text_fragments(self.generated_or_tab_title(), &self.subtitle)
@@ -4244,11 +4236,8 @@ impl PaneGroup {
             IPaneType::Settings => TypedPane::Settings,
             IPaneType::EnvVarCollection => TypedPane::EnvVarCollection,
             IPaneType::AIFact => TypedPane::AIFact,
-            IPaneType::AIDocument => TypedPane::AIDocument,
             IPaneType::ExecutionProfileEditor => TypedPane::ExecutionProfileEditor,
-            IPaneType::GetStarted | IPaneType::NetworkLog | IPaneType::DeferredPlaceholder => {
-                TypedPane::Other
-            }
+            IPaneType::GetStarted | IPaneType::NetworkLog => TypedPane::Other,
             #[cfg(test)]
             IPaneType::Dummy => TypedPane::Other,
         }
@@ -4961,7 +4950,6 @@ pub(super) fn render_summary_pane_kind_icon_circle(
         | SummaryPaneKind::Settings
         | SummaryPaneKind::EnvVarCollection
         | SummaryPaneKind::AIFact
-        | SummaryPaneKind::AIDocument
         | SummaryPaneKind::ExecutionProfileEditor
         | SummaryPaneKind::Other => {
             let (icon, icon_color) = summary_pane_kind_icon(kind, appearance);
@@ -5039,7 +5027,6 @@ fn summary_pane_kind_icon(
             drive_color(DriveObjectType::EnvVarCollection),
         ),
         SummaryPaneKind::AIFact => (WarpIcon::BookOpen, drive_color(DriveObjectType::AIFact)),
-        SummaryPaneKind::AIDocument => (WarpIcon::Compass, sub_text),
         SummaryPaneKind::ExecutionProfileEditor => (WarpIcon::Lightning, sub_text),
         SummaryPaneKind::Other => (WarpIcon::File, sub_text),
     }
@@ -6880,9 +6867,6 @@ fn typed_pane_warp_drive_object_type(typed: &TypedPane<'_>) -> Option<DriveObjec
         } => Some(DriveObjectType::Workflow),
         TypedPane::EnvVarCollection => Some(DriveObjectType::EnvVarCollection),
         TypedPane::AIFact => Some(DriveObjectType::AIFact),
-        TypedPane::AIDocument => Some(DriveObjectType::Notebook {
-            is_ai_document: true,
-        }),
         TypedPane::Terminal(_)
         | TypedPane::Code(_)
         | TypedPane::CodeDiff
@@ -6909,8 +6893,7 @@ fn render_detail_section(
         TypedPane::Notebook { .. }
         | TypedPane::Workflow { .. }
         | TypedPane::EnvVarCollection
-        | TypedPane::AIFact
-        | TypedPane::AIDocument => render_warp_drive_object_detail_section(props, appearance, app),
+        | TypedPane::AIFact => render_warp_drive_object_detail_section(props, appearance, app),
         TypedPane::CodeDiff
         | TypedPane::File
         | TypedPane::Settings

@@ -9,7 +9,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use ai::agent::action::SuggestPromptRequest;
-use ai::agent::document_action_presentation::DocumentActionPresentation;
 use ai::agent::file_locations::group_file_contexts_for_display;
 use indexmap::IndexMap;
 use itertools::Itertools;
@@ -70,7 +69,6 @@ use crate::ai::blocklist::block::{
     ImportedCommentGroup, RequestedEdit, TextLocation, TodoListElementState,
 };
 use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
-use crate::ai::blocklist::inline_action::create_or_edit_document::CreateOrEditDocumentAction;
 use crate::ai::blocklist::inline_action::inline_action_header::{
     HeaderConfig, INLINE_ACTION_HEADER_VERTICAL_PADDING, INLINE_ACTION_HORIZONTAL_PADDING,
     InteractionMode,
@@ -631,18 +629,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                     unit_test_suggestion_view,
                                     app,
                                 ));
-                            }
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action:
-                                action @ (AIAgentActionType::CreateDocuments(_)
-                                | AIAgentActionType::EditDocuments(_)),
-                            id,
-                            ..
-                        }) => {
-                            should_render_footer = false;
-                            if let Some(document) = maybe_render_document(props, id, action, app) {
-                                output_items.add_child(document);
                             }
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
@@ -1385,35 +1371,6 @@ fn parsed_skill_for_common_locations(
         .all(|skill_path| skill_path == first_skill_path)
         .then(|| SkillManager::as_ref(app).skill_by_path(first_skill_path))
         .flatten()
-}
-
-fn maybe_render_document(
-    props: Props,
-    id: &AIAgentActionId,
-    action: &AIAgentActionType,
-    app: &AppContext,
-) -> Option<Box<dyn Element>> {
-    let status = props.action_model.as_ref(app).get_action_status(id);
-
-    // Document operations are always auto-executed for now
-    if status.as_ref().is_some_and(|status| status.is_blocked()) {
-        todo!("Implement granular permissions for AI documents.");
-    }
-
-    let result = props
-        .action_model
-        .as_ref(app)
-        .get_action_result(id)
-        .map(|result| &result.result);
-    let presentation = DocumentActionPresentation::resolve(action, result)?;
-    let document = presentation.documents.first()?;
-    let action = CreateOrEditDocumentAction::new(
-        document.document_id?,
-        document.document_version?,
-        props.state_handles.ai_document_handle.clone(),
-        app,
-    )?;
-    Some(action.render(app))
 }
 
 fn render_stopped_output(props: Props, app: &AppContext) -> Box<dyn Element> {

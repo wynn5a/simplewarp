@@ -1,7 +1,6 @@
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use super::CloudNotebookModel;
-use crate::ai::document::ai_document_model::AIDocumentId;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{CloudObject, Owner};
 use crate::notebooks::CloudNotebook;
@@ -9,6 +8,7 @@ use crate::server::cloud_objects::update_manager::{
     ObjectOperation, UpdateManager, UpdateManagerEvent,
 };
 use crate::server::ids::{ClientId, SyncId};
+use ai::document::AIDocumentId;
 
 #[derive(Default, Clone)]
 pub enum ActiveNotebook {

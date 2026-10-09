@@ -185,8 +185,6 @@ impl Input {
             column.add_child(ChildView::new(&self.inline_history_menu_view).finish());
         } else if self.suggestions_mode_model.as_ref(app).is_repos_menu() {
             column.add_child(ChildView::new(&self.inline_repos_menu_view).finish());
-        } else if self.suggestions_mode_model.as_ref(app).is_plan_menu() {
-            column.add_child(ChildView::new(&self.inline_plan_menu_view).finish());
         }
 
         if self

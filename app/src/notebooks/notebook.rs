@@ -38,7 +38,6 @@ use super::link::{NotebookLinks, SessionSource};
 use super::manager::NotebookManager;
 use super::{CloudNotebookModel, NotebookLocation, styles};
 use crate::ai::blocklist::secret_redaction::find_secrets_in_text;
-use crate::ai::document::ai_document_model::AIDocumentId;
 use crate::appearance::Appearance;
 use crate::cloud_object::export::ExportManager;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
@@ -200,7 +199,6 @@ pub enum NotebookEvent {
     },
     EditWorkflow(SyncId),
     Pane(PaneEvent),
-    AttachPlanAsContext(AIDocumentId),
 }
 
 impl From<PaneEvent> for NotebookEvent {
@@ -225,7 +223,6 @@ pub enum NotebookAction {
     CopyToPersonal,
     CopyToClipboard,
     Export,
-    AttachPlanAsContext(AIDocumentId),
 }
 
 impl From<ContextMenuAction> for NotebookAction {
@@ -949,15 +946,6 @@ impl NotebookView {
             return menu_items;
         }
 
-        if let Some(ai_document_id) = self.active_notebook_data.as_ref(ctx).ai_document_id(ctx) {
-            menu_items.push(
-                MenuItemFields::new("Attach to active session")
-                    .with_on_select_action(NotebookAction::AttachPlanAsContext(ai_document_id))
-                    .with_icon(icons::Icon::Paperclip)
-                    .into_item(),
-            );
-        }
-
         menu_items.push(
             MenuItemFields::new("Duplicate")
                 .with_on_select_action(NotebookAction::Duplicate)
@@ -1499,9 +1487,6 @@ impl TypedActionView for NotebookView {
             NotebookAction::CopyToPersonal => self.copy_to_personal(ctx),
             NotebookAction::CopyToClipboard => self.copy_notebook_contents_to_clipboard(ctx),
             NotebookAction::Export => self.export(ctx),
-            NotebookAction::AttachPlanAsContext(id) => {
-                ctx.emit(NotebookEvent::AttachPlanAsContext(*id))
-            }
         };
     }
 }

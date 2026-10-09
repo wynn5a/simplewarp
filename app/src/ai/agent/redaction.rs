@@ -196,10 +196,7 @@ pub(crate) fn redact_inputs(inputs: &mut [AIAgentInput]) {
                     // TODO: Redact MCP-related results
                     AIAgentActionResultType::CallMCPTool { .. }
                     | AIAgentActionResultType::ReadMCPResource { .. }
-                    | AIAgentActionResultType::SuggestPrompt { .. }
-                    | AIAgentActionResultType::ReadDocuments(_)
-                    | AIAgentActionResultType::EditDocuments(_)
-                    | AIAgentActionResultType::CreateDocuments(_) => {}
+                    | AIAgentActionResultType::SuggestPrompt { .. } => {}
 
                     // FetchConversation results contain tasks returned from the server,
                     // which were already redacted before being sent as client inputs.

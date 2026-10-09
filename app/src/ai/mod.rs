@@ -7,7 +7,6 @@ pub(crate) mod agent;
 pub(crate) mod agent_conversations_model;
 pub(crate) mod agent_management;
 pub(crate) mod agent_tips;
-pub(crate) mod ai_document_view;
 pub mod ambient_agents;
 pub(crate) mod artifact_download;
 pub mod artifacts;
@@ -20,7 +19,6 @@ pub(crate) mod conversation_navigation;
 pub(crate) mod conversation_rename;
 pub(crate) mod conversation_status_ui;
 pub(crate) mod conversation_utils;
-pub(crate) mod document;
 pub mod harness_availability;
 pub(crate) mod harness_display;
 pub(crate) mod llms;
@@ -45,6 +43,5 @@ pub(crate) use ai::paths;
 pub fn init(app: &mut AppContext) {
     blocklist::keyboard_navigable_buttons::init(app);
     blocklist::toggleable_items::init(app);
-    ai_document_view::init(app);
     conversation_details_panel::init(app);
 }

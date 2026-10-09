@@ -21,7 +21,6 @@ use crate::ai::blocklist::{
     BlocklistAIContextEvent, BlocklistAIContextModel, BlocklistAIHistoryEvent,
     BlocklistAIInputEvent, BlocklistAIInputModel,
 };
-use crate::ai::document::ai_document_model::{AIDocumentModel, AIDocumentModelEvent};
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::ai::mcp::templatable_manager::{FigmaMcpStatus, TemplatableMCPServerManagerEvent};
 use crate::search::slash_command_menu::static_commands::commands;
@@ -54,7 +53,6 @@ pub struct AgentMessageBarMouseStates {
     pub fork_from_last_known_good_state: MouseStateHandle,
     pub toggle_shortcuts: MouseStateHandle,
     pub toggle_slash_commands: MouseStateHandle,
-    pub toggle_plan: MouseStateHandle,
     pub toggle_conversation_menu: MouseStateHandle,
     pub toggle_code_review: MouseStateHandle,
     pub clear_attached_context: MouseStateHandle,
@@ -165,12 +163,6 @@ impl AgentMessageBar {
                 ctx.notify();
             }
         });
-        ctx.subscribe_to_model(&AIDocumentModel::handle(ctx), |_, _, event, ctx| {
-            if matches!(event, AIDocumentModelEvent::DocumentVisibilityChanged) {
-                ctx.notify();
-            }
-        });
-
         ctx.subscribe_to_model(&context_model, |me, _, event, ctx| {
             if let BlocklistAIContextEvent::UpdatedPendingContext { .. } = event {
                 me.update_figma_detected(ctx);
@@ -405,7 +397,6 @@ impl MessageProvider<AgentMessageArgs<'_>> for BootstrappingMessageProducer {
 
 /// Produces the zero state message
 /// When a task is stopped, we also include "Cmd+Shift+R to resume conversation".
-/// When a plan exists for the active conversation, we also include "cmd-alt-p to view plan".
 struct ZeroStateMessageProducer;
 
 impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
@@ -516,10 +507,6 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
 
         let is_transcript_viewer = terminal_model.is_conversation_transcript_viewer();
 
-        let plan_count = AIDocumentModel::as_ref(app)
-            .get_all_documents_for_conversation(active_conversation.id())
-            .len();
-        let has_plan = plan_count > 0;
         let has_conversation_been_updated_since_agent_view_entry =
             *original_conversation_length != active_conversation.exchange_count();
 
@@ -559,36 +546,6 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
             ));
         }
 
-        if has_plan {
-            let is_plan_for_this_conversation_open = agent_view_controller
-                .pane_group_id()
-                .is_some_and(|pane_group_id| {
-                    AIDocumentModel::as_ref(app).is_document_visible_by_conversation_in_pane_group(
-                        &active_conversation.id(),
-                        pane_group_id,
-                    )
-                });
-
-            // If changing this text, ensure the logic is consistent with how TerminalAction::ToggleAIDocumentPane is handled.
-            items.push(MessageItem::clickable(
-                vec![
-                    MessageItem::keystroke(
-                        Keystroke::parse("cmdorctrl-alt-p").expect("keystroke should parse"),
-                    ),
-                    MessageItem::text(if is_plan_for_this_conversation_open {
-                        "to hide plan"
-                    } else if plan_count > 1 {
-                        "to view plans"
-                    } else {
-                        "to view plan"
-                    }),
-                ],
-                |ctx| {
-                    ctx.dispatch_typed_action(TerminalAction::ToggleAIDocumentPane);
-                },
-                mouse_states.toggle_plan.clone(),
-            ));
-        }
         if fork_from_last_known_good_state_exchange_id(active_conversation, terminal_model)
             .is_some()
         {

@@ -65,15 +65,6 @@ impl AgentInputFooter {
                     ctx.emit(AgentInputFooterEvent::OpenCodeReview);
                     ctx.notify();
                 }
-                PromptDisplayChipEvent::OpenAIDocument {
-                    document_id,
-                    document_version,
-                } => {
-                    ctx.emit(AgentInputFooterEvent::OpenAIDocument {
-                        document_id: *document_id,
-                        document_version: *document_version,
-                    });
-                }
                 _ => {
                     ctx.notify();
                 }

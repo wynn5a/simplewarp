@@ -1212,39 +1212,6 @@ impl AIConversation {
             .collect()
     }
 
-    /// Returns the titles from the CreateDocuments request corresponding to the given action ID (if any).
-    /// This is used by shared-session viewers to use the correct document titles from the original CreateDocuments action.
-    pub fn get_document_titles_for_action(
-        &self,
-        action_id: &AIAgentActionId,
-    ) -> Option<Vec<String>> {
-        for exchange in self.all_exchanges() {
-            let Some(output) = exchange.output_status.output() else {
-                continue;
-            };
-
-            for message in &output.get().messages {
-                if let AIAgentOutputMessage {
-                    message: AIAgentOutputMessageType::Action(action),
-                    ..
-                } = message
-                    && &action.id == action_id
-                    && let super::AIAgentActionType::CreateDocuments(
-                        super::CreateDocumentsRequest { documents },
-                    ) = &action.action
-                {
-                    let titles = documents
-                        .iter()
-                        .map(|doc| doc.title.clone())
-                        .collect::<Vec<_>>();
-                    return Some(titles);
-                }
-            }
-        }
-
-        None
-    }
-
     /// Returns the start timestamp of the earliest [`AIAgentExchange`] in the conversation, if
     /// any.
     pub fn start_ts(&self) -> Option<DateTime<Local>> {

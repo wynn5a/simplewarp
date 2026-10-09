@@ -19,7 +19,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use ai::agent::action::InsertReviewComment;
-use ai::document::DEFAULT_PLANNING_DOCUMENT_TITLE;
 use base64::Engine as _;
 use chrono::Duration;
 use cli_controller::{CLISubagentController, CLISubagentEvent};
@@ -78,11 +77,9 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResultType, AIAgentActionType, AIAgentAttachment,
     AIAgentCitation, AIAgentContext, AIAgentInput, AIAgentOutput, AIAgentOutputMessageType,
-    AIAgentTextSection, AIIdentifiers, CancellationReason, CreateDocumentsRequest,
-    CreateDocumentsResult, DocumentToCreate, EditDocumentsResult, MessageId,
-    PassiveSuggestionTrigger, ProgrammingLanguage, RequestCommandOutputResult,
-    RequestFileEditsResult, ServerOutputId, SuggestPromptRequest, SuggestPromptResult,
-    SummarizationType, TodoOperation,
+    AIAgentTextSection, AIIdentifiers, CancellationReason, MessageId, PassiveSuggestionTrigger,
+    ProgrammingLanguage, RequestCommandOutputResult, RequestFileEditsResult, ServerOutputId,
+    SuggestPromptRequest, SuggestPromptResult, SummarizationType, TodoOperation,
 };
 use crate::ai::blocklist::action_model::NewConversationDecision;
 use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewEntryOrigin};
@@ -103,7 +100,6 @@ use crate::ai::blocklist::permissions::{
     CommandExecutionPermission, CommandExecutionPermissionDeniedReason,
 };
 use crate::ai::blocklist::{BlocklistAIContextEvent, BlocklistAIContextModel};
-use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel, AIDocumentVersion};
 use crate::ai::skills::SkillOpenOrigin;
 use crate::code::editor::comment_editor::create_readonly_comment_markdown_editor;
 use crate::code::editor::view::{CodeEditorEvent, CodeEditorRenderOptions, CodeEditorView};
@@ -115,7 +111,6 @@ use crate::code_review::comments::{
 };
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 use crate::editor::InteractionState;
-use crate::notebooks::editor::model::FileLinkResolutionContext;
 use crate::notebooks::editor::view::{EditorViewEvent, RichTextEditorView};
 use crate::server::ids::SyncId;
 use crate::settings::{
@@ -328,9 +323,6 @@ pub(super) struct AIBlockStateHandles {
 
     /// Mouse state handle for the invalid API key button
     invalid_api_key_button_handle: MouseStateHandle,
-
-    /// Mouse state handle for AI document created block
-    ai_document_handle: MouseStateHandle,
 
     /// Per-action mouse state handles for the 'open skill' button shown on
     /// ReadSkill and ReadFiles action banners. Keyed by action id so that
@@ -1678,13 +1670,6 @@ impl AIBlock {
                 }
                 AIAgentAction {
                     id: action_id,
-                    action: AIAgentActionType::CreateDocuments(CreateDocumentsRequest { documents }),
-                    ..
-                } => {
-                    self.handle_create_documents_stream_update(action_id, documents, ctx);
-                }
-                AIAgentAction {
-                    id: action_id,
                     action: AIAgentActionType::SuggestNewConversation { .. },
                     ..
                 } => {
@@ -2996,73 +2981,6 @@ impl AIBlock {
         }
     }
 
-    fn handle_create_documents_stream_update(
-        &mut self,
-        action_id: &AIAgentActionId,
-        documents: &[DocumentToCreate],
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let model_handle = AIDocumentModel::handle(ctx);
-        let conversation_id = self.client_ids.conversation_id;
-        // If the conversation stream has already been stopped, don't process the updates.
-        // We need to do this to avoid marking the document as streaming again in the AIDocumentModel on
-        // get_or_create_streaming_document_for_create_documents below after the stream has already been stopped.
-        // This might throw away the last update for a normally completed stream, but that's okay because
-        // we'll reset using the full content in the CreateDocumentsExecutor.
-        if !self.model.status(ctx).is_streaming() {
-            return;
-        }
-        let active_session_ref = self.active_session.as_ref(ctx);
-        let file_link_resolution_context =
-            active_session_ref
-                .current_working_directory()
-                .map(|working_directory| FileLinkResolutionContext {
-                    working_directory: working_directory.clone(),
-                    shell_launch_data: active_session_ref.shell_launch_data(ctx),
-                });
-
-        let mut opened_first = false;
-
-        for (index, document) in documents.iter().enumerate() {
-            let title = if document.title.is_empty() {
-                DEFAULT_PLANNING_DOCUMENT_TITLE.to_string()
-            } else {
-                document.title.clone()
-            };
-
-            let (document_id, created_new) = model_handle.update(ctx, |model, model_ctx| {
-                let (document_id, created_new) = model
-                    .get_or_create_streaming_document_for_create_documents(
-                        conversation_id,
-                        action_id,
-                        index,
-                        &title,
-                        document.content.clone(),
-                        file_link_resolution_context.clone(),
-                        model_ctx,
-                    );
-                if !created_new {
-                    model.apply_streamed_agent_update(
-                        &document_id,
-                        &title,
-                        &document.content,
-                        model_ctx,
-                    );
-                }
-                (document_id, created_new)
-            });
-
-            if created_new && !opened_first {
-                ctx.emit(AIBlockEvent::OpenAIDocumentPane {
-                    document_id,
-                    document_version: AIDocumentVersion::default(),
-                    is_auto_open: true,
-                });
-                opened_first = true;
-            }
-        }
-    }
-
     pub fn accept_pending_unit_test_suggestion(&mut self, ctx: &mut ViewContext<Self>) -> bool {
         let Some(suggested_prompt) = self.pending_unit_test_suggestion(ctx) else {
             return false;
@@ -3490,37 +3408,6 @@ impl AIBlock {
                         .iter()
                         .filter_map(|id| action_model.as_ref(ctx).get_action_status(id))
                         .collect_vec();
-
-                    // Open the AI document pane when documents are created or edited
-                    if let Some(action_result) =
-                        action_model.as_ref(ctx).get_action_result(action_id)
-                    {
-                        match &action_result.result {
-                            AIAgentActionResultType::CreateDocuments(
-                                CreateDocumentsResult::Success { created_documents },
-                            ) => {
-                                if let Some(first_doc) = created_documents.first() {
-                                    ctx.emit(AIBlockEvent::OpenAIDocumentPane {
-                                        document_id: first_doc.document_id,
-                                        document_version: first_doc.document_version,
-                                        is_auto_open: true,
-                                    });
-                                }
-                            }
-                            AIAgentActionResultType::EditDocuments(
-                                EditDocumentsResult::Success { updated_documents },
-                            ) => {
-                                if let Some(first_doc) = updated_documents.first() {
-                                    ctx.emit(AIBlockEvent::OpenAIDocumentPane {
-                                        document_id: first_doc.document_id,
-                                        document_version: first_doc.document_version,
-                                        is_auto_open: true,
-                                    });
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
 
                     if action_statuses.iter().any(AIActionStatus::is_blocked) && !me.is_hidden(ctx)
                     {
@@ -4778,11 +4665,6 @@ pub enum AIBlockEvent {
         entrypoint: CodeReviewPaneEntrypoint,
     },
     DismissedPassiveBlock,
-    OpenAIDocumentPane {
-        document_id: AIDocumentId,
-        document_version: AIDocumentVersion,
-        is_auto_open: bool,
-    },
     OpenActiveAgentProfileEditor,
     /// Emitted when a passive code diff has loaded its diffs and is ready to display.
     /// This is used to trigger height recalculation since the diffs are loaded asynchronously

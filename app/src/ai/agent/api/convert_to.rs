@@ -591,15 +591,6 @@ impl TryFrom<AIAgentActionResult> for api::request::input::user_inputs::user_inp
                     warp_multi_agent_api::InitProjectResult {},
                 ),
             ),
-            AIAgentActionResultType::ReadDocuments(read_documents_result) => {
-                Some(read_documents_result.try_into()?)
-            }
-            AIAgentActionResultType::EditDocuments(edit_documents_result) => {
-                Some(edit_documents_result.try_into()?)
-            }
-            AIAgentActionResultType::CreateDocuments(create_documents_result) => {
-                Some(create_documents_result.try_into()?)
-            }
             AIAgentActionResultType::ReadShellCommandOutput(read_shell_command_output_result) => {
                 Some(read_shell_command_output_result.try_into()?)
             }

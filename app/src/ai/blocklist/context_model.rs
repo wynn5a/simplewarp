@@ -24,7 +24,6 @@ use crate::ai::agent::{
     AIAgentAttachment, AIAgentContext, AnyFileContent, FileContext, ImageContext,
 };
 use crate::ai::block_context::BlockContext;
-use crate::ai::document::ai_document_model::AIDocumentId;
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::ai::outline::RepoOutlines;
 use crate::code_review::github_repo_model::GitHubRepoModel;
@@ -94,10 +93,6 @@ pub struct BlocklistAIContextModel {
 
     /// The ID of the terminal surface this model is associated with.
     terminal_surface_id: EntityId,
-
-    /// AI document ID to be included as context with the next AI query.
-    /// When set, the document content will be attached as plain text context.
-    pending_document_id: Option<AIDocumentId>,
 
     /// Block IDs of user-executed commands to be auto-attached as context.
     /// When `AgentViewBlockContext` is enabled, completed user commands are tracked here
@@ -218,7 +213,6 @@ impl BlocklistAIContextModel {
             conversation_selection,
             terminal_surface_id,
             pending_inline_diff_hunk_attachments: Default::default(),
-            pending_document_id: None,
             auto_attached_agent_view_user_block_ids: Vec::new(),
         }
     }
@@ -240,7 +234,6 @@ impl BlocklistAIContextModel {
             conversation_selection,
             terminal_surface_id,
             pending_inline_diff_hunk_attachments: Default::default(),
-            pending_document_id: None,
             auto_attached_agent_view_user_block_ids: Vec::new(),
         }
     }
@@ -252,7 +245,6 @@ impl BlocklistAIContextModel {
         self.set_pending_context_selected_text(None, true, ctx);
         self.clear_pending_attachments(ctx);
         self.clear_diff_hunk_attachments();
-        self.set_pending_document(None, ctx);
         self.auto_attached_agent_view_user_block_ids.clear();
     }
 
@@ -536,27 +528,6 @@ impl BlocklistAIContextModel {
             });
         }
         self.pending_context_selected_text = text;
-    }
-
-    /// Set the pending AI document to be included as context with the next AI query.
-    pub fn set_pending_document(
-        &mut self,
-        document_id: Option<AIDocumentId>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if document_id != self.pending_document_id {
-            self.pending_document_id = document_id;
-            ctx.emit(BlocklistAIContextEvent::UpdatedPendingContext {
-                previous_block_ids: self.pending_context_block_ids.clone(),
-                requires_block_resync: false,
-                requires_text_resync: false,
-            });
-        }
-    }
-
-    /// Get the pending AI document ID if one is set.
-    pub fn pending_document_id(&self) -> Option<AIDocumentId> {
-        self.pending_document_id
     }
 
     pub fn clear_pending_images(&mut self, ctx: &mut ModelContext<Self>) {

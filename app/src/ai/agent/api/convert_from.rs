@@ -590,15 +590,6 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
             api::message::tool_call::Tool::InitProject(_) => {
                 create_standard_action(AIAgentActionType::InitProject)
             }
-            api::message::tool_call::Tool::ReadDocuments(read_documents) => {
-                create_standard_action(read_documents.into())
-            }
-            api::message::tool_call::Tool::EditDocuments(edit_documents) => {
-                create_standard_action(edit_documents.into())
-            }
-            api::message::tool_call::Tool::CreateDocuments(create_documents) => {
-                create_standard_action(create_documents.into())
-            }
             api::message::tool_call::Tool::ReadShellCommandOutput(read_shell_command_output) => {
                 create_standard_action(read_shell_command_output.into())
             }
@@ -606,7 +597,10 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
                 transfer_shell_command_control_to_user,
             ) => create_standard_action(transfer_shell_command_control_to_user.into()),
             // These tools are gone; saved calls have nothing to draw.
-            api::message::tool_call::Tool::SearchCodebase(_)
+            api::message::tool_call::Tool::ReadDocuments(_)
+            | api::message::tool_call::Tool::EditDocuments(_)
+            | api::message::tool_call::Tool::CreateDocuments(_)
+            | api::message::tool_call::Tool::SearchCodebase(_)
             | api::message::tool_call::Tool::ReadSkill(_)
             | api::message::tool_call::Tool::AskUserQuestion(_)
             | api::message::tool_call::Tool::UseComputer(_)

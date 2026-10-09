@@ -3,7 +3,6 @@
 //! to be run.
 
 mod agent_mode;
-mod ai_document;
 mod block_filtering;
 mod bootstrapping;
 mod code_review;
@@ -41,7 +40,6 @@ use std::rc::Rc;
 use std::time::Duration;
 
 pub use agent_mode::*;
-pub use ai_document::*;
 use anyhow::{Result, anyhow};
 pub use block_filtering::*;
 pub use bootstrapping::*;

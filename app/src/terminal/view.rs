@@ -208,7 +208,6 @@ use crate::ai::conversation_details_panel::{
     ConversationDetailsData, ConversationDetailsPanelEvent,
 };
 use crate::ai::conversation_utils;
-use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel, AIDocumentVersion};
 use crate::ai::execution_profiles::ExecutionProfileId;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::persisted_workspace::PersistedWorkspace;
@@ -1362,20 +1361,6 @@ pub enum Event {
     OpenAIFactCollection {
         /// If set, open the fact collection to the specific rule.
         sync_id: Option<SyncId>,
-    },
-    ToggleAIDocumentPane {
-        document_id: AIDocumentId,
-        document_version: AIDocumentVersion,
-    },
-    /// Closes all visible AI document panes without opening a new one.
-    HideAIDocumentPanes,
-    /// Opens an AI document pane.
-    /// When `is_auto_open` is true, subject to conditions to check if auto opening is acceptable.
-    /// When `is_auto_open` is false (user-triggered), always opens unconditionally.
-    OpenAIDocumentPane {
-        document_id: AIDocumentId,
-        document_version: AIDocumentVersion,
-        is_auto_open: bool,
     },
     OpenPromptEditor,
     OpenAgentToolbarEditor,
@@ -3963,40 +3948,6 @@ impl TerminalView {
                 self.drain_queued_prompts(*conversation_id, reason, ctx);
             }
 
-            // If the most recent action in the current interaction turn created or updated a plan
-            // document, show an "Execute this plan" prompt suggestion.
-            let mut should_show_execute_plan_suggestion = false;
-            for view in self.rich_content_views.iter().rev() {
-                if let Some(ai_metadata) = view.ai_block_metadata() {
-                    let block = ai_metadata.ai_block_handle.as_ref(ctx);
-
-                    if let Some(output) = block.output_status(ctx).output_to_render()
-                        && let Some(most_recent_action) = output.get().actions().last()
-                    {
-                        should_show_execute_plan_suggestion = matches!(
-                            &most_recent_action.action,
-                            AIAgentActionType::CreateDocuments(_)
-                                | AIAgentActionType::EditDocuments(_)
-                        );
-                        break;
-                    }
-                }
-            }
-
-            if should_show_execute_plan_suggestion && let Some(block) = self.last_ai_block() {
-                let block_id = BlockId::from(block.id().to_string());
-                let suggestion = PromptSuggestion {
-                    id: Uuid::new_v4().to_string(),
-                    label: Some("Execute this plan".to_string()),
-                    prompt: "Execute this plan".to_string(),
-                    coding_query_context: None,
-                    static_prompt_suggestion_name: Some("EXECUTE_CREATED_PLAN".to_string()),
-                    should_start_new_conversation: false,
-                };
-
-                self.on_legacy_prompt_suggestion_generated(suggestion, block_id, ctx);
-            }
-
             self.update_input_prompt_suggestions_banner_state(ctx);
             ctx.notify();
         }
@@ -4285,18 +4236,6 @@ impl TerminalView {
         let content = path.to_string_lossy().to_string();
 
         self.input.update(ctx, |input, ctx| {
-            input.append_to_buffer(content.as_str(), ctx);
-            ctx.notify();
-        });
-    }
-
-    pub fn attach_plan_as_context(
-        &mut self,
-        ai_document_id: AIDocumentId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.input.update(ctx, |input, ctx| {
-            let content = format!("<plan:{ai_document_id}>");
             input.append_to_buffer(content.as_str(), ctx);
             ctx.notify();
         });
@@ -15303,17 +15242,6 @@ impl TerminalView {
                     });
                 }
             }
-            AIBlockEvent::OpenAIDocumentPane {
-                document_id,
-                document_version,
-                is_auto_open,
-            } => {
-                ctx.emit(Event::OpenAIDocumentPane {
-                    document_id: *document_id,
-                    document_version: *document_version,
-                    is_auto_open: *is_auto_open,
-                });
-            }
             AIBlockEvent::OpenActiveAgentProfileEditor => {
                 let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
                 let active_profile = profiles_model.active_profile(Some(self.view_id), ctx);
@@ -16242,25 +16170,6 @@ impl TerminalView {
             }
             InputEvent::TryHandlePassiveCodeDiff(action) => {
                 self.resolve_prompt_suggestion_diff(action.clone(), ctx);
-            }
-            InputEvent::ToggleAIDocumentPane {
-                document_id,
-                document_version,
-            } => {
-                ctx.emit(Event::ToggleAIDocumentPane {
-                    document_id: *document_id,
-                    document_version: *document_version,
-                });
-            }
-            InputEvent::OpenAIDocumentPane {
-                document_id,
-                document_version,
-            } => {
-                ctx.emit(Event::OpenAIDocumentPane {
-                    document_id: *document_id,
-                    document_version: *document_version,
-                    is_auto_open: false,
-                });
             }
             InputEvent::ShowToast { message, flavor } => {
                 ctx.emit(Event::ShowToast {
@@ -20162,7 +20071,6 @@ impl TypedActionView for TerminalView {
             | SetMarkedText { .. }
             | ResumeConversation
             | ForkConversationFromLastKnownGoodState
-            | ToggleAIDocumentPane
             | ClearMarkedText
             | StartLspServer => ActionAccessibilityContent::from_debug(),
             OpenCodeInWarp { .. } => ActionAccessibilityContent::from_debug(),
@@ -20896,46 +20804,6 @@ impl TypedActionView for TerminalView {
                             initial_attachments: vec![],
                             destination: ForkedConversationDestination::SplitPane,
                         });
-                    }
-                }
-            }
-            ToggleAIDocumentPane => {
-                if let Some(conversation) =
-                    BlocklistAIHistoryModel::as_ref(ctx).active_conversation(self.id())
-                {
-                    let conversation_id = conversation.id();
-                    let doc_model = AIDocumentModel::as_ref(ctx);
-                    let is_plan_for_this_conversation_open = self
-                        .agent_view_controller
-                        .as_ref(ctx)
-                        .pane_group_id()
-                        .is_some_and(|pane_group_id| {
-                            doc_model.is_document_visible_by_conversation_in_pane_group(
-                                &conversation_id,
-                                pane_group_id,
-                            )
-                        });
-                    if is_plan_for_this_conversation_open {
-                        ctx.emit(Event::HideAIDocumentPanes);
-                    } else {
-                        let docs = doc_model.get_all_documents_for_conversation(conversation_id);
-                        match docs.len() {
-                            0 => {} // No plans — nothing to do.
-                            1 => {
-                                let (document_id, doc) = &docs[0];
-                                ctx.emit(Event::OpenAIDocumentPane {
-                                    document_id: *document_id,
-                                    document_version: doc.version,
-                                    is_auto_open: false,
-                                });
-                            }
-                            _ => {
-                                // Multiple plans — open the plan picker menu.
-                                self.input.update(ctx, |input, ctx| {
-                                    input.open_plan_menu(conversation_id, ctx);
-                                });
-                            }
-                        }
                     }
                 }
             }

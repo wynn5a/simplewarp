@@ -19,7 +19,6 @@ use crate::ai::blocklist::{
     BlocklistAIContextModel, BlocklistAIHistoryEvent, BlocklistAIHistoryModel,
     BlocklistAIInputEvent, BlocklistAIInputModel,
 };
-use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
 use crate::completer::SessionContext;
 use crate::context_chips::display_chip::{DisplayChipAction, PromptChipShellCommand};
 use crate::settings::InputSettings;
@@ -77,18 +76,12 @@ pub enum PromptDisplayAction {
 pub enum PromptDisplayEvent {
     OpenFile(String),
     OpenTextFileInCodeEditor(String),
-    ToggleMenu {
-        open: bool,
-    },
+    ToggleMenu { open: bool },
     OpenCodeReview,
     OpenConversationHistory,
     OpenCommandPaletteFiles,
     RunAgentQuery(String),
     TryExecuteCommand(PromptChipShellCommand),
-    OpenAIDocument {
-        document_id: AIDocumentId,
-        document_version: AIDocumentVersion,
-    },
 }
 
 impl PromptDisplay {
@@ -257,16 +250,6 @@ impl PromptDisplay {
                 }
                 PromptDisplayChipEvent::TryExecuteCommand(cmd) => {
                     ctx.emit(PromptDisplayEvent::TryExecuteCommand(cmd.clone()));
-                    ctx.notify();
-                }
-                PromptDisplayChipEvent::OpenAIDocument {
-                    document_id,
-                    document_version,
-                } => {
-                    ctx.emit(PromptDisplayEvent::OpenAIDocument {
-                        document_id: *document_id,
-                        document_version: *document_version,
-                    });
                     ctx.notify();
                 }
             });

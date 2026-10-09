@@ -1,10 +1,7 @@
 pub(super) mod call_mcp_tool;
-pub(super) mod create_documents;
-pub(super) mod edit_documents;
 pub(super) mod fetch_conversation;
 pub(super) mod file_glob;
 pub(super) mod grep;
-pub(super) mod read_documents;
 pub(super) mod read_files;
 pub(super) mod read_mcp_resource;
 pub(super) mod request_file_edits;
@@ -23,8 +20,6 @@ use ai::agent::action_result::{
 };
 use call_mcp_tool::CallMCPToolExecutor;
 pub(crate) use call_mcp_tool::coerce_integer_args;
-use create_documents::CreateDocumentsExecutor;
-use edit_documents::EditDocumentsExecutor;
 use fetch_conversation::FetchConversationExecutor;
 use file_glob::FileGlobExecutor;
 use futures::future::BoxFuture;
@@ -32,7 +27,6 @@ use futures::{AsyncReadExt, FutureExt};
 use grep::GrepExecutor;
 use mime_guess::from_path;
 use parking_lot::FairMutex;
-use read_documents::ReadDocumentsExecutor;
 pub(super) use read_files::ReadFilesExecutor;
 use read_mcp_resource::ReadMCPResourceExecutor;
 pub use request_file_edits::RequestFileEditsExecutor;
@@ -215,9 +209,6 @@ pub struct BlocklistAIActionExecutor {
     call_mcp_tool_executor: ModelHandle<CallMCPToolExecutor>,
     suggest_new_conversation_executor: ModelHandle<SuggestNewConversationExecutor>,
     suggest_prompt_executor: ModelHandle<PromptSuggestionExecutor>,
-    read_documents_executor: ModelHandle<ReadDocumentsExecutor>,
-    edit_documents_executor: ModelHandle<EditDocumentsExecutor>,
-    create_documents_executor: ModelHandle<CreateDocumentsExecutor>,
     fetch_conversation_executor: ModelHandle<FetchConversationExecutor>,
     wait_for_events_executor: ModelHandle<WaitForEventsExecutor>,
     /// The actions currently executing asynchronously, keyed by action ID.
@@ -259,10 +250,6 @@ impl BlocklistAIActionExecutor {
         let suggest_new_conversation_executor =
             ctx.add_model(|_| SuggestNewConversationExecutor::new());
         let suggest_prompt_executor = ctx.add_model(|_| PromptSuggestionExecutor::new());
-        let read_documents_executor = ctx.add_model(|_| ReadDocumentsExecutor::new());
-        let edit_documents_executor = ctx.add_model(|_| EditDocumentsExecutor::new());
-        let create_documents_executor = ctx
-            .add_model(|_| CreateDocumentsExecutor::new(active_session.clone(), terminal_view_id));
         let fetch_conversation_executor = ctx.add_model(|_| FetchConversationExecutor::new());
         let wait_for_events_executor =
             ctx.add_model(|ctx| WaitForEventsExecutor::new(terminal_view_id, ctx));
@@ -276,9 +263,6 @@ impl BlocklistAIActionExecutor {
             call_mcp_tool_executor,
             suggest_new_conversation_executor,
             suggest_prompt_executor,
-            read_documents_executor,
-            edit_documents_executor,
-            create_documents_executor,
             async_executing_actions: Default::default(),
             fetch_conversation_executor,
             wait_for_events_executor,
@@ -398,15 +382,6 @@ impl BlocklistAIActionExecutor {
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
             AIAgentActionType::SuggestPrompt { .. } => self
                 .suggest_prompt_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::ReadDocuments(_) => self
-                .read_documents_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::EditDocuments(_) => self
-                .edit_documents_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::CreateDocuments(_) => self
-                .create_documents_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
             AIAgentActionType::FetchConversation { .. } => self
                 .fetch_conversation_executor
@@ -542,20 +517,6 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::SuggestPrompt { .. } => self
                 .suggest_prompt_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
-            AIAgentActionType::ReadDocuments(_) => self
-                .read_documents_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
-            AIAgentActionType::EditDocuments(_) => self
-                .edit_documents_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
-            AIAgentActionType::CreateDocuments(_) => self
-                .create_documents_executor
-                .update(ctx, |executor, ctx| {
-                    executor.execute(input, conversation_id, ctx)
-                })
                 .into(),
             AIAgentActionType::FetchConversation { .. } => self
                 .fetch_conversation_executor
@@ -771,15 +732,6 @@ impl BlocklistAIActionExecutor {
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::SuggestPrompt { .. } => self
                 .suggest_prompt_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::ReadDocuments(_) => self
-                .read_documents_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::EditDocuments(_) => self
-                .edit_documents_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::CreateDocuments(_) => self
-                .create_documents_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::FetchConversation { .. } => self
                 .fetch_conversation_executor
