@@ -129,8 +129,8 @@ pub async fn generate_multi_agent_output(
             } else {
                 String::new()
             },
-            parent_agent_id: params.parent_agent_id.unwrap_or_default(),
-            agent_name: params.agent_name.unwrap_or_default(),
+            parent_agent_id: String::new(),
+            agent_name: String::new(),
         }),
         existing_suggestions: params
             .existing_suggestions

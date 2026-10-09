@@ -102,10 +102,6 @@ pub struct RequestParams {
     pub isolation_level: warp_multi_agent_api::IsolationLevel,
     pub research_agent_enabled: bool,
     pub supported_tools_override: Option<Vec<warp_multi_agent_api::ToolType>>,
-    /// The conversation ID of the parent agent that spawned this child agent, if any.
-    pub parent_agent_id: Option<String>,
-    /// The display name for this agent (e.g. "Agent 1"), assigned by the orchestrator.
-    pub agent_name: Option<String>,
 }
 
 pub type Event = Result<warp_multi_agent_api::ResponseEvent, Arc<AIApiError>>;
@@ -169,8 +165,6 @@ impl RequestParams {
             isolation_level: Default::default(),
             research_agent_enabled: false,
             supported_tools_override: None,
-            parent_agent_id: None,
-            agent_name: None,
         }
     }
 
@@ -320,8 +314,6 @@ impl RequestParams {
             isolation_level,
             research_agent_enabled,
             supported_tools_override: request_input.supported_tools_override.clone(),
-            parent_agent_id: None,
-            agent_name: None,
         }
     }
 }

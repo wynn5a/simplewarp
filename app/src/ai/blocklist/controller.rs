@@ -1415,8 +1415,6 @@ impl BlocklistAIController {
             conversation_server_token,
             conversation_forked_from_token,
             active_tasks,
-            parent_agent_id,
-            agent_name,
         ) = {
             let Some(conversation) = history_model
                 .as_ref(ctx)
@@ -1437,8 +1435,6 @@ impl BlocklistAIController {
                     .forked_from_server_conversation_token()
                     .cloned(),
                 active_tasks,
-                conversation.parent_agent_id().map(str::to_string),
-                conversation.agent_name().map(str::to_string),
             )
         };
 
@@ -1489,7 +1485,7 @@ impl BlocklistAIController {
             &conversation_data.server_conversation_token,
         );
 
-        let mut request_params = api::RequestParams::new(
+        let request_params = api::RequestParams::new(
             Some(self.terminal_surface_id),
             SessionContext::from_session(self.active_session.as_ref(ctx), ctx),
             &request_input,
@@ -1497,8 +1493,6 @@ impl BlocklistAIController {
             query_metadata,
             ctx,
         );
-        request_params.parent_agent_id = parent_agent_id;
-        request_params.agent_name = agent_name;
 
         let server_conversation_token_for_identifiers =
             conversation_data.server_conversation_token.clone();

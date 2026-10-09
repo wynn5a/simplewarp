@@ -329,30 +329,6 @@ fn test_get_entries_includes_local_only_entry() {
 }
 
 #[test]
-fn test_conversation_metadata_child_predicate_matches_conversation() {
-    use crate::ai::blocklist::history_model::AIConversationMetadata;
-
-    // Non-child conversation: neither representation reports a child.
-    let plain = AIConversation::new(false);
-    let plain_metadata = AIConversationMetadata::from(&plain);
-    assert!(!plain.is_child_agent_conversation());
-    assert_eq!(
-        plain_metadata.is_child_agent_conversation(),
-        plain.is_child_agent_conversation()
-    );
-
-    // Child conversation: the metadata predicate matches the conversation's.
-    let mut child = AIConversation::new(false);
-    child.set_parent_conversation_id(AIConversationId::new());
-    let child_metadata = AIConversationMetadata::from(&child);
-    assert!(child.is_child_agent_conversation());
-    assert_eq!(
-        child_metadata.is_child_agent_conversation(),
-        child.is_child_agent_conversation()
-    );
-}
-
-#[test]
 fn test_resolve_open_action_handles_server_token_subject_without_entry() {
     App::test((), |mut app| async move {
         add_entry_projection_test_models(&mut app);
@@ -390,15 +366,8 @@ fn test_server_token_assignment_emits_conversation_updated() {
                 reverted_action_ids: None,
                 forked_from_server_conversation_token: None,
                 artifacts_json: None,
-                parent_agent_id: None,
-                agent_name: None,
-                orchestration_harness_type: None,
-                parent_conversation_id: None,
                 root_task_is_optimistic: None,
-                run_id: None,
                 autoexecute_override: None,
-                last_event_sequence: None,
-                pinned: false,
             },
         );
 

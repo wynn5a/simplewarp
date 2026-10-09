@@ -45,15 +45,8 @@ fn conversation_data_with_provider_cost(
         reverted_action_ids: None,
         forked_from_server_conversation_token: None,
         artifacts_json: None,
-        parent_agent_id: None,
-        agent_name: None,
-        orchestration_harness_type: None,
-        parent_conversation_id: None,
         root_task_is_optimistic: None,
-        run_id: None,
         autoexecute_override: None,
-        last_event_sequence: None,
-        pinned: false,
     }
 }
 
@@ -247,48 +240,6 @@ fn restored_conversation_defaults_autoexecute_override_when_not_persisted() {
         conversation.autoexecute_override(),
         AIConversationAutoexecuteMode::RespectUserSettings
     );
-}
-
-#[test]
-fn restored_conversation_uses_persisted_last_event_sequence() {
-    let conversation_data: AgentConversationData =
-        serde_json::from_str(r#"{"server_conversation_token":null,"last_event_sequence":42}"#)
-            .unwrap();
-
-    let conversation = restored_conversation(Some(conversation_data));
-
-    assert_eq!(conversation.last_event_sequence(), Some(42));
-}
-
-/// Rows persisted for remote child agents restore as ordinary (finished, locally driven)
-/// children of their parent: the stale `is_remote_child` marker is ignored.
-#[test]
-fn restored_stale_remote_child_loads_as_local_child() {
-    let parent_id = AIConversationId::new();
-    let conversation_data: AgentConversationData = serde_json::from_str(&format!(
-        r#"{{"server_conversation_token":null,"parent_conversation_id":"{parent_id}","agent_name":"Agent 1","is_remote_child":true}}"#
-    ))
-    .unwrap();
-
-    let conversation = restored_conversation(Some(conversation_data));
-
-    assert!(conversation.is_child_agent_conversation());
-    assert_eq!(conversation.parent_conversation_id(), Some(parent_id));
-    assert_eq!(conversation.agent_name(), Some("Agent 1"));
-    assert!(!conversation.status().is_in_progress());
-}
-
-#[test]
-fn child_conversation_detection_uses_parent_agent_id() {
-    let conversation_data: AgentConversationData = serde_json::from_str(
-        r#"{"server_conversation_token":null,"parent_agent_id":"parent-run-id"}"#,
-    )
-    .unwrap();
-
-    let conversation = restored_conversation(Some(conversation_data));
-
-    assert!(conversation.is_child_agent_conversation());
-    assert_eq!(conversation.parent_conversation_id(), None);
 }
 
 /// When the persisted task list is empty (e.g. a child conversation persisted

@@ -7,7 +7,6 @@ use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use vec1::{Size0Error, Vec1};
-use warp_cli::agent::Harness;
 use warp_core::command::ExitCode;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_core::features::FeatureFlag;
@@ -48,7 +47,6 @@ use crate::ai::agent::{
     AIAgentOutputMessage, AIAgentOutputMessageType, CancellationOutcome, CancellationReason,
     MessageToAIAgentOutputMessageError, SummarizationType,
 };
-use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::{
     BlocklistAIHistoryEvent, ConversationStatusUpdate, RequestInput, ResponseStreamId,
@@ -262,18 +260,6 @@ pub struct AIConversation {
     /// This must be roundtripped to the server when sending follow-ups within a given conversation.
     server_conversation_token: Option<ServerConversationToken>,
 
-    /// The server-assigned task/run identifier (`ai_tasks.id`) for this
-    /// conversation, used for v2 orchestration.
-    ///
-    /// For local conversations, parsed from `StreamInit.run_id` on the first
-    /// response.
-    ///
-    /// Used for messaging API, events API, poller self-filtering, lifecycle
-    /// reports, parent↔child agent identity, and task status reporting.
-    /// The string form (for APIs that accept a run_id) is obtained via
-    /// `run_id()` which calls `.to_string()` on this field.
-    task_id: Option<AmbientAgentTaskId>,
-
     /// The server conversation ID of the source conversation if this conversation was forked.
     forked_from_server_conversation_token: Option<ServerConversationToken>,
 
@@ -321,30 +307,6 @@ pub struct AIConversation {
     /// doesn't have a full internal representation but uses an AIConversationId to render
     /// in the agent view.
     is_cli_agent_transcript: bool,
-
-    // TODO(advait): Group child-agent-only fields (parent_agent_id,
-    // agent_name, orchestration_harness_type, parent_conversation_id,
-    // pinned) into a ChildAgentState sub-struct. See
-    // PR #10777 review.
-    /// Server-side identifier of the parent agent that spawned this child, if any.
-    /// For current orchestration, this holds the parent's `run_id`. Persisted as
-    /// `parent_agent_id` for serde compatibility with older conversation data.
-    parent_agent_id: Option<String>,
-    /// The display name for this agent (e.g. "Agent 1"), assigned by the orchestrator.
-    agent_name: Option<String>,
-    /// Harness metadata associated with this child agent in orchestration flows.
-    orchestration_harness_type: Option<String>,
-    /// The local conversation ID of the parent that spawned this child, if any.
-    parent_conversation_id: Option<AIConversationId>,
-
-    /// The last event sequence number observed from the v2 orchestration
-    /// event log. Used on restore to resume event delivery without
-    /// re-delivering already-processed events.
-    last_event_sequence: Option<i64>,
-
-    /// Whether the user has pinned this child agent in the orchestration
-    /// pill bar. Persisted via `AgentConversationData.pinned`.
-    pinned: bool,
 }
 
 pub(crate) fn artifact_from_fork_proto(
@@ -376,7 +338,6 @@ impl AIConversation {
             has_opened_code_review: false,
             conversation_usage_metadata: ConversationUsageMetadata::default(),
             server_conversation_token: None,
-            task_id: None,
             forked_from_server_conversation_token: None,
             transaction: None,
             autoexecute_override: Default::default(),
@@ -390,12 +351,6 @@ impl AIConversation {
             has_usage_metadata: false,
             fallback_display_title: None,
             artifacts: Vec::new(),
-            parent_agent_id: None,
-            agent_name: None,
-            orchestration_harness_type: None,
-            parent_conversation_id: None,
-            last_event_sequence: None,
-            pinned: false,
         }
     }
 
@@ -523,14 +478,7 @@ impl AIConversation {
             conversation_usage_metadata,
             reverted_action_ids,
             artifacts,
-            parent_agent_id,
-            agent_name,
-            orchestration_harness_type,
-            parent_conversation_id,
-            run_id,
             autoexecute_override,
-            last_event_sequence,
-            pinned,
         ) = if let Some(data) = conversation_data {
             let server_conversation_token = data
                 .server_conversation_token
@@ -561,9 +509,6 @@ impl AIConversation {
                         .ok()
                 })
                 .unwrap_or_default();
-            let parent_conversation_id = data
-                .parent_conversation_id
-                .and_then(|id| AIConversationId::try_from(id).ok());
             let autoexecute_override = if FeatureFlag::RememberFastForwardState.is_enabled() {
                 data.autoexecute_override
                     .map(Into::into)
@@ -578,14 +523,7 @@ impl AIConversation {
                 conversation_usage_metadata,
                 reverted_action_ids,
                 artifacts,
-                data.parent_agent_id,
-                data.agent_name,
-                data.orchestration_harness_type,
-                parent_conversation_id,
-                data.run_id,
                 autoexecute_override,
-                data.last_event_sequence,
-                data.pinned,
             )
         } else {
             (
@@ -595,14 +533,7 @@ impl AIConversation {
                 ConversationUsageMetadata::default(),
                 HashSet::new(),
                 Vec::new(),
-                None,
-                None,
-                None,
-                None,
-                None,
                 AIConversationAutoexecuteMode::default(),
-                None,
-                false,
             )
         };
         let total_provider_cost_in_cents = conversation_usage_metadata.total_provider_cost_in_cents;
@@ -619,7 +550,6 @@ impl AIConversation {
             has_opened_code_review: false,
             conversation_usage_metadata,
             server_conversation_token,
-            task_id: run_id.as_deref().and_then(|id| id.parse().ok()),
             forked_from_server_conversation_token,
             transaction: None,
             autoexecute_override,
@@ -634,12 +564,6 @@ impl AIConversation {
             optimistic_cli_subagent_subtask_id: None,
             fallback_display_title: None,
             artifacts,
-            parent_agent_id,
-            agent_name,
-            orchestration_harness_type,
-            parent_conversation_id,
-            last_event_sequence,
-            pinned,
         })
     }
 
@@ -958,31 +882,6 @@ impl AIConversation {
             .or_else(|| self.forked_from_server_conversation_token())
     }
 
-    /// Returns the server-assigned run identifier as a string.
-    pub fn run_id(&self) -> Option<String> {
-        self.task_id.map(|id| id.to_string())
-    }
-
-    /// Sets the task ID by parsing a run_id string.
-    pub fn set_run_id(&mut self, id: String) {
-        self.task_id = id.parse().ok();
-    }
-
-    /// Returns the server-assigned task ID, if available.
-    pub fn task_id(&self) -> Option<AmbientAgentTaskId> {
-        self.task_id
-    }
-
-    /// Sets the task ID directly (used for child agents spawned via `SpawnAgentResponse`).
-    pub fn set_task_id(&mut self, id: AmbientAgentTaskId) {
-        self.task_id = Some(id);
-    }
-
-    /// Returns the server-side agent identifier for orchestration.
-    pub fn orchestration_agent_id(&self) -> Option<String> {
-        self.run_id()
-    }
-
     /// Updates the server conversation token for this conversation.
     ///
     /// This is used internally for session sharing when a forked conversation receives
@@ -1003,79 +902,6 @@ impl AIConversation {
     /// This ensures we only send the forked_from token once during session sharing.
     pub(crate) fn clear_forked_from_server_conversation_token(&mut self) {
         self.forked_from_server_conversation_token = None;
-    }
-
-    pub fn parent_agent_id(&self) -> Option<&str> {
-        self.parent_agent_id.as_deref()
-    }
-
-    pub fn set_parent_agent_id(&mut self, id: String) {
-        self.parent_agent_id = Some(id);
-    }
-
-    pub fn agent_name(&self) -> Option<&str> {
-        self.agent_name.as_deref()
-    }
-
-    pub fn set_agent_name(&mut self, name: String) {
-        self.agent_name = Some(name);
-    }
-
-    pub fn orchestration_harness_type(&self) -> Option<&str> {
-        self.orchestration_harness_type.as_deref()
-    }
-
-    pub fn orchestration_harness(&self) -> Option<Harness> {
-        self.orchestration_harness_type
-            .as_deref()
-            .map(parse_orchestration_harness_type)
-    }
-
-    pub fn set_orchestration_harness(&mut self, harness: Harness) {
-        self.orchestration_harness_type = Some(harness.config_name().to_string());
-    }
-
-    pub fn parent_conversation_id(&self) -> Option<AIConversationId> {
-        self.parent_conversation_id
-    }
-
-    pub fn set_parent_conversation_id(&mut self, id: AIConversationId) {
-        self.parent_conversation_id = Some(id);
-    }
-
-    /// Returns the last observed v2 orchestration event sequence number,
-    /// if any. The cursor is per-conversation: the highest sequence the
-    /// streamer has seen on the run-ids this conversation watches
-    /// (`watched_run_ids` for owner-side conversations, the ancestor
-    /// subtree for viewer-mode orchestrator placeholders).
-    pub fn last_event_sequence(&self) -> Option<i64> {
-        self.last_event_sequence
-    }
-
-    /// Updates the last observed v2 orchestration event sequence number.
-    pub fn set_last_event_sequence(&mut self, sequence: i64) {
-        self.last_event_sequence = Some(sequence);
-    }
-
-    /// Returns whether the user has pinned this conversation in the
-    /// orchestration pill bar.
-    pub fn is_pinned(&self) -> bool {
-        self.pinned
-    }
-
-    /// Sets the persisted pin state. Callers must follow up with
-    /// `write_updated_conversation_state` to push the change to SQLite.
-    pub fn set_pinned(&mut self, pinned: bool) {
-        self.pinned = pinned;
-    }
-
-    /// Returns true if this conversation was spawned by a parent orchestrator
-    /// agent — either via a local parent placeholder
-    /// (`parent_conversation_id`, set in the GUI parent) or via the parent's
-    /// server-side run identifier (`parent_agent_id`, stamped in
-    /// driver-hosted processes).
-    pub fn is_child_agent_conversation(&self) -> bool {
-        self.parent_conversation_id.is_some() || self.parent_agent_id.is_some()
     }
 
     /// Returns a flat list of linearized messages across all tasks, interpolating subtask messages
@@ -1228,9 +1054,6 @@ impl AIConversation {
             // 3p transcript viewers create an internal conversation only so agent-view
             // filtering can associate the restored block snapshot with an active conversation.
             || self.is_cli_agent_transcript()
-            // Child agent conversations spawned by an orchestrator are managed via the parent's
-            // status card and shouldn't clutter the navigation list.
-            || self.is_child_agent_conversation()
     }
 
     pub fn existing_suggestions(&self) -> Option<&Suggestions> {
@@ -1689,8 +1512,6 @@ impl AIConversation {
 
         self.server_conversation_token =
             Some(ServerConversationToken::new(init_event.conversation_id));
-        let run_id = Some(init_event.run_id).filter(|s| !s.is_empty());
-        self.task_id = run_id.as_deref().and_then(|id| id.parse().ok());
         Ok(())
     }
 
@@ -2903,19 +2724,12 @@ impl AIConversation {
                     .clone()
                     .map(|token| token.into()),
                 artifacts_json,
-                parent_agent_id: self.parent_agent_id.clone(),
-                agent_name: self.agent_name.clone(),
-                orchestration_harness_type: self.orchestration_harness_type.clone(),
-                parent_conversation_id: self.parent_conversation_id.map(|id| id.to_string()),
                 // Legacy field; retained for backward-compatible
                 // deserialization but no longer written. The optimistic-root
                 // case is now handled by `Task::source_for_persistence`
                 // (returns `None`) and `new_restored_synthesizing_on_empty`.
                 root_task_is_optimistic: None,
-                run_id: self.task_id.map(|id| id.to_string()),
                 autoexecute_override: Some(self.autoexecute_override.into()),
-                last_event_sequence: self.last_event_sequence,
-                pinned: self.pinned,
             }),
         };
         ctx.spawn(
@@ -3605,12 +3419,6 @@ fn subagent_pair_message_ids_to_remove(
         }
     }
     extra_ids
-}
-
-fn parse_orchestration_harness_type(value: &str) -> Harness {
-    Harness::from_config_name(value)
-        .or_else(|| Harness::parse_orchestration_harness(value))
-        .unwrap_or(Harness::Unknown)
 }
 
 pub(super) fn update_todo_list_from_todo_op(

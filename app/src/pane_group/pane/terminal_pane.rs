@@ -11,9 +11,7 @@ use super::{
     DetachType, PaneConfiguration, PaneContent, PaneId, PaneStackEvent, PaneView, TerminalPaneId,
 };
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
-use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
-use crate::ai::conversation_utils;
 use crate::ai::llms::LLMPreferences;
 use crate::app_state::{LeafContents, TerminalPaneSnapshot};
 use crate::code::buffer_location::LocalOrRemotePath;
@@ -26,8 +24,8 @@ use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::view::Event;
 use crate::terminal::{TerminalManager, TerminalView};
 use crate::view_components::ToastFlavor;
+use crate::workspace::PaneViewLocator;
 use crate::workspace::sync_inputs::SyncedInputState;
-use crate::workspace::{PaneViewLocator, WorkspaceRegistry};
 
 pub type TerminalPaneView = PaneView<TerminalView>;
 
@@ -370,125 +368,6 @@ impl PaneContent for TerminalPane {
     fn is_pane_being_dragged(&self, ctx: &AppContext) -> bool {
         self.view.as_ref(ctx).is_being_dragged()
     }
-}
-
-#[derive(Clone, Copy)]
-struct AgentConversationActionState {
-    owner_terminal_view_id: EntityId,
-    is_in_progress: bool,
-}
-
-fn agent_conversation_action_state(
-    conversation_id: AIConversationId,
-    ctx: &AppContext,
-) -> Option<AgentConversationActionState> {
-    let history_model = BlocklistAIHistoryModel::as_ref(ctx);
-    let conversation = history_model.conversation(&conversation_id)?;
-    let owner_terminal_view_id =
-        history_model.terminal_surface_id_for_conversation(&conversation_id)?;
-    Some(AgentConversationActionState {
-        owner_terminal_view_id,
-        is_in_progress: conversation.status().is_in_progress(),
-    })
-}
-
-fn terminal_view_for_owner_in_group(
-    group: &PaneGroup,
-    owner_terminal_view_id: EntityId,
-    ctx: &AppContext,
-) -> Option<ViewHandle<TerminalView>> {
-    let pane_id = group.find_pane_id_for_terminal_view(owner_terminal_view_id, ctx)?;
-    group.terminal_view_from_pane_id(pane_id, ctx)
-}
-
-fn pane_group_and_terminal_view_for_owner(
-    owner_terminal_view_id: EntityId,
-    ctx: &AppContext,
-) -> Option<(ViewHandle<PaneGroup>, ViewHandle<TerminalView>)> {
-    WorkspaceRegistry::as_ref(ctx)
-        .all_workspaces(ctx)
-        .into_iter()
-        .find_map(|(_, workspace)| {
-            workspace.as_ref(ctx).tab_views().find_map(|pane_group| {
-                terminal_view_for_owner_in_group(
-                    pane_group.as_ref(ctx),
-                    owner_terminal_view_id,
-                    ctx,
-                )
-                .map(|terminal_view| (pane_group.clone(), terminal_view))
-            })
-        })
-}
-
-fn stop_local_agent_conversation(
-    group: &PaneGroup,
-    owner_terminal_view_id: EntityId,
-    conversation_id: AIConversationId,
-    ctx: &mut ViewContext<PaneGroup>,
-) -> bool {
-    let terminal_view = terminal_view_for_owner_in_group(group, owner_terminal_view_id, ctx)
-        .or_else(|| {
-            pane_group_and_terminal_view_for_owner(owner_terminal_view_id, ctx)
-                .map(|(_, terminal_view)| terminal_view)
-        });
-    let Some(terminal_view) = terminal_view else {
-        log::warn!(
-            "StopAgentConversation: no terminal view found for conversation {conversation_id:?}"
-        );
-        return false;
-    };
-
-    terminal_view.update(ctx, |terminal_view, ctx| {
-        terminal_view.stop_local_agent_conversation(conversation_id, ctx);
-    });
-    true
-}
-
-fn stop_agent_conversation(
-    group: &PaneGroup,
-    conversation_id: AIConversationId,
-    ctx: &mut ViewContext<PaneGroup>,
-) {
-    let Some(state) = agent_conversation_action_state(conversation_id, ctx) else {
-        log::warn!("StopAgentConversation: conversation {conversation_id:?} not found");
-        return;
-    };
-    if !state.is_in_progress {
-        return;
-    }
-    if !stop_local_agent_conversation(group, state.owner_terminal_view_id, conversation_id, ctx) {
-        // If the owner view is gone, still make Stop visible in history.
-        BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-            history_model.update_conversation_status(
-                state.owner_terminal_view_id,
-                conversation_id,
-                ConversationStatus::Cancelled,
-                ctx,
-            );
-        });
-    }
-}
-
-fn kill_agent_conversation(
-    group: &mut PaneGroup,
-    source_terminal_view_id: Option<EntityId>,
-    conversation_id: AIConversationId,
-    ctx: &mut ViewContext<PaneGroup>,
-) {
-    let state = agent_conversation_action_state(conversation_id, ctx);
-
-    if let Some(state) = state
-        && state.is_in_progress
-    {
-        stop_local_agent_conversation(group, state.owner_terminal_view_id, conversation_id, ctx);
-    }
-
-    let owner_terminal_view_id = state
-        .map(|state| state.owner_terminal_view_id)
-        .or(source_terminal_view_id);
-    // Delete (not remove): drop the conversation from sqlite + cloud so a
-    // killed child does not resurrect on restart.
-    conversation_utils::delete_conversation(conversation_id, owner_terminal_view_id, ctx);
 }
 
 /// Attaches a terminal view to the pane group by subscribing to its events
@@ -867,15 +746,6 @@ fn handle_terminal_view_event(
                     diff_mode: diff_mode.to_owned(),
                     open_code_review: open_code_review.clone(),
                 });
-            }
-            Event::StopAgentConversation { conversation_id } => {
-                stop_agent_conversation(group, *conversation_id, ctx);
-            }
-            Event::KillAgentConversation { conversation_id } => {
-                let source_terminal_view_id = group
-                    .terminal_view_from_pane_id(terminal_pane_id, ctx)
-                    .map(|terminal_view| terminal_view.id());
-                kill_agent_conversation(group, source_terminal_view_id, *conversation_id, ctx);
             }
             _ => {}
         }

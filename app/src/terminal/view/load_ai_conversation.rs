@@ -772,15 +772,8 @@ impl TerminalView {
             reverted_action_ids: None,
             forked_from_server_conversation_token: None,
             artifacts_json: None,
-            parent_agent_id: None,
-            agent_name: None,
-            orchestration_harness_type: None,
-            parent_conversation_id: None,
             root_task_is_optimistic: None,
-            run_id: None,
             autoexecute_override: None,
-            last_event_sequence: None,
-            pinned: false,
         };
 
         // We already early-return for empty `tasks` above, so the strict

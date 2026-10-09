@@ -1503,14 +1503,6 @@ pub enum Event {
         title: Option<String>,
         body: String,
     },
-    /// Emitted when "Stop agent" is picked from a child pill's 3-dot menu.
-    StopAgentConversation {
-        conversation_id: AIConversationId,
-    },
-    /// Emitted when "Kill agent" is picked from a child pill's 3-dot menu.
-    KillAgentConversation {
-        conversation_id: AIConversationId,
-    },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -2636,20 +2628,8 @@ impl TerminalView {
                     let was_new = *original_exchange_count == 0;
                     let was_modified = *final_exchange_count != *original_exchange_count;
 
-                    // Child agents in an orchestration tree are part of the
-                    // orchestrator's pill bar and should remain visible even
-                    // when they're empty (e.g. failed-to-start, or just
-                    // haven't received their first event yet). The auto-
-                    // remove below is meant to prune accidentally-opened
-                    // empty *root* conversations, not children of an
-                    // orchestrator.
-                    let is_child_agent = BlocklistAIHistoryModel::as_ref(ctx)
-                        .conversation(conversation_id)
-                        .is_some_and(|c| c.is_child_agent_conversation());
-
-                    // Delete the conversation if it's unmodified, new, has no init steps,
-                    // and isn't a child agent in an orchestration tree.
-                    if !was_modified && was_new && !has_init_steps && !is_child_agent {
+                    // Delete the conversation if it's unmodified, new and has no init steps.
+                    if !was_modified && was_new && !has_init_steps {
                         conversation_utils::remove_conversation(*conversation_id, me.view_id, ctx);
                     }
 
@@ -9538,32 +9518,6 @@ impl TerminalView {
         self.register_cli_agent_listener_from_event(&notification, ctx);
     }
 
-    fn child_conversation_id_for_cli_status_updates(
-        &self,
-        ctx: &AppContext,
-    ) -> Option<AIConversationId> {
-        if let Some(conversation_id) = BlocklistAIHistoryModel::as_ref(ctx)
-            .active_conversation(self.view_id)
-            .and_then(|conversation| {
-                conversation
-                    .is_child_agent_conversation()
-                    .then_some(conversation.id())
-            })
-        {
-            return Some(conversation_id);
-        }
-
-        let mut child_conversation_ids = BlocklistAIHistoryModel::as_ref(ctx)
-            .all_live_conversations_for_terminal_surface(self.view_id)
-            .filter(|conversation| conversation.is_child_agent_conversation())
-            .map(|conversation| conversation.id());
-        let child_conversation_id = child_conversation_ids.next()?;
-        child_conversation_ids
-            .next()
-            .is_none()
-            .then_some(child_conversation_id)
-    }
-
     /// Handles CLI agent session status changes from the singleton model.
     /// Sends a desktop notification when a CLI agent reaches a completed state
     /// (blocked or succeeded) and the user is in a different window.
@@ -9628,17 +9582,6 @@ impl TerminalView {
 
         if *terminal_view_id != self.view_id {
             return;
-        }
-
-        if let Some(conversation_id) = self.child_conversation_id_for_cli_status_updates(ctx) {
-            BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                history_model.update_conversation_status(
-                    self.view_id,
-                    conversation_id,
-                    status.to_conversation_status(),
-                    ctx,
-                );
-            });
         }
 
         // Desktop notifications — only when navigated away and not in-progress.
@@ -20156,8 +20099,6 @@ impl TypedActionView for TerminalView {
             | ResolvePromptSuggestion(..)
             | ExecuteRewindFromInlineMenu { .. }
             | ToggleUsageFooter
-            | StopAgentConversation { .. }
-            | KillAgentConversation { .. }
             | ToggleSessionRecording
             | Osc52AllowBlockedClipboardOperation => Empty,
         }
@@ -20992,16 +20933,6 @@ impl TypedActionView for TerminalView {
             }
             ToggleUsageFooter => {
                 self.toggle_usage_footer(ctx);
-            }
-            StopAgentConversation { conversation_id } => {
-                ctx.emit(Event::StopAgentConversation {
-                    conversation_id: *conversation_id,
-                });
-            }
-            KillAgentConversation { conversation_id } => {
-                ctx.emit(Event::KillAgentConversation {
-                    conversation_id: *conversation_id,
-                });
             }
             ToggleSessionRecording => {
                 self.pty_recorder.update(ctx, |recorder, ctx| {

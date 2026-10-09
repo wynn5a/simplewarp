@@ -94,15 +94,8 @@ fn test_from_conversation_populates_local_conversation_fields() {
                 reverted_action_ids: None,
                 forked_from_server_conversation_token: None,
                 artifacts_json: None,
-                parent_agent_id: None,
-                agent_name: None,
-                orchestration_harness_type: None,
-                parent_conversation_id: None,
-                run_id: None,
                 autoexecute_override: None,
-                last_event_sequence: None,
                 root_task_is_optimistic: None,
-                pinned: false,
             },
         );
 

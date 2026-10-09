@@ -4530,20 +4530,6 @@ impl Input {
                 get_stable_agent_mode_hint_text(&mut self.cached_agent_mode_hint_text).to_owned()
             }
             (InputType::AI, _) => {
-                if let Some(conversation) =
-                    self.ai_context_model.as_ref(app).selected_conversation(app)
-                    && conversation.is_child_agent_conversation()
-                {
-                    let agent_name = conversation.agent_name().unwrap_or("child");
-                    if conversation.status().is_in_progress() {
-                        if is_queue_next_prompt_enabled {
-                            return format!("Queue a follow up for the {agent_name} agent");
-                        }
-                        return format!("Steer the {agent_name} agent");
-                    }
-                    return format!("Ask the {agent_name} agent a follow up");
-                }
-
                 // Follow the `agent_indicator` pattern (see `app/src/tab.rs`):
                 //  * `None` (no conversation, empty, passive, or untitled) => new conversation => "Warp anything"
                 //  * `InProgress`                                           => agent running    => "Steer"

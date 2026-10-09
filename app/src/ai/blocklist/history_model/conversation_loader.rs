@@ -8,10 +8,7 @@ use futures::FutureExt;
 use itertools::Itertools as _;
 use persistence::model::AgentConversationRecord;
 
-use super::{
-    AIConversationMetadata, BlocklistAIHistoryModel, MAX_HISTORICAL_CONVERSATIONS,
-    agent_id_key_from_persisted_data,
-};
+use super::{AIConversationMetadata, BlocklistAIHistoryModel, MAX_HISTORICAL_CONVERSATIONS};
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::persistence::agent::read_agent_conversation_by_id;
@@ -236,10 +233,6 @@ impl BlocklistAIHistoryModel {
                 .ok();
 
                 if let Some(data) = conversation_data.as_ref() {
-                    if let Some(agent_id) = agent_id_key_from_persisted_data(data) {
-                        self.agent_id_to_conversation_id
-                            .insert(agent_id.to_owned(), conversation_id);
-                    }
                     if let Some(token) = data.server_conversation_token.as_ref() {
                         self.server_token_to_conversation_id
                             .insert(ServerConversationToken::new(token.clone()), conversation_id);
@@ -264,45 +257,6 @@ impl BlocklistAIHistoryModel {
                     conversation_data,
                     summary,
                 } = row;
-
-                // Child agent conversations from old databases have no
-                // surface of their own and must not appear in
-                // navigation/history. Record the parent→child mapping before
-                // filtering so parent agents can still resolve their
-                // children.
-                if let Some(parent_id) = conversation_data
-                    .as_ref()
-                    .and_then(|data| self.resolved_parent_conversation_id_from_persisted_data(data))
-                {
-                    self.index_child_conversation(conversation_id, parent_id);
-                    // Eagerly hydrate the child conversation into
-                    // `conversations_by_id` so parent-side name resolution
-                    // finds it. This is restricted to orchestration children
-                    // only — non-child historical conversations continue to
-                    // load lazily via `restore_conversations`, which replaces
-                    // this entry idempotently.
-                    //
-                    // Startup rows carry no tasks, so the child's task
-                    // payload is loaded from the local DB; fully-hydrated
-                    // inputs convert directly.
-                    let child_conversation = if agent_conversation.tasks.is_empty() {
-                        self.load_conversation_from_db(&conversation_id)
-                    } else {
-                        convert_persisted_conversation_to_ai_conversation_with_metadata(
-                            agent_conversation.clone(),
-                        )
-                    };
-                    if let Some(child_conversation) = child_conversation {
-                        self.conversations_by_id
-                            .insert(conversation_id, child_conversation);
-                    } else {
-                        log::warn!(
-                            "Failed to eagerly hydrate orchestration child {conversation_id}; \
-                             name resolution will fall back to lazy materialization",
-                        );
-                    }
-                    return None;
-                }
 
                 // Skip conversations that only contain passive AutoCodeDiff
                 // system queries the user never interacted with (past
@@ -353,17 +307,6 @@ impl BlocklistAIHistoryModel {
                         server_conversation_token,
                         has_local_data: true,
                         artifacts,
-                        // Carry parent linkage from persisted data so child-agent
-                        // status survives even if the parent isn't resolvable
-                        // locally (the child-skip above only fires when the
-                        // parent conversation is known).
-                        parent_conversation_id: conversation_data
-                            .as_ref()
-                            .and_then(|data| data.parent_conversation_id.as_deref())
-                            .and_then(|id| AIConversationId::try_from(id.to_owned()).ok()),
-                        parent_agent_id: conversation_data
-                            .as_ref()
-                            .and_then(|data| data.parent_agent_id.clone()),
                     },
                 ))
             })

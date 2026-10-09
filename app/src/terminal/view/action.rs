@@ -335,20 +335,6 @@ pub enum TerminalAction {
     ResolvePromptSuggestion(PromptSuggestionResolution),
     /// Toggle the usage footer on the last AI block in the active conversation.
     ToggleUsageFooter,
-    /// Stop a child agent conversation: cancel the in-flight ambient task
-    /// (if any) and the local conversation's controller. The conversation
-    /// itself stays alive so the user can still navigate to it. Dispatched
-    /// from the orchestration pill bar's 3-dot overflow menu ("Stop agent").
-    StopAgentConversation {
-        conversation_id: AIConversationId,
-    },
-    /// Kill a child agent conversation: stop it if running, best-effort cancel
-    /// any backing cloud task, then remove the conversation from local history.
-    /// Dispatched from the orchestration pill bar's 3-dot overflow menu
-    /// ("Kill agent").
-    KillAgentConversation {
-        conversation_id: AIConversationId,
-    },
     /// Toggle PTY recording for this session.
     ToggleSessionRecording,
     /// Toggle the rich input editor for composing a prompt to send to a CLI agent.
@@ -583,8 +569,6 @@ impl fmt::Debug for TerminalAction {
             OpenModelSelector => write!(f, "OpenModelSelector"),
             ResolvePromptSuggestion(..) => write!(f, "ResolvePromptSuggestion"),
             ToggleUsageFooter => write!(f, "ToggleUsageFooter"),
-            StopAgentConversation { .. } => write!(f, "StopAgentConversation"),
-            KillAgentConversation { .. } => write!(f, "KillAgentConversation"),
             ToggleSessionRecording => write!(f, "ToggleSessionRecording"),
             Osc52AllowBlockedClipboardOperation => {
                 write!(f, "Osc52AllowBlockedClipboardOperation")
