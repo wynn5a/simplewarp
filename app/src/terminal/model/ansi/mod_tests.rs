@@ -12,6 +12,8 @@ use crate::terminal::model::ansi::InputBufferValue;
 use crate::terminal::model::index::VisibleRow;
 use crate::terminal::model::selection::ScrollDelta;
 use crate::terminal::model::session::SessionId;
+use crate::terminal::program_status::ProgramStatusReport;
+use crate::terminal::program_status::protocol::ProgramState;
 
 const HEX_ENCODED_JSON_DCS_START: &[u8] = &[0x1b, 0x50, 0x24, 0x64];
 const UNENCODED_JSON_DCS_START: &[u8] = &[0x1b, 0x50, 0x24, 0x66];
@@ -25,6 +27,7 @@ struct MockHandler {
     identity_reported: bool,
     d_proto_hooks: Vec<DProtoHook>,
     pluggable_notifications: Vec<(Option<String>, String)>,
+    program_status_reports: Vec<(ProgramStatusReport, ReportSource)>,
     hyperlink_events: Vec<Option<Hyperlink>>,
     cwd_updates: Vec<String>,
     registered_session_ids: HashSet<SessionId>,
@@ -57,6 +60,10 @@ impl Handler for MockHandler {
     }
 
     fn report_xtversion<W: io::Write>(&mut self, _: &mut W) {}
+
+    fn program_status(&mut self, report: ProgramStatusReport, source: ReportSource) {
+        self.program_status_reports.push((report, source));
+    }
 
     fn reset_state(&mut self) {
         let registered_session_ids = self.registered_session_ids.clone();
@@ -279,6 +286,7 @@ impl Default for MockHandler {
             identity_reported: false,
             d_proto_hooks: Vec::new(),
             pluggable_notifications: Vec::new(),
+            program_status_reports: Vec::new(),
             hyperlink_events: Vec::new(),
             cwd_updates: Vec::new(),
             registered_session_ids: HashSet::new(),
@@ -1424,4 +1432,99 @@ fn parse_osc7_non_drive_slash_letter_untouched() {
     let payload = format!("\x1b]7;file://{local}/E:extra\x07");
     let (_, handler) = parse_bytes(payload.as_bytes());
     assert_eq!(handler.cwd_updates, vec!["/E:extra".to_string()]);
+}
+
+fn parse_bytes_capturing_writes(bytes: &[u8]) -> (MockHandler, Vec<u8>) {
+    let mut parser = Processor::new();
+    let mut handler = MockHandler::default();
+    let mut written = Vec::new();
+    parser.parse_bytes(&mut handler, bytes, &mut written);
+    (handler, written)
+}
+
+fn only_set_report(handler: &MockHandler) -> (ProgramState, ReportSource) {
+    let [(ProgramStatusReport::Set(update), source)] = handler.program_status_reports.as_slice()
+    else {
+        panic!(
+            "expected exactly one Set report, got {:?}",
+            handler.program_status_reports
+        );
+    };
+    (update.state, *source)
+}
+
+#[test]
+fn parse_osc7501_with_either_terminator() {
+    let _guard = FeatureFlag::ProgramStatusProtocol.override_enabled(true);
+    for terminator in [b"\x1b\\" as &[u8], b"\x07"] {
+        let bytes = [b"\x1b]7501;state=working:app=cargo:progress=40", terminator].concat();
+        let (handler, written) = parse_bytes_capturing_writes(&bytes);
+        assert_eq!(
+            only_set_report(&handler),
+            (ProgramState::Working, ReportSource::Osc7501)
+        );
+        assert!(written.is_empty());
+    }
+}
+
+#[test]
+fn parse_osc7501_query_replies_and_reports_nothing() {
+    let _guard = FeatureFlag::ProgramStatusProtocol.override_enabled(true);
+    let (handler, written) = parse_bytes_capturing_writes(b"\x1b]7501;?\x1b\\");
+    assert_eq!(written, b"\x1b]7501;?\x1b\\");
+    assert!(handler.program_status_reports.is_empty());
+
+    let (_, written) = parse_bytes_capturing_writes(b"\x1b]7501;?\x07");
+    assert_eq!(written, b"\x1b]7501;?\x07");
+}
+
+#[test]
+fn parse_osc7501_malformed_bodies_report_nothing() {
+    let _guard = FeatureFlag::ProgramStatusProtocol.override_enabled(true);
+    for body in [
+        &b"\x1b]7501\x07"[..],
+        b"\x1b]7501;\x07",
+        b"\x1b]7501;state=sleeping\x07",
+        b"\x1b]7501;state=working;extra\x07",
+        b"\x1b]7501;nonsense\x07",
+    ] {
+        let (handler, written) = parse_bytes_capturing_writes(body);
+        assert!(handler.program_status_reports.is_empty(), "{body:?}");
+        assert!(written.is_empty());
+    }
+}
+
+#[test]
+fn parse_osc7501_flag_off_is_ignored() {
+    let _guard = FeatureFlag::ProgramStatusProtocol.override_enabled(false);
+    let (handler, written) =
+        parse_bytes_capturing_writes(b"\x1b]7501;state=working\x07\x1b]7501;?\x07");
+    assert!(handler.program_status_reports.is_empty());
+    assert!(written.is_empty());
+}
+
+#[test]
+fn parse_osc9_4_bridges_progress() {
+    let _guard = FeatureFlag::ProgramStatusProtocol.override_enabled(true);
+    let (_, handler) = parse_bytes(b"\x1b]9;4;1;40\x07");
+    assert_eq!(
+        only_set_report(&handler),
+        (ProgramState::Working, ReportSource::Osc94)
+    );
+    assert!(handler.pluggable_notifications.is_empty());
+}
+
+#[test]
+fn parse_osc9_4_flag_off_is_ignored() {
+    let _guard = FeatureFlag::ProgramStatusProtocol.override_enabled(false);
+    let (_, handler) = parse_bytes(b"\x1b]9;4;1;40\x07");
+    assert!(handler.program_status_reports.is_empty());
+}
+
+#[test]
+fn parse_osc9_9_is_not_bridged() {
+    let _guard = FeatureFlag::ProgramStatusProtocol.override_enabled(true);
+    let (_, handler) = parse_bytes(b"\x1b]9;9;/tmp\x07");
+    assert!(handler.program_status_reports.is_empty());
+    assert!(handler.pluggable_notifications.is_empty());
 }

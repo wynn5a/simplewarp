@@ -71,6 +71,7 @@ use crate::terminal::model::index::VisibleRow;
 use crate::terminal::model::iterm_image::{ITermImage, ITermImageMetadata};
 use crate::terminal::model::secrets::ObfuscateSecrets;
 use crate::terminal::model::session::SessionInfo;
+use crate::terminal::program_status::{ProgramStatusReport, ReportSource};
 #[cfg(any(test, feature = "test-util"))]
 use crate::terminal::shell::ShellName;
 use crate::terminal::shell::ShellType;
@@ -2217,6 +2218,11 @@ impl ansi::Handler for TerminalModel {
 
         self.alt_screen.reset_state();
         self.block_list.reset_state();
+
+        if FeatureFlag::ProgramStatusProtocol.is_enabled() {
+            self.event_proxy
+                .send_terminal_event(Event::ProgramStatusReset);
+        }
     }
 
     fn reverse_index(&mut self) -> ScrollDelta {
@@ -3051,6 +3057,13 @@ impl ansi::Handler for TerminalModel {
         if FeatureFlag::PluggableNotifications.is_enabled() {
             self.event_proxy
                 .send_terminal_event(Event::PluggableNotification { title, body });
+        }
+    }
+
+    fn program_status(&mut self, report: ProgramStatusReport, source: ReportSource) {
+        if FeatureFlag::ProgramStatusProtocol.is_enabled() {
+            self.event_proxy
+                .send_terminal_event(Event::ProgramStatus { report, source });
         }
     }
 

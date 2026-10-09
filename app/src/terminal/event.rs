@@ -17,6 +17,7 @@ use crate::terminal::ClipboardType;
 use crate::terminal::model::block::{BlockMetadata, SerializedBlock};
 use crate::terminal::model::completions::ShellCompletion;
 use crate::terminal::model::terminal_model::HandlerEvent;
+use crate::terminal::program_status::{ProgramStatusReport, ReportSource};
 use crate::terminal::shell::ShellType;
 use crate::util::AsciiDebug;
 
@@ -118,6 +119,13 @@ pub enum Event {
         title: Option<String>,
         body: String,
     },
+    /// A program reported its status via OSC 7501 (or OSC 9;4 progress).
+    ProgramStatus {
+        report: ProgramStatusReport,
+        source: ReportSource,
+    },
+    /// The terminal was fully reset (RIS), which removes every program status record.
+    ProgramStatusReset,
 }
 
 #[derive(Debug, Clone)]
@@ -439,6 +447,8 @@ impl Debug for Event {
             }
             Event::BootstrapPrecmdDone => write!(f, "BootstrapPrecmdDone"),
             Event::PluggableNotification { .. } => write!(f, "PluggableNotification"),
+            Event::ProgramStatus { .. } => write!(f, "ProgramStatus"),
+            Event::ProgramStatusReset => write!(f, "ProgramStatusReset"),
         }
     }
 }

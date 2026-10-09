@@ -293,6 +293,8 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::PromptCacheExpiryWarning,
         #[cfg(feature = "osc_hyperlinks")]
         FeatureFlag::OscHyperlinks,
+        #[cfg(feature = "program_status_protocol")]
+        FeatureFlag::ProgramStatusProtocol,
         #[cfg(feature = "terminal_lifecycle_recovery")]
         FeatureFlag::TerminalLifecycleRecovery,
     ]);
@@ -325,6 +327,7 @@ mod tests {
             FeatureFlag::ImeMarkedText,
             FeatureFlag::ITermImages,
             FeatureFlag::LocalDockerSandbox,
+            FeatureFlag::ProgramStatusProtocol,
             FeatureFlag::UseTantivySearch,
         ] {
             assert!(enabled.contains(&flag), "{flag:?} should be enabled");

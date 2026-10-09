@@ -16,6 +16,7 @@ use crate::terminal::event::{
     SourcedRcFileInSubshellEvent, TerminalMode,
 };
 use crate::terminal::model::session::Sessions;
+use crate::terminal::program_status::{ProgramStatusReport, ReportSource};
 use crate::terminal::shell::ShellType;
 /// Model that dispatches events that have been emitted by the [`crate::terminal::TerminalModel`],
 /// allowing other models/views to subscribe to `TerminalModel` events like it would any other
@@ -213,6 +214,8 @@ impl ModelEventDispatcher {
             Event::PluggableNotification { title, body } => {
                 ModelEvent::PluggableNotification { title, body }
             }
+            Event::ProgramStatus { report, source } => ModelEvent::ProgramStatus { report, source },
+            Event::ProgramStatusReset => ModelEvent::ProgramStatusReset,
             Event::LifecycleRecovery(_) => {
                 return;
             }
@@ -345,6 +348,11 @@ pub enum ModelEvent {
         title: Option<String>,
         body: String,
     },
+    ProgramStatus {
+        report: ProgramStatusReport,
+        source: ReportSource,
+    },
+    ProgramStatusReset,
 }
 
 #[derive(Clone, Debug)]

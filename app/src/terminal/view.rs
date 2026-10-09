@@ -345,6 +345,7 @@ use crate::terminal::model::terminal_model::{
 };
 use crate::terminal::model::{ObfuscateSecrets, RespectObfuscatedSecrets, SecretHandle};
 use crate::terminal::model_events::{AnsiHandlerEvent, ModelEvent, ModelEventDispatcher};
+use crate::terminal::program_status::ProgramStatusModel;
 use crate::terminal::recorder::PtyRecorder;
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::terminal::session_settings::{
@@ -8428,6 +8429,9 @@ impl TerminalView {
                 ctx.request_user_attention();
             }
             ModelEvent::Exit { reason: _ } => {
+                ProgramStatusModel::handle(ctx).update(ctx, |model, ctx| {
+                    model.drop_running(self.view_id, ctx);
+                });
                 if !self.manual_pty_shutdown_requested
                     && let Some((conversation_id, command)) =
                         self.maybe_send_agent_exited_shell_telemetry(ctx)
@@ -8543,6 +8547,9 @@ impl TerminalView {
                 if matches!(block_completed_event.block_type, BlockType::User(_)) {
                     CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions_model, ctx| {
                         sessions_model.remove_session(self.view_id, ctx);
+                    });
+                    ProgramStatusModel::handle(ctx).update(ctx, |model, ctx| {
+                        model.drop_running(self.view_id, ctx);
                     });
                 }
 
@@ -9332,6 +9339,16 @@ impl TerminalView {
             }
             ModelEvent::BootstrapPrecmdDone => {
                 self.execute_pending_command((), ctx);
+            }
+            ModelEvent::ProgramStatus { report, source } => {
+                ProgramStatusModel::handle(ctx).update(ctx, |model, ctx| {
+                    model.apply_report(self.view_id, report.clone(), *source, ctx);
+                });
+            }
+            ModelEvent::ProgramStatusReset => {
+                ProgramStatusModel::handle(ctx).update(ctx, |model, ctx| {
+                    model.reset(self.view_id, ctx);
+                });
             }
             ModelEvent::PluggableNotification { title, body } => {
                 // Intercept structured CLI agent notifications (e.g. from Claude Code plugin).

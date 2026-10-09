@@ -114,6 +114,10 @@ pub enum FeatureFlag {
     /// linked text Cmd+click-able.
     OscHyperlinks,
 
+    /// Recognizes the OSC 7501 program status escape sequence (and bridges
+    /// OSC 9;4 progress) and shows it on the tab pill and pane header.
+    ProgramStatusProtocol,
+
     ImeMarkedText,
 
     /// Enables partial next command suggestions with a prefix.

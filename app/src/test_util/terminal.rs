@@ -38,6 +38,7 @@ use crate::system::{SystemInfo, SystemStats};
 use crate::terminal::alt_screen_reporting::AltScreenReporting;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::keys::TerminalKeybindings;
+use crate::terminal::program_status::ProgramStatusModel;
 use crate::terminal::resizable_data::ResizableData;
 use crate::terminal::{History, TerminalView};
 use crate::undo_close::UndoCloseStack;
@@ -69,6 +70,7 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     // Pill bar model subscribes to history events; register after the
     // history model is in place.
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());
+    app.add_singleton_model(|_| ProgramStatusModel::new());
     app.add_singleton_model(|_| ActiveAgentViewsModel::new());
     app.add_singleton_model(BlocklistAIPermissions::new);
     app.add_singleton_model(AgentNotificationsModel::new);

@@ -21,6 +21,7 @@ use crate::persistence::{BlockCompleted, ModelEvent};
 use crate::session_management::SessionNavigationData;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::general_settings::GeneralSettings;
+use crate::terminal::program_status::ProgramStatusModel;
 use crate::terminal::view::Event;
 use crate::terminal::{TerminalManager, TerminalView};
 use crate::view_components::ToastFlavor;
@@ -274,6 +275,9 @@ impl PaneContent for TerminalPane {
         if !matches!(detach_type, DetachType::Moved) {
             CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
                 sessions.remove_session(terminal_view_id, ctx);
+            });
+            ProgramStatusModel::handle(ctx).update(ctx, |model, ctx| {
+                model.remove_terminal(terminal_view_id, ctx);
             });
         }
 

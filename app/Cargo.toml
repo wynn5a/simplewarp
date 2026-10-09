@@ -392,6 +392,7 @@ default = [
     "use_tantivy_search",
     "agent_mode",
     "osc_hyperlinks",
+    "program_status_protocol",
     "render_continuous_block_selections_with_single_border",
     "external_agent_mode_context",
     "shell_selector",
@@ -514,6 +515,7 @@ simplewarp = [
     "use_tantivy_search",
     "agent_mode",
     "osc_hyperlinks",
+    "program_status_protocol",
     "render_continuous_block_selections_with_single_border",
     "external_agent_mode_context",
     "shell_selector",
@@ -844,6 +846,7 @@ warpify_footer = []
 git_operations_in_code_review = []
 prompt_cache_expiry_warning = []
 osc_hyperlinks = []
+program_status_protocol = []
 
 [package.metadata.bundle.bin.warp-oss]
 category = "public.app-category.developer-tools"

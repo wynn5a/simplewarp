@@ -40,6 +40,7 @@ use crate::terminal::model::completions::{
 use crate::terminal::model::escape_sequences::C0;
 use crate::terminal::model::index::VisibleRow;
 use crate::terminal::model::iterm_image::parse_iterm_image_metadata;
+use crate::terminal::program_status::{ReportSource, protocol};
 
 /// Marks an OSC as one that is sent by Warp logic registered in the shell.
 ///
@@ -883,6 +884,12 @@ where
             b"9" => {
                 if params.len() >= 2 {
                     if !params[1].is_empty() && params[1].iter().all(u8::is_ascii_digit) {
+                        if params[1] == b"4"
+                            && FeatureFlag::ProgramStatusProtocol.is_enabled()
+                            && let Some(report) = protocol::parse_conemu_progress(&params[2..])
+                        {
+                            self.handler.program_status(report, ReportSource::Osc94);
+                        }
                         return;
                     }
                     let body = params[1..]
@@ -1090,6 +1097,19 @@ where
                     log::warn!("Received a Warp OSC marker missing required param.");
                 }
             },
+
+            // OSC 7501: program status. A body of `?` is the feature-detection query.
+            // Reference: https://mitchellh.com/writing/program-status-osc7501
+            b"7501" if FeatureFlag::ProgramStatusProtocol.is_enabled() => {
+                let body = params[1..].join(&b';');
+                if body == b"?" {
+                    let _ = writer.write_all(format!("\x1b]7501;?{terminator}").as_bytes());
+                } else if let Some(report) = protocol::parse(&body) {
+                    self.handler.program_status(report, ReportSource::Osc7501);
+                }
+            }
+            // The body is untrusted text: never fall through to `unhandled`, which logs it.
+            b"7501" => (),
 
             // Received a Warp OSC used for shell hooks.
             WARP_OSC_MARKER => {

@@ -58,6 +58,7 @@ pub mod model;
 pub mod model_events;
 pub mod platform;
 pub mod profile_model_selector;
+pub mod program_status;
 pub mod prompt;
 pub mod prompt_render_helper;
 pub mod recorder;

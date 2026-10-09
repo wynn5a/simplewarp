@@ -16,6 +16,7 @@ use crate::terminal::model::iterm_image::{ITermImage, ITermImageMetadata};
 use crate::terminal::model::kitty::{KittyAction, KittyChunk, KittyResponse};
 use crate::terminal::model::selection::ScrollDelta;
 use crate::terminal::model::session::SessionId;
+use crate::terminal::program_status::{ProgramStatusReport, ReportSource};
 
 /// Trait to be implemented by model objects that handle pty output. The
 /// ansi::Performer (our pty output parser) delegates handling of specific
@@ -406,4 +407,7 @@ pub trait Handler {
     /// - OSC 9: Simple notification with just a body (iTerm2/Windows Terminal style)
     /// - OSC 777: Notification with title and body (urxvt style)
     fn pluggable_notification(&mut self, _title: Option<String>, _body: String) {}
+
+    /// Callback for program status reported via OSC 7501, or bridged from OSC 9;4 progress.
+    fn program_status(&mut self, _report: ProgramStatusReport, _source: ReportSource) {}
 }
