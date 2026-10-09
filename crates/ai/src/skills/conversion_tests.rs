@@ -1,10 +1,7 @@
 use warp_multi_agent_api as api;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 
-use super::{
-    SkillConversionError, SkillPathOrigin, skill_reference_from_api_skill_ref,
-    skill_reference_from_read_skill_ref,
-};
+use super::{SkillConversionError, SkillPathOrigin, skill_reference_from_api_skill_ref};
 use crate::skills::{ParsedSkill, SkillProvider, SkillReference, SkillScope};
 
 fn api_project_skill(path: &str) -> api::Skill {
@@ -143,24 +140,5 @@ fn restored_display_origin_normalizes_double_leading_slash() {
     assert_eq!(
         path.to_str().unwrap(),
         "/repo/.agents/skills/deploy/SKILL.md"
-    );
-}
-
-#[test]
-fn read_skill_ref_with_local_origin_normalizes_double_slash() {
-    let skill_reference = skill_reference_from_read_skill_ref(
-        api::message::tool_call::read_skill::SkillReference::SkillPath(
-            "//workspace/.agents/skills/deploy/SKILL.md".to_string(),
-        ),
-        &SkillPathOrigin::Local,
-    )
-    .expect("double-slash read_skill path should convert");
-
-    let SkillReference::Path(LocalOrRemotePath::Local(path)) = skill_reference else {
-        panic!("expected a local skill path");
-    };
-    assert_eq!(
-        path.to_str().unwrap(),
-        "/workspace/.agents/skills/deploy/SKILL.md"
     );
 }

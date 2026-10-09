@@ -1,4 +1,3 @@
-pub(super) mod ask_user_question;
 pub(super) mod call_mcp_tool;
 pub(super) mod create_documents;
 pub(super) mod edit_documents;
@@ -8,9 +7,7 @@ pub(super) mod grep;
 pub(super) mod read_documents;
 pub(super) mod read_files;
 pub(super) mod read_mcp_resource;
-pub(super) mod read_skill;
 pub(super) mod request_file_edits;
-pub(super) mod search_codebase;
 pub(super) mod shell_command;
 pub(super) mod suggest_new_conversation;
 pub(super) mod suggest_prompt;
@@ -24,7 +21,6 @@ use std::sync::Arc;
 use ai::agent::action_result::{
     InsertReviewCommentsResult, RequestCommandOutputResult, RunAgentsResult,
 };
-pub use ask_user_question::AskUserQuestionExecutor;
 use call_mcp_tool::CallMCPToolExecutor;
 pub(crate) use call_mcp_tool::coerce_integer_args;
 use create_documents::CreateDocumentsExecutor;
@@ -39,7 +35,6 @@ use parking_lot::FairMutex;
 use read_documents::ReadDocumentsExecutor;
 pub(super) use read_files::ReadFilesExecutor;
 use read_mcp_resource::ReadMCPResourceExecutor;
-use read_skill::ReadSkillExecutor;
 pub use request_file_edits::RequestFileEditsExecutor;
 use serde::{Deserialize, Serialize};
 pub use shell_command::{ShellCommandExecutor, ShellCommandExecutorEvent};
@@ -54,7 +49,6 @@ use warp_util::file_type::is_buffer_binary;
 use warpui::r#async::{Spawnable, SpawnableOutput};
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
-use self::search_codebase::SearchCodebaseExecutor;
 use crate::BlocklistAIHistoryModel;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
@@ -62,7 +56,6 @@ use crate::ai::agent::{
     AIAgentActionType, AIAgentActionTypeDiscriminants, AnyFileContent, CancellationReason,
     FileContext, FileLocations, ReadFilesFailedFile, SendMessageToAgentResult, ServerOutputId,
 };
-use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
 use crate::ai::paths::host_native_absolute_path;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::session::command_executor::shell_quote_arg;
@@ -215,7 +208,6 @@ impl AsyncExecutingAction {
 pub struct BlocklistAIActionExecutor {
     shell_command_executor: ModelHandle<ShellCommandExecutor>,
     read_files_executor: ModelHandle<ReadFilesExecutor>,
-    search_codebase_executor: ModelHandle<SearchCodebaseExecutor>,
     request_file_edits_executor: ModelHandle<RequestFileEditsExecutor>,
     grep_executor: ModelHandle<GrepExecutor>,
     file_glob_executor: ModelHandle<FileGlobExecutor>,
@@ -226,9 +218,7 @@ pub struct BlocklistAIActionExecutor {
     read_documents_executor: ModelHandle<ReadDocumentsExecutor>,
     edit_documents_executor: ModelHandle<EditDocumentsExecutor>,
     create_documents_executor: ModelHandle<CreateDocumentsExecutor>,
-    read_skill_executor: ModelHandle<ReadSkillExecutor>,
     fetch_conversation_executor: ModelHandle<FetchConversationExecutor>,
-    ask_user_question_executor: ModelHandle<AskUserQuestionExecutor>,
     wait_for_events_executor: ModelHandle<WaitForEventsExecutor>,
     /// The actions currently executing asynchronously, keyed by action ID.
     /// We track them per action rather than as a single slot so multiple actions from the same
@@ -241,20 +231,11 @@ impl BlocklistAIActionExecutor {
         terminal_model: Arc<FairMutex<TerminalModel>>,
         active_session: ModelHandle<ActiveSession>,
         model_event_dispatcher: &ModelHandle<ModelEventDispatcher>,
-        get_relevant_files_controller: ModelHandle<GetRelevantFilesController>,
         terminal_view_id: EntityId,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
         let read_files_executor =
             ctx.add_model(|_| ReadFilesExecutor::new(active_session.clone(), terminal_view_id));
-        let search_codebase_executor = ctx.add_model(|ctx| {
-            SearchCodebaseExecutor::new(
-                active_session.clone(),
-                get_relevant_files_controller,
-                terminal_view_id,
-                ctx,
-            )
-        });
         let shell_command_executor = ctx.add_model(|ctx| {
             ShellCommandExecutor::new(
                 active_session.clone(),
@@ -282,16 +263,12 @@ impl BlocklistAIActionExecutor {
         let edit_documents_executor = ctx.add_model(|_| EditDocumentsExecutor::new());
         let create_documents_executor = ctx
             .add_model(|_| CreateDocumentsExecutor::new(active_session.clone(), terminal_view_id));
-        let read_skill_executor = ctx.add_model(|_| ReadSkillExecutor::new(active_session.clone()));
         let fetch_conversation_executor = ctx.add_model(|_| FetchConversationExecutor::new());
-        let ask_user_question_executor =
-            ctx.add_model(|_| AskUserQuestionExecutor::new(terminal_view_id));
         let wait_for_events_executor =
             ctx.add_model(|ctx| WaitForEventsExecutor::new(terminal_view_id, ctx));
         Self {
             shell_command_executor,
             read_files_executor,
-            search_codebase_executor,
             request_file_edits_executor,
             grep_executor,
             file_glob_executor,
@@ -303,9 +280,7 @@ impl BlocklistAIActionExecutor {
             edit_documents_executor,
             create_documents_executor,
             async_executing_actions: Default::default(),
-            read_skill_executor,
             fetch_conversation_executor,
-            ask_user_question_executor,
             wait_for_events_executor,
         }
     }
@@ -347,10 +322,6 @@ impl BlocklistAIActionExecutor {
         &self.request_file_edits_executor
     }
 
-    pub fn search_codebase_executor(&self) -> &ModelHandle<SearchCodebaseExecutor> {
-        &self.search_codebase_executor
-    }
-
     pub fn suggest_new_conversation_executor(
         &self,
     ) -> &ModelHandle<SuggestNewConversationExecutor> {
@@ -363,9 +334,7 @@ impl BlocklistAIActionExecutor {
 
     pub fn action_phase(&self, action: &AIAgentAction, ctx: &AppContext) -> RunningActionPhase {
         match &action.action {
-            AIAgentActionType::ReadFiles(..)
-            | AIAgentActionType::SearchCodebase(..)
-            | AIAgentActionType::ReadSkill(_) => {
+            AIAgentActionType::ReadFiles(..) => {
                 RunningActionPhase::Parallel(ParallelExecutionPolicy::ReadOnlyLocalContext)
             }
             AIAgentActionType::Grep { .. }
@@ -385,10 +354,6 @@ impl BlocklistAIActionExecutor {
         }
     }
 
-    pub fn ask_user_question_executor(&self) -> &ModelHandle<AskUserQuestionExecutor> {
-        &self.ask_user_question_executor
-    }
-
     pub fn preprocess_action(
         &self,
         action: &AIAgentAction,
@@ -405,9 +370,6 @@ impl BlocklistAIActionExecutor {
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
             AIAgentActionType::ReadFiles(..) => self
                 .read_files_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::SearchCodebase(..) => self
-                .search_codebase_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
             AIAgentActionType::Grep { .. } => self
                 .grep_executor
@@ -446,16 +408,10 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::CreateDocuments(_) => self
                 .create_documents_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::ReadSkill(_) => self
-                .read_skill_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
             AIAgentActionType::FetchConversation { .. } => self
                 .fetch_conversation_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
             AIAgentActionType::SendMessageToAgent { .. } => futures::future::ready(()).boxed(),
-            AIAgentActionType::AskUserQuestion { .. } => self
-                .ask_user_question_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
             AIAgentActionType::RunAgents(_) => futures::future::ready(()).boxed(),
             AIAgentActionType::WaitForEvents { .. } => self
                 .wait_for_events_executor
@@ -557,10 +513,6 @@ impl BlocklistAIActionExecutor {
                 .read_files_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
                 .into(),
-            AIAgentActionType::SearchCodebase(..) => self
-                .search_codebase_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
             AIAgentActionType::Grep { .. } => self
                 .grep_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
@@ -605,10 +557,6 @@ impl BlocklistAIActionExecutor {
                     executor.execute(input, conversation_id, ctx)
                 })
                 .into(),
-            AIAgentActionType::ReadSkill(_) => self
-                .read_skill_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
             AIAgentActionType::FetchConversation { .. } => self
                 .fetch_conversation_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
@@ -621,10 +569,6 @@ impl BlocklistAIActionExecutor {
                 )),
             )
             .into(),
-            AIAgentActionType::AskUserQuestion { .. } => self
-                .ask_user_question_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
             AIAgentActionType::RunAgents(_) => ActionExecution::<()>::Sync(
                 AIAgentActionResultType::RunAgents(RunAgentsResult::Failure {
                     error: "Orchestration is no longer supported".to_owned(),
@@ -730,10 +674,6 @@ impl BlocklistAIActionExecutor {
                 self.shell_command_executor.update(ctx, |executor, ctx| {
                     executor.cancel_execution(&running.action.id, ctx);
                 });
-            } else if matches!(running.action.action, AIAgentActionType::SearchCodebase(..)) {
-                self.search_codebase_executor.update(ctx, |executor, ctx| {
-                    executor.cancel_execution(&running.action.id, ctx);
-                });
             } else if let AIAgentActionType::WaitForEvents { tool_call_id, .. } =
                 &running.action.action
             {
@@ -808,9 +748,6 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::ReadFiles(_) => self
                 .read_files_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::SearchCodebase(_) => self
-                .search_codebase_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::RequestFileEdits { .. } => self
                 .request_file_edits_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
@@ -844,16 +781,10 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::CreateDocuments(_) => self
                 .create_documents_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::ReadSkill(_) => self
-                .read_skill_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::FetchConversation { .. } => self
                 .fetch_conversation_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::SendMessageToAgent { .. } => true,
-            AIAgentActionType::AskUserQuestion { .. } => self
-                .ask_user_question_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::RunAgents(_) => false,
             AIAgentActionType::WaitForEvents { .. } => self
                 .wait_for_events_executor

@@ -15,8 +15,7 @@ use super::history_model::{
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     AIAgentActionType, AIAgentAttachment, AIAgentContext, AIAgentExchangeId, AIAgentInput,
-    AIAgentPtyWriteMode, AskUserQuestionItem, FileLocations, ReadFilesRequest,
-    SearchCodebaseRequest, UserQueryMode,
+    AIAgentPtyWriteMode, FileLocations, ReadFilesRequest, UserQueryMode,
 };
 use crate::ai::llms::LLMId;
 use crate::persistence::ModelEvent;
@@ -231,11 +230,8 @@ pub(crate) enum PersistedAIAgentActionType {
     GetFiles {
         file_names: Vec<String>,
     },
-    GetRelevantFiles {
-        query: String,
-        partial_paths: Option<Vec<String>>,
-        codebase_path: Option<String>,
-    },
+    /// Search codebase is gone. Only lets rows that hold one still deserialize; never restores.
+    GetRelevantFiles {},
     Grep {
         queries: Vec<String>,
         path: String,
@@ -264,13 +260,11 @@ pub(crate) enum PersistedAIAgentActionType {
     SuggestPrompt,
     OpenCodeReview,
     InitProject,
-    /// Computer use is gone. These two only let rows that hold one still deserialize (the
+    /// Computer use is gone. These only let rows that hold one still deserialize (the
     /// payload is ignored); they never restore.
     UseComputer {},
     RequestComputerUse {},
-    AskUserQuestion {
-        questions: Vec<AskUserQuestionItem>,
-    },
+    AskUserQuestion {},
 
     FetchConversation {
         conversation_id: String,
@@ -304,15 +298,6 @@ impl From<&AIAgentActionType> for PersistedAIAgentActionType {
             },
             AIAgentActionType::ReadFiles(ReadFilesRequest { locations: files }) => Self::GetFiles {
                 file_names: files.iter().map(|f| f.name.clone()).collect(),
-            },
-            AIAgentActionType::SearchCodebase(SearchCodebaseRequest {
-                query,
-                partial_paths,
-                codebase_path,
-            }) => Self::GetRelevantFiles {
-                query: query.clone(),
-                partial_paths: partial_paths.clone(),
-                codebase_path: codebase_path.clone(),
             },
             AIAgentActionType::Grep { queries, path } => Self::Grep {
                 queries: queries.clone(),
@@ -360,11 +345,7 @@ impl From<&AIAgentActionType> for PersistedAIAgentActionType {
             | AIAgentActionType::EditDocuments(_)
             | AIAgentActionType::CreateDocuments(_)
             | AIAgentActionType::ReadShellCommandOutput { .. }
-            | AIAgentActionType::ReadSkill(_)
             | AIAgentActionType::TransferShellCommandControlToUser { .. } => Self::NotPersisted,
-            AIAgentActionType::AskUserQuestion { questions } => Self::AskUserQuestion {
-                questions: questions.clone(),
-            },
             AIAgentActionType::FetchConversation { conversation_id } => Self::FetchConversation {
                 conversation_id: conversation_id.clone(),
             },
@@ -406,15 +387,6 @@ impl TryFrom<PersistedAIAgentActionType> for AIAgentActionType {
                 input: input.clone(),
                 mode: mode.into(),
             }),
-            PersistedAIAgentActionType::GetRelevantFiles {
-                query,
-                partial_paths,
-                codebase_path,
-            } => Ok(Self::SearchCodebase(SearchCodebaseRequest {
-                query,
-                partial_paths,
-                codebase_path,
-            })),
             PersistedAIAgentActionType::RequestFileEdits { .. } => {
                 // TODO(CODE-301): Implement proper restoration for suggested diffs.
                 //
@@ -473,12 +445,11 @@ impl TryFrom<PersistedAIAgentActionType> for AIAgentActionType {
             }
             PersistedAIAgentActionType::OpenCodeReview => Ok(Self::OpenCodeReview),
             PersistedAIAgentActionType::InitProject => Ok(Self::InitProject),
-            PersistedAIAgentActionType::UseComputer {}
-            | PersistedAIAgentActionType::RequestComputerUse {} => {
-                Err(anyhow!("Computer use is no longer supported."))
-            }
-            PersistedAIAgentActionType::AskUserQuestion { questions } => {
-                Ok(Self::AskUserQuestion { questions })
+            PersistedAIAgentActionType::GetRelevantFiles {}
+            | PersistedAIAgentActionType::UseComputer {}
+            | PersistedAIAgentActionType::RequestComputerUse {}
+            | PersistedAIAgentActionType::AskUserQuestion {} => {
+                Err(anyhow!("That tool is no longer supported."))
             }
             PersistedAIAgentActionType::FetchConversation { conversation_id } => {
                 Ok(Self::FetchConversation { conversation_id })

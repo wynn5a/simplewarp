@@ -108,19 +108,6 @@ pub fn skill_reference_from_api_skill_ref(
     }
 }
 
-pub fn skill_reference_from_read_skill_ref(
-    skill_reference: api::message::tool_call::read_skill::SkillReference,
-    path_origin: &SkillPathOrigin,
-) -> Result<SkillReference, SkillConversionError> {
-    match skill_reference {
-        api::message::tool_call::read_skill::SkillReference::SkillPath(path) => {
-            skill_reference_for_path(path, path_origin)
-        }
-        api::message::tool_call::read_skill::SkillReference::BundledSkillId(id) => {
-            Ok(SkillReference::BundledSkillId(id))
-        }
-    }
-}
 impl From<ParsedSkill> for api::Skill {
     fn from(skill: ParsedSkill) -> Self {
         api::Skill {

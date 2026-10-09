@@ -91,9 +91,6 @@ pub enum ExecutionProfileEditorViewAction {
     SetCallMcpServers {
         permission: ActionPermission,
     },
-    SetAskUserQuestion {
-        permission: super::AskUserQuestionPermission,
-    },
     AddToCommandAllowlist {
         predicate: AgentModeCommandExecutionPredicate,
     },
@@ -145,7 +142,6 @@ pub struct ExecutionProfileEditorView {
     execute_commands_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
     write_to_pty_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
     call_mcp_servers_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
-    ask_user_question_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
     command_allowlist_editor: ViewHandle<SubmittableTextInput>,
     command_denylist_editor: ViewHandle<SubmittableTextInput>,
     directory_allowlist_editor: ViewHandle<SubmittableTextInput>,
@@ -304,34 +300,6 @@ impl ExecutionProfileEditorView {
             dropdown
         });
 
-        let ask_user_question_dropdown = ctx.add_typed_action_view(|ctx| {
-            let mut dropdown = Dropdown::new(ctx);
-            dropdown.set_items(
-                vec![
-                    DropdownItem::new(
-                        "Never ask",
-                        ExecutionProfileEditorViewAction::SetAskUserQuestion {
-                            permission: super::AskUserQuestionPermission::Never,
-                        },
-                    ),
-                    DropdownItem::new(
-                        "Ask unless auto-approve",
-                        ExecutionProfileEditorViewAction::SetAskUserQuestion {
-                            permission: super::AskUserQuestionPermission::AskExceptInAutoApprove,
-                        },
-                    ),
-                    DropdownItem::new(
-                        "Always ask",
-                        ExecutionProfileEditorViewAction::SetAskUserQuestion {
-                            permission: super::AskUserQuestionPermission::AlwaysAsk,
-                        },
-                    ),
-                ],
-                ctx,
-            );
-            dropdown
-        });
-
         let mcp_allowlist_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = FilterableDropdown::new(ctx);
             dropdown.set_menu_header_to_static("Select MCP servers");
@@ -482,7 +450,6 @@ impl ExecutionProfileEditorView {
             execute_commands_dropdown,
             write_to_pty_dropdown,
             call_mcp_servers_dropdown,
-            ask_user_question_dropdown,
             command_allowlist_editor,
             command_denylist_editor,
             directory_allowlist_editor,
@@ -708,7 +675,6 @@ impl ExecutionProfileEditorView {
         let read_files_disabled = !ai_settings.is_read_files_permissions_editable();
         let execute_commands_disabled = !ai_settings.is_execute_commands_permissions_editable();
         let write_to_pty_disabled = !ai_settings.is_write_to_pty_permissions_editable();
-        let ask_user_question_disabled = !ai_settings.is_ask_user_question_permissions_editable();
         let mcp_disabled = !ai_settings.is_mcp_permission_editable();
 
         Self::refresh_filterable_model_dropdown(
@@ -761,12 +727,6 @@ impl ExecutionProfileEditorView {
             &self.call_mcp_servers_dropdown,
             current_permissions.mcp_permissions,
             mcp_disabled,
-            ctx,
-        );
-        Self::refresh_ask_user_question_dropdown_menu(
-            &self.ask_user_question_dropdown,
-            current_permissions.ask_user_question,
-            ask_user_question_disabled,
             ctx,
         );
         Self::refresh_mcp_dropdown(
@@ -830,32 +790,6 @@ impl ExecutionProfileEditorView {
                 WriteToPtyPermission::AlwaysAllow => 0,
                 WriteToPtyPermission::AlwaysAsk | WriteToPtyPermission::Unknown => 1,
                 WriteToPtyPermission::AskOnFirstWrite => 2,
-            };
-
-            menu.set_selected_by_index(active, ctx);
-            ctx.notify();
-        });
-        ctx.notify();
-    }
-
-    fn refresh_ask_user_question_dropdown_menu(
-        menu: &ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
-        current_permission: super::AskUserQuestionPermission,
-        disabled: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        menu.update(ctx, |menu, ctx| {
-            if !disabled {
-                menu.set_enabled(ctx);
-            } else {
-                menu.set_disabled(ctx);
-            }
-
-            let active = match current_permission {
-                super::AskUserQuestionPermission::Never => 0,
-                super::AskUserQuestionPermission::AskExceptInAutoApprove
-                | super::AskUserQuestionPermission::Unknown => 1,
-                super::AskUserQuestionPermission::AlwaysAsk => 2,
             };
 
             menu.set_selected_by_index(active, ctx);
@@ -1331,12 +1265,6 @@ impl TypedActionView for ExecutionProfileEditorView {
             ExecutionProfileEditorViewAction::SetCallMcpServers { permission } => {
                 AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
                     profiles_model.set_mcp_permissions(&self.profile_id, permission, ctx);
-                });
-                ctx.notify();
-            }
-            ExecutionProfileEditorViewAction::SetAskUserQuestion { permission } => {
-                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                    profiles_model.set_ask_user_question(&self.profile_id, *permission, ctx);
                 });
                 ctx.notify();
             }

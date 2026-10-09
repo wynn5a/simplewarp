@@ -21,7 +21,6 @@ pub(crate) mod conversation_rename;
 pub(crate) mod conversation_status_ui;
 pub(crate) mod conversation_utils;
 pub(crate) mod document;
-pub(crate) mod get_relevant_files;
 pub mod harness_availability;
 pub(crate) mod harness_display;
 pub(crate) mod llms;
@@ -45,7 +44,6 @@ pub(crate) use ai::paths;
 
 pub fn init(app: &mut AppContext) {
     blocklist::keyboard_navigable_buttons::init(app);
-    blocklist::block::number_shortcut_buttons::init(app);
     blocklist::toggleable_items::init(app);
     ai_document_view::init(app);
     conversation_details_panel::init(app);

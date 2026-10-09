@@ -101,7 +101,6 @@ impl DocumentActionPresentation {
                 AIAgentActionType::RequestCommandOutput { .. }
                 | AIAgentActionType::WriteToLongRunningShellCommand { .. }
                 | AIAgentActionType::ReadFiles(_)
-                | AIAgentActionType::SearchCodebase(_)
                 | AIAgentActionType::RequestFileEdits { .. }
                 | AIAgentActionType::Grep { .. }
                 | AIAgentActionType::FileGlob { .. }
@@ -115,11 +114,9 @@ impl DocumentActionPresentation {
                 | AIAgentActionType::ReadDocuments(_)
                 | AIAgentActionType::ReadShellCommandOutput { .. }
                 | AIAgentActionType::InsertCodeReviewComments { .. }
-                | AIAgentActionType::ReadSkill(_)
                 | AIAgentActionType::FetchConversation { .. }
                 | AIAgentActionType::SendMessageToAgent { .. }
                 | AIAgentActionType::TransferShellCommandControlToUser { .. }
-                | AIAgentActionType::AskUserQuestion { .. }
                 | AIAgentActionType::RunAgents(_)
                 | AIAgentActionType::WaitForEvents { .. },
                 _,

@@ -35,35 +35,6 @@ fn read_files_partial_success_converts_failed_files() {
 }
 
 #[test]
-fn ask_user_question_skipped_by_auto_approve_converts_to_skipped_answers() {
-    let result = api::request::input::tool_call_result::Result::from(
-        AskUserQuestionResult::SkippedByAutoApprove {
-            question_ids: vec!["q1".to_string(), "q2".to_string()],
-        },
-    );
-
-    let api::request::input::tool_call_result::Result::AskUserQuestion(result) = result else {
-        panic!("expected ask_user_question result");
-    };
-
-    let Some(api::ask_user_question_result::Result::Success(success)) = result.result else {
-        panic!("expected success result");
-    };
-
-    assert_eq!(success.answers.len(), 2);
-    assert_eq!(success.answers[0].question_id, "q1");
-    assert_eq!(success.answers[1].question_id, "q2");
-    assert!(matches!(
-        success.answers[0].answer,
-        Some(AskUserQuestionAnswer::Skipped(()))
-    ));
-    assert!(matches!(
-        success.answers[1].answer,
-        Some(AskUserQuestionAnswer::Skipped(()))
-    ));
-}
-
-#[test]
 fn a_command_cancelled_before_execution_still_reports_a_result() {
     // The wire has no "cancelled" variant for a shell command, but the model must hear that the
     // call did not run; dropping the result made the agent loop invent one that said it did.

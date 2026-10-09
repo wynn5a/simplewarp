@@ -104,13 +104,11 @@ pub const LOAD_OUTPUT_MESSAGE: &str = "Warping...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_ADJUSTING: &str = "Adjusting tasks...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_PASSIVE_CODE_GEN: &str = "Generating fix...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_CREATING_DIFF: &str = "Creating diff...";
-pub const LOAD_OUTPUT_MESSAGE_FOR_PREPARING_QUESTION: &str = "Preparing question...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_GENERATING_PLAN: &str = "Generating plan...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_UPDATING_PLAN: &str = "Updating plan...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_SUMMARIZING_CONVERSATION: &str = "Summarizing conversation...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_SUMMARIZING_TOOL_CALL_RESULT: &str =
     "Summarizing command output...";
-pub const LOAD_OUTPUT_MESSAGE_FOR_SEARCH_CODEBASE: &str = "Searching codebase...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_READING_FILES: &str = "Reading files...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_GREP: &str = "Grepping...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_FILE_GLOB: &str = "Finding files...";
@@ -124,8 +122,6 @@ pub(crate) type ResolvedBlocklistImageSources = HashMap<String, Option<AssetSour
 pub const BLOCKED_ACTION_MESSAGE_FOR_WRITE_TO_LONG_RUNNING_SHELL_COMMAND: &str =
     "Can I write the following to this running command?";
 pub const BLOCKED_ACTION_MESSAGE_FOR_READING_FILES: &str = "Grant access to the following files?";
-pub const BLOCKED_ACTION_MESSAGE_FOR_SEARCHING_CODEBASE: &str =
-    "Grant access to the following repository?";
 pub const BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB: &str =
     "OK if I search the files in this directory?";
 
@@ -226,19 +222,6 @@ pub fn render_warping_indicator<V: View>(
         })
     });
 
-    let is_last_message_asking_user_question = output_to_render.as_ref().is_some_and(|output| {
-        let output = output.get();
-        output.messages.last().is_some_and(|m| {
-            matches!(
-                m.message,
-                AIAgentOutputMessageType::Action(AIAgentAction {
-                    action: AIAgentActionType::AskUserQuestion { .. },
-                    ..
-                })
-            )
-        })
-    });
-
     let summarization_type: Option<SummarizationType> =
         if FeatureFlag::SummarizationCancellationConfirmation.is_enabled() {
             output_to_render.as_ref().and_then(|output| {
@@ -297,8 +280,6 @@ pub fn render_warping_indicator<V: View>(
         LOAD_OUTPUT_MESSAGE_FOR_PASSIVE_CODE_GEN.to_string()
     } else if is_last_message_requesting_file_edits {
         LOAD_OUTPUT_MESSAGE_FOR_CREATING_DIFF.to_string()
-    } else if is_last_message_asking_user_question {
-        LOAD_OUTPUT_MESSAGE_FOR_PREPARING_QUESTION.to_string()
     } else if is_interrupt_query_for_same_conversation
         && output_to_render
             .as_ref()
@@ -312,9 +293,6 @@ pub fn render_warping_indicator<V: View>(
             .get_async_running_action(app)
             .map(|action| &action.action)
         {
-            Some(AIAgentActionType::SearchCodebase(..)) => {
-                LOAD_OUTPUT_MESSAGE_FOR_SEARCH_CODEBASE.to_owned()
-            }
             Some(AIAgentActionType::Grep { .. }) => LOAD_OUTPUT_MESSAGE_FOR_GREP.to_owned(),
             Some(AIAgentActionType::CallMCPTool {
                 server_id, name, ..

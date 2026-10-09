@@ -9,8 +9,8 @@ use crate::agent::FileLocations;
 use crate::agent::action::{
     AIAgentActionType, AIAgentPtyWriteMode, CommentSide, CreateDocumentsRequest, DocumentDiff,
     DocumentToCreate, EditDocumentsRequest, FileEdit, InsertReviewComment, InsertedCommentLine,
-    InsertedCommentLocation, ReadDocumentsRequest, ReadFilesRequest, SearchCodebaseRequest,
-    ShellCommandDelay, SuggestPromptRequest,
+    InsertedCommentLocation, ReadDocumentsRequest, ReadFilesRequest, ShellCommandDelay,
+    SuggestPromptRequest,
 };
 use crate::agent::action_result::{AnyFileContent, FileContext};
 use crate::agent::convert::ToolToAIAgentActionError;
@@ -130,24 +130,6 @@ impl From<api::message::tool_call::ReadFiles> for AIAgentActionType {
     fn from(value: api::message::tool_call::ReadFiles) -> Self {
         AIAgentActionType::ReadFiles(ReadFilesRequest {
             locations: value.files.into_iter().map(Into::into).collect(),
-        })
-    }
-}
-
-impl From<api::message::tool_call::SearchCodebase> for AIAgentActionType {
-    fn from(value: api::message::tool_call::SearchCodebase) -> Self {
-        AIAgentActionType::SearchCodebase(SearchCodebaseRequest {
-            query: value.query,
-            partial_paths: if !value.path_filters.is_empty() {
-                Some(value.path_filters)
-            } else {
-                None
-            },
-            codebase_path: if !value.codebase_path.is_empty() {
-                Some(value.codebase_path)
-            } else {
-                None
-            },
         })
     }
 }

@@ -16,8 +16,7 @@ use super::BlocklistAIHistoryModel;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::execution_profiles::{
-    AIExecutionProfile, ActionPermission, AskUserQuestionPermission, ExecutionProfileId,
-    WriteToPtyPermission,
+    AIExecutionProfile, ActionPermission, ExecutionProfileId, WriteToPtyPermission,
 };
 use crate::ai::mcp::{TemplatableMCPServerManager, mcp_provider_from_file_path};
 use crate::settings::{
@@ -462,29 +461,6 @@ impl BlocklistAIPermissions {
         let active_profile =
             AIExecutionProfilesModel::as_ref(ctx).active_profile(terminal_view_id, ctx);
         self.get_mcp_denylist_for_profile(ctx, active_profile.id())
-    }
-
-    pub fn get_ask_user_question_setting_for_profile(
-        &self,
-        ctx: &AppContext,
-        profile_id: &ExecutionProfileId,
-    ) -> AskUserQuestionPermission {
-        let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
-        profiles_model
-            .get_profile_by_id(profile_id, ctx)
-            .unwrap_or_else(|| profiles_model.default_profile(ctx))
-            .data()
-            .ask_user_question
-    }
-
-    pub fn get_ask_user_question_setting(
-        &self,
-        ctx: &AppContext,
-        terminal_view_id: Option<EntityId>,
-    ) -> AskUserQuestionPermission {
-        let active_profile =
-            AIExecutionProfilesModel::as_ref(ctx).active_profile(terminal_view_id, ctx);
-        self.get_ask_user_question_setting_for_profile(ctx, active_profile.id())
     }
 
     /// Returns whether or not Agent Mode can auto-read the given files.
@@ -992,23 +968,6 @@ impl BlocklistAIPermissions {
             .entry(conversation_id)
             .or_default()
             .extend(files.into_iter().map(Into::into));
-    }
-
-    /// Returns whether the agent can ask the user a question in the given conversation.
-    pub fn can_ask_user_question(
-        &self,
-        conversation_id: &AIConversationId,
-        terminal_view_id: Option<EntityId>,
-        ctx: &AppContext,
-    ) -> bool {
-        match self.get_ask_user_question_setting(ctx, terminal_view_id) {
-            AskUserQuestionPermission::Never => false,
-            AskUserQuestionPermission::AskExceptInAutoApprove
-            | AskUserQuestionPermission::Unknown => !BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(conversation_id)
-                .is_some_and(|convo| convo.autoexecute_any_action()),
-            AskUserQuestionPermission::AlwaysAsk => true,
-        }
     }
 }
 

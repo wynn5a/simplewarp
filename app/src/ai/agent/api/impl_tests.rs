@@ -1,55 +1,6 @@
-use warp_core::features::FeatureFlag;
 use warp_multi_agent_api as api;
 
-use super::{
-    add_global_rules, api_keys_with_warp_credit_fallback_setting, get_supported_cli_agent_tools,
-    get_supported_tools,
-};
-use crate::ai::agent::api::RequestParams;
-use crate::ai::blocklist::SessionContext;
-use crate::ai::llms::LLMId;
-use crate::terminal::model::session::SessionType;
-
-fn request_params_with_ask_user_question_enabled(ask_user_question_enabled: bool) -> RequestParams {
-    let model = LLMId::from("test-model");
-
-    RequestParams {
-        input: vec![],
-        conversation_token: None,
-        forked_from_conversation_token: None,
-        ambient_agent_task_id: None,
-        tasks: vec![],
-        existing_suggestions: None,
-        metadata: None,
-        session_context: SessionContext::new_for_test(),
-        model: model.clone(),
-        coding_model: model.clone(),
-        cli_agent_model: model.clone(),
-        is_memory_enabled: false,
-        global_rules: vec![],
-        context_window_limit: None,
-        mcp_context: None,
-        planning_enabled: true,
-        should_redact_secrets: false,
-        api_keys: None,
-        custom_model_providers: None,
-        allow_use_of_warp_credits: false,
-        autonomy_level: api::AutonomyLevel::Supervised,
-        isolation_level: api::IsolationLevel::None,
-        ask_user_question_enabled,
-        research_agent_enabled: false,
-        supported_tools_override: None,
-        parent_agent_id: None,
-        agent_name: None,
-    }
-}
-
-fn request_params_for_remote() -> RequestParams {
-    let mut params = request_params_with_ask_user_question_enabled(false);
-    params.session_context =
-        SessionContext::new_with_session_type_for_test(Some(SessionType::WarpifiedRemote));
-    params
-}
+use super::{add_global_rules, api_keys_with_warp_credit_fallback_setting};
 
 #[test]
 fn api_keys_with_warp_credit_fallback_setting_returns_none_without_keys_or_fallback() {
@@ -90,36 +41,6 @@ fn api_keys_with_warp_credit_fallback_setting_preserves_existing_keys() {
 
     assert_eq!(api_keys.anthropic, "anthropic-key");
     assert!(api_keys.allow_use_of_warp_credits);
-}
-
-#[test]
-fn supported_tools_omits_ask_user_question_when_disabled() {
-    let params = request_params_with_ask_user_question_enabled(false);
-    let supported_tools = get_supported_tools(&params);
-
-    assert!(!supported_tools.contains(&api::ToolType::AskUserQuestion));
-}
-
-#[test]
-fn supported_tools_includes_ask_user_question_when_enabled_and_feature_flag_is_enabled() {
-    if !FeatureFlag::AskUserQuestion.is_enabled() {
-        return;
-    }
-
-    let params = request_params_with_ask_user_question_enabled(true);
-    let supported_tools = get_supported_tools(&params);
-
-    assert!(supported_tools.contains(&api::ToolType::AskUserQuestion));
-}
-
-#[test]
-fn remote_supported_tools_omit_search_codebase() {
-    let params = request_params_for_remote();
-    let supported_tools = get_supported_tools(&params);
-    let supported_cli_agent_tools = get_supported_cli_agent_tools(&params);
-
-    assert!(!supported_tools.contains(&api::ToolType::SearchCodebase));
-    assert!(!supported_cli_agent_tools.contains(&api::ToolType::SearchCodebase));
 }
 
 #[test]

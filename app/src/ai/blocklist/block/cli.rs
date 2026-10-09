@@ -56,11 +56,9 @@ use crate::ai::agent::{
 use crate::ai::blocklist::block::TextLocation;
 use crate::ai::blocklist::block::view_impl::common::{
     BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB, BLOCKED_ACTION_MESSAGE_FOR_READING_FILES,
-    BLOCKED_ACTION_MESSAGE_FOR_SEARCHING_CODEBASE,
     BLOCKED_ACTION_MESSAGE_FOR_WRITE_TO_LONG_RUNNING_SHELL_COMMAND,
     LOAD_OUTPUT_MESSAGE_FOR_FILE_GLOB, LOAD_OUTPUT_MESSAGE_FOR_GREP,
-    LOAD_OUTPUT_MESSAGE_FOR_READING_FILES, LOAD_OUTPUT_MESSAGE_FOR_SEARCH_CODEBASE, UserQueryProps,
-    render_query_text,
+    LOAD_OUTPUT_MESSAGE_FOR_READING_FILES, UserQueryProps, render_query_text,
 };
 use crate::ai::blocklist::code_block::CodeSnippetButtonHandles;
 use crate::ai::blocklist::inline_action::inline_action_icons::icon_size;
@@ -604,8 +602,7 @@ impl CLISubagentView {
                 });
                 ctx.notify();
             }
-            AIAgentActionType::SearchCodebase(_)
-            | AIAgentActionType::ReadFiles(_)
+            AIAgentActionType::ReadFiles(_)
             | AIAgentActionType::Grep { .. }
             | AIAgentActionType::FileGlobV2 { .. } => {
                 if should_show_read_files_speedbump(ctx) {
@@ -1287,7 +1284,6 @@ impl View for CLISubagentView {
                 ))
             }
             AIAgentActionType::ReadFiles(..)
-            | AIAgentActionType::SearchCodebase(..)
             | AIAgentActionType::Grep { .. }
             | AIAgentActionType::FileGlobV2 { .. } => Some(render_blocked_action(
                 BlockedActionProps {
@@ -1496,9 +1492,6 @@ fn should_show_read_files_speedbump(app: &AppContext) -> bool {
 
 fn get_action_loading_text(action: AIAgentActionType) -> Option<String> {
     match action {
-        AIAgentActionType::SearchCodebase(_) => {
-            Some(LOAD_OUTPUT_MESSAGE_FOR_SEARCH_CODEBASE.to_string())
-        }
         AIAgentActionType::ReadFiles(_) => Some(LOAD_OUTPUT_MESSAGE_FOR_READING_FILES.to_string()),
         AIAgentActionType::Grep { .. } => Some(LOAD_OUTPUT_MESSAGE_FOR_GREP.to_string()),
         AIAgentActionType::FileGlobV2 { .. } => Some(LOAD_OUTPUT_MESSAGE_FOR_FILE_GLOB.to_string()),
@@ -1508,8 +1501,7 @@ fn get_action_loading_text(action: AIAgentActionType) -> Option<String> {
 
 fn get_action_icon(action: AIAgentActionType) -> Option<Icon> {
     match action {
-        AIAgentActionType::SearchCodebase(_)
-        | AIAgentActionType::ReadFiles(_)
+        AIAgentActionType::ReadFiles(_)
         | AIAgentActionType::Grep { .. }
         | AIAgentActionType::FileGlobV2 { .. } => Some(Icon::Search),
         _ => None,
@@ -1818,9 +1810,6 @@ fn get_blocked_action_header(action: AIAgentActionType) -> Option<String> {
         AIAgentActionType::ReadFiles(..) => {
             Some(BLOCKED_ACTION_MESSAGE_FOR_READING_FILES.to_string())
         }
-        AIAgentActionType::SearchCodebase(..) => {
-            Some(BLOCKED_ACTION_MESSAGE_FOR_SEARCHING_CODEBASE.to_string())
-        }
         AIAgentActionType::Grep { .. } | AIAgentActionType::FileGlobV2 { .. } => {
             Some(BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB.to_string())
         }
@@ -1910,10 +1899,6 @@ fn render_search_action_input(
             .map(|loc| loc.name.as_str())
             .collect::<Vec<_>>()
             .join("\n"),
-        AIAgentActionType::SearchCodebase(ref request) => {
-            let repo = request.codebase_path.as_deref()?;
-            repo.to_string()
-        }
         AIAgentActionType::Grep {
             ref queries,
             ref path,

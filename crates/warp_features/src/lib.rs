@@ -197,9 +197,6 @@ pub enum FeatureFlag {
     /// as model selectors are always shown when this flag is enabled.
     ProfilesDesignRevamp,
 
-    /// Enables new Search Codebase UI
-    SearchCodebaseUI,
-
     /// Enables us to render linked code blocks
     LinkedCodeBlocks,
 
@@ -438,9 +435,6 @@ pub enum FeatureFlag {
 
     /// Enables tab configs — user-definable TOML templates for launching custom tab layouts.
     TabConfigs,
-
-    /// Enables the ask_user_question tool allowing the agent to ask clarifying questions.
-    AskUserQuestion,
 
     /// Replaces the in-block warpification banner with a warpify footer.
     WarpifyFooter,

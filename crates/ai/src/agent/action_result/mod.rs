@@ -29,7 +29,6 @@ pub enum AIAgentActionResultType {
     ReadFiles(ReadFilesResult),
 
     /// The output of a search codebase action.
-    SearchCodebase(SearchCodebaseResult),
 
     /// The output of a grep action.
     Grep(GrepResult),
@@ -47,7 +46,6 @@ pub enum AIAgentActionResultType {
     CallMCPTool(CallMCPToolResult),
 
     /// The output of reading a skill.
-    ReadSkill(ReadSkillResult),
 
     /// The output of suggesting a new conversation.
     SuggestNewConversation(SuggestNewConversationResult),
@@ -83,7 +81,6 @@ pub enum AIAgentActionResultType {
     /// The output of transferring shell command control to the user.
     TransferShellCommandControlToUser(TransferShellCommandControlToUserResult),
     /// The result of asking the user a question.
-    AskUserQuestion(AskUserQuestionResult),
 
     /// The result of an orchestrate tool call: launched (with per-agent
     /// outcomes), launch denied (Stage 2), failure, or cancelled.
@@ -140,13 +137,11 @@ impl Display for AIAgentActionResultType {
             AIAgentActionResultType::WriteToLongRunningShellCommand(result) => result.fmt(f),
             AIAgentActionResultType::RequestFileEdits(result) => result.fmt(f),
             AIAgentActionResultType::ReadFiles(result) => result.fmt(f),
-            AIAgentActionResultType::SearchCodebase(result) => result.fmt(f),
             AIAgentActionResultType::Grep(result) => result.fmt(f),
             AIAgentActionResultType::FileGlob(result) => result.fmt(f),
             AIAgentActionResultType::FileGlobV2(result) => result.fmt(f),
             AIAgentActionResultType::ReadMCPResource(result) => result.fmt(f),
             AIAgentActionResultType::CallMCPTool(result) => result.fmt(f),
-            AIAgentActionResultType::ReadSkill(result) => result.fmt(f),
             AIAgentActionResultType::SuggestNewConversation(result) => result.fmt(f),
             AIAgentActionResultType::SuggestPrompt(result) => result.fmt(f),
             AIAgentActionResultType::ReadDocuments(result) => result.fmt(f),
@@ -157,7 +152,6 @@ impl Display for AIAgentActionResultType {
             AIAgentActionResultType::FetchConversation(result) => result.fmt(f),
             AIAgentActionResultType::SendMessageToAgent(result) => result.fmt(f),
             AIAgentActionResultType::TransferShellCommandControlToUser(result) => result.fmt(f),
-            AIAgentActionResultType::AskUserQuestion(result) => result.fmt(f),
             AIAgentActionResultType::RunAgents(result) => result.fmt(f),
             AIAgentActionResultType::WaitForEvents(result) => result.fmt(f),
             AIAgentActionResultType::OpenCodeReview | AIAgentActionResultType::InitProject => {
@@ -568,43 +562,6 @@ impl Display for ReadShellCommandOutputResult {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum SearchCodebaseFailureReason {
-    CodebaseNotIndexed,
-    InvalidFilePaths,
-    GetRelevantFilesError,
-    ClientError,
-    MissingCurrentWorkingDirectory,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum SearchCodebaseResult {
-    Success {
-        files: Vec<FileContext>,
-    },
-    Failed {
-        reason: SearchCodebaseFailureReason,
-
-        /// The message to be sent back to the LLM to inform it why the search failed.
-        message: String,
-    },
-    Cancelled,
-}
-
-impl Display for SearchCodebaseResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SearchCodebaseResult::Success { files } => {
-                write!(f, "Codebase search found: {}", files.iter().format(", "))
-            }
-            SearchCodebaseResult::Failed { reason, message } => {
-                write!(f, "Codebase search failed ({reason:?}): {message}")
-            }
-            SearchCodebaseResult::Cancelled => write!(f, "Codebase search cancelled"),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum RequestFileEditsResult {
     Success {
@@ -708,12 +665,10 @@ impl AIAgentActionResultType {
                 "The diff from editing the last file in Agent Mode"
             }
             AIAgentActionResultType::ReadFiles(_) => "The requested file content",
-            AIAgentActionResultType::SearchCodebase(_) => "The codebase search results",
             AIAgentActionResultType::Grep(_) => "The results of the grep operation",
             AIAgentActionResultType::FileGlob(_) => "The results of the file glob operation",
             AIAgentActionResultType::FileGlobV2(_) => "The results of the file glob operation",
             AIAgentActionResultType::CallMCPTool(_) => "The MCP tool call",
-            AIAgentActionResultType::ReadSkill(_) => "The results of reading a skill from file",
             AIAgentActionResultType::ReadMCPResource(_) => "The MCP resource",
             AIAgentActionResultType::SuggestNewConversation(_) => {
                 "Your decision on whether to start a new conversation"
@@ -731,9 +686,6 @@ impl AIAgentActionResultType {
             AIAgentActionResultType::TransferShellCommandControlToUser(_) => {
                 "The result of transferring shell command control to user"
             }
-            AIAgentActionResultType::AskUserQuestion(_) => {
-                "The user's answers to clarifying questions"
-            }
             AIAgentActionResultType::RunAgents(_) => {
                 "The result of an orchestrate batch of child agents"
             }
@@ -748,7 +700,6 @@ impl AIAgentActionResultType {
             Self::RequestCommandOutput(r) => r.is_successful(),
             Self::RequestFileEdits(RequestFileEditsResult::Success { .. })
             | Self::ReadFiles(ReadFilesResult::Success { .. })
-            | Self::SearchCodebase(SearchCodebaseResult::Success { .. })
             | Self::Grep(GrepResult::Success { .. })
             | Self::FileGlob(FileGlobResult::Success { .. })
             | Self::FileGlobV2(FileGlobV2Result::Success { .. })
@@ -765,14 +716,12 @@ impl AIAgentActionResultType {
             )
             | Self::InsertReviewComments(InsertReviewCommentsResult::Success { .. })
             | Self::OpenCodeReview
-            | Self::ReadSkill(ReadSkillResult::Success { .. })
             | Self::FetchConversation(FetchConversationResult::Success { .. })
             | Self::SendMessageToAgent(SendMessageToAgentResult::Success { .. })
             | Self::TransferShellCommandControlToUser(
                 TransferShellCommandControlToUserResult::Snapshot { .. }
                 | TransferShellCommandControlToUserResult::CommandFinished { .. },
             ) => true,
-            Self::AskUserQuestion(AskUserQuestionResult::Success { .. }) => true,
             Self::RunAgents(RunAgentsResult::Launched { agents, .. }) => agents
                 .iter()
                 .any(|agent| matches!(agent.kind, RunAgentsAgentOutcomeKind::Launched { .. })),
@@ -786,7 +735,6 @@ impl AIAgentActionResultType {
             Self::RequestCommandOutput(r) => r.failed(),
             Self::RequestFileEdits(RequestFileEditsResult::DiffApplicationFailed { .. })
             | Self::ReadFiles(ReadFilesResult::Error(_))
-            | Self::SearchCodebase(SearchCodebaseResult::Failed { .. })
             | Self::Grep(GrepResult::Error(_))
             | Self::FileGlob(FileGlobResult::Error(_))
             | Self::FileGlobV2(FileGlobV2Result::Error(_))
@@ -798,7 +746,6 @@ impl AIAgentActionResultType {
             | Self::InsertReviewComments(InsertReviewCommentsResult::Error { .. })
             | Self::FetchConversation(FetchConversationResult::Error(_))
             | Self::SendMessageToAgent(SendMessageToAgentResult::Error(_))
-            | Self::AskUserQuestion(AskUserQuestionResult::Error(_))
             | Self::TransferShellCommandControlToUser(
                 TransferShellCommandControlToUserResult::Error(_),
             )
@@ -822,7 +769,6 @@ impl AIAgentActionResultType {
             }) if exit_code.value() == 130 => true,
             Self::RequestFileEdits(RequestFileEditsResult::Cancelled)
             | Self::ReadFiles(ReadFilesResult::Cancelled)
-            | Self::SearchCodebase(SearchCodebaseResult::Cancelled)
             | Self::Grep(GrepResult::Cancelled)
             | Self::FileGlob(FileGlobResult::Cancelled)
             | Self::FileGlobV2(FileGlobV2Result::Cancelled)
@@ -841,11 +787,8 @@ impl AIAgentActionResultType {
             | Self::WriteToLongRunningShellCommand(
                 WriteToLongRunningShellCommandResult::Cancelled,
             )
-            | Self::ReadSkill(ReadSkillResult::Cancelled)
             | Self::FetchConversation(FetchConversationResult::Cancelled)
             | Self::SendMessageToAgent(SendMessageToAgentResult::Cancelled)
-            // SkippedByAutoApprove is intentionally excluded: the agent should continue.
-            | Self::AskUserQuestion(AskUserQuestionResult::Cancelled)
             | Self::RunAgents(RunAgentsResult::Cancelled)
             | Self::WaitForEvents(WaitForEventsResult::Cancelled) => true,
             _ => false,
@@ -1054,24 +997,6 @@ impl Display for ReadMCPResourceResult {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ReadSkillResult {
-    Success { content: FileContext },
-    Error(String),
-    Cancelled,
-}
-
-impl Display for ReadSkillResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ReadSkillResult::Success { content } => {
-                write!(f, "Skill read successfully: {}", content.file_name)
-            }
-            ReadSkillResult::Error(error) => write!(f, "Skill read error: {error}"),
-            ReadSkillResult::Cancelled => write!(f, "Skill read cancelled"),
-        }
-    }
-}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InsertReviewCommentsResult {
     Success { repo_path: String },
@@ -1257,77 +1182,6 @@ impl Display for TransferShellCommandControlToUserResult {
             ),
             Self::Cancelled => write!(f, "Transfer shell command control to user cancelled"),
             Self::Error(e) => write!(f, "Transfer shell command control to user failed: {e:?}"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AskUserQuestionAnswerItem {
-    Answered {
-        question_id: String,
-        selected_options: Vec<String>,
-        other_text: String,
-    },
-    Skipped {
-        question_id: String,
-    },
-}
-
-impl AskUserQuestionAnswerItem {
-    pub fn is_skipped(&self) -> bool {
-        matches!(self, Self::Skipped { .. })
-    }
-
-    pub fn display_text(&self) -> String {
-        match self {
-            Self::Answered {
-                selected_options,
-                other_text,
-                ..
-            } => {
-                let mut parts = selected_options.clone();
-                if !other_text.is_empty() {
-                    parts.push(format!("Other: {other_text}"));
-                }
-                parts.join(", ")
-            }
-            Self::Skipped { .. } => "Skipped".to_string(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AskUserQuestionResult {
-    Success {
-        answers: Vec<AskUserQuestionAnswerItem>,
-    },
-    Error(String),
-    Cancelled,
-    /// The question was skipped automatically because the conversation is in auto-approve mode.
-    SkippedByAutoApprove {
-        question_ids: Vec<String>,
-    },
-}
-
-impl Display for AskUserQuestionResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AskUserQuestionResult::Success { answers } => {
-                write!(
-                    f,
-                    "Ask user question completed with {} answer(s)",
-                    answers.len()
-                )
-            }
-            AskUserQuestionResult::Error(msg) => write!(f, "Ask user question error: {msg}"),
-            AskUserQuestionResult::Cancelled => write!(f, "Ask user question cancelled"),
-            AskUserQuestionResult::SkippedByAutoApprove { question_ids } => {
-                write!(
-                    f,
-                    "Ask user question skipped (auto-approve) with {} skipped question(s)",
-                    question_ids.len()
-                )
-            }
         }
     }
 }

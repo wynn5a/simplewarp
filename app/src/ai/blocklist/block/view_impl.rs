@@ -42,10 +42,9 @@ use warp_core::ui::color::contrast::{
 };
 use warp_core::ui::theme::{Fill, WarpTheme};
 use warpui::elements::{
-    Align, Border, Clipped, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty,
-    Expanded, Flex, FormattedTextElement, Highlight, HighlightedRange, Hoverable,
-    MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, SavePosition,
-    SelectableArea, Text,
+    Align, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty, Expanded,
+    Flex, FormattedTextElement, Highlight, HighlightedRange, Hoverable, MainAxisAlignment,
+    MainAxisSize, MouseStateHandle, ParentElement, Radius, SavePosition, SelectableArea, Text,
 };
 use warpui::fonts::Properties;
 use warpui::platform::Cursor;
@@ -83,7 +82,6 @@ use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 use crate::util::link_detection::DetectedLinkType;
 use crate::util::truncation::truncate_from_end;
-use crate::view_components::dropdown::DropdownItemAction;
 use crate::workspace::WorkspaceAction;
 
 /// Helper function to create gray strikethrough highlight for secrets
@@ -725,76 +723,6 @@ pub fn render_citation(
     )
 }
 
-/// Renders the Ask-User-Question speedbump footer: a short description label, a
-/// dropdown for the `ask_user_question` permission, and a right-aligned
-/// "Manage AI Autonomy permissions" link. Matches the visual rhythm of
-/// [`render_autonomy_checkbox_setting_speedbump_footer`].
-pub fn render_autonomy_dropdown_setting_speedbump_footer<A>(
-    description: &'static str,
-    dropdown: &warpui::ViewHandle<crate::view_components::dropdown::Dropdown<A>>,
-    settings_link_handle: MouseStateHandle,
-    app: &AppContext,
-) -> Box<dyn Element>
-where
-    A: DropdownItemAction,
-{
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-    Clipped::new(
-        Flex::row()
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_main_axis_size(MainAxisSize::Max)
-            .with_child(
-                Container::new(
-                    Text::new(
-                        description,
-                        appearance.ui_font_family(),
-                        appearance.monospace_font_size() - 1.,
-                    )
-                    .with_color(blended_colors::text_sub(theme, theme.surface_1()))
-                    .with_selectable(false)
-                    .finish(),
-                )
-                .with_margin_right(8.)
-                .finish(),
-            )
-            .with_child(
-                Container::new(warpui::elements::ChildView::new(dropdown).finish())
-                    .with_margin_right(8.)
-                    .finish(),
-            )
-            .with_child(
-                Expanded::new(
-                    1.,
-                    Align::new(
-                        appearance
-                            .ui_builder()
-                            .link(
-                                "Manage AI Autonomy permissions".into(),
-                                None,
-                                Some(Box::new(move |ctx| {
-                                    ctx.dispatch_typed_action(
-                                        WorkspaceAction::ShowSettingsPageWithSearch {
-                                            search_query: "Autonomy".to_string(),
-                                            section: Some(SettingsSection::WarpAgent),
-                                        },
-                                    );
-                                })),
-                                settings_link_handle,
-                            )
-                            .build()
-                            .finish(),
-                    )
-                    .right()
-                    .finish(),
-                )
-                .finish(),
-            )
-            .finish(),
-    )
-    .finish()
-}
-
 /// TODO: All AIBlock footer-related rendering logic should probably be put into its own View.
 /// This function is needed both above (i.e. `block.rs`) and below (i.e. `output.rs`), and as such
 /// cannot reside in `output.rs` because we don't want to make `mod output` public.
@@ -1057,7 +985,6 @@ impl View for AIBlock {
                 autonomy_setting_speedbump: &self.autonomy_setting_speedbump,
                 keyboard_navigable_buttons: self.keyboard_navigable_buttons.as_ref(),
                 response_rating: &self.response_rating,
-                search_codebase_view: &self.search_codebase_view,
                 review_changes_button: &self.review_changes_button,
                 open_all_comments_button: &self.open_all_comments_button,
                 has_accepted_edits,
@@ -1074,7 +1001,6 @@ impl View for AIBlock {
                     .model
                     .is_latest_visible_exchange_in_root_task(app)
                     && self.has_imported_comments_in_current_thread(app),
-                ask_user_question_view: self.ask_user_question_view.as_ref(),
             },
             app,
         ));

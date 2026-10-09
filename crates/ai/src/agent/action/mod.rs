@@ -11,20 +11,19 @@ pub use review_comments::{
     ReviewCommentThread, ReviewCommentThreadItem, format_review_comment_thread,
     group_review_comment_threads,
 };
-use serde::{Deserialize, Serialize};
 use strum_macros::EnumDiscriminants;
 use uuid::Uuid;
 pub use warp_multi_agent_api::LifecycleEventType;
 use warp_terminal::model::BlockId;
 
 use crate::agent::action_result::{
-    AIAgentActionResultType, AskUserQuestionResult, CallMCPToolResult, CreateDocumentsResult,
-    EditDocumentsResult, FetchConversationResult, FileGlobResult, FileGlobV2Result, GrepResult,
+    AIAgentActionResultType, CallMCPToolResult, CreateDocumentsResult, EditDocumentsResult,
+    FetchConversationResult, FileGlobResult, FileGlobV2Result, GrepResult,
     InsertReviewCommentsResult, ReadDocumentsResult, ReadFilesResult, ReadMCPResourceResult,
-    ReadShellCommandOutputResult, ReadSkillResult, RequestCommandOutputResult,
-    RequestFileEditsResult, RunAgentsResult, SearchCodebaseResult, SendMessageToAgentResult,
-    SuggestNewConversationResult, SuggestPromptResult, TransferShellCommandControlToUserResult,
-    WaitForEventsResult, WriteToLongRunningShellCommandResult,
+    ReadShellCommandOutputResult, RequestCommandOutputResult, RequestFileEditsResult,
+    RunAgentsResult, SendMessageToAgentResult, SuggestNewConversationResult, SuggestPromptResult,
+    TransferShellCommandControlToUserResult, WaitForEventsResult,
+    WriteToLongRunningShellCommandResult,
 };
 use crate::agent::{AIAgentCitation, FileLocations};
 use crate::diff_validation::ParsedDiff;
@@ -68,8 +67,6 @@ pub enum AIAgentActionType {
 
     /// AI requested getting the content of some files.
     ReadFiles(ReadFilesRequest),
-
-    SearchCodebase(SearchCodebaseRequest),
 
     /// AI requested a vector of edits. Each edit holds a list of diffs on a single code file.
     RequestFileEdits {
@@ -133,9 +130,6 @@ pub enum AIAgentActionType {
         base_branch: Option<String>,
     },
 
-    // AI requested to read a skill.
-    ReadSkill(ReadSkillRequest),
-
     FetchConversation {
         conversation_id: String,
     },
@@ -149,10 +143,6 @@ pub enum AIAgentActionType {
     TransferShellCommandControlToUser {
         /// The reason provided by the agent for transferring control.
         reason: String,
-    },
-
-    AskUserQuestion {
-        questions: Vec<AskUserQuestionItem>,
     },
 
     /// AI requested batched orchestration of one-or-more child agents that
@@ -235,10 +225,6 @@ impl AIAgentActionType {
         matches!(self, Self::ReadFiles(..))
     }
 
-    pub fn is_search_codebase(&self) -> bool {
-        matches!(self, Self::SearchCodebase(..))
-    }
-
     pub fn is_grep(&self) -> bool {
         matches!(self, Self::Grep { .. })
     }
@@ -260,9 +246,6 @@ impl AIAgentActionType {
                 AIAgentActionResultType::RequestFileEdits(RequestFileEditsResult::Cancelled)
             }
             Self::ReadFiles(..) => AIAgentActionResultType::ReadFiles(ReadFilesResult::Cancelled),
-            Self::SearchCodebase(..) => {
-                AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Cancelled)
-            }
             Self::Grep { .. } => AIAgentActionResultType::Grep(GrepResult::Cancelled),
             Self::FileGlob { .. } => AIAgentActionResultType::FileGlob(FileGlobResult::Cancelled),
             Self::FileGlobV2 { .. } => {
@@ -302,7 +285,6 @@ impl AIAgentActionType {
             Self::InsertCodeReviewComments { .. } => {
                 AIAgentActionResultType::InsertReviewComments(InsertReviewCommentsResult::Cancelled)
             }
-            Self::ReadSkill(_) => AIAgentActionResultType::ReadSkill(ReadSkillResult::Cancelled),
             Self::FetchConversation { .. } => {
                 AIAgentActionResultType::FetchConversation(FetchConversationResult::Cancelled)
             }
@@ -313,9 +295,6 @@ impl AIAgentActionType {
                 AIAgentActionResultType::TransferShellCommandControlToUser(
                     TransferShellCommandControlToUserResult::Cancelled,
                 )
-            }
-            Self::AskUserQuestion { .. } => {
-                AIAgentActionResultType::AskUserQuestion(AskUserQuestionResult::Cancelled)
             }
             Self::RunAgents(_) => AIAgentActionResultType::RunAgents(RunAgentsResult::Cancelled),
             Self::WaitForEvents { .. } => {
@@ -333,7 +312,6 @@ impl AIAgentActionType {
                 "Write to long running shell command".to_string()
             }
             Self::ReadFiles(_) => "Read files".to_string(),
-            Self::SearchCodebase(_) => "Search codebase".to_string(),
             Self::RequestFileEdits { file_edits, .. } => {
                 let file_names = file_edits.iter().filter_map(|edit| edit.file()).join(", ");
                 format!("Edit {file_names}")
@@ -353,14 +331,10 @@ impl AIAgentActionType {
             Self::InsertCodeReviewComments { comments, .. } => {
                 format!("Insert {} code review comments", comments.len())
             }
-            Self::ReadSkill(_) => "Read skill".to_string(),
             Self::FetchConversation { .. } => "Fetch conversation".to_string(),
             Self::SendMessageToAgent { subject, .. } => format!("Send message: {subject}"),
             Self::TransferShellCommandControlToUser { .. } => {
                 "Transfer shell command control to user".to_string()
-            }
-            Self::AskUserQuestion { questions } => {
-                format!("Ask user {} question(s)", questions.len())
             }
             Self::RunAgents(req) => {
                 format!("Orchestrate {} agent(s)", req.agent_run_configs.len())
@@ -395,9 +369,6 @@ impl Display for AIAgentActionType {
                 )
             }
             AIAgentActionType::ReadFiles(request) => {
-                write!(f, "{request}")
-            }
-            AIAgentActionType::SearchCodebase(request) => {
                 write!(f, "{request}")
             }
             AIAgentActionType::RequestFileEdits { file_edits, title } => {
@@ -500,9 +471,6 @@ impl Display for AIAgentActionType {
                     file_paths
                 )
             }
-            AIAgentActionType::ReadSkill(req) => {
-                write!(f, "ReadSkill: {}", req.skill)
-            }
             AIAgentActionType::FetchConversation { conversation_id } => {
                 write!(f, "FetchConversation: {conversation_id}")
             }
@@ -517,9 +485,6 @@ impl Display for AIAgentActionType {
             }
             AIAgentActionType::TransferShellCommandControlToUser { reason } => {
                 write!(f, "TransferShellCommandControlToUser: {reason}")
-            }
-            AIAgentActionType::AskUserQuestion { questions } => {
-                write!(f, "AskUserQuestion: {} question(s)", questions.len())
             }
             AIAgentActionType::RunAgents(req) => {
                 let names = req
@@ -543,54 +508,6 @@ impl Display for AIAgentActionType {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub enum AskUserQuestionType {
-    MultipleChoice {
-        is_multiselect: bool,
-        options: Vec<AskUserQuestionOption>,
-        supports_other: bool,
-    },
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct AskUserQuestionOption {
-    pub label: String,
-    pub recommended: bool,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct AskUserQuestionItem {
-    pub question_id: String,
-    pub question: String,
-    pub question_type: AskUserQuestionType,
-}
-
-impl AskUserQuestionItem {
-    pub fn is_multiselect(&self) -> bool {
-        match &self.question_type {
-            AskUserQuestionType::MultipleChoice { is_multiselect, .. } => *is_multiselect,
-        }
-    }
-
-    pub fn multiple_choice_options(&self) -> Option<&[AskUserQuestionOption]> {
-        match &self.question_type {
-            AskUserQuestionType::MultipleChoice { options, .. } => Some(options),
-        }
-    }
-
-    pub fn supports_other(&self) -> bool {
-        match &self.question_type {
-            AskUserQuestionType::MultipleChoice { supports_other, .. } => *supports_other,
-        }
-    }
-
-    pub fn numbered_option_count(&self) -> usize {
-        self.multiple_choice_options()
-            .map_or(0, |options| options.len())
-            + usize::from(self.supports_other())
-    }
-}
-
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ReadFilesRequest {
     pub locations: Vec<FileLocations>,
@@ -605,25 +522,6 @@ impl Display for ReadFilesRequest {
             .collect::<Vec<_>>()
             .join(", ");
         write!(f, "ReadFiles: [{file_names}]")
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct SearchCodebaseRequest {
-    pub query: String,
-
-    /// Optional list of file paths to search through.  This is used to narrow down the search scope.
-    /// Files are searched if any of the partial paths are a substring of the file path.
-    pub partial_paths: Option<Vec<String>>,
-
-    /// Optional absolute path to the codebase that we want to search. If not
-    /// provided, we will use the codebase in the user's current directory.
-    pub codebase_path: Option<String>,
-}
-
-impl Display for SearchCodebaseRequest {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "SearchCodebase: {}", self.query)
     }
 }
 
@@ -653,11 +551,6 @@ pub struct DocumentToCreate {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct CreateDocumentsRequest {
     pub documents: Vec<DocumentToCreate>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct ReadSkillRequest {
-    pub skill: SkillReference,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

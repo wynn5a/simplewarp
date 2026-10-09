@@ -25,7 +25,7 @@ use warpui::{AppContext, EntityId, SingletonEntity as _};
 use super::{AIAgentInput, MCPContext, MCPServer, RequestMetadata, ServerOutputId, Suggestions};
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
-use crate::ai::blocklist::{BlocklistAIPermissions, RequestInput, SessionContext};
+use crate::ai::blocklist::{RequestInput, SessionContext};
 use crate::ai::execution_profiles::AIExecutionProfileAppExt;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::llms::LLMId;
@@ -100,7 +100,6 @@ pub struct RequestParams {
     pub allow_use_of_warp_credits: bool,
     pub autonomy_level: warp_multi_agent_api::AutonomyLevel,
     pub isolation_level: warp_multi_agent_api::IsolationLevel,
-    pub ask_user_question_enabled: bool,
     pub research_agent_enabled: bool,
     pub supported_tools_override: Option<Vec<warp_multi_agent_api::ToolType>>,
     /// The conversation ID of the parent agent that spawned this child agent, if any.
@@ -168,7 +167,6 @@ impl RequestParams {
             allow_use_of_warp_credits: false,
             autonomy_level: Default::default(),
             isolation_level: Default::default(),
-            ask_user_question_enabled: false,
             research_agent_enabled: false,
             supported_tools_override: None,
             parent_agent_id: None,
@@ -283,9 +281,6 @@ impl RequestParams {
             .flatten()
             .and_then(|s| s.parse().ok())
             .unwrap_or_default();
-        let ask_user_question_enabled = BlocklistAIPermissions::as_ref(app)
-            .get_ask_user_question_setting(app, terminal_view_id)
-            != crate::ai::execution_profiles::AskUserQuestionPermission::Never;
 
         // Reconcile the persisted override against the active base model's
         // current `LLMContextWindow` instead of trusting whatever was stored
@@ -323,7 +318,6 @@ impl RequestParams {
             allow_use_of_warp_credits: false,
             autonomy_level,
             isolation_level,
-            ask_user_question_enabled,
             research_agent_enabled,
             supported_tools_override: request_input.supported_tools_override.clone(),
             parent_agent_id: None,

@@ -379,7 +379,6 @@ figma_detection = []
 bundled_skills = []
 agent_mode = []
 agent_mode_debug = []
-ask_user_question = []
 async_find = []
 clear_autosuggestion_on_escape = []
 command_predictor = []
@@ -423,7 +422,6 @@ default = [
     "ai_context_menu_code",
     "agent_decides_command_execution",
     "linked_code_blocks",
-    "search_codebase_ui",
     "profiles_design_revamp",
     "multi_profile",
     "tabbed_editor_view",
@@ -462,7 +460,6 @@ default = [
     "pluggable_notifications",
     "global_search",
     "list_skills",
-    "ask_user_question",
     "bundled_skills",
     "agent_view",
     "agent_view_block_context",
@@ -547,7 +544,6 @@ simplewarp = [
     "ai_context_menu_code",
     "agent_decides_command_execution",
     "linked_code_blocks",
-    "search_codebase_ui",
     "profiles_design_revamp",
     "multi_profile",
     "tabbed_editor_view",
@@ -586,7 +582,6 @@ simplewarp = [
     "pluggable_notifications",
     "global_search",
     "list_skills",
-    "ask_user_question",
     "bundled_skills",
     "agent_view",
     "agent_view_block_context",
@@ -783,7 +778,6 @@ ai_context_menu_code = []
 expand_edit_to_pane = []
 fallback_model_load_output_messaging = []
 profiles_design_revamp = []
-search_codebase_ui = []
 linked_code_blocks = []
 tabbed_editor_view = []
 selection_as_context = []

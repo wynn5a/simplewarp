@@ -5,8 +5,8 @@ use super::super::blocklist::block::secret_redaction::{
 };
 use crate::ai::agent::{
     AIAgentActionResultType, AIAgentAttachment, AIAgentContext, AIAgentInput, AnyFileContent,
-    AskUserQuestionAnswerItem, AskUserQuestionResult, BlockContext, PassiveSuggestionTrigger,
-    RequestCommandOutputResult, TransferShellCommandControlToUserResult,
+    BlockContext, PassiveSuggestionTrigger, RequestCommandOutputResult,
+    TransferShellCommandControlToUserResult,
 };
 
 /// Redact all detected secrets in-place within the given string.
@@ -150,17 +150,6 @@ pub(crate) fn redact_inputs(inputs: &mut [AIAgentInput]) {
                             }
                         }
                     }
-                    AIAgentActionResultType::SearchCodebase(search_codebase_result) => {
-                        if let crate::ai::agent::SearchCodebaseResult::Success { files } =
-                            search_codebase_result
-                        {
-                            for file in files {
-                                if let AnyFileContent::StringContent(content) = &mut file.content {
-                                    redact_secrets(content);
-                                }
-                            }
-                        }
-                    }
                     AIAgentActionResultType::RequestFileEdits(request_file_edits_result) => {
                         if let crate::ai::agent::RequestFileEditsResult::Success {
                             diff,
@@ -206,7 +195,6 @@ pub(crate) fn redact_inputs(inputs: &mut [AIAgentInput]) {
 
                     // TODO: Redact MCP-related results
                     AIAgentActionResultType::CallMCPTool { .. }
-                    | AIAgentActionResultType::ReadSkill { .. }
                     | AIAgentActionResultType::ReadMCPResource { .. }
                     | AIAgentActionResultType::SuggestPrompt { .. }
                     | AIAgentActionResultType::ReadDocuments(_)
@@ -235,9 +223,6 @@ pub(crate) fn redact_inputs(inputs: &mut [AIAgentInput]) {
                             | TransferShellCommandControlToUserResult::Cancelled => {}
                         }
                     }
-                    AIAgentActionResultType::AskUserQuestion(result) => {
-                        redact_ask_user_question_result(result);
-                    }
                     // Orchestrate results contain agent IDs / canonical error
                     // strings only; no user-provided text to redact.
                     AIAgentActionResultType::RunAgents(_)
@@ -262,20 +247,6 @@ pub(crate) fn redact_inputs(inputs: &mut [AIAgentInput]) {
     }
 }
 
-fn redact_ask_user_question_result(result: &mut AskUserQuestionResult) {
-    match result {
-        AskUserQuestionResult::Success { answers } => {
-            for answer in answers {
-                if let AskUserQuestionAnswerItem::Answered { other_text, .. } = answer {
-                    redact_secrets(other_text);
-                }
-            }
-        }
-        AskUserQuestionResult::SkippedByAutoApprove { .. } => {}
-        AskUserQuestionResult::Error(message) => redact_secrets(message),
-        AskUserQuestionResult::Cancelled => {}
-    }
-}
 fn redact_context(context: &mut [AIAgentContext]) {
     for context_item in context {
         match context_item {

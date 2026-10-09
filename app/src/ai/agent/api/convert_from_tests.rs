@@ -1,11 +1,7 @@
-use ai::agent::action::AskUserQuestionType;
 use ai::skills::SkillPathOrigin;
 use warp_multi_agent_api as api;
 
-use super::{
-    ConversionParams, ConvertAPIMessageToClientOutputMessage, MaybeAIAgentOutputMessage,
-    convert_api_question,
-};
+use super::{ConversionParams, ConvertAPIMessageToClientOutputMessage, MaybeAIAgentOutputMessage};
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{AIAgentActionType, AIAgentOutputMessageType};
 
@@ -61,53 +57,6 @@ fn file_artifact_created_message(filepath: &str, description: &str) -> api::Mess
         request_id: "request-id".to_string(),
         timestamp: None,
     }
-}
-
-fn build_multiple_choice_question(
-    recommended_option_index: i32,
-) -> api::ask_user_question::Question {
-    api::ask_user_question::Question {
-        question_id: "q1".to_string(),
-        question: "Which option should we prefer?".to_string(),
-        question_type: Some(
-            api::ask_user_question::question::QuestionType::MultipleChoice(
-                api::ask_user_question::MultipleChoice {
-                    is_multiselect: false,
-                    options: vec![
-                        api::ask_user_question::Option {
-                            label: "First".to_string(),
-                        },
-                        api::ask_user_question::Option {
-                            label: "Second".to_string(),
-                        },
-                    ],
-                    recommended_option_index,
-                    supports_other: false,
-                },
-            ),
-        ),
-    }
-}
-
-#[test]
-fn convert_api_question_treats_negative_recommended_index_as_no_recommendation() {
-    let converted = convert_api_question(build_multiple_choice_question(-1))
-        .expect("multiple choice questions should convert");
-
-    let AskUserQuestionType::MultipleChoice { options, .. } = converted.question_type;
-    assert_eq!(options.len(), 2);
-    assert!(options.iter().all(|option| !option.recommended));
-}
-
-#[test]
-fn convert_api_question_uses_zero_based_recommended_index_when_present() {
-    let converted = convert_api_question(build_multiple_choice_question(0))
-        .expect("multiple choice questions should convert");
-
-    let AskUserQuestionType::MultipleChoice { options, .. } = converted.question_type;
-    assert_eq!(options.len(), 2);
-    assert!(options[0].recommended);
-    assert!(!options[1].recommended);
 }
 
 fn extract_file_artifact_created(

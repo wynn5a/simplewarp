@@ -1,6 +1,6 @@
 pub use cloud_object_models::{
-    AIExecutionProfile, ActionPermission, AskUserQuestionPermission, CloudAIExecutionProfile,
-    PROFILE_NAME_MAX_LENGTH, RunAgentsPermission, WriteToPtyPermission,
+    AIExecutionProfile, ActionPermission, CloudAIExecutionProfile, PROFILE_NAME_MAX_LENGTH,
+    RunAgentsPermission, WriteToPtyPermission,
 };
 use warpui::{AppContext, SingletonEntity};
 

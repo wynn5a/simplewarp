@@ -7,15 +7,11 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use ai::agent::action_result::{
-    AskUserQuestionAnswerItem, AskUserQuestionResult, FetchConversationResult, ReadSkillResult,
-    SendMessageToAgentResult,
-};
+use ai::agent::action_result::{FetchConversationResult, SendMessageToAgentResult};
 use ai::skills::{ParsedSkill, SkillPathOrigin};
 use chrono::{DateTime, Local, TimeZone};
 use warp_core::command::ExitCode;
 use warp_multi_agent_api as api;
-use warp_multi_agent_api::ask_user_question_result::answer_item::Answer as AskUserQuestionAnswer;
 
 use crate::ai::agent::api::convert_from::{
     ConversionParams, ConvertAPIMessageToClientOutputMessage, MaybeAIAgentOutputMessage,
@@ -32,10 +28,9 @@ use crate::ai::agent::{
     FileGlobV2Result, FinishedAIAgentOutput, GrepFileMatch, GrepLineMatch, GrepResult,
     ImageContext, InsertReviewCommentsResult, OutputModelInfo, ReadDocumentsResult,
     ReadFilesFailedFile, ReadFilesResult, ReadMCPResourceResult, ReadShellCommandOutputResult,
-    RequestCommandOutputResult, RequestFileEditsResult, SearchCodebaseFailureReason,
-    SearchCodebaseResult, ServerOutputId, Shared, ShellCommandError, SuggestNewConversationResult,
-    SuggestPromptResult, TransferShellCommandControlToUserResult, UpdatedFileContext,
-    UserQueryMode, WriteToLongRunningShellCommandResult,
+    RequestCommandOutputResult, RequestFileEditsResult, ServerOutputId, Shared, ShellCommandError,
+    SuggestNewConversationResult, SuggestPromptResult, TransferShellCommandControlToUserResult,
+    UpdatedFileContext, UserQueryMode, WriteToLongRunningShellCommandResult,
 };
 use crate::ai::block_context::BlockContext;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
@@ -620,35 +615,6 @@ pub(crate) fn convert_tool_call_result_to_input(
         // Uploads went to server artifact storage; persisted results have no client
         // representation.
         Some(ToolCallResultType::UploadFileArtifact(_)) => None,
-        Some(ToolCallResultType::SearchCodebase(result)) => {
-            let search_result = match &result.result {
-                Some(api::search_codebase_result::Result::Success(success)) => {
-                    let files = success
-                        .files
-                        .iter()
-                        .map(|file| FileContext::from(file.clone()))
-                        .collect();
-
-                    SearchCodebaseResult::Success { files }
-                }
-                Some(api::search_codebase_result::Result::Error(error)) => {
-                    SearchCodebaseResult::Failed {
-                        reason: SearchCodebaseFailureReason::ClientError,
-                        message: error.message.clone(),
-                    }
-                }
-                None => SearchCodebaseResult::Cancelled,
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::SearchCodebase(search_result),
-                },
-                context,
-            })
-        }
         Some(ToolCallResultType::ApplyFileDiffs(result)) => {
             let edit_result = match &result.result {
                 Some(api::apply_file_diffs_result::Result::Success(success)) => {
@@ -901,31 +867,6 @@ pub(crate) fn convert_tool_call_result_to_input(
                     id: tool_call_id.into(),
                     task_id: task_id.clone(),
                     result: AIAgentActionResultType::CallMCPTool(mcp_tool_result),
-                },
-                context,
-            })
-        }
-        Some(ToolCallResultType::ReadSkill(result)) => {
-            let read_skill_result = match &result.result {
-                Some(api::read_skill_result::Result::Success(success)) => {
-                    if let Some(content) = &success.content {
-                        let context = FileContext::from(content.clone());
-                        ReadSkillResult::Success { content: context }
-                    } else {
-                        ReadSkillResult::Error("FileContent is None".to_string())
-                    }
-                }
-                Some(api::read_skill_result::Result::Error(error)) => {
-                    ReadSkillResult::Error(error.message.clone())
-                }
-                None => ReadSkillResult::Cancelled,
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::ReadSkill(read_skill_result),
                 },
                 context,
             })
@@ -1271,45 +1212,6 @@ pub(crate) fn convert_tool_call_result_to_input(
             create_cancelled_result_for_tool_call(task_id, &tool_call_id, tool_call_map, context)
         }
         Some(ToolCallResultType::Subagent(_)) => None,
-        Some(ToolCallResultType::AskUserQuestion(result)) => {
-            let ask_result = match &result.result {
-                Some(warp_multi_agent_api::ask_user_question_result::Result::Success(success)) => {
-                    AskUserQuestionResult::Success {
-                        answers: success
-                            .answers
-                            .iter()
-                            .map(|a| match &a.answer {
-                                Some(AskUserQuestionAnswer::MultipleChoice(mc)) => {
-                                    AskUserQuestionAnswerItem::Answered {
-                                        question_id: a.question_id.clone(),
-                                        selected_options: mc.selected_options.clone(),
-                                        other_text: mc.other_text.clone(),
-                                    }
-                                }
-                                Some(AskUserQuestionAnswer::Skipped(())) | None => {
-                                    AskUserQuestionAnswerItem::Skipped {
-                                        question_id: a.question_id.clone(),
-                                    }
-                                }
-                            })
-                            .collect(),
-                    }
-                }
-                Some(warp_multi_agent_api::ask_user_question_result::Result::Error(err)) => {
-                    AskUserQuestionResult::Error(err.message.clone())
-                }
-                None => AskUserQuestionResult::Cancelled,
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::AskUserQuestion(ask_result),
-                },
-                context,
-            })
-        }
         Some(ToolCallResultType::SendMessageToAgent(result)) => {
             let send_message_result = match &result.result {
                 Some(api::send_message_to_agent_result::Result::Success(success)) => {
@@ -1417,9 +1319,12 @@ pub(crate) fn convert_tool_call_result_to_input(
             None
         }
         Some(ToolCallResultType::WaitForEvents(_)) => None,
-        // Computer use is gone; there is no action for a saved result to belong to.
+        // These tools are gone; there is no action for a saved result to belong to.
         Some(
-            ToolCallResultType::UseComputer(_)
+            ToolCallResultType::SearchCodebase(_)
+            | ToolCallResultType::ReadSkill(_)
+            | ToolCallResultType::AskUserQuestion(_)
+            | ToolCallResultType::UseComputer(_)
             | ToolCallResultType::RequestComputerUseResult(_)
             | ToolCallResultType::StartRecording(_)
             | ToolCallResultType::StopRecording(_),
@@ -1475,9 +1380,6 @@ fn create_cancelled_result_for_tool_call(
         }
         ToolType::ReadFiles(_) => AIAgentActionResultType::ReadFiles(ReadFilesResult::Cancelled),
         ToolType::UploadFileArtifact(_) => return None,
-        ToolType::SearchCodebase(_) => {
-            AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Cancelled)
-        }
         ToolType::ApplyFileDiffs(_) => {
             AIAgentActionResultType::RequestFileEdits(RequestFileEditsResult::Cancelled)
         }
@@ -1491,7 +1393,6 @@ fn create_cancelled_result_for_tool_call(
         ToolType::CallMcpTool(_) => {
             AIAgentActionResultType::CallMCPTool(CallMCPToolResult::Cancelled)
         }
-        ToolType::ReadSkill(_) => AIAgentActionResultType::ReadSkill(ReadSkillResult::Cancelled),
         ToolType::SuggestNewConversation(_) => {
             AIAgentActionResultType::SuggestNewConversation(SuggestNewConversationResult::Cancelled)
         }
@@ -1527,17 +1428,17 @@ fn create_cancelled_result_for_tool_call(
             return None;
         }
         ToolType::Subagent(_) => return None,
-        ToolType::AskUserQuestion(_) => {
-            AIAgentActionResultType::AskUserQuestion(AskUserQuestionResult::Cancelled)
-        }
         ToolType::SendMessageToAgent(_) => {
             AIAgentActionResultType::SendMessageToAgent(SendMessageToAgentResult::Cancelled)
         }
         ToolType::RunAgents(_) => {
             AIAgentActionResultType::RunAgents(ai::agent::action_result::RunAgentsResult::Cancelled)
         }
-        // Computer use is gone, and these tools are deprecated.
-        ToolType::UseComputer(_)
+        // These tools are gone or deprecated.
+        ToolType::SearchCodebase(_)
+        | ToolType::ReadSkill(_)
+        | ToolType::AskUserQuestion(_)
+        | ToolType::UseComputer(_)
         | ToolType::RequestComputerUse(_)
         | ToolType::StartRecording(_)
         | ToolType::StopRecording(_)

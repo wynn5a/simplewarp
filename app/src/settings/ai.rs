@@ -675,16 +675,6 @@ define_settings_group!(AISettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: true,
     }
-    // Whether or not we should show the one-shot speedbump on Ask-User-Question cards.
-    //
-    // Not a user-visible setting - we model it as a setting so we can track state.
-    should_show_agent_mode_ask_user_question_speedbump: ShouldShowAgentModeAskUserQuestionSpeedbump {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    }
     // Whether or not the user wants agent mode requests to use their saved rules.
     memory_enabled: MemoryEnabled {
         type: bool,
@@ -1005,10 +995,6 @@ impl AISettings {
     }
 
     pub fn is_code_diffs_permissions_editable(&self) -> bool {
-        self.is_any_ai_enabled()
-    }
-
-    pub fn is_ask_user_question_permissions_editable(&self) -> bool {
         self.is_any_ai_enabled()
     }
 

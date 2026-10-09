@@ -15,9 +15,7 @@ use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::execution_profiles::profiles::{
     AIExecutionProfilesModel, AIExecutionProfilesModelEvent,
 };
-use crate::ai::execution_profiles::{
-    ActionPermission, AskUserQuestionPermission, ExecutionProfileId, WriteToPtyPermission,
-};
+use crate::ai::execution_profiles::{ActionPermission, ExecutionProfileId, WriteToPtyPermission};
 use crate::ai::llms::LLMPreferences;
 use crate::appearance::Appearance;
 use crate::cloud_object::model::generic_string_model::StringModel;
@@ -269,15 +267,6 @@ impl View for ExecutionProfileView {
                             ),
                         ));
 
-                        permissions_column.add_child(with_standard_vertical_margin(
-                            render_ask_user_question_permission_line_with_icon(
-                                Icon::MessageText,
-                                "Ask questions:",
-                                &profile.ask_user_question,
-                                appearance,
-                                is_any_ai_enabled,
-                            ),
-                        ));
                         permissions_column.add_child(with_standard_vertical_margin(
                             render_action_permission_line_with_icon(
                                 Icon::Dataflow,
@@ -657,23 +646,6 @@ fn render_write_to_pty_permission_line_with_icon(
         WriteToPtyPermission::AlwaysAsk => "Always ask",
         WriteToPtyPermission::AskOnFirstWrite => "Ask on first write",
         WriteToPtyPermission::Unknown => "Unknown",
-    };
-    render_permission_line_with_icon(icon, label, permission_text, appearance, is_ai_enabled)
-}
-
-fn render_ask_user_question_permission_line_with_icon(
-    icon: Icon,
-    label: impl Into<String>,
-    permission: &AskUserQuestionPermission,
-    appearance: &Appearance,
-    is_ai_enabled: bool,
-) -> Box<dyn Element> {
-    let permission_text = match permission {
-        AskUserQuestionPermission::Never => "Never ask",
-        AskUserQuestionPermission::AskExceptInAutoApprove | AskUserQuestionPermission::Unknown => {
-            "Ask unless auto-approve"
-        }
-        AskUserQuestionPermission::AlwaysAsk => "Always ask",
     };
     render_permission_line_with_icon(icon, label, permission_text, appearance, is_ai_enabled)
 }

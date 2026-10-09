@@ -1,4 +1,3 @@
-pub(crate) mod ask_user_question_view;
 pub(crate) mod code_diff_view;
 pub(crate) mod create_or_edit_document;
 pub(crate) mod inline_action_header;
@@ -6,6 +5,4 @@ pub(crate) mod inline_action_icons;
 pub(crate) mod requested_action;
 pub(crate) mod requested_command;
 pub(crate) mod requested_command_attribution;
-pub(super) mod search_codebase;
-pub(crate) mod search_results_common;
 pub(crate) mod suggested_unit_tests;

@@ -20,9 +20,8 @@ use std::sync::Arc;
 
 pub(crate) use execute::coerce_integer_args;
 pub use execute::{
-    AskUserQuestionExecutor, NewConversationDecision, PromptSuggestionExecutor,
-    RequestFileEditsExecutor, ShellCommandExecutor, ShellCommandExecutorEvent,
-    read_local_file_context,
+    NewConversationDecision, PromptSuggestionExecutor, RequestFileEditsExecutor,
+    ShellCommandExecutor, ShellCommandExecutorEvent, read_local_file_context,
 };
 use futures::future::{BoxFuture, join_all};
 use itertools::Itertools;
@@ -30,7 +29,6 @@ use parking_lot::FairMutex;
 use preprocess::{PendingPreprocessedActions, PreprocessId};
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
-use self::execute::search_codebase::SearchCodebaseExecutor;
 use self::execute::{
     BlocklistAIActionExecutor, BlocklistAIActionExecutorEvent, NotExecutedReason,
     RunningActionPhase, TryExecuteResult,
@@ -43,7 +41,6 @@ use crate::ai::agent::{
     CancellationOutcome, CancellationReason, RequestCommandOutputResult,
 };
 use crate::ai::blocklist::action_model::execute::suggest_new_conversation::SuggestNewConversationExecutor;
-use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
 use crate::terminal::TerminalModel;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model_events::ModelEventDispatcher;
@@ -232,7 +229,6 @@ impl BlocklistAIActionModel {
         terminal_model: Arc<FairMutex<TerminalModel>>,
         active_session: ModelHandle<ActiveSession>,
         model_event_dispatcher: &ModelHandle<ModelEventDispatcher>,
-        get_relevant_files_controller: ModelHandle<GetRelevantFilesController>,
         terminal_view_id: EntityId,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
@@ -241,7 +237,6 @@ impl BlocklistAIActionModel {
                 terminal_model,
                 active_session.clone(),
                 model_event_dispatcher,
-                get_relevant_files_controller,
                 terminal_view_id,
                 ctx,
             )
@@ -325,28 +320,11 @@ impl BlocklistAIActionModel {
             .clone()
     }
 
-    pub fn search_codebase_executor<'a>(
-        &'a self,
-        app: &'a AppContext,
-    ) -> &'a ModelHandle<SearchCodebaseExecutor> {
-        self.executor.as_ref(app).search_codebase_executor()
-    }
-
     pub fn suggest_prompt_executor(
         &self,
         app: &AppContext,
     ) -> ModelHandle<PromptSuggestionExecutor> {
         self.executor.as_ref(app).suggest_prompt_executor().clone()
-    }
-
-    pub fn ask_user_question_executor(
-        &self,
-        app: &AppContext,
-    ) -> ModelHandle<AskUserQuestionExecutor> {
-        self.executor
-            .as_ref(app)
-            .ask_user_question_executor()
-            .clone()
     }
 
     fn blocked_action_for_conversation(

@@ -1,8 +1,5 @@
 use chrono::{DateTime, Local};
 use warp_multi_agent_api::apply_file_diffs_result::success::UpdatedFileContent;
-use warp_multi_agent_api::ask_user_question_result::answer_item::{
-    self, Answer as AskUserQuestionAnswer,
-};
 use warp_multi_agent_api::{self as api};
 
 use super::*;
@@ -213,39 +210,6 @@ impl TryFrom<ReadFilesResult> for api::request::input::tool_call_result::Result 
                 }),
             ),
             ReadFilesResult::Cancelled => Err(ConvertToAPITypeError::Ignore),
-        }
-    }
-}
-
-impl TryFrom<SearchCodebaseResult> for api::request::input::tool_call_result::Result {
-    type Error = ConvertToAPITypeError;
-
-    fn try_from(result: SearchCodebaseResult) -> Result<Self, Self::Error> {
-        match result {
-            SearchCodebaseResult::Success { files } => Ok(
-                api::request::input::tool_call_result::Result::SearchCodebase(
-                    api::SearchCodebaseResult {
-                        result: Some(api::search_codebase_result::Result::Success(
-                            api::search_codebase_result::Success {
-                                files: files
-                                    .into_iter()
-                                    .flat_map(Into::<Vec<api::FileContent>>::into)
-                                    .collect(),
-                            },
-                        )),
-                    },
-                ),
-            ),
-            SearchCodebaseResult::Failed { message, .. } => Ok(
-                api::request::input::tool_call_result::Result::SearchCodebase(
-                    api::SearchCodebaseResult {
-                        result: Some(api::search_codebase_result::Result::Error(
-                            api::search_codebase_result::Error { message },
-                        )),
-                    },
-                ),
-            ),
-            SearchCodebaseResult::Cancelled => Err(ConvertToAPITypeError::Ignore),
         }
     }
 }
@@ -501,42 +465,6 @@ impl TryFrom<CallMCPToolResult> for api::request::input::tool_call_result::Resul
                 ))
             }
             CallMCPToolResult::Cancelled => Err(ConvertToAPITypeError::Ignore),
-        }
-    }
-}
-
-impl TryFrom<ReadSkillResult> for api::request::input::tool_call_result::Result {
-    type Error = ConvertToAPITypeError;
-
-    fn try_from(result: ReadSkillResult) -> Result<Self, Self::Error> {
-        match result {
-            ReadSkillResult::Success { content } => {
-                let file_contents: Vec<api::FileContent> = content.into();
-
-                // There should only be one file content
-
-                if file_contents.len() != 1 {
-                    return Err(ConvertToAPITypeError::Ignore);
-                }
-
-                Ok(api::request::input::tool_call_result::Result::ReadSkill(
-                    api::ReadSkillResult {
-                        result: Some(api::read_skill_result::Result::Success(
-                            api::read_skill_result::Success {
-                                content: Some(file_contents[0].clone()),
-                            },
-                        )),
-                    },
-                ))
-            }
-            ReadSkillResult::Error(error) => Ok(
-                api::request::input::tool_call_result::Result::ReadSkill(api::ReadSkillResult {
-                    result: Some(api::read_skill_result::Result::Error(
-                        api::read_skill_result::Error { message: error },
-                    )),
-                }),
-            ),
-            ReadSkillResult::Cancelled => Err(ConvertToAPITypeError::Ignore),
         }
     }
 }
@@ -952,12 +880,6 @@ impl From<ReadDocumentsResult> for AIAgentActionResultType {
     }
 }
 
-impl From<ReadSkillResult> for AIAgentActionResultType {
-    fn from(result: ReadSkillResult) -> Self {
-        AIAgentActionResultType::ReadSkill(result)
-    }
-}
-
 fn convert_mcp_tool_call_result(
     val: rmcp::model::CallToolResult,
 ) -> api::call_mcp_tool_result::Result {
@@ -1058,74 +980,6 @@ impl From<SendMessageToAgentResult> for api::request::input::tool_call_result::R
                 },
             },
         )
-    }
-}
-
-impl From<AskUserQuestionAnswerItem> for api::ask_user_question_result::AnswerItem {
-    fn from(item: AskUserQuestionAnswerItem) -> Self {
-        match item {
-            AskUserQuestionAnswerItem::Answered {
-                question_id,
-                selected_options,
-                other_text,
-            } => api::ask_user_question_result::AnswerItem {
-                question_id,
-                answer: Some(AskUserQuestionAnswer::MultipleChoice(
-                    answer_item::MultipleChoiceAnswer {
-                        selected_options,
-                        other_text,
-                    },
-                )),
-            },
-            AskUserQuestionAnswerItem::Skipped { question_id } => {
-                api::ask_user_question_result::AnswerItem {
-                    question_id,
-                    answer: Some(AskUserQuestionAnswer::Skipped(())),
-                }
-            }
-        }
-    }
-}
-
-impl From<AskUserQuestionResult> for api::request::input::tool_call_result::Result {
-    fn from(result: AskUserQuestionResult) -> Self {
-        let api_result = match result {
-            AskUserQuestionResult::Success { answers } => {
-                let api_answers = answers.into_iter().map(Into::into).collect();
-                Some(api::ask_user_question_result::Result::Success(
-                    api::ask_user_question_result::Success {
-                        answers: api_answers,
-                    },
-                ))
-            }
-            AskUserQuestionResult::SkippedByAutoApprove { question_ids } => {
-                let api_answers = question_ids
-                    .into_iter()
-                    .map(|question_id| api::ask_user_question_result::AnswerItem {
-                        question_id,
-                        answer: Some(AskUserQuestionAnswer::Skipped(())),
-                    })
-                    .collect();
-                Some(api::ask_user_question_result::Result::Success(
-                    api::ask_user_question_result::Success {
-                        answers: api_answers,
-                    },
-                ))
-            }
-            AskUserQuestionResult::Error(message) => {
-                Some(api::ask_user_question_result::Result::Error(
-                    api::ask_user_question_result::Error { message },
-                ))
-            }
-            AskUserQuestionResult::Cancelled => Some(api::ask_user_question_result::Result::Error(
-                api::ask_user_question_result::Error {
-                    message: "Cancelled by user".to_string(),
-                },
-            )),
-        };
-        api::request::input::tool_call_result::Result::AskUserQuestion(api::AskUserQuestionResult {
-            result: api_result,
-        })
     }
 }
 

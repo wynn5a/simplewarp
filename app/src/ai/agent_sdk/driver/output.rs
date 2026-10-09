@@ -5,7 +5,7 @@ pub mod text {
 
     const CANCELLED_MESSAGE: &str = "<cancelled>";
 
-    use ai::agent::action_result::{FetchConversationResult, ReadSkillResult};
+    use ai::agent::action_result::FetchConversationResult;
     use itertools::Itertools;
 
     use crate::AIAgentActionResultType;
@@ -13,7 +13,7 @@ pub mod text {
         AIAgentActionType, AIAgentInput, AIAgentOutput, AIAgentOutputMessageType, AIAgentTodo,
         ArtifactCreatedData, CallMCPToolResult, FileGlobResult, FileGlobV2Result, GrepResult,
         ReadFilesResult, ReadMCPResourceResult, RequestCommandOutputResult, RequestFileEditsResult,
-        SearchCodebaseResult, SuggestNewConversationResult, SuggestPromptResult, TodoOperation,
+        SuggestNewConversationResult, SuggestPromptResult, TodoOperation,
         WriteToLongRunningShellCommandResult,
     };
 
@@ -105,19 +105,6 @@ pub mod text {
                     ReadFilesResult::Success { .. } => Ok(()),
                     ReadFilesResult::Error(error) => writeln!(w, "Reading files failed: {error}"),
                     ReadFilesResult::Cancelled => writeln!(w, "{CANCELLED_MESSAGE}"),
-                },
-                AIAgentActionResultType::SearchCodebase(result) => match result {
-                    SearchCodebaseResult::Success { files } => {
-                        writeln!(w, "Codebase search results:")?;
-                        for file in files {
-                            writeln!(w, "- {file}")?;
-                        }
-                        Ok(())
-                    }
-                    SearchCodebaseResult::Failed { message, .. } => {
-                        writeln!(w, "Searching codebase failed: {message}")
-                    }
-                    SearchCodebaseResult::Cancelled => todo!(),
                 },
                 AIAgentActionResultType::Grep(result) => match result {
                     GrepResult::Success { matched_files } => {
@@ -234,13 +221,6 @@ pub mod text {
                         CallMCPToolResult::Cancelled => writeln!(w, "{CANCELLED_MESSAGE}"),
                     }
                 }
-                AIAgentActionResultType::ReadSkill(result) => match result {
-                    ReadSkillResult::Success { content } => {
-                        writeln!(w, "Skill read successfully: {}", content.file_name)
-                    }
-                    ReadSkillResult::Error(error) => writeln!(w, "Skill read error: {error}"),
-                    ReadSkillResult::Cancelled => writeln!(w, "{CANCELLED_MESSAGE}"),
-                },
                 AIAgentActionResultType::SuggestNewConversation(result) => match result {
                     SuggestNewConversationResult::Accepted { .. }
                     | SuggestNewConversationResult::Rejected => Ok(()),
@@ -270,7 +250,6 @@ pub mod text {
                 },
                 // SendMessageToAgent is a client-side orchestration action, not used in SDK
                 AIAgentActionResultType::SendMessageToAgent(_) => Ok(()),
-                AIAgentActionResultType::AskUserQuestion(_) => Ok(()),
                 // RunAgents is a desktop-client-only action; not used in the SDK.
                 AIAgentActionResultType::RunAgents(_) => Ok(()),
                 // No user-visible payload to emit.
@@ -304,14 +283,6 @@ pub mod text {
                                 .format_with(", ", |loc, f| f(&format_args!("{}", loc.name)))
                         )?;
                         // TODO: Better formatting, need shell info.
-                    }
-                    AIAgentActionType::SearchCodebase(request) => {
-                        writeln!(
-                            w,
-                            "Searching {} for {}",
-                            request.codebase_path.as_deref().unwrap_or("codebase"),
-                            request.query
-                        )?;
                     }
                     AIAgentActionType::RequestFileEdits { file_edits, title } => {
                         write!(w, "Editing files:")?;
@@ -371,9 +342,6 @@ pub mod text {
                     | AIAgentActionType::CreateDocuments(_)
                     | AIAgentActionType::ReadShellCommandOutput { .. }
                     | AIAgentActionType::TransferShellCommandControlToUser { .. } => (),
-                    AIAgentActionType::ReadSkill(request) => {
-                        writeln!(w, "Reading skill: {}", request.skill)?;
-                    }
                     AIAgentActionType::FetchConversation { conversation_id } => {
                         writeln!(w, "Fetching conversation {conversation_id}")?;
                     }
@@ -386,7 +354,6 @@ pub mod text {
                             addresses.join(", ")
                         )?;
                     }
-                    AIAgentActionType::AskUserQuestion { .. } => (),
                     // RunAgents is desktop-client-only; SDK driver renders nothing.
                     AIAgentActionType::RunAgents(_) => (),
                     AIAgentActionType::WaitForEvents { .. } => (),
@@ -485,8 +452,8 @@ pub mod json {
         AIAgentActionType, AIAgentInput, AIAgentOutput, AIAgentOutputMessage,
         AIAgentOutputMessageType, AIAgentTodo, ArtifactCreatedData, CallMCPToolResult, FileContext,
         FileGlobResult, FileGlobV2Result, GrepResult, ReadFilesFailedFile, ReadFilesResult,
-        ReadMCPResourceResult, RequestCommandOutputResult, RequestFileEditsResult,
-        SearchCodebaseResult, SubagentCall, TodoOperation, WriteToLongRunningShellCommandResult,
+        ReadMCPResourceResult, RequestCommandOutputResult, RequestFileEditsResult, SubagentCall,
+        TodoOperation, WriteToLongRunningShellCommandResult,
     };
     use crate::code::buffer_location::LocalOrRemotePath;
 
@@ -553,10 +520,6 @@ pub mod json {
         ReadFiles {
             files: Vec<JsonFile<'a>>,
         },
-        SearchCodebase {
-            query: &'a str,
-            codebase: Option<&'a str>,
-        },
         EditFiles {
             title: Option<&'a str>,
             file_paths: Vec<&'a str>,
@@ -585,7 +548,6 @@ pub mod json {
         RunCommand(JsonRunCommandResult<'a>),
         EditFiles(JsonEditFilesResult<'a>),
         ReadFiles(JsonReadFilesResult<'a>),
-        SearchCodebase(JsonFileCollectionResult<'a>),
         Grep(JsonFileCollectionResult<'a>),
         FileGlob(JsonFileCollectionResult<'a>),
         ReadMcpResource(JsonReadMcpResourceResult<'a>),
@@ -785,17 +747,6 @@ pub mod json {
                     }),
                     ReadFilesResult::Cancelled => Some(JsonMessage::ToolCanceled),
                 },
-                AIAgentActionResultType::SearchCodebase(result) => match result {
-                    SearchCodebaseResult::Success { files } => Some(JsonMessage::ToolResult(
-                        JsonToolResult::SearchCodebase(JsonFileCollectionResult {
-                            files: JsonFile::from_file_contexts(files),
-                        }),
-                    )),
-                    SearchCodebaseResult::Failed { message, .. } => Some(JsonMessage::ToolError {
-                        error: Cow::Borrowed(message.as_str()),
-                    }),
-                    SearchCodebaseResult::Cancelled => Some(JsonMessage::ToolCanceled),
-                },
                 AIAgentActionResultType::Grep(result) => match result {
                     GrepResult::Success { matched_files } => {
                         use crate::ai::agent::GrepFileMatch;
@@ -924,12 +875,6 @@ pub mod json {
                             .collect();
                         Some(JsonMessage::ToolCall(JsonToolCall::ReadFiles { files }))
                     }
-                    AIAgentActionType::SearchCodebase(request) => {
-                        Some(JsonMessage::ToolCall(JsonToolCall::SearchCodebase {
-                            query: request.query.as_str(),
-                            codebase: request.codebase_path.as_deref(),
-                        }))
-                    }
                     AIAgentActionType::RequestFileEdits { file_edits, title } => {
                         let file_paths: Vec<&str> =
                             file_edits.iter().filter_map(|edit| edit.file()).collect();
@@ -983,11 +928,9 @@ pub mod json {
                     | AIAgentActionType::EditDocuments(_)
                     | AIAgentActionType::CreateDocuments(_)
                     | AIAgentActionType::ReadShellCommandOutput { .. }
-                    | AIAgentActionType::ReadSkill(_)
                     | AIAgentActionType::FetchConversation { .. }
                     | AIAgentActionType::SendMessageToAgent { .. }
                     | AIAgentActionType::TransferShellCommandControlToUser { .. } => None,
-                    AIAgentActionType::AskUserQuestion { .. } => None,
                     // RunAgents is desktop-client-only; SDK has no JSON
                     // representation for it.
                     AIAgentActionType::RunAgents(_) => None,

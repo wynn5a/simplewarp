@@ -65,10 +65,6 @@ impl BundledSkills {
         self.local.reference_for_path(path)
     }
 
-    pub fn local_skill(&self, id: &str) -> Option<&ParsedSkill> {
-        self.local.skill(id)
-    }
-
     pub fn active_skill(
         &self,
         id: &str,
@@ -84,16 +80,6 @@ impl BundledSkills {
             SkillPathOrigin::Local | SkillPathOrigin::RestoredDisplayOnly => Some(&self.local),
             SkillPathOrigin::Unavailable => None,
         }
-    }
-
-    #[cfg(test)]
-    pub fn insert_local_for_testing(
-        &mut self,
-        id: impl Into<String>,
-        skill: ParsedSkill,
-        activation: BundledSkillActivation,
-    ) {
-        self.local.insert_for_testing(id, skill, activation);
     }
 }
 
@@ -150,11 +136,6 @@ impl BundledSkill {
             .map(|(id, _)| SkillReference::BundledSkillId(id.clone()))
     }
 
-    /// Returns a bundled skill definition by ID.
-    pub fn skill(&self, id: &str) -> Option<&ParsedSkill> {
-        self.definitions.get(id).map(|definition| &definition.skill)
-    }
-
     /// Returns a bundled skill by ID only if its activation condition is met.
     pub fn active_skill(&self, id: &str, ctx: &AppContext) -> Option<&ParsedSkill> {
         let definition = self.definitions.get(id)?;
@@ -162,24 +143,6 @@ impl BundledSkill {
             .activation
             .is_enabled(ctx)
             .then_some(&definition.skill)
-    }
-
-    #[cfg(test)]
-    pub fn insert_for_testing(
-        &mut self,
-        id: impl Into<String>,
-        skill: ParsedSkill,
-        activation: BundledSkillActivation,
-    ) {
-        let id = id.into();
-        self.definitions.insert(
-            id.clone(),
-            BundledSkillDefinition {
-                skill,
-                activation,
-                icon: icon_for_bundled_skill(&id),
-            },
-        );
     }
 }
 

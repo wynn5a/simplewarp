@@ -10,7 +10,7 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use super::bundled::{BundledSkill, BundledSkills};
 #[cfg(test)]
-use super::bundled::{BundledSkillActivation, build_bundled_skill_context, read_bundled_skills};
+use super::bundled::{build_bundled_skill_context, read_bundled_skills};
 use super::{ActiveSkillLookupError, SkillDescriptor, SkillManagerEvent, SkillPathQuery};
 use crate::ai::skills::skill_utils::SkillDeduplicator;
 
@@ -169,14 +169,6 @@ impl SkillManager {
         }
         // Default to path-based reference.
         SkillReference::Path(skill_path)
-    }
-
-    /// Get the definition of a skill, if it is cached.
-    pub fn skill_by_reference(&self, reference: &SkillReference) -> Option<&ParsedSkill> {
-        match reference {
-            SkillReference::Path(path) => self.skill_by_location(path),
-            SkillReference::BundledSkillId(id) => self.bundled_skills.local_skill(id),
-        }
     }
 
     /// Get the definition of a skill for the selected execution host only if it is active.
@@ -351,27 +343,6 @@ impl SkillManager {
                 }
             }
         }
-    }
-
-    /// Adds a skill to the skill manager for testing purposes.
-    #[cfg(test)]
-    pub fn add_skill_for_testing(&mut self, skill: ParsedSkill) {
-        let path = skill.path.clone();
-        let name = skill.name.clone();
-        self.skills_by_path.insert(path.clone(), skill);
-        self.skills_by_name.entry(name).or_default().insert(path);
-    }
-
-    /// Adds a bundled skill to the skill manager for testing purposes.
-    #[cfg(test)]
-    pub fn add_bundled_skill_for_testing(
-        &mut self,
-        id: impl Into<String>,
-        skill: ParsedSkill,
-        activation: BundledSkillActivation,
-    ) {
-        self.bundled_skills
-            .insert_local_for_testing(id, skill, activation);
     }
 }
 impl Entity for SkillManager {

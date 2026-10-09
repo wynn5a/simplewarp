@@ -7,8 +7,6 @@ mod telemetry;
 pub use telemetry::SkillOpenOrigin;
 mod bundled;
 pub use ai::skills::SkillReference;
-#[cfg(test)]
-pub(crate) use bundled::BundledSkillActivation;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SkillManagerEvent {

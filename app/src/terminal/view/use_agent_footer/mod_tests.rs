@@ -154,7 +154,6 @@ fn insert_pending_ai_block(
                 response_stream_id: None,
             },
             view.ai_controller.clone(),
-            view.get_relevant_files_controller.clone(),
             None,
             None,
             view.ai_action_model.clone(),

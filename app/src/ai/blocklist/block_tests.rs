@@ -136,7 +136,7 @@ fn open_code_action_routes_links_to_configured_editor_and_non_links_to_warp() {
         location: LocalOrRemotePath::Local(PathBuf::from(
             "/workspace/project/.warp/skills/example/SKILL.md",
         )),
-        origin: crate::ai::skills::SkillOpenOrigin::ReadSkill,
+        origin: crate::ai::skills::SkillOpenOrigin::ReadFiles,
     };
 
     assert!(matches!(
@@ -298,30 +298,4 @@ fn received_message_collapsible_id_prefixes_row_ids() {
     assert_eq!(&*first, "received-message:message-1");
     assert_eq!(&*second, "received-message:message-2");
     assert_ne!(first, second);
-}
-
-#[test]
-fn should_show_agent_mode_ask_user_question_speedbump_defaults_to_true() {
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-        AISettings::handle(&app).read(&app, |settings, _ctx| {
-            assert!(*settings.should_show_agent_mode_ask_user_question_speedbump);
-        });
-    });
-}
-
-#[test]
-fn should_show_agent_mode_ask_user_question_speedbump_round_trips_to_false() {
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-        AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            settings
-                .should_show_agent_mode_ask_user_question_speedbump
-                .set_value(false, ctx)
-                .unwrap();
-        });
-        AISettings::handle(&app).read(&app, |settings, _ctx| {
-            assert!(!*settings.should_show_agent_mode_ask_user_question_speedbump);
-        });
-    });
 }

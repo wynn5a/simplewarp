@@ -18,7 +18,7 @@
 //!
 //! The tests use the same `view.update(&mut app, |view, ctx|
 //! view.handle_action(...))` pattern as the existing
-//! `number_shortcut_buttons_tests.rs` so they stay decoupled from the
+//! other view tests so they stay decoupled from the
 //! framework's render path (which needs `Appearance` / theme singletons
 //! that aren't relevant to the handler's correctness).
 

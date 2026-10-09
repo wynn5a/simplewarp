@@ -256,24 +256,12 @@ fn get_supported_tools(params: &RequestParams) -> Vec<api::ToolType> {
 
     match params.session_context.session_type() {
         None | Some(SessionType::Local) => {
-            supported_tools.extend(&[
-                api::ToolType::ReadFiles,
-                api::ToolType::ApplyFileDiffs,
-                api::ToolType::SearchCodebase,
-            ]);
+            supported_tools.extend(&[api::ToolType::ReadFiles, api::ToolType::ApplyFileDiffs]);
         }
         Some(SessionType::WarpifiedRemote) => {}
     }
 
     supported_tools.push(api::ToolType::InsertReviewComments);
-
-    if FeatureFlag::ListSkills.is_enabled() {
-        supported_tools.push(api::ToolType::ReadSkill);
-    }
-
-    if FeatureFlag::AskUserQuestion.is_enabled() && params.ask_user_question_enabled {
-        supported_tools.push(api::ToolType::AskUserQuestion);
-    }
 
     supported_tools
 }
@@ -293,8 +281,7 @@ fn get_supported_cli_agent_tools(params: &RequestParams) -> Vec<api::ToolType> {
 
     match params.session_context.session_type() {
         None | Some(SessionType::Local) => {
-            supported_cli_agent_tools
-                .extend(&[api::ToolType::ReadFiles, api::ToolType::SearchCodebase]);
+            supported_cli_agent_tools.push(api::ToolType::ReadFiles);
         }
         Some(SessionType::WarpifiedRemote) => {}
     }

@@ -29,7 +29,6 @@ use crate::ai::blocklist::{
     ClientIdentifiers,
 };
 use crate::ai::document::ai_document_model::AIDocumentModel;
-use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
 use crate::persistence::model::AgentConversationData;
 use crate::terminal::conversation_restoration::{
     command_block_indices_for_exchanges, prepare_conversation_block_restoration,
@@ -163,7 +162,6 @@ impl ConversationRestorationInNewPaneType {
 #[derive(Debug)]
 pub struct AIBlockCreationParams {
     pub ai_controller: ModelHandle<BlocklistAIController>,
-    pub get_relevant_files_controller: ModelHandle<GetRelevantFilesController>,
     pub ai_action_model: ModelHandle<BlocklistAIActionModel>,
     pub ai_context_model: ModelHandle<BlocklistAIContextModel>,
     pub cli_subagent_controller: ModelHandle<CLISubagentController>,
@@ -536,7 +534,6 @@ impl TerminalView {
             let exchange = restored_exchange.exchange().clone();
             let params = AIBlockCreationParams {
                 ai_controller: self.ai_controller.clone(),
-                get_relevant_files_controller: self.get_relevant_files_controller.clone(),
                 ai_action_model: self.ai_action_model.clone(),
                 ai_context_model: self.ai_context_model.clone(),
                 cli_subagent_controller: self.cli_subagent_controller.clone(),
@@ -671,7 +668,6 @@ impl TerminalView {
             .map(
                 |((exchange, conversation_id), command_block_index)| AIBlockCreationParams {
                     ai_controller: self.ai_controller.clone(),
-                    get_relevant_files_controller: self.get_relevant_files_controller.clone(),
                     ai_action_model: self.ai_action_model.clone(),
                     ai_context_model: self.ai_context_model.clone(),
                     cli_subagent_controller: self.cli_subagent_controller.clone(),
@@ -940,7 +936,6 @@ impl TerminalView {
                     response_stream_id: None,
                 },
                 params.ai_controller,
-                params.get_relevant_files_controller,
                 params.working_directory,
                 shell_launch_data,
                 params.ai_action_model,

@@ -116,48 +116,6 @@ impl RunAgentsPermission {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AskUserQuestionPermission {
-    /// Never pause; skip questions and continue with best judgment.
-    Never,
-    /// Pause and wait for the user, unless auto-approve mode is enabled.
-    AskExceptInAutoApprove,
-    /// Always pause and wait for the user to answer before continuing, even in auto-approve mode.
-    #[default]
-    AlwaysAsk,
-
-    // This is intended to catch deserialization errors whenever we add new variants to this enum.
-    #[serde(other)]
-    Unknown,
-}
-
-impl AskUserQuestionPermission {
-    pub fn label(&self) -> &'static str {
-        match self {
-            AskUserQuestionPermission::Never => "Never ask",
-            AskUserQuestionPermission::AskExceptInAutoApprove => "Ask unless auto-approve",
-            AskUserQuestionPermission::AlwaysAsk | AskUserQuestionPermission::Unknown => {
-                "Always ask"
-            }
-        }
-    }
-
-    pub fn description(&self) -> &'static str {
-        match self {
-            AskUserQuestionPermission::AskExceptInAutoApprove
-            | AskUserQuestionPermission::Unknown => {
-                "The Agent may ask a question and pause for your response, but will continue automatically when auto-approve is on."
-            }
-            AskUserQuestionPermission::Never => {
-                "The Agent will not ask questions and will continue with its best judgment."
-            }
-            AskUserQuestionPermission::AlwaysAsk => {
-                "The Agent may ask a question and will pause for your response even when auto-approve is on."
-            }
-        }
-    }
-}
-
 /// Predicate types to match commands that can be executed by Agent Mode.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 enum AgentModeCommandExecutionPredicateType {
@@ -303,7 +261,7 @@ cfg_if::cfg_if! {
 /// behavior settings, and permissions.
 ///
 /// NOTE: `planning_model` was removed after planning via subagent was deprecated, and
-/// `computer_use` / `computer_use_model` / `web_search_enabled` went with those tools; serialized legacy profiles may
+/// `computer_use` / `computer_use_model` / `web_search_enabled` / `ask_user_question` went with those tools; serialized legacy profiles may
 /// still include those fields and the names should remain reserved indefinitely.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -316,7 +274,6 @@ pub struct AIExecutionProfile {
     pub execute_commands: ActionPermission,
     pub write_to_pty: WriteToPtyPermission,
     pub mcp_permissions: ActionPermission,
-    pub ask_user_question: AskUserQuestionPermission,
     pub run_agents: RunAgentsPermission,
 
     /// Always ask for permission for these commands
@@ -351,7 +308,6 @@ impl Default for AIExecutionProfile {
             execute_commands: ActionPermission::AlwaysAsk,
             write_to_pty: WriteToPtyPermission::AlwaysAsk,
             mcp_permissions: ActionPermission::AgentDecides,
-            ask_user_question: AskUserQuestionPermission::AlwaysAsk,
             run_agents: RunAgentsPermission::AlwaysAsk,
             command_denylist: DEFAULT_COMMAND_EXECUTION_DENYLIST.clone(),
             command_allowlist: Vec::new(),
@@ -378,7 +334,6 @@ impl AIExecutionProfile {
             execute_commands: ActionPermission::AlwaysAllow,
             write_to_pty: WriteToPtyPermission::AlwaysAllow,
             mcp_permissions: ActionPermission::AlwaysAllow,
-            ask_user_question: AskUserQuestionPermission::Never,
             run_agents: RunAgentsPermission::AlwaysAllow,
             command_denylist: Vec::new(),
             command_allowlist: Vec::new(),
@@ -410,7 +365,6 @@ impl AIExecutionProfile {
             execute_commands: ActionPermission::AlwaysAllow,
             mcp_permissions: ActionPermission::AlwaysAllow,
             write_to_pty: WriteToPtyPermission::AlwaysAllow,
-            ask_user_question: AskUserQuestionPermission::Never,
             run_agents: RunAgentsPermission::AlwaysAllow,
             command_denylist,
             command_allowlist: DEFAULT_COMMAND_EXECUTION_ALLOWLIST.to_vec(),

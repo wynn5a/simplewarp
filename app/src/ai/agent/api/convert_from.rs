@@ -2,12 +2,8 @@
 use std::time::Duration;
 
 use ai::agent::UnknownCitationTypeError;
-use ai::agent::action::ReadSkillRequest;
 use ai::agent::convert::ToolToAIAgentActionError;
-use ai::skills::{
-    SkillPathOrigin, skill_reference_from_api_skill_ref, skill_reference_from_read_skill_ref,
-};
-use api::ask_user_question::question::QuestionType;
+use ai::skills::{SkillPathOrigin, skill_reference_from_api_skill_ref};
 use warp_core::channel::ChannelState;
 use warp_multi_agent_api as api;
 
@@ -44,18 +40,6 @@ impl TryFrom<api::Attachment> for AIAgentAttachment {
             _ => anyhow::bail!("Unsupported attachment type for conversion"),
         }
     }
-}
-
-fn convert_read_skill(
-    read_skill: api::message::tool_call::ReadSkill,
-    skill_path_origin: &SkillPathOrigin,
-) -> Result<AIAgentActionType, ToolToAIAgentActionError> {
-    let Some(reference) = read_skill.skill_reference else {
-        return Err(ToolToAIAgentActionError::MissingSkillReference);
-    };
-    let skill = skill_reference_from_read_skill_ref(reference, skill_path_origin)
-        .map_err(|_| ToolToAIAgentActionError::MissingSkillReference)?;
-    Ok(AIAgentActionType::ReadSkill(ReadSkillRequest { skill }))
 }
 
 /// Converts proto UserQueryMode to the internal UserQueryMode type
@@ -575,9 +559,6 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
             api::message::tool_call::Tool::UploadFileArtifact(_) => {
                 Ok(MaybeAIAgentAction::NoClientRepresentation)
             }
-            api::message::tool_call::Tool::SearchCodebase(search_codebase) => {
-                create_standard_action(search_codebase.into())
-            }
             api::message::tool_call::Tool::Grep(grep) => create_standard_action(grep.into()),
             #[allow(deprecated)]
             api::message::tool_call::Tool::FileGlob(glob) => create_standard_action(glob.into()),
@@ -624,8 +605,11 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
             api::message::tool_call::Tool::TransferShellCommandControlToUser(
                 transfer_shell_command_control_to_user,
             ) => create_standard_action(transfer_shell_command_control_to_user.into()),
-            // Computer use is gone; saved calls have nothing to draw.
-            api::message::tool_call::Tool::UseComputer(_)
+            // These tools are gone; saved calls have nothing to draw.
+            api::message::tool_call::Tool::SearchCodebase(_)
+            | api::message::tool_call::Tool::ReadSkill(_)
+            | api::message::tool_call::Tool::AskUserQuestion(_)
+            | api::message::tool_call::Tool::UseComputer(_)
             | api::message::tool_call::Tool::RequestComputerUse(_)
             | api::message::tool_call::Tool::StartRecording(_)
             | api::message::tool_call::Tool::StopRecording(_) => {
@@ -688,19 +672,8 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
             api::message::tool_call::Tool::InsertReviewComments(insert_review_comments) => {
                 create_standard_action(insert_review_comments.into())
             }
-            api::message::tool_call::Tool::ReadSkill(read_skill) => {
-                create_standard_action(convert_read_skill(read_skill, params.skill_path_origin)?)
-            }
             api::message::tool_call::Tool::FetchConversation(fetch_conversation) => {
                 create_standard_action(fetch_conversation.into())
-            }
-            api::message::tool_call::Tool::AskUserQuestion(ask) => {
-                let questions = ask
-                    .questions
-                    .into_iter()
-                    .filter_map(convert_api_question)
-                    .collect();
-                create_standard_action(AIAgentActionType::AskUserQuestion { questions })
             }
             // Clients do not need to know how to parse server tool-calls but receiving
             // them is not an error.
@@ -751,37 +724,6 @@ impl From<api::TodoItem> for AIAgentTodo {
             description: value.description,
         }
     }
-}
-
-fn convert_api_question(
-    q: api::ask_user_question::Question,
-) -> Option<ai::agent::action::AskUserQuestionItem> {
-    let Some(QuestionType::MultipleChoice(mc)) = q.question_type else {
-        return None;
-    };
-
-    // Server sends -1 when there is no recommendation.
-    let recommended_idx = usize::try_from(mc.recommended_option_index)
-        .ok()
-        .filter(|idx| *idx < mc.options.len());
-    let options = mc
-        .options
-        .iter()
-        .enumerate()
-        .map(|(i, opt)| ai::agent::action::AskUserQuestionOption {
-            label: opt.label.clone(),
-            recommended: recommended_idx == Some(i),
-        })
-        .collect();
-    Some(ai::agent::action::AskUserQuestionItem {
-        question_id: q.question_id.clone(),
-        question: q.question,
-        question_type: ai::agent::action::AskUserQuestionType::MultipleChoice {
-            is_multiselect: mc.is_multiselect,
-            options,
-            supports_other: mc.supports_other,
-        },
-    })
 }
 
 #[cfg(test)]

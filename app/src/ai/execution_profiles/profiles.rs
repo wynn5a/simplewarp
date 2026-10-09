@@ -568,31 +568,6 @@ impl AIExecutionProfilesModel {
         );
     }
 
-    pub fn set_ask_user_question(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        permission: super::AskUserQuestionPermission,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let current_value = self
-            .get_profile_by_id(profile_id, ctx)
-            .map(|p| p.data().ask_user_question);
-
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.ask_user_question != permission {
-                    profile.ask_user_question = permission;
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        if current_value != Some(permission) {}
-    }
-
     pub fn set_profile_name(
         &mut self,
         profile_id: &ExecutionProfileId,

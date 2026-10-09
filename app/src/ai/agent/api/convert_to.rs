@@ -556,9 +556,6 @@ impl TryFrom<AIAgentActionResult> for api::request::input::user_inputs::user_inp
             AIAgentActionResultType::ReadFiles(read_files_result) => {
                 Some(read_files_result.try_into()?)
             }
-            AIAgentActionResultType::SearchCodebase(search_codebase_result) => {
-                Some(search_codebase_result.try_into()?)
-            }
             AIAgentActionResultType::RequestFileEdits(request_file_edits_result) => {
                 Some(request_file_edits_result.try_into()?)
             }
@@ -574,9 +571,6 @@ impl TryFrom<AIAgentActionResult> for api::request::input::user_inputs::user_inp
             }
             AIAgentActionResultType::CallMCPTool(call_mcp_tool_result) => {
                 Some(call_mcp_tool_result.try_into()?)
-            }
-            AIAgentActionResultType::ReadSkill(read_skill_result) => {
-                Some(read_skill_result.try_into()?)
             }
             AIAgentActionResultType::SuggestNewConversation(suggest_new_conversation_result) => {
                 Some(suggest_new_conversation_result.try_into()?)
@@ -617,9 +611,6 @@ impl TryFrom<AIAgentActionResult> for api::request::input::user_inputs::user_inp
             }
             AIAgentActionResultType::TransferShellCommandControlToUser(transfer_control_result) => {
                 Some(transfer_control_result.try_into()?)
-            }
-            AIAgentActionResultType::AskUserQuestion(ask_user_question_result) => {
-                Some(ask_user_question_result.into())
             }
             AIAgentActionResultType::RunAgents(orchestrate_result) => {
                 Some(orchestrate_result.try_into()?)

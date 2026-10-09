@@ -13,10 +13,7 @@ use indexmap::IndexMap;
 use itertools::Itertools as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use super::{
-    AIExecutionProfile, ActionPermission, AskUserQuestionPermission, RunAgentsPermission,
-    WriteToPtyPermission,
-};
+use super::{AIExecutionProfile, ActionPermission, RunAgentsPermission, WriteToPtyPermission};
 use crate::ai::llms::LLMId;
 use crate::cloud_object::model::generic_string_model::StringModel as _;
 use crate::settings::AgentModeCommandExecutionPredicate;
@@ -345,45 +342,6 @@ impl From<FileWriteToPtyPermission> for WriteToPtyPermission {
     }
 }
 
-// Domain-only `Unknown` values are written conservatively as `always_ask`.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[schemars(
-    description = "File-safe representation of permission to ask the user questions.",
-    rename_all = "snake_case"
-)]
-enum FileAskUserQuestionPermission {
-    #[schemars(description = "The agent may not ask the user questions.")]
-    Never,
-    #[schemars(description = "Questions are suppressed only during auto-approval.")]
-    AskExceptInAutoApprove,
-    #[schemars(description = "Questions are always available to the agent.")]
-    #[default]
-    AlwaysAsk,
-}
-
-impl From<AskUserQuestionPermission> for FileAskUserQuestionPermission {
-    fn from(value: AskUserQuestionPermission) -> Self {
-        match value {
-            AskUserQuestionPermission::Never => Self::Never,
-            AskUserQuestionPermission::AskExceptInAutoApprove => Self::AskExceptInAutoApprove,
-            AskUserQuestionPermission::AlwaysAsk | AskUserQuestionPermission::Unknown => {
-                Self::AlwaysAsk
-            }
-        }
-    }
-}
-
-impl From<FileAskUserQuestionPermission> for AskUserQuestionPermission {
-    fn from(value: FileAskUserQuestionPermission) -> Self {
-        match value {
-            FileAskUserQuestionPermission::Never => Self::Never,
-            FileAskUserQuestionPermission::AskExceptInAutoApprove => Self::AskExceptInAutoApprove,
-            FileAskUserQuestionPermission::AlwaysAsk => Self::AlwaysAsk,
-        }
-    }
-}
-
 // Domain-only `Unknown` values fail closed to `never_allow`.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -440,8 +398,6 @@ struct ExecutionProfileFile {
     write_to_pty: FileWriteToPtyPermission,
     #[schemars(description = "Permission to call MCP servers.")]
     mcp_permissions: FileActionPermission,
-    #[schemars(description = "Permission to ask the user questions.")]
-    ask_user_question: FileAskUserQuestionPermission,
     #[schemars(description = "Permission to launch child agents.")]
     run_agents: FileRunAgentsPermission,
     #[schemars(description = "Command patterns that must always require approval.")]
@@ -483,7 +439,6 @@ impl From<&AIExecutionProfile> for ExecutionProfileFile {
             execute_commands: profile.execute_commands.into(),
             write_to_pty: profile.write_to_pty.into(),
             mcp_permissions: profile.mcp_permissions.into(),
-            ask_user_question: profile.ask_user_question.into(),
             run_agents: profile.run_agents.into(),
             command_denylist: profile
                 .command_denylist
@@ -547,7 +502,6 @@ impl TryFrom<ExecutionProfileFile> for AIExecutionProfile {
             execute_commands: file.execute_commands.into(),
             write_to_pty: file.write_to_pty.into(),
             mcp_permissions: file.mcp_permissions.into(),
-            ask_user_question: file.ask_user_question.into(),
             run_agents: file.run_agents.into(),
             command_denylist: parse_commands(file.command_denylist)?,
             command_allowlist: parse_commands(file.command_allowlist)?,
