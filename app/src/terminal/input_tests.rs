@@ -7838,7 +7838,6 @@ fn test_resolve_completion_sources_keybinding_with_both_toggles_on() {
     assert_eq!(
         resolve_completion_sources(
             true,
-            true,
             false,
             false,
             CompletionsTrigger::Keybinding,
@@ -7853,7 +7852,6 @@ fn test_resolve_completion_sources_keybinding_with_both_toggles_on() {
 fn test_resolve_completion_sources_toggle_combinations() {
     let resolve = |warp, native| {
         resolve_completion_sources(
-            true,
             true,
             false,
             false,
@@ -7872,7 +7870,6 @@ fn test_resolve_completion_sources_skips_native_while_typing() {
     assert_eq!(
         resolve_completion_sources(
             true,
-            true,
             false,
             false,
             CompletionsTrigger::AsYouType,
@@ -7883,7 +7880,6 @@ fn test_resolve_completion_sources_skips_native_while_typing() {
     );
     assert_eq!(
         resolve_completion_sources(
-            true,
             true,
             false,
             false,
@@ -7896,29 +7892,14 @@ fn test_resolve_completion_sources_skips_native_while_typing() {
 }
 
 #[test]
-fn test_resolve_completion_sources_ignores_toggles_without_native_support() {
-    // Feature flag off: the toggles are inert and Warp's completions are always used.
+fn test_resolve_completion_sources_ignores_toggles_without_feature_flag() {
     assert_eq!(
         resolve_completion_sources(
             false,
-            true,
             false,
             false,
             CompletionsTrigger::Keybinding,
             false,
-            true
-        ),
-        CompletionSources::WarpOnly
-    );
-    // Shell without native completions support.
-    assert_eq!(
-        resolve_completion_sources(
-            true,
-            false,
-            false,
-            false,
-            CompletionsTrigger::Keybinding,
-            true,
             true
         ),
         CompletionSources::WarpOnly
@@ -7931,7 +7912,6 @@ fn test_resolve_completion_sources_ai_input_and_multiline_never_use_native() {
         resolve_completion_sources(
             true,
             true,
-            true,
             false,
             CompletionsTrigger::Keybinding,
             true,
@@ -7941,7 +7921,6 @@ fn test_resolve_completion_sources_ai_input_and_multiline_never_use_native() {
     );
     assert_eq!(
         resolve_completion_sources(
-            true,
             true,
             false,
             true,
@@ -7954,12 +7933,24 @@ fn test_resolve_completion_sources_ai_input_and_multiline_never_use_native() {
 }
 
 #[test]
-fn test_native_shell_suggestion_results_replaces_token_before_cursor() {
-    let results =
-        native_shell_suggestion_results(vec![], "git checkout ma", "git checkout ma".len());
+fn test_native_shell_suggestion_results_without_shell_span_replaces_token_before_cursor() {
+    let buffer = "git checkout ma";
+    let results = native_shell_suggestion_results(vec![], None, buffer, buffer.len());
     assert_eq!(results.replacement_span, Span::from((13, 15)));
     assert!(results.suggestions.is_empty());
 
-    let results = native_shell_suggestion_results(vec![], "gi", 2);
+    let results = native_shell_suggestion_results(vec![], None, "gi", 2);
     assert_eq!(results.replacement_span, Span::from((0, 2)));
+}
+
+#[test]
+fn test_native_shell_suggestion_results_uses_shell_span_clamped_to_buffer() {
+    let buffer = "git --fo";
+    let results =
+        native_shell_suggestion_results(vec![], Some(Span::new(4, 8)), buffer, buffer.len());
+    assert_eq!(results.replacement_span, Span::from((4, 8)));
+
+    // A span running past the text before the cursor is pulled back inside it.
+    let results = native_shell_suggestion_results(vec![], Some(Span::new(4, 99)), buffer, 6);
+    assert_eq!(results.replacement_span, Span::from((4, 6)));
 }

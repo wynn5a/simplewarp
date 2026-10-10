@@ -122,6 +122,13 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_ctrl_d_during_bootstrapping_exits_shell_upon_completion);
     register_test!(test_hover_over_menu);
     register_test!(test_zshrc_keypress);
+    register_test!(test_native_shell_completions_menu);
+    register_test!(test_zsh_native_completions_without_compinit_use_filepaths);
+    register_test!(test_command_runs_cleanly_after_native_shell_completion);
+    register_test!(test_native_shell_completions_used_when_no_bundled_spec);
+    register_test!(test_native_shell_completions_skipped_when_a_bundled_spec_answers);
+    register_test!(test_native_shell_completions_reach_a_spec_command_native_only);
+    register_test!(test_native_shell_completions_powershell_member_access);
     register_test!(test_bootstrap_with_no_script_execution_block);
     register_test!(test_instant_prompt_bootstrap);
     register_test!(test_rc_files_only_sourced_once_during_bootstrapping);

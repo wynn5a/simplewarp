@@ -137,11 +137,6 @@ impl Shell {
         self.shell_type.force_in_band_command_executor()
     }
 
-    /// Returns whether the current shell supports native shell completions.
-    pub fn supports_native_shell_completions(&self) -> bool {
-        self.shell_type.supports_native_shell_completions()
-    }
-
     /// Whether the shell supports "autocd" (`cd`ing into a directory without specifying
     /// `cd`).
     pub fn supports_autocd(&self) -> bool {
@@ -386,16 +381,28 @@ impl ShellType {
         }
     }
 
-    /// Returns whether the current shell supports native shell completions.
-    fn supports_native_shell_completions(&self) -> bool {
-        matches!(self, ShellType::Zsh)
-    }
-
     /// Returns the syntax to run a second command regardless if the first one succeeds.
     pub fn or_combiner(self) -> &'static str {
         match self {
             ShellType::Bash | ShellType::Zsh | ShellType::PowerShell => " ; ",
             ShellType::Fish => "; or ",
+        }
+    }
+
+    /// Returns the in-band generator command that asks the shell for its own completions of the
+    /// hex-encoded command line.
+    pub fn native_completions_generator_command(self, hex_encoded_line: &str) -> String {
+        match self {
+            ShellType::Zsh | ShellType::Bash => {
+                format!("warp_run_generator_command_native_completions {hex_encoded_line}")
+            }
+            // The leading space keeps the command out of fish's history.
+            ShellType::Fish => {
+                format!(" warp_run_generator_command_native_completions {hex_encoded_line}")
+            }
+            ShellType::PowerShell => {
+                format!("Warp-Run-GeneratorCommand-NativeCompletion {hex_encoded_line}")
+            }
         }
     }
 

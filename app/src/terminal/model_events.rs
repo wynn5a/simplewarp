@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_channel::Receiver;
+use warp_completer::meta::Span;
 use warpui::{Entity, ModelContext, ModelHandle};
 
 use super::event::{BootstrappedEvent, SshLoginStatus};
@@ -134,7 +135,7 @@ impl ModelEventDispatcher {
             Event::Handler(HandlerEvent::UnsetMode {
                 mode: ansi::Mode::BracketedPaste,
             }) => ModelEvent::Handler(AnsiHandlerEvent::UnsetBracketedPaste),
-            Event::CompletionsFinished(res) => ModelEvent::CompletionsFinished(res),
+            Event::CompletionsFinished(res, span) => ModelEvent::CompletionsFinished(res, span),
             Event::MouseCursorDirty => ModelEvent::MouseCursorDirty,
             Event::Title(title) => ModelEvent::Title(title),
             Event::VisibleBootstrapBlock => ModelEvent::VisibleBootstrapBlock,
@@ -195,7 +196,6 @@ impl ModelEventDispatcher {
             Event::Typeahead => ModelEvent::Typeahead,
             Event::TextSelectionChanged => ModelEvent::SelectedTextChanged,
             Event::ShellSpawned(shell_type) => ModelEvent::ShellSpawned(shell_type),
-            Event::SendCompletionsPrompt => ModelEvent::SendCompletionsPrompt,
             Event::ImageReceived {
                 image_id,
                 image_data,
@@ -332,8 +332,7 @@ pub enum ModelEvent {
     Handler(AnsiHandlerEvent),
     SelectedTextChanged,
     ShellSpawned(ShellType),
-    CompletionsFinished(Vec<ShellCompletion>),
-    SendCompletionsPrompt,
+    CompletionsFinished(Vec<ShellCompletion>, Option<Span>),
     ImageReceived {
         image_id: u32,
         image_data: Vec<u8>,

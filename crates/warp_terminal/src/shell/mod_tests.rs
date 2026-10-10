@@ -322,3 +322,24 @@ fn test_rc_file_paths_use_target_os_separator() {
     assert!(ShellType::Bash.rc_file_paths(TargetOS::Windows).is_empty());
     assert!(ShellType::Fish.rc_file_paths(TargetOS::Windows).is_empty());
 }
+
+#[test]
+fn native_completions_generator_command_targets_each_shells_entry_point() {
+    assert_eq!(
+        ShellType::Zsh.native_completions_generator_command("6769"),
+        "warp_run_generator_command_native_completions 6769"
+    );
+    assert_eq!(
+        ShellType::Bash.native_completions_generator_command("6769"),
+        "warp_run_generator_command_native_completions 6769"
+    );
+    // The leading space keeps the command out of fish's history.
+    assert_eq!(
+        ShellType::Fish.native_completions_generator_command("6769"),
+        " warp_run_generator_command_native_completions 6769"
+    );
+    assert_eq!(
+        ShellType::PowerShell.native_completions_generator_command("6769"),
+        "Warp-Run-GeneratorCommand-NativeCompletion 6769"
+    );
+}

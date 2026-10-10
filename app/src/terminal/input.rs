@@ -50,7 +50,7 @@ use warp_completer::completer::{
     ExplicitTabCompletion, MatchStrategy, MatchType, PathSeparators, PreparedSuggestion,
     SuggestionResults,
 };
-use warp_completer::meta::{HasSpan, Spanned};
+use warp_completer::meta::{HasSpan, Span, Spanned};
 use warp_completer::parsers::LiteCommand;
 use warp_completer::parsers::simple::command_at_cursor_position;
 use warp_completer::signatures::CommandRegistry;
@@ -1278,10 +1278,9 @@ impl CompletionSources {
 }
 
 /// Resolves which [`CompletionSources`] a request draws on from the `NativeShellCompletions`
-/// feature flag, the shell, the input type, the trigger, and the two user toggles.
+/// feature flag, the input type, the trigger, and the two user toggles.
 fn resolve_completion_sources(
     feature_flag_enabled: bool,
-    shell_supports_native_completions: bool,
     is_ai_input: bool,
     buffer_text_is_multiline: bool,
     completions_trigger: CompletionsTrigger,
@@ -1295,7 +1294,6 @@ fn resolve_completion_sources(
     // Asking the shell for completions round-trips through the pty, so it isn't done on every
     // keystroke, and (for now) not for multi-line commands.
     let native_shell_completions_eligible = native_shell_completions_enabled
-        && shell_supports_native_completions
         && completions_trigger != CompletionsTrigger::AsYouType
         && !buffer_text_is_multiline;
 
@@ -1305,18 +1303,26 @@ fn resolve_completion_sources(
 /// Builds [`SuggestionResults`] from a shell's native-completions reply.
 fn native_shell_suggestion_results(
     shell_results: Vec<ShellCompletion>,
+    shell_replacement_span: Option<Span>,
     buffer_text: &str,
     cursor_position: usize,
 ) -> SuggestionResults {
     let suggestions = shell_results.into_iter().map(Into::into).collect_vec();
-    // The token being completed starts just after the last whitespace char before the cursor, or
-    // at the start of the buffer if there's none.
-    let token_start = buffer_text[0..cursor_position]
-        .rfind(char::is_whitespace)
-        .map(|pos| pos + 1)
-        .unwrap_or_default();
+    let buffer_text_before_cursor = &buffer_text[0..cursor_position];
+    let replacement_span = match shell_replacement_span {
+        Some(span) => span.clamped_to(buffer_text_before_cursor),
+        None => {
+            // The token being completed starts just after the last whitespace char before the
+            // cursor, or at the start of the buffer if there's none.
+            let token_start = buffer_text_before_cursor
+                .rfind(char::is_whitespace)
+                .map(|pos| pos + 1)
+                .unwrap_or_default();
+            (token_start, cursor_position).into()
+        }
+    };
     SuggestionResults {
-        replacement_span: (token_start, cursor_position).into(),
+        replacement_span,
         suggestions,
         match_strategy: MatchStrategy::Fuzzy,
     }
@@ -9292,10 +9298,6 @@ impl Input {
             let input_settings = InputSettings::as_ref(ctx);
             resolve_completion_sources(
                 FeatureFlag::NativeShellCompletions.is_enabled(),
-                completion_context
-                    .session
-                    .shell()
-                    .supports_native_shell_completions(),
                 input_type.is_ai(),
                 buffer_text.contains('\n'),
                 completions_trigger,
@@ -9456,8 +9458,13 @@ impl Input {
         let abort_handle = ctx
             .spawn_abortable(
                 async move {
-                    let native_suggestions = results_rx.recv().await.ok().map(|results| {
-                        native_shell_suggestion_results(results, &buffer_text, cursor_position)
+                    let native_suggestions = results_rx.recv().await.ok().map(|(results, span)| {
+                        native_shell_suggestion_results(
+                            results,
+                            span,
+                            &buffer_text,
+                            cursor_position,
+                        )
                     });
                     let suggestions = match native_suggestions {
                         Some(suggestions) if suggestions.suggestions.is_empty() => {

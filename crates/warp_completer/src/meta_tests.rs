@@ -25,3 +25,11 @@ fn knows_distances() {
     assert!(warp().span.distance() == 4);
     assert!(empty().span.distance() == 0);
 }
+
+#[test]
+fn clamped_to_pulls_span_inside_source_and_onto_char_boundaries() {
+    // `é` is two bytes, so offset 2 is mid-character in "aéb".
+    assert_eq!(Span::new(2, 99).clamped_to("aéb"), Span::new(1, 4));
+    assert_eq!(Span::new(0, 99).clamped_to("abc"), Span::new(0, 3));
+    assert_eq!(Span::new(99, 99).clamped_to("abc"), Span::new(3, 3));
+}

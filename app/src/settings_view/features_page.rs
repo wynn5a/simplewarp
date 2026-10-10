@@ -4984,7 +4984,7 @@ impl SettingsWidget for NativeShellCompletionsWidget {
     type View = FeaturesPageView;
 
     fn search_terms(&self) -> &str {
-        "native shell completions your shell command suggestions zsh"
+        "native shell completions your shell command suggestions"
     }
 
     fn render(
@@ -4999,14 +4999,13 @@ impl SettingsWidget for NativeShellCompletionsWidget {
         let as_you_type_on = *input_settings.completions_open_while_typing.value();
 
         let keystroke = &*view.completions_keystroke;
-        let description = if warp_on && as_you_type_on && native_on && !keystroke.is_empty() {
-            format!(
-                "Currently available for zsh. Native shell completions aren't generated as you \
-                 type; press {keystroke} to fetch them."
-            )
-        } else {
-            "Currently available for zsh.".to_owned()
-        };
+        let description =
+            (warp_on && as_you_type_on && native_on && !keystroke.is_empty()).then(|| {
+                format!(
+                    "Native shell completions aren't generated as you type; press {keystroke} to \
+                 fetch them."
+                )
+            });
 
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
@@ -5022,7 +5021,7 @@ impl SettingsWidget for NativeShellCompletionsWidget {
                     ctx.dispatch_typed_action(FeaturesPageAction::ToggleNativeShellCompletions);
                 })
                 .finish(),
-            Some(description),
+            description,
         )
     }
 }

@@ -542,3 +542,17 @@ fn test_cancelling_command_queues_up_next_command_command() {
             .await;
     });
 }
+
+#[test]
+fn native_completions_generator_commands_are_in_band_commands() {
+    for shell_type in [
+        ShellType::Zsh,
+        ShellType::Bash,
+        ShellType::Fish,
+        ShellType::PowerShell,
+    ] {
+        let command = shell_type.native_completions_generator_command("6769");
+        assert!(is_in_band_command(&command), "{command:?}");
+    }
+    assert!(!is_in_band_command("git checkout"));
+}

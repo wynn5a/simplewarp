@@ -10,6 +10,14 @@
 use super::integration_tests;
 
 integration_tests! {
+    // Native shell completions, driven against the user's real shell.
+    test_native_shell_completions_menu,
+    test_zsh_native_completions_without_compinit_use_filepaths,
+    test_command_runs_cleanly_after_native_shell_completion,
+    test_native_shell_completions_used_when_no_bundled_spec,
+    test_native_shell_completions_skipped_when_a_bundled_spec_answers,
+    test_native_shell_completions_reach_a_spec_command_native_only,
+    test_native_shell_completions_powershell_member_access,
     // Test command execution works.
     test_single_command,
     // Test shell process terminates when session is closed.

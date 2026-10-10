@@ -1967,3 +1967,53 @@ fn dcs_hook_with_unregistered_session_id_is_rejected() {
         None
     );
 }
+
+#[test]
+fn completions_output_is_reported_with_its_replacement_span_and_updated_descriptions() {
+    let (event_tx, event_rx) = async_channel::unbounded();
+    let event_proxy = ChannelEventListener::builder_for_test()
+        .with_terminal_events_tx(event_tx)
+        .build();
+    let mut terminal = TerminalModel::mock(None, Some(event_proxy));
+    while !event_rx.is_empty() {
+        let _ = event_rx.try_recv();
+    }
+
+    terminal.start_completions_output();
+    terminal.on_completion_replacement_span_received(4, 2);
+    terminal.on_completion_result_received(ShellCompletion::new("checkout".to_owned()));
+    terminal.on_completion_result_received(ShellCompletion::new("cherry-pick".to_owned()));
+    terminal.update_last_completion_result(ShellCompletionUpdate::Description {
+        value: "Apply commits".to_owned(),
+    });
+    terminal.end_completions_output();
+
+    let Ok(Event::CompletionsFinished(completions, replacement_span)) = event_rx.try_recv() else {
+        panic!("expected a CompletionsFinished event");
+    };
+    assert_eq!(completions.len(), 2);
+    assert_eq!(replacement_span, Some(Span::new(4, 6)));
+    assert!(format!("{:?}", completions[1]).contains("Apply commits"));
+    assert!(!format!("{:?}", completions[0]).contains("Apply commits"));
+}
+
+#[test]
+fn completions_output_without_a_replacement_span_reports_none() {
+    let (event_tx, event_rx) = async_channel::unbounded();
+    let event_proxy = ChannelEventListener::builder_for_test()
+        .with_terminal_events_tx(event_tx)
+        .build();
+    let mut terminal = TerminalModel::mock(None, Some(event_proxy));
+    while !event_rx.is_empty() {
+        let _ = event_rx.try_recv();
+    }
+
+    terminal.start_completions_output();
+    terminal.end_completions_output();
+
+    let Ok(Event::CompletionsFinished(completions, replacement_span)) = event_rx.try_recv() else {
+        panic!("expected a CompletionsFinished event");
+    };
+    assert!(completions.is_empty());
+    assert_eq!(replacement_span, None);
+}
