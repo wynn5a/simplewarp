@@ -195,6 +195,12 @@ surfacing child records (`id`) anywhere other than the store.
 ## Status
 
 Implemented in two rounds: protocol/store/event plumbing/9;4 bridge, then the UI (`Neutral` badge,
-tab pill, pane header, workspace redraw) and the three dismissal paths. Not verified in the running
-GUI — only by unit and view tests. Hover text for `app`/`msg` is not implemented; no tooltip
-mechanism was confirmed on the pill or header.
+tab pill, pane header, workspace redraw) and the three dismissal paths.
+
+Verified by hand in the running GUI (2026-10-10): the `?` detection reply; `working` badge on the
+tab pill and on the pane header; `working` dropped when the command returns to the prompt;
+`done`/`error` kept until a keypress, then dismissed; the OSC 9;4 bridge on a fresh terminal, and
+ignored once that terminal has seen a 7501 report.
+
+Hover text for `app`/`msg` is not implemented; no tooltip mechanism was confirmed on the pill or
+header.
