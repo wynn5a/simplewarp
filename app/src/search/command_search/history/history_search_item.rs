@@ -25,6 +25,8 @@ const COMMAND_METADATA_LEFT_MARGIN_FROM_METADATA: f32 = 8.;
 pub struct HistorySearchItem {
     pub entry: Arc<HistoryEntry>,
     pub match_result: fuzzy_match::FuzzyMatchResult,
+    /// Added to the fuzzy score to favor commands that were run often or recently.
+    pub rank_bonus: i64,
 }
 
 impl SearchItem for HistorySearchItem {
@@ -141,7 +143,7 @@ impl SearchItem for HistorySearchItem {
     }
 
     fn score(&self) -> OrderedFloat<f64> {
-        OrderedFloat(self.match_result.score as f64)
+        OrderedFloat((self.match_result.score + self.rank_bonus) as f64)
     }
 
     fn accept_result(&self) -> CommandSearchItemAction {
