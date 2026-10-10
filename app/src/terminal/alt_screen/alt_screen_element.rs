@@ -4,6 +4,7 @@ use std::sync::Arc;
 use num_traits::Float as _;
 use parking_lot::FairMutex;
 use pathfinder_geometry::vector::vec2f;
+use settings::Setting as _;
 use vec1::Vec1;
 use warp_core::features::FeatureFlag;
 use warp_util::user_input::UserInput;
@@ -17,14 +18,14 @@ use warpui::text::SelectionType;
 use warpui::units::{IntoLines, IntoPixels, Lines, Pixels};
 use warpui::{
     AfterLayoutContext, AppContext, ClipBounds, Element, EntityId, Event, EventContext,
-    LayoutContext, ModelHandle, PaintContext, SizeConstraint, end_trace, record_trace_event,
-    start_trace,
+    LayoutContext, ModelHandle, PaintContext, SingletonEntity as _, SizeConstraint, end_trace,
+    record_trace_event, start_trace,
 };
 
 use super::should_intercept_mouse;
 use crate::appearance::Appearance;
 use crate::pane_group::SplitPaneState;
-use crate::settings::EnforceMinimumContrast;
+use crate::settings::{EnforceMinimumContrast, InputSettings};
 use crate::terminal::blockgrid_renderer::GridRenderParams;
 use crate::terminal::find::TerminalFindModel;
 use crate::terminal::grid_renderer::CellGlyphCache;
@@ -262,9 +263,15 @@ impl AltScreenElement {
         let point = self.coord_to_point(local_position);
 
         if should_intercept_mouse(&self.model.lock(), mouse_state.modifiers().shift, app) {
-            ctx.dispatch_typed_action(TerminalAction::AltScreenContextMenu {
-                position: local_position,
-            });
+            if !mouse_state.modifiers().shift
+                && *InputSettings::as_ref(app).right_click_paste.value()
+            {
+                ctx.dispatch_typed_action(TerminalAction::Paste);
+            } else {
+                ctx.dispatch_typed_action(TerminalAction::AltScreenContextMenu {
+                    position: local_position,
+                });
+            }
         } else {
             ctx.dispatch_typed_action(TerminalAction::AltMouseAction(mouse_state.set_point(point)));
         }

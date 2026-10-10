@@ -15247,6 +15247,16 @@ impl Workspace {
                 .insert(flags::NATIVE_SHELL_COMPLETIONS_CONTEXT_FLAG);
         }
 
+        if *input_settings.right_click_paste.value() {
+            context.set.insert(flags::RIGHT_CLICK_PASTE_CONTEXT_FLAG);
+        }
+
+        if *input_settings.ai_command_search_hash_trigger.value() {
+            context
+                .set
+                .insert(flags::AI_COMMAND_SEARCH_HASH_TRIGGER_CONTEXT_FLAG);
+        }
+
         if *input_settings.command_corrections.value() {
             context.set.insert(flags::COMMAND_CORRECTIONS_CONTEXT_FLAG);
         }

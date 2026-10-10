@@ -222,6 +222,32 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 && FeatureFlag::NativeShellCompletions.is_enabled(),
         ),
         ToggleSettingActionPair::new(
+            "right-click paste",
+            builder(SettingsAction::FeaturesPageToggle(
+                FeaturesPageAction::ToggleRightClickPaste,
+            )),
+            context,
+            flags::RIGHT_CLICK_PASTE_CONTEXT_FLAG,
+        )
+        .is_supported_on_current_platform(
+            InputSettings::as_ref(app)
+                .right_click_paste
+                .is_supported_on_current_platform(),
+        ),
+        ToggleSettingActionPair::new(
+            "AI Command Search '#' trigger",
+            builder(SettingsAction::FeaturesPageToggle(
+                FeaturesPageAction::ToggleAiCommandSearchHashTrigger,
+            )),
+            context,
+            flags::AI_COMMAND_SEARCH_HASH_TRIGGER_CONTEXT_FLAG,
+        )
+        .is_supported_on_current_platform(
+            InputSettings::as_ref(app)
+                .ai_command_search_hash_trigger
+                .is_supported_on_current_platform(),
+        ),
+        ToggleSettingActionPair::new(
             "command corrections",
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleCommandCorrections,
@@ -724,6 +750,8 @@ pub enum FeaturesPageAction {
     ToggleCompletionsOpenWhileTyping,
     ToggleWarpCompletions,
     ToggleNativeShellCompletions,
+    ToggleRightClickPaste,
+    ToggleAiCommandSearchHashTrigger,
     ToggleCommandCorrections,
     ToggleErrorUnderlining,
     ToggleSyntaxHighlighting,
@@ -1313,6 +1341,20 @@ impl TypedActionView for FeaturesPageView {
                     report_if_error!(
                         input_settings
                             .native_shell_completions_enabled
+                            .toggle_and_save_value(ctx)
+                    );
+                });
+            }
+            ToggleRightClickPaste => {
+                InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+                    report_if_error!(input_settings.right_click_paste.toggle_and_save_value(ctx));
+                });
+            }
+            ToggleAiCommandSearchHashTrigger => {
+                InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+                    report_if_error!(
+                        input_settings
+                            .ai_command_search_hash_trigger
                             .toggle_and_save_value(ctx)
                     );
                 });
@@ -2291,6 +2333,18 @@ impl FeaturesPageView {
             .is_supported_on_current_platform()
         {
             editor_widgets.push(Box::new(CommandCorrectionsWidget::default()));
+        }
+        if input_settings
+            .ai_command_search_hash_trigger
+            .is_supported_on_current_platform()
+        {
+            editor_widgets.push(Box::new(AiCommandSearchHashTriggerWidget::default()));
+        }
+        if input_settings
+            .right_click_paste
+            .is_supported_on_current_platform()
+        {
+            editor_widgets.push(Box::new(RightClickPasteWidget::default()));
         }
 
         let alias_expansion_settings = AliasExpansionSettings::as_ref(ctx);
@@ -5022,6 +5076,90 @@ impl SettingsWidget for NativeShellCompletionsWidget {
                 })
                 .finish(),
             description,
+        )
+    }
+}
+
+#[derive(Default)]
+struct AiCommandSearchHashTriggerWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for AiCommandSearchHashTriggerWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "ai command search hash pound # comment trigger"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let ui_builder = appearance.ui_builder();
+        render_body_item::<FeaturesPageAction>(
+            "Open AI Command Search when typing '#'".into(),
+            None,
+            ToggleState::Enabled,
+            appearance,
+            ui_builder
+                .switch(self.switch_state.clone())
+                .check(
+                    *InputSettings::as_ref(app)
+                        .ai_command_search_hash_trigger
+                        .value(),
+                )
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(FeaturesPageAction::ToggleAiCommandSearchHashTrigger);
+                })
+                .finish(),
+            Some(
+                "Turn this off to type shell comments starting with '#' without interruption."
+                    .into(),
+            ),
+        )
+    }
+}
+
+#[derive(Default)]
+struct RightClickPasteWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for RightClickPasteWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "right click paste clipboard context menu"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let ui_builder = appearance.ui_builder();
+        render_body_item::<FeaturesPageAction>(
+            "Right-click to paste".into(),
+            None,
+            ToggleState::Enabled,
+            appearance,
+            ui_builder
+                .switch(self.switch_state.clone())
+                .check(*InputSettings::as_ref(app).right_click_paste.value())
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(FeaturesPageAction::ToggleRightClickPaste);
+                })
+                .finish(),
+            Some(
+                "Right-click pastes from the clipboard. Hold Shift to open the context menu."
+                    .into(),
+            ),
         )
     }
 }

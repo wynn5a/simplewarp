@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use enum_iterator::Sequence;
 use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
+use settings::Setting as _;
 use vec1::Vec1;
 use warp_core::semantic_selection::SemanticSelection;
 use warp_core::ui::builder::UiBuilder;
@@ -58,7 +59,9 @@ use crate::ai_assistant::{AI_ASSISTANT_SVG_PATH, ASK_AI_ASSISTANT_TEXT};
 use crate::appearance::Appearance;
 use crate::features::FeatureFlag;
 use crate::pane_group::SplitPaneState;
-use crate::settings::{AISettings, DebugSettings, EnforceMinimumContrast, TerminalSpacing};
+use crate::settings::{
+    AISettings, DebugSettings, EnforceMinimumContrast, InputSettings, TerminalSpacing,
+};
 use crate::terminal::alt_screen::{should_intercept_mouse, should_intercept_scroll};
 use crate::terminal::block_list_viewport::AutoscrollBehavior;
 use crate::terminal::blockgrid_renderer::BlockGridParams;
@@ -1272,8 +1275,19 @@ impl BlockListElement {
         )
     }
 
-    fn right_mouse_down(&self, position: Vector2F, ctx: &mut EventContext) -> bool {
+    fn right_mouse_down(
+        &self,
+        position: Vector2F,
+        shift: bool,
+        ctx: &mut EventContext,
+        app: &AppContext,
+    ) -> bool {
         if self.is_mouse_position_within_bounds(position) {
+            if !shift && *InputSettings::as_ref(app).right_click_paste.value() {
+                ctx.dispatch_typed_action(TerminalAction::Paste);
+                return true;
+            }
+
             let position_in_terminal_view = self.position_in_terminal_view(position);
 
             if self.is_mouse_position_within_selection(position) {
@@ -4031,9 +4045,9 @@ impl Element for BlockListElement {
                 ctx,
                 app,
             ),
-            Event::RightMouseDown { position, .. } if !handled => {
-                self.right_mouse_down(*position, ctx)
-            }
+            Event::RightMouseDown {
+                position, shift, ..
+            } if !handled => self.right_mouse_down(*position, *shift, ctx, app),
             Event::LeftMouseUp {
                 position,
                 modifiers,

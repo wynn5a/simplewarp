@@ -11943,6 +11943,20 @@ impl TerminalView {
                     | BlockListMenuSource::RichContentBlockRightClick { .. }
                     | BlockListMenuSource::OutsideBlockRightClick { .. }
             );
+            if include_clear {
+                if !items.is_empty() {
+                    items.push(MenuItem::Separator);
+                }
+                items.push(
+                    MenuItemFields::new("Paste")
+                        .with_on_select_action(TerminalAction::Paste)
+                        .with_key_shortcut_label(keybinding_name_to_display_string(
+                            "terminal:paste",
+                            ctx,
+                        ))
+                        .into_item(),
+                );
+            }
             let clear_menu_item = include_clear
                 .then(|| self.clear_buffer_menu_item(&model, ctx))
                 .flatten();

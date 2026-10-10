@@ -5058,9 +5058,16 @@ impl Input {
                 self.editor.update(ctx, |editor, ctx| {
                     editor.set_placeholder_text(hint_text, ctx);
                 });
-            } else {
+            } else if *InputSettings::as_ref(ctx)
+                .ai_command_search_hash_trigger
+                .value()
+            {
                 self.editor.update(ctx, |editor, ctx| {
                     editor.set_placeholder_text(AI_COMMAND_SEARCH_HINT_TEXT, ctx);
+                });
+            } else {
+                self.editor.update(ctx, |editor, ctx| {
+                    editor.clear_placeholder_text(ctx);
                 });
             }
         } else {
@@ -7723,6 +7730,9 @@ impl Input {
                 }
 
                 if AISettings::as_ref(ctx).is_any_ai_enabled()
+                    && *InputSettings::as_ref(ctx)
+                        .ai_command_search_hash_trigger
+                        .value()
                     && self.editor_starts_with_command_search_trigger(ctx)
                     && *edit_origin == EditOrigin::UserTyped
                     && !self.ai_input_model.as_ref(ctx).is_ai_input_enabled()
@@ -11891,7 +11901,11 @@ impl Input {
         let input_editor_save_position_id = self.editor_save_position_id();
         SavePosition::new(
             EventHandler::new(input_box)
-                .on_right_mouse_down(move |ctx, _, position| {
+                .on_right_mouse_down_with_shift(move |ctx, app, position, shift| {
+                    if !shift && *InputSettings::as_ref(app).right_click_paste.value() {
+                        ctx.dispatch_typed_action(TerminalAction::Paste);
+                        return DispatchEventResult::StopPropagation;
+                    }
                     let input_rect = ctx
                         .element_position_by_id(input_editor_save_position_id.clone())
                         .expect("input editor position id should be saved");

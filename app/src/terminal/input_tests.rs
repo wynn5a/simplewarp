@@ -1227,6 +1227,52 @@ fn send_now_event_preserves_draft_and_clears_the_queued_row() {
     });
 }
 
+fn count_command_search_events_after_typing_hash(hash_trigger_enabled: bool) -> usize {
+    let shown = Rc::new(RefCell::new(0));
+    let shown_for_test = shown.clone();
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
+        let input = terminal.read(&app, |view, _| view.input().clone());
+
+        AISettings::handle(&app).update(&mut app, |settings, ctx| {
+            settings
+                .is_any_ai_enabled
+                .set_value(true, ctx)
+                .expect("failed to enable AI in test");
+        });
+        InputSettings::handle(&app).update(&mut app, |settings, ctx| {
+            settings
+                .ai_command_search_hash_trigger
+                .set_value(hash_trigger_enabled, ctx)
+                .expect("failed to set hash trigger setting in test");
+        });
+
+        let events_for_subscription = shown_for_test.clone();
+        app.update(|ctx| {
+            ctx.subscribe_to_view(&input, move |_, event: &super::Event, _| {
+                if matches!(event, super::Event::ShowCommandSearch(_)) {
+                    *events_for_subscription.borrow_mut() += 1;
+                }
+            });
+        });
+
+        input.update(&mut app, |input, ctx| input.user_insert("#", ctx));
+    });
+    shown.take()
+}
+
+#[test]
+fn typing_hash_opens_command_search_when_trigger_enabled() {
+    assert_eq!(count_command_search_events_after_typing_hash(true), 1);
+}
+
+#[test]
+fn typing_hash_does_not_open_command_search_when_trigger_disabled() {
+    assert_eq!(count_command_search_events_after_typing_hash(false), 0);
+}
+
 #[test]
 fn send_now_command_event_executes_command_and_arms_in_flight() {
     App::test((), |mut app| async move {

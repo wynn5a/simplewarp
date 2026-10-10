@@ -3054,6 +3054,55 @@ fn test_context_menu_omits_clear_for_text_right_click() {
     })
 }
 
+fn context_menu_labels(menu_source: BlockListMenuSource) -> Vec<String> {
+    let labels = Rc::new(RefCell::new(vec![]));
+    let labels_for_test = labels.clone();
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+
+        let terminal = add_window_with_terminal(&mut app, None);
+        terminal.update(&mut app, |view, ctx| {
+            view.model.lock().simulate_block("ls", "foo");
+            *labels_for_test.borrow_mut() = view
+                .context_menu_items(&menu_source, ctx)
+                .iter()
+                .filter_map(|item| item.fields().map(|fields| fields.label().to_owned()))
+                .collect();
+        });
+    });
+    labels.take()
+}
+
+#[test]
+fn test_context_menu_includes_paste_for_block_right_clicks() {
+    for menu_source in [
+        BlockListMenuSource::OutsideBlockRightClick {
+            position_in_terminal_view: Vector2F::zero(),
+        },
+        BlockListMenuSource::RegularBlockRightClick {
+            block_index: BlockIndex::zero(),
+            position_in_terminal_view: Vector2F::zero(),
+        },
+    ] {
+        let labels = context_menu_labels(menu_source);
+        assert!(
+            labels.iter().any(|label| label == "Paste"),
+            "Expected `Paste` menu item, got {labels:?}"
+        );
+    }
+}
+
+#[test]
+fn test_context_menu_omits_paste_for_text_right_click() {
+    let labels = context_menu_labels(BlockListMenuSource::RegularTextRightClick {
+        position_in_terminal_view: Vector2F::zero(),
+    });
+    assert!(
+        !labels.iter().any(|label| label == "Paste"),
+        "Did not expect `Paste` in text-selection right-click menu, got {labels:?}"
+    );
+}
+
 #[test]
 fn test_clear_buffer_clears_autosuggestion() {
     App::test((), |mut app| async move {

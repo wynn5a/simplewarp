@@ -620,3 +620,114 @@ fn test_event_propagation() {
         });
     })
 }
+
+#[derive(Default)]
+struct RightClickView {
+    shift_aware_clicks: Vec<bool>,
+    plain_clicks: usize,
+}
+
+impl RightClickView {
+    fn shift_aware_click(&mut self, shift: &bool, _: &mut ViewContext<Self>) -> bool {
+        self.shift_aware_clicks.push(*shift);
+        true
+    }
+
+    fn plain_click(&mut self, _: &(), _: &mut ViewContext<Self>) -> bool {
+        self.plain_clicks += 1;
+        true
+    }
+}
+
+impl Entity for RightClickView {
+    type Event = ();
+}
+
+impl TypedActionView for RightClickView {
+    type Action = ();
+}
+
+impl crate::core::View for RightClickView {
+    fn ui_name() -> &'static str {
+        "event_handler_right_click_test_view"
+    }
+
+    fn render(&self, _: &AppContext) -> Box<dyn Element> {
+        EventHandler::new(
+            ConstrainedBox::new(Rect::new().finish())
+                .with_height(100.)
+                .with_width(100.)
+                .finish(),
+        )
+        .on_right_mouse_down_with_shift(|evt, _, _, shift| {
+            evt.dispatch_action("event_handler_test:shift_aware_click", shift);
+            if shift {
+                DispatchEventResult::PropagateToParent
+            } else {
+                DispatchEventResult::StopPropagation
+            }
+        })
+        .on_right_mouse_down(|evt, _, _| {
+            evt.dispatch_action("event_handler_test:plain_click", ());
+            DispatchEventResult::StopPropagation
+        })
+        .finish()
+    }
+}
+
+#[test]
+fn test_right_mouse_down_with_shift_reports_modifier_and_can_fall_through() {
+    App::test((), |mut app| async move {
+        let app = &mut app;
+        app.update(|ctx| {
+            ctx.add_action(
+                "event_handler_test:shift_aware_click",
+                RightClickView::shift_aware_click,
+            );
+            ctx.add_action(
+                "event_handler_test:plain_click",
+                RightClickView::plain_click,
+            );
+        });
+        let (window_id, view) =
+            app.add_window(WindowStyle::NotStealFocus, |_| RightClickView::default());
+
+        let mut presenter = Presenter::new(window_id);
+        let mut updated = EntityIdSet::default();
+        updated.insert(app.root_view_id(window_id).unwrap());
+        presenter_invalidate(&mut presenter, updated, app);
+
+        app.update(move |ctx| {
+            presenter.build_scene(vec2f(100., 100.), 1., None, ctx);
+            let presenter = Rc::new(RefCell::new(presenter));
+            for shift in [false, true] {
+                ctx.simulate_window_event(
+                    Event::RightMouseDown {
+                        position: vec2f(50., 50.),
+                        cmd: false,
+                        shift,
+                        click_count: 1,
+                    },
+                    window_id,
+                    presenter.clone(),
+                );
+            }
+        });
+
+        view.read(app, |view, _| {
+            assert_eq!(view.shift_aware_clicks, vec![false, true]);
+            assert_eq!(
+                view.plain_clicks, 1,
+                "plain handler runs only when the shift-aware one propagates"
+            );
+        });
+    });
+}
+
+fn presenter_invalidate(presenter: &mut Presenter, updated: EntityIdSet, app: &mut App) {
+    let invalidation = WindowInvalidation {
+        updated,
+        ..Default::default()
+    };
+    app.update(|ctx| presenter.invalidate(invalidation, ctx));
+}
