@@ -159,6 +159,19 @@ fn test_input_detection_sources() {
                 InputClassifierDecisionSource::NaturalLanguageOneOffAllowlist,
             )
         );
+        for text in [
+            "这行命令是什么意思",
+            "帮我解释一下这个命令",
+            "このコマンドの意味は",
+            "이 명령어가 무슨 뜻이야",
+        ] {
+            let token = mock_parsed_input_token_without_descriptions(text);
+            let decision = classifier.detect_input_type(token, &context).await;
+            assert_eq!(decision.input_type, InputType::AI, "{text}");
+        }
+        let token = mock_parsed_input_token_without_descriptions("echo 你好");
+        let decision = classifier.detect_input_type(token, &context).await;
+        assert_eq!(decision.input_type, InputType::Shell);
         let token = mock_parsed_input_token_without_descriptions("fix this");
         let decision = classifier.detect_input_type(token, &context).await;
         assert_eq!(

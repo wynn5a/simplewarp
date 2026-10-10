@@ -124,6 +124,23 @@ pub async fn is_likely_shell_command(
     is_likely_shell_command
 }
 
+/// Returns true if the text contains CJK characters (Han, Hiragana, Katakana, Hangul). These
+/// scripts aren't whitespace-delimited and aren't in the English word lists, so the word-based
+/// natural language heuristics can't score them.
+pub fn contains_cjk(text: &str) -> bool {
+    text.chars().any(|c| {
+        matches!(c,
+            '\u{3040}'..='\u{30FF}' // Hiragana and Katakana
+            | '\u{3400}'..='\u{4DBF}' // CJK Extension A
+            | '\u{4E00}'..='\u{9FFF}' // CJK Unified Ideographs
+            | '\u{AC00}'..='\u{D7AF}' // Hangul syllables
+            | '\u{F900}'..='\u{FAFF}' // CJK Compatibility Ideographs
+            | '\u{FF66}'..='\u{FF9F}' // Halfwidth Katakana
+            | '\u{20000}'..='\u{2FA1F}' // CJK Extensions B-F and Compatibility Supplement
+        )
+    })
+}
+
 /// Returns true if the first token is a command that is installed on the system.
 pub fn is_installed_binary(input: &ParsedTokensSnapshot) -> bool {
     input
