@@ -457,6 +457,7 @@ default = [
     "v4a_file_diffs",
     "classic_completions",
     "force_classic_completions",
+    "native_shell_completions",
     "agent_tips",
     "pluggable_notifications",
     "global_search",
@@ -580,6 +581,7 @@ simplewarp = [
     "v4a_file_diffs",
     "classic_completions",
     "force_classic_completions",
+    "native_shell_completions",
     "agent_tips",
     "pluggable_notifications",
     "global_search",
@@ -817,6 +819,7 @@ agent_toolbar_editor = ["agent_view"]
 agent_view_prompt_chip = ["agent_view"]
 classic_completions = []
 force_classic_completions = []
+native_shell_completions = []
 agent_view_conversation_list_view = ["agent_view"]
 inline_history_menu = ["agent_view"]
 inline_repo_menu = ["agent_view"]

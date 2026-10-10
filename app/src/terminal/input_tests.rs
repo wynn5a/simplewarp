@@ -7832,3 +7832,134 @@ fn test_custom_terminal_page_scroll_binding_applies_when_prompt_is_focused() {
         });
     });
 }
+
+#[test]
+fn test_resolve_completion_sources_keybinding_with_both_toggles_on() {
+    assert_eq!(
+        resolve_completion_sources(
+            true,
+            true,
+            false,
+            false,
+            CompletionsTrigger::Keybinding,
+            true,
+            true
+        ),
+        CompletionSources::WarpThenNative
+    );
+}
+
+#[test]
+fn test_resolve_completion_sources_toggle_combinations() {
+    let resolve = |warp, native| {
+        resolve_completion_sources(
+            true,
+            true,
+            false,
+            false,
+            CompletionsTrigger::Keybinding,
+            warp,
+            native,
+        )
+    };
+    assert_eq!(resolve(true, false), CompletionSources::WarpOnly);
+    assert_eq!(resolve(false, true), CompletionSources::NativeOnly);
+    assert_eq!(resolve(false, false), CompletionSources::None);
+}
+
+#[test]
+fn test_resolve_completion_sources_skips_native_while_typing() {
+    assert_eq!(
+        resolve_completion_sources(
+            true,
+            true,
+            false,
+            false,
+            CompletionsTrigger::AsYouType,
+            true,
+            true
+        ),
+        CompletionSources::WarpOnly
+    );
+    assert_eq!(
+        resolve_completion_sources(
+            true,
+            true,
+            false,
+            false,
+            CompletionsTrigger::AsYouType,
+            false,
+            true
+        ),
+        CompletionSources::None
+    );
+}
+
+#[test]
+fn test_resolve_completion_sources_ignores_toggles_without_native_support() {
+    // Feature flag off: the toggles are inert and Warp's completions are always used.
+    assert_eq!(
+        resolve_completion_sources(
+            false,
+            true,
+            false,
+            false,
+            CompletionsTrigger::Keybinding,
+            false,
+            true
+        ),
+        CompletionSources::WarpOnly
+    );
+    // Shell without native completions support.
+    assert_eq!(
+        resolve_completion_sources(
+            true,
+            false,
+            false,
+            false,
+            CompletionsTrigger::Keybinding,
+            true,
+            true
+        ),
+        CompletionSources::WarpOnly
+    );
+}
+
+#[test]
+fn test_resolve_completion_sources_ai_input_and_multiline_never_use_native() {
+    assert_eq!(
+        resolve_completion_sources(
+            true,
+            true,
+            true,
+            false,
+            CompletionsTrigger::Keybinding,
+            true,
+            true
+        ),
+        CompletionSources::WarpOnly
+    );
+    assert_eq!(
+        resolve_completion_sources(
+            true,
+            true,
+            false,
+            true,
+            CompletionsTrigger::Keybinding,
+            true,
+            true
+        ),
+        CompletionSources::WarpOnly
+    );
+}
+
+#[test]
+fn test_native_shell_suggestion_results_replaces_token_before_cursor() {
+    let results =
+        native_shell_suggestion_results(vec![], "git checkout ma", "git checkout ma".len());
+    assert_eq!(results.replacement_span, Span::from((13, 15)));
+    assert!(results.suggestions.is_empty());
+
+    let results = native_shell_suggestion_results(vec![], "gi", 2);
+    assert_eq!(results.replacement_span, Span::from((0, 2)));
+}

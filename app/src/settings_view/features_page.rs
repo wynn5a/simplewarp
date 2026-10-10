@@ -194,6 +194,34 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 .is_supported_on_current_platform(),
         ),
         ToggleSettingActionPair::new(
+            "Warp completions",
+            builder(SettingsAction::FeaturesPageToggle(
+                FeaturesPageAction::ToggleWarpCompletions,
+            )),
+            context,
+            flags::WARP_COMPLETIONS_CONTEXT_FLAG,
+        )
+        .is_supported_on_current_platform(
+            InputSettings::as_ref(app)
+                .warp_completions_enabled
+                .is_supported_on_current_platform()
+                && FeatureFlag::NativeShellCompletions.is_enabled(),
+        ),
+        ToggleSettingActionPair::new(
+            "native shell completions",
+            builder(SettingsAction::FeaturesPageToggle(
+                FeaturesPageAction::ToggleNativeShellCompletions,
+            )),
+            context,
+            flags::NATIVE_SHELL_COMPLETIONS_CONTEXT_FLAG,
+        )
+        .is_supported_on_current_platform(
+            InputSettings::as_ref(app)
+                .native_shell_completions_enabled
+                .is_supported_on_current_platform()
+                && FeatureFlag::NativeShellCompletions.is_enabled(),
+        ),
+        ToggleSettingActionPair::new(
             "command corrections",
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleCommandCorrections,
@@ -694,6 +722,8 @@ pub enum FeaturesPageAction {
     ToggleSnackbar,
     ToggleLinkTooltip,
     ToggleCompletionsOpenWhileTyping,
+    ToggleWarpCompletions,
+    ToggleNativeShellCompletions,
     ToggleCommandCorrections,
     ToggleErrorUnderlining,
     ToggleSyntaxHighlighting,
@@ -1265,6 +1295,24 @@ impl TypedActionView for FeaturesPageView {
                     report_if_error!(
                         input_settings
                             .completions_open_while_typing
+                            .toggle_and_save_value(ctx)
+                    );
+                });
+            }
+            ToggleWarpCompletions => {
+                InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+                    report_if_error!(
+                        input_settings
+                            .warp_completions_enabled
+                            .toggle_and_save_value(ctx)
+                    );
+                });
+            }
+            ToggleNativeShellCompletions => {
+                InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+                    report_if_error!(
+                        input_settings
+                            .native_shell_completions_enabled
                             .toggle_and_save_value(ctx)
                     );
                 });
@@ -2231,7 +2279,12 @@ impl FeaturesPageView {
             .completions_open_while_typing
             .is_supported_on_current_platform()
         {
-            editor_widgets.push(Box::new(CompletionsMenuWhileTypingWidget::default()));
+            if FeatureFlag::NativeShellCompletions.is_enabled() {
+                editor_widgets.push(Box::new(WarpCompletionsWidget::default()));
+                editor_widgets.push(Box::new(NativeShellCompletionsWidget::default()));
+            } else {
+                editor_widgets.push(Box::new(CompletionsMenuWhileTypingWidget::default()));
+            }
         }
         if input_settings
             .command_corrections
@@ -4857,6 +4910,119 @@ impl SettingsWidget for CompletionsMenuWhileTypingWidget {
                 })
                 .finish(),
             None,
+        )
+    }
+}
+
+#[derive(Default)]
+struct WarpCompletionsWidget {
+    switch_state: SwitchStateHandle,
+    as_you_type_switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for WarpCompletionsWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "warp completions built-in shell command suggestions open completions menu as you type typing"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let ui_builder = appearance.ui_builder();
+        let input_settings = InputSettings::as_ref(app);
+        let warp_completions_enabled = *input_settings.warp_completions_enabled.value();
+
+        let mut column = Flex::column();
+        column.add_child(render_body_item::<FeaturesPageAction>(
+            "Warp completions".into(),
+            None,
+            ToggleState::Enabled,
+            appearance,
+            ui_builder
+                .switch(self.switch_state.clone())
+                .check(warp_completions_enabled)
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(FeaturesPageAction::ToggleWarpCompletions);
+                })
+                .finish(),
+            None,
+        ));
+
+        if warp_completions_enabled {
+            let as_you_type_switch = ui_builder
+                .switch(self.as_you_type_switch_state.clone())
+                .check(*input_settings.completions_open_while_typing.value())
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(FeaturesPageAction::ToggleCompletionsOpenWhileTyping);
+                })
+                .finish();
+            let as_you_type_item = view.render_setting_subgroup_item(
+                appearance,
+                as_you_type_switch,
+                "Open completions menu as you type".into(),
+            );
+            column.add_child(render_group([as_you_type_item], appearance));
+        }
+
+        column.finish()
+    }
+}
+
+#[derive(Default)]
+struct NativeShellCompletionsWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for NativeShellCompletionsWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "native shell completions your shell command suggestions zsh"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let input_settings = InputSettings::as_ref(app);
+        let native_on = *input_settings.native_shell_completions_enabled.value();
+        let warp_on = *input_settings.warp_completions_enabled.value();
+        let as_you_type_on = *input_settings.completions_open_while_typing.value();
+
+        let keystroke = &*view.completions_keystroke;
+        let description = if warp_on && as_you_type_on && native_on && !keystroke.is_empty() {
+            format!(
+                "Currently available for zsh. Native shell completions aren't generated as you \
+                 type; press {keystroke} to fetch them."
+            )
+        } else {
+            "Currently available for zsh.".to_owned()
+        };
+
+        let ui_builder = appearance.ui_builder();
+        render_body_item::<FeaturesPageAction>(
+            "Native shell completions".into(),
+            None,
+            ToggleState::Enabled,
+            appearance,
+            ui_builder
+                .switch(self.switch_state.clone())
+                .check(native_on)
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(FeaturesPageAction::ToggleNativeShellCompletions);
+                })
+                .finish(),
+            Some(description),
         )
     }
 }
