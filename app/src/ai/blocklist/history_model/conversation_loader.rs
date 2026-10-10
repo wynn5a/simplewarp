@@ -232,11 +232,11 @@ impl BlocklistAIHistoryModel {
                 )
                 .ok();
 
-                if let Some(data) = conversation_data.as_ref() {
-                    if let Some(token) = data.server_conversation_token.as_ref() {
-                        self.server_token_to_conversation_id
-                            .insert(ServerConversationToken::new(token.clone()), conversation_id);
-                    }
+                if let Some(data) = conversation_data.as_ref()
+                    && let Some(token) = data.server_conversation_token.as_ref()
+                {
+                    self.server_token_to_conversation_id
+                        .insert(ServerConversationToken::new(token.clone()), conversation_id);
                 }
 
                 Some(HistoricalConversationRow {

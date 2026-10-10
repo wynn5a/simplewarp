@@ -858,14 +858,13 @@ impl AIBlock {
                     ctx.notify();
                 }
                 AISettingsChangedEvent::AgentModeCodingPermissions => {
-                    match &mut me.autonomy_setting_speedbump {
-                        AutonomySettingSpeedbump::ShouldShowForFileAccess { checked, .. } => {
-                            *checked = matches!(
-                                *settings_model.as_ref(ctx).agent_mode_coding_permissions,
-                                AgentModeCodingPermissionsType::AlwaysAllowReading
-                            );
-                        }
-                        _ => {}
+                    if let AutonomySettingSpeedbump::ShouldShowForFileAccess { checked, .. } =
+                        &mut me.autonomy_setting_speedbump
+                    {
+                        *checked = matches!(
+                            *settings_model.as_ref(ctx).agent_mode_coding_permissions,
+                            AgentModeCodingPermissionsType::AlwaysAllowReading
+                        );
                     }
                     ctx.notify();
                 }
@@ -2034,28 +2033,26 @@ impl AIBlock {
         for action in output.actions() {
             let is_file_access =
                 action.is_get_specific_files() || action.is_grep() || action.is_file_glob();
-            if is_file_access {
-                if *AISettings::as_ref(ctx).should_show_agent_mode_autoread_files_speedbump {
-                    // Try to show the speedbump for autoread files setting
-                    // if we haven't shown it enough before.
-                    self.autonomy_setting_speedbump =
-                        AutonomySettingSpeedbump::ShouldShowForFileAccess {
-                            action_id: action.id.clone(),
-                            checked: true,
-                            shown: Arc::new(Mutex::new(false)),
-                        };
-                    // Mark the speedbump as shown in settings so that we do not render it again.
-                    AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
-                        if let Err(err) = ai_settings
-                            .should_show_agent_mode_autoread_files_speedbump
-                            .set_value(false, ctx)
-                        {
-                            log::warn!(
-                                "Error with marking autoread files speedbump as shown {err}"
-                            );
-                        }
-                    })
-                }
+            if is_file_access
+                && *AISettings::as_ref(ctx).should_show_agent_mode_autoread_files_speedbump
+            {
+                // Try to show the speedbump for autoread files setting
+                // if we haven't shown it enough before.
+                self.autonomy_setting_speedbump =
+                    AutonomySettingSpeedbump::ShouldShowForFileAccess {
+                        action_id: action.id.clone(),
+                        checked: true,
+                        shown: Arc::new(Mutex::new(false)),
+                    };
+                // Mark the speedbump as shown in settings so that we do not render it again.
+                AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
+                    if let Err(err) = ai_settings
+                        .should_show_agent_mode_autoread_files_speedbump
+                        .set_value(false, ctx)
+                    {
+                        log::warn!("Error with marking autoread files speedbump as shown {err}");
+                    }
+                })
             }
         }
 

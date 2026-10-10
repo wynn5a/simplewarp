@@ -1491,12 +1491,11 @@ impl BlocklistAIHistoryModel {
         // token-index removals with an equality check: the live conversation's
         // token and the metadata's token can diverge after a rebind, and we
         // must not clobber an entry already owned by another conversation.
-        if let Some(conversation) = self.conversations_by_id.get(&conversation_id) {
-            if let Some(token) = conversation.server_conversation_token()
-                && self.server_token_to_conversation_id.get(token) == Some(&conversation_id)
-            {
-                self.server_token_to_conversation_id.remove(token);
-            }
+        if let Some(conversation) = self.conversations_by_id.get(&conversation_id)
+            && let Some(token) = conversation.server_conversation_token()
+            && self.server_token_to_conversation_id.get(token) == Some(&conversation_id)
+        {
+            self.server_token_to_conversation_id.remove(token);
         }
         // Also clean up the token index entry that might have been installed
         // via the metadata path (no live conversation present).
