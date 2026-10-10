@@ -202,5 +202,6 @@ tab pill and on the pane header; `working` dropped when the command returns to t
 `done`/`error` kept until a keypress, then dismissed; the OSC 9;4 bridge on a fresh terminal, and
 ignored once that terminal has seen a 7501 report.
 
-Hover text for `app`/`msg` is not implemented; no tooltip mechanism was confirmed on the pill or
-header.
+The vertical-tabs hover card (`render_terminal_detail_section`) shows the 7501 status pill, `title`
+and `msg` for plain terminals and CLI sessions without rich status; confirmed by hand. The pane
+header has no tooltip, so `app` is not surfaced anywhere.

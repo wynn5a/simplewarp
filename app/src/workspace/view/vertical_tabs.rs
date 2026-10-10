@@ -52,6 +52,7 @@ use crate::pane_group::{
 use crate::safe_triangle::SafeTriangle;
 use crate::tab::{SelectedTabColor, TAB_INDICATOR_SYNCED_COLOR, TabData, tab_position_id};
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
+use crate::terminal::program_status::ProgramStatusModel;
 use crate::terminal::session_settings::SessionSettings;
 use crate::terminal::view::TerminalViewState;
 use crate::terminal::{CLIAgent, TerminalView};
@@ -6664,8 +6665,9 @@ fn render_terminal_detail_section(
     } else if agent_text.is_oz_agent {
         terminal_view.selected_conversation_status_for_display(app)
     } else {
-        None
+        program_status_badge(terminal_view.id(), app)
     };
+    let program_status = ProgramStatusModel::as_ref(app).status(terminal_view.id());
 
     let title_text = terminal_view.terminal_title_from_shell();
     let primary_line = terminal_primary_line_data(
@@ -6684,6 +6686,24 @@ fn render_terminal_detail_section(
 
     if let Some(status) = status.as_ref() {
         section.add_child(render_detail_status_pill(status, appearance));
+    }
+    if let Some(title) = program_status.and_then(|record| record.title.as_deref()) {
+        section.add_child(render_detail_wrapping_text(
+            title,
+            12.,
+            text_colors.main,
+            Some(Properties::default().weight(Weight::Semibold)),
+            appearance,
+        ));
+    }
+    if let Some(message) = program_status.and_then(|record| record.message.as_deref()) {
+        section.add_child(render_detail_wrapping_text(
+            message,
+            12.,
+            text_colors.sub,
+            None,
+            appearance,
+        ));
     }
     if let Some(working_directory) = working_directory.filter(|wd| !wd.trim().is_empty()) {
         section.add_child(render_detail_wrapping_text(
