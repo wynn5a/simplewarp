@@ -623,3 +623,59 @@ pub fn test_keyboard_protocol_modifier_self_bit() -> Builder {
             new_step_with_default_assertions("Send Ctrl+C to exit").with_keystrokes(&["ctrl-c"]),
         )
 }
+
+/// Test that, with the Kitty keyboard protocol enabled by the foreground command, Cmd/Option
+/// modified Backspace, Delete and arrow keys reach it as modified keys rather than being
+/// rewritten into the shell line-editing shortcuts used for commands without the protocol.
+pub fn test_keyboard_protocol_modified_editing_keys_reach_app() -> Builder {
+    FeatureFlag::KittyKeyboardProtocol.set_enabled(true);
+
+    let expected_keys: &[(&str, &str)] = if cfg!(target_os = "macos") {
+        &[
+            ("cmd-backspace", "KEY: b'\\x1b[127;9u'"),
+            ("alt-backspace", "KEY: b'\\x1b[127;3u'"),
+            ("cmd-delete", "KEY: b'\\x1b[3;9~'"),
+            ("cmd-left", "KEY: b'\\x1b[1;9D'"),
+            ("alt-left", "KEY: b'\\x1b[1;3D'"),
+            ("alt-right", "KEY: b'\\x1b[1;3C'"),
+        ]
+    } else {
+        &[
+            ("ctrl-backspace", "KEY: b'\\x1b[127;5u'"),
+            ("ctrl-left", "KEY: b'\\x1b[1;5D'"),
+            ("ctrl-right", "KEY: b'\\x1b[1;5C'"),
+        ]
+    };
+
+    let mut builder = new_builder()
+        .with_setup(setup_python_script!(
+            "read_raw_keys_with_disambiguate.py",
+            "../../assets/read_raw_keys_with_disambiguate.py"
+        ))
+        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
+        .with_step(
+            TestStep::new("Execute read_raw_keys_with_disambiguate.py")
+                .with_typed_characters(&["python3 ~/read_raw_keys_with_disambiguate.py"])
+                .with_keystrokes(&["enter"])
+                .add_assertion(
+                    assert_long_running_block_executing_for_single_terminal_in_tab(true, 0),
+                ),
+        )
+        .with_step(wait_for_protocol_enabled());
+
+    for (keystroke, expected) in expected_keys {
+        builder = builder.with_step(
+            TestStep::new(keystroke)
+                .with_keystrokes(&[keystroke])
+                .set_timeout(Duration::from_secs(5))
+                .add_assertion(assert_output_contains(
+                    expected,
+                    "Expected the modified key to reach the app unchanged",
+                )),
+        );
+    }
+
+    builder.with_step(
+        new_step_with_default_assertions("Send Ctrl+C to exit").with_keystrokes(&["ctrl-c"]),
+    )
+}

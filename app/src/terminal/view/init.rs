@@ -399,7 +399,12 @@ pub fn init(app: &mut AppContext) {
         )
         .with_mac_key_binding("alt-left")
         .with_linux_or_windows_key_binding("ctrl-left")
-        .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand")),
+        .with_context_predicate(
+            id!("Terminal")
+                & !id!("IMEOpen")
+                & id!("LongRunningCommand")
+                & !id!(KEYBOARD_PROTOCOL_ENABLED_KEY),
+        ),
         EditableBinding::new(
             "terminal:executing_command_move_cursor_word_right",
             "Move cursor one word to the right within an executing command",
@@ -407,7 +412,12 @@ pub fn init(app: &mut AppContext) {
         )
         .with_mac_key_binding("alt-right")
         .with_linux_or_windows_key_binding("ctrl-right")
-        .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand")),
+        .with_context_predicate(
+            id!("Terminal")
+                & !id!("IMEOpen")
+                & id!("LongRunningCommand")
+                & !id!(KEYBOARD_PROTOCOL_ENABLED_KEY),
+        ),
         EditableBinding::new(
             "terminal:executing_command_move_cursor_home",
             "Move cursor home within an executing command",
@@ -416,14 +426,24 @@ pub fn init(app: &mut AppContext) {
         // We already have bindings for home/end (the keybindings for this on Linux and Mac) that
         // send the correct control sequence to the PTY.
         .with_mac_key_binding("cmd-left")
-        .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand")),
+        .with_context_predicate(
+            id!("Terminal")
+                & !id!("IMEOpen")
+                & id!("LongRunningCommand")
+                & !id!(KEYBOARD_PROTOCOL_ENABLED_KEY),
+        ),
         EditableBinding::new(
             "terminal:executing_command_move_cursor_end",
             "Move cursor end within an executing command",
             TerminalAction::ControlSequence(vec![escape_sequences::C0::ENQ]),
         )
         .with_mac_key_binding("cmd-right")
-        .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand")),
+        .with_context_predicate(
+            id!("Terminal")
+                & !id!("IMEOpen")
+                & id!("LongRunningCommand")
+                & !id!(KEYBOARD_PROTOCOL_ENABLED_KEY),
+        ),
         EditableBinding::new(
             "terminal:executing_command_delete_word_left",
             "Delete word left within an executing command",
@@ -431,13 +451,23 @@ pub fn init(app: &mut AppContext) {
         )
         .with_mac_key_binding("alt-backspace")
         .with_linux_or_windows_key_binding("ctrl-backspace")
-        .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand")),
+        .with_context_predicate(
+            id!("Terminal")
+                & !id!("IMEOpen")
+                & id!("LongRunningCommand")
+                & !id!(KEYBOARD_PROTOCOL_ENABLED_KEY),
+        ),
         EditableBinding::new(
             "terminal:executing_command_delete_line_start",
             "Delete to line start within an executing command",
             TerminalAction::ControlSequence(vec![escape_sequences::C0::NAK]),
         )
-        .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand"))
+        .with_context_predicate(
+            id!("Terminal")
+                & !id!("IMEOpen")
+                & id!("LongRunningCommand")
+                & !id!(KEYBOARD_PROTOCOL_ENABLED_KEY),
+        )
         // Set this for mac-only. The default binding for this on Linux / Windows is `ctrl-y`, which
         // we can't hijack because it is already reserved for the PTY.
         .with_mac_key_binding("cmd-backspace"),
@@ -446,7 +476,12 @@ pub fn init(app: &mut AppContext) {
             "Delete to line end within an executing command",
             TerminalAction::ControlSequence(vec![escape_sequences::C0::VT]),
         )
-        .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand"))
+        .with_context_predicate(
+            id!("Terminal")
+                & !id!("IMEOpen")
+                & id!("LongRunningCommand")
+                & !id!(KEYBOARD_PROTOCOL_ENABLED_KEY),
+        )
         // Set this for mac-only since the corresponding editor action is also Mac-only.
         .with_mac_key_binding("cmd-delete"),
         EditableBinding::new(

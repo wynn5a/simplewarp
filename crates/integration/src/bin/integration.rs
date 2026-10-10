@@ -459,6 +459,7 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_keyboard_protocol_modifier_key_reporting);
     register_test!(test_keyboard_protocol_modifier_self_bit);
     register_test!(test_keyboard_protocol_alternate_keys_and_text);
+    register_test!(test_keyboard_protocol_modified_editing_keys_reach_app);
 
     // Video recording test (manual only)
     register_test!(test_video_recording);

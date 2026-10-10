@@ -350,6 +350,7 @@ integration_tests! {
     test_keyboard_protocol_modifier_key_reporting,
     test_keyboard_protocol_modifier_self_bit,
     test_keyboard_protocol_alternate_keys_and_text,
+    test_keyboard_protocol_modified_editing_keys_reach_app,
 
     // Video recording test — requires real display, run manually
     #[ignore = "Manual test: requires real display for frame capture"]
