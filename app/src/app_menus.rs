@@ -19,7 +19,7 @@ use warpui::{AppContext, SingletonEntity};
 
 use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::default_terminal::DefaultTerminal;
-use crate::features::{FeatureFlag, runtime_flags_menu_items};
+use crate::features::FeatureFlag;
 use crate::root_view::OpenLaunchConfigArg;
 use crate::settings::{
     AISettings, BlockVisibilitySettings, DebugSettings, DefaultSessionMode, SelectionSettings,
@@ -789,10 +789,6 @@ fn debug_menu_items() -> Vec<MenuItem> {
             no_updates,
             None,
         )));
-    }
-
-    if FeatureFlag::RuntimeFeatureFlags.is_enabled() {
-        debug_menu_items.extend(runtime_flags_menu_items());
     }
 
     debug_menu_items

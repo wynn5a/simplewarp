@@ -10,7 +10,6 @@ use crate::agent::OutputFormat;
 #[cfg(windows)]
 mod process_handle;
 
-pub mod scope;
 pub mod skill;
 
 pub mod agent;

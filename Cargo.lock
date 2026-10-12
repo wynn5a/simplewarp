@@ -4810,37 +4810,16 @@ dependencies = [
 name = "http_client"
 version = "0.0.0"
 dependencies = [
- "aha-reqwest-eventsource",
  "anyhow",
  "async-compat",
- "async-stream",
  "bytes",
  "futures",
  "http",
  "log",
- "oauth2",
- "prevent_sleep",
- "prost",
  "reqwest",
  "serde",
  "serde_json",
- "serde_urlencoded",
  "warp_errors",
-]
-
-[[package]]
-name = "http_server"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "axum",
- "log",
- "tokio",
- "tower",
- "tower-http",
- "warp_core",
- "warp_errors",
- "warpui_core",
 ]
 
 [[package]]
@@ -8008,22 +7987,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "prevent_sleep"
-version = "0.0.0"
-dependencies = [
- "cfg-if",
- "cfg_aliases 0.2.1",
- "futures",
- "itertools 0.14.0",
- "log",
- "objc2 0.6.3",
- "objc2-foundation 0.3.2",
- "parking_lot",
- "pin-project",
- "windows 0.62.2",
-]
-
-[[package]]
 name = "proc-macro-crate"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11167,7 +11130,6 @@ dependencies = [
  "tower",
  "tower-layer",
  "tower-service",
- "tracing",
 ]
 
 [[package]]
@@ -11818,7 +11780,6 @@ dependencies = [
  "async-recursion",
  "async-stream",
  "async-trait",
- "axum",
  "base64 0.22.1",
  "bimap",
  "bincode",
@@ -11884,7 +11845,6 @@ dependencies = [
  "hex",
  "http",
  "http_client",
- "http_server",
  "hyper",
  "image",
  "indexmap 2.12.0",

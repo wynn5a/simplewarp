@@ -235,7 +235,6 @@ warp_isolation_platform.workspace = true
 warp_ripgrep.workspace = true
 local_inference.workspace = true
 async-io.workspace = true
-axum.workspace = true
 cloud_object_persistence.workspace = true
 comfy-table = "7.1.4"
 inquire = "0.9.1"
@@ -245,7 +244,6 @@ env_logger.workspace = true
 git2 = { version = "0.20.4", default-features = false, features = [
     "vendored-libgit2",
 ] }
-http_server.workspace = true
 hyper.workspace = true
 libsqlite3-sys = { version = "0.33.0", features = ["bundled"] }
 mio = { version = "1.1.1", features = ["os-poll", "os-ext"] }
@@ -387,7 +385,6 @@ completions_v2 = [
     "warp_completer/v2",
     "dep:command-signatures-v2",
 ]
-cross_repo_context = []
 default = [
     "use_tantivy_search",
     "agent_mode",
@@ -667,7 +664,6 @@ create_project_flow = []
 agent_mode_evals = [
     "integration_tests",
     "warpui/defer_scene_build",
-    "cross_repo_context",
     "cloud_object_models/agent_mode_evals",
     "rust-embed/debug-embed",
     "warp_logging/agent_mode_evals",
@@ -723,7 +719,6 @@ render_agent_mode_output_markdown = []
 render_continuous_block_selections_with_single_border = []
 rich_history = []
 richtext_multiselect = []
-runtime_feature_flags = []
 selectable_prompt = []
 settings_file = []
 sequential_storage = []

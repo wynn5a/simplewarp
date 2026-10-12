@@ -216,39 +216,3 @@ fn profile_output_dir() -> std::path::PathBuf {
         }
     }
 }
-
-pub fn make_router() -> axum::Router {
-    let router = axum::Router::new();
-
-    #[cfg(feature = "jemalloc_pprof")]
-    let router = router.route("/debug/pprof/heap", axum::routing::get(handle_get_heap));
-
-    router
-}
-
-#[cfg(feature = "jemalloc_pprof")]
-pub async fn handle_get_heap()
--> Result<impl axum::response::IntoResponse, (axum::http::StatusCode, String)> {
-    let Some(prof_ctl) = jemalloc_pprof::PROF_CTL.as_ref() else {
-        return Err((
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            "heap profiler not initialized".into(),
-        ));
-    };
-    let mut prof_ctl = prof_ctl.lock().await;
-
-    if !prof_ctl.activated() {
-        return Err((
-            axum::http::StatusCode::FORBIDDEN,
-            "heap profiling not activated".into(),
-        ));
-    }
-
-    let pprof = prof_ctl.dump_pprof().map_err(|err| {
-        (
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            err.to_string(),
-        )
-    })?;
-    Ok(pprof)
-}

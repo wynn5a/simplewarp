@@ -23,8 +23,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
     }
 
     flags.extend([
-        #[cfg(feature = "runtime_feature_flags")]
-        FeatureFlag::RuntimeFeatureFlags,
         #[cfg(feature = "sequential_storage")]
         FeatureFlag::SequentialStorage,
         #[cfg(feature = "in_band_generators_ssh")]
@@ -105,8 +103,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::MSYS2Shells,
         #[cfg(feature = "read_image_files")]
         FeatureFlag::ReadImageFiles,
-        #[cfg(feature = "cross_repo_context")]
-        FeatureFlag::CrossRepoContext,
         #[cfg(feature = "ai_context_menu")]
         FeatureFlag::AIContextMenuEnabled,
         #[cfg(feature = "at_menu_outside_of_ai_mode")]

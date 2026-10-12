@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use enum_iterator::{Sequence, cardinality};
 #[cfg(feature = "test-util")]
@@ -7,8 +7,6 @@ pub use overrides::{get_overrides, set_overrides};
 #[derive(Copy, Clone, Hash, PartialEq, Eq, Debug, Sequence)]
 pub enum FeatureFlag {
     DebugMode,
-
-    RuntimeFeatureFlags,
 
     /// Does grid storage go forwards or backwards
     SequentialStorage,
@@ -149,9 +147,6 @@ pub enum FeatureFlag {
 
     /// Enables reading images with the `read_files` tool.
     ReadImageFiles,
-
-    /// Enables cross-repo codebase context.
-    CrossRepoContext,
 
     /// Enables the AI context menu, or at-menu.
     AIContextMenuEnabled,
@@ -490,11 +485,6 @@ pub enum FeatureFlag {
 static FLAG_STATES: [AtomicBool; cardinality::<FeatureFlag>()] =
     [const { AtomicBool::new(false) }; { cardinality::<FeatureFlag>() }];
 
-/// This map is populated by UserPreferences, which take precedence
-/// over the global feature flag state.
-static USER_PREFERENCE_MAP: [AtomicTriState; cardinality::<FeatureFlag>()] =
-    [const { AtomicTriState::new() }; { cardinality::<FeatureFlag>() }];
-
 /// Flag for whether or not feature flags have been globally initialized. Outside
 /// of tests, this ensures that feature flags are only used after they're set
 /// up by the app's `run_internal` function.
@@ -502,7 +492,7 @@ static USER_PREFERENCE_MAP: [AtomicTriState; cardinality::<FeatureFlag>()] =
 static FEATURES_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 /// Features used in debugging.
-pub const DEBUG_FLAGS: &[FeatureFlag] = &[FeatureFlag::DebugMode, FeatureFlag::RuntimeFeatureFlags];
+pub const DEBUG_FLAGS: &[FeatureFlag] = &[FeatureFlag::DebugMode];
 
 /// Features enabled for the development team.  The expectation is that, over
 /// time, these will move on to PREVIEW_FLAGS before being launched.
@@ -517,10 +507,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::RunGeneratorsWithCmdExe,
     FeatureFlag::Projects,
     FeatureFlag::FileGlobV2Warnings,
-    // These are enabled via 100% experiment on prod warp-server,
-    // but we need to enable here for dogfood builds.
-    FeatureFlag::CrossRepoContext,
-    // End manually enabled Code features.
     FeatureFlag::EditableMarkdownMermaid,
     FeatureFlag::CodeReviewScrollPreservation,
     FeatureFlag::RememberFastForwardState,
@@ -548,9 +534,6 @@ pub const RELEASE_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::DragTabsToWindows,
 ];
 
-/// Flags that we want to allow to switch at runtime (assuming RuntimeFeatureFlags is set)
-pub const RUNTIME_FEATURE_FLAGS: &[FeatureFlag] = &[];
-
 impl FeatureFlag {
     pub fn is_enabled(&self) -> bool {
         #[cfg(all(debug_assertions, not(feature = "test-util")))]
@@ -563,7 +546,6 @@ impl FeatureFlag {
         }
 
         overrides::get_override(*self)
-            .or(USER_PREFERENCE_MAP[*self as usize].get())
             .or(Some(FLAG_STATES[*self as usize].load(Ordering::Relaxed)))
             .unwrap_or(false)
     }
@@ -578,13 +560,6 @@ impl FeatureFlag {
             );
         }
         FLAG_STATES[self as usize].store(enabled, Ordering::Relaxed);
-    }
-
-    /// Sets a user preference for this flag. User preferences take precedence
-    /// over the global feature flag state, and can be used to allow explicit opt-in
-    /// and explicit opt-out behavior.
-    pub fn set_user_preference(self, enabled: bool) {
-        USER_PREFERENCE_MAP[self as usize].set(enabled);
     }
 
     /// Sets a thread-local test override for this flag. The override lasts
@@ -717,67 +692,6 @@ mod overrides {
     impl Drop for OverrideGuard {
         fn drop(&mut self) {
             clear_override(self.flag);
-        }
-    }
-}
-
-/// An atomic tri-state value.
-///
-/// This is initially unset, and can be set to a true or false value.
-///
-/// Writes and reads use [`Ordering::Relaxed`], so should not be used for
-/// synchronization.
-struct AtomicTriState(AtomicU8);
-
-impl AtomicTriState {
-    const fn new() -> Self {
-        Self(AtomicU8::new(TriState::Unset as u8))
-    }
-
-    fn get(&self) -> Option<bool> {
-        TriState::from(self.0.load(Ordering::Relaxed)).into()
-    }
-
-    fn set(&self, value: bool) {
-        self.0.store(TriState::from(value) as u8, Ordering::Relaxed);
-    }
-}
-
-/// A simple enum representing a tristate, to be used as the backing type
-/// for [`AtomicTriState`].
-enum TriState {
-    Unset = 0,
-    False = 1,
-    True = 2,
-}
-
-impl From<bool> for TriState {
-    fn from(value: bool) -> Self {
-        if value {
-            TriState::True
-        } else {
-            TriState::False
-        }
-    }
-}
-
-impl From<u8> for TriState {
-    fn from(value: u8) -> Self {
-        match value {
-            0 => TriState::Unset,
-            1 => TriState::False,
-            2 => TriState::True,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl From<TriState> for Option<bool> {
-    fn from(value: TriState) -> Self {
-        match value {
-            TriState::Unset => None,
-            TriState::False => Some(false),
-            TriState::True => Some(true),
         }
     }
 }
