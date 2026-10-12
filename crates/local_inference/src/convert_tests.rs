@@ -856,3 +856,111 @@ fn stored_inputs_replay_as_the_text_the_input_produced() {
     assert!(text.contains("Run ./deploy.sh"));
     assert!(text.contains("Continue from where you left off"));
 }
+
+#[test]
+fn an_mcp_call_in_the_history_keeps_the_name_the_model_gave_it() {
+    let call = message::ToolCall {
+        tool_call_id: "call-1".to_string(),
+        tool: Some(tool_call::Tool::CallMcpTool(tool_call::CallMcpTool {
+            name: "search".to_string(),
+            args: Some(mcp::json_to_struct(&json!({ "query": "bug" }))),
+            server_id: "3f9c2a10-1b2c".to_string(),
+        })),
+    };
+    let used = tool_use_from_proto(&call).expect("an MCP call is kept");
+
+    assert_eq!(used.name, mcp::wire_name("3f9c2a10-1b2c", "search"));
+    assert_eq!(used.arguments, json!({ "query": "bug" }));
+}
+
+#[test]
+fn a_resource_read_in_the_history_is_kept() {
+    let call = message::ToolCall {
+        tool_call_id: "call-1".to_string(),
+        tool: Some(tool_call::Tool::ReadMcpResource(
+            tool_call::ReadMcpResource {
+                uri: "file:///a".to_string(),
+                server_id: String::new(),
+            },
+        )),
+    };
+    let used = tool_use_from_proto(&call).expect("a resource read is kept");
+
+    assert_eq!(used.name, mcp::READ_RESOURCE_TOOL);
+    assert_eq!(used.arguments, json!({ "uri": "file:///a" }));
+}
+
+#[test]
+fn an_mcp_tool_result_shows_its_text_and_names_what_it_cannot_show() {
+    use api::call_mcp_tool_result::success::result::{Image, Result as Item, Text};
+    use api::call_mcp_tool_result::{Result as CallResult, Success};
+
+    let item = |inner| api::call_mcp_tool_result::success::Result {
+        result: Some(inner),
+    };
+    let result = api::CallMcpToolResult {
+        result: Some(CallResult::Success(Success {
+            results: vec![
+                item(Item::Text(Text {
+                    text: "found 2".to_string(),
+                })),
+                item(Item::Image(Image {
+                    data: vec![1, 2, 3],
+                    mime_type: "image/png".to_string(),
+                })),
+            ],
+        })),
+    };
+    let (content, is_error) = render_call_mcp(&result);
+
+    assert_eq!(content, "found 2\n[image: image/png]");
+    assert!(!is_error);
+}
+
+#[test]
+fn an_mcp_tool_error_is_an_error_result() {
+    use api::call_mcp_tool_result::{Error, Result as CallResult};
+
+    let (content, is_error) = render_call_mcp(&api::CallMcpToolResult {
+        result: Some(CallResult::Error(Error {
+            message: "boom".to_string(),
+        })),
+    });
+
+    assert_eq!(content, "boom");
+    assert!(is_error);
+}
+
+#[test]
+fn a_resource_read_shows_text_and_names_binary() {
+    use api::mcp_resource_content::{Binary, ContentType, Text};
+    use api::read_mcp_resource_result::{Result as ReadResult, Success};
+
+    let result = api::ReadMcpResourceResult {
+        result: Some(ReadResult::Success(Success {
+            contents: vec![
+                api::McpResourceContent {
+                    uri: "file:///a.txt".to_string(),
+                    content_type: Some(ContentType::Text(Text {
+                        content: "hello".to_string(),
+                        mime_type: "text/plain".to_string(),
+                    })),
+                },
+                api::McpResourceContent {
+                    uri: "file:///b.bin".to_string(),
+                    content_type: Some(ContentType::Binary(Binary {
+                        data: vec![0],
+                        mime_type: "application/octet-stream".to_string(),
+                    })),
+                },
+            ],
+        })),
+    };
+    let (content, is_error) = render_read_mcp(&result);
+
+    assert_eq!(
+        content,
+        "hello\n[binary resource file:///b.bin: application/octet-stream]"
+    );
+    assert!(!is_error);
+}

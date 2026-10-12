@@ -638,3 +638,45 @@ fn init_is_stored_as_a_question_and_a_chip_as_its_own_text() {
     };
     assert_eq!(query.query, "Install a package");
 }
+
+#[test]
+fn a_call_to_an_mcp_tool_is_emitted_as_a_call_mcp_tool() {
+    let mut request = request_with_task("task-1");
+    request.mcp_context = Some(api::request::McpContext {
+        servers: vec![api::request::mcp_context::McpServer {
+            id: "3f9c2a10-1b2c".to_string(),
+            name: "Linear".to_string(),
+            tools: vec![api::request::mcp_context::McpTool {
+                name: "search".to_string(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    let mut emitter = Emitter::new(&request);
+    let _ = emitter.start();
+
+    emitter.on_delta(Delta::ToolCallStart {
+        index: 0,
+        id: "call-1".to_string(),
+        name: crate::mcp::wire_name("3f9c2a10-1b2c", "search"),
+    });
+    emitter.on_delta(Delta::ToolCallArguments {
+        index: 0,
+        fragment: "{\"query\":\"bug\"}".to_string(),
+    });
+
+    let actions = actions_of(&emitter.finish(StopReason::ToolUse));
+    let Action::AddMessagesToTask(add) = &actions[0] else {
+        panic!("expected an AddMessagesToTask, got {:?}", actions[0]);
+    };
+    let Some(api::message::Message::ToolCall(call)) = &add.messages[0].message else {
+        panic!("expected a tool call message");
+    };
+    let Some(api::message::tool_call::Tool::CallMcpTool(mcp)) = &call.tool else {
+        panic!("expected an MCP call");
+    };
+    assert_eq!(mcp.name, "search");
+    assert_eq!(mcp.server_id, "3f9c2a10-1b2c");
+}

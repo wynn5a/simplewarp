@@ -5,6 +5,8 @@
 //! JSON schema for the provider, and a pair of converters between the model's JSON arguments and
 //! the proto [`api::message::ToolCall`] that the client applies.
 
+use std::borrow::Cow;
+
 use serde_json::{Value, json};
 use warp_multi_agent_api as api;
 use warp_multi_agent_api::message::tool_call;
@@ -24,10 +26,27 @@ pub const SUPPORTED: [api::ToolType; 7] = [
 /// A tool as the provider sees it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ToolSchema {
-    pub name: &'static str,
-    pub description: &'static str,
+    pub name: Cow<'static, str>,
+    pub description: Cow<'static, str>,
     /// A JSON Schema object that describes the arguments.
     pub input_schema: Value,
+}
+
+/// A built-in tool, whose name and description are fixed text.
+struct Builtin {
+    name: &'static str,
+    description: &'static str,
+    input_schema: Value,
+}
+
+impl From<Builtin> for ToolSchema {
+    fn from(tool: Builtin) -> Self {
+        Self {
+            name: tool.name.into(),
+            description: tool.description.into(),
+            input_schema: tool.input_schema,
+        }
+    }
 }
 
 /// The wire name that the model uses for a tool type.
@@ -58,7 +77,7 @@ pub fn schemas_for(client_supported: &[i32]) -> Vec<ToolSchema> {
 
 fn schema_for(tool: api::ToolType) -> Option<ToolSchema> {
     let schema = match tool {
-        api::ToolType::RunShellCommand => ToolSchema {
+        api::ToolType::RunShellCommand => Builtin {
             name: "run_shell_command",
             description: "Run a shell command on the user's machine and read its output. \
                 Prefer a single command over a long pipeline. Mark read-only commands so that \
@@ -78,7 +97,7 @@ fn schema_for(tool: api::ToolType) -> Option<ToolSchema> {
                 "required": ["command"],
             }),
         },
-        api::ToolType::ReadFiles => ToolSchema {
+        api::ToolType::ReadFiles => Builtin {
             name: "read_files",
             description: "Read one or more files. Give a line range to read only part of a \
                 large file; leave the range out to read the whole file.",
@@ -108,7 +127,7 @@ fn schema_for(tool: api::ToolType) -> Option<ToolSchema> {
                 "required": ["files"],
             }),
         },
-        api::ToolType::ApplyFileDiffs => ToolSchema {
+        api::ToolType::ApplyFileDiffs => Builtin {
             name: "apply_file_diffs",
             description: "Change files. Use `diffs` to replace an exact block of text, \
                 `new_files` to create a file, and `deleted_files` to remove one. The `search` \
@@ -161,7 +180,7 @@ fn schema_for(tool: api::ToolType) -> Option<ToolSchema> {
                 "required": ["summary"],
             }),
         },
-        api::ToolType::Grep => ToolSchema {
+        api::ToolType::Grep => Builtin {
             name: "grep",
             description: "Search the contents of files for a pattern. Use this to find where \
                 something is written; use file_glob to find files by name.",
@@ -182,7 +201,7 @@ fn schema_for(tool: api::ToolType) -> Option<ToolSchema> {
                 "required": ["queries"],
             }),
         },
-        api::ToolType::FileGlobV2 => ToolSchema {
+        api::ToolType::FileGlobV2 => Builtin {
             name: "file_glob",
             description: "Find files by name pattern. Supports ?, *, and [].",
             input_schema: json!({
@@ -206,7 +225,7 @@ fn schema_for(tool: api::ToolType) -> Option<ToolSchema> {
                 "required": ["patterns"],
             }),
         },
-        api::ToolType::ReadShellCommandOutput => ToolSchema {
+        api::ToolType::ReadShellCommandOutput => Builtin {
             name: "read_shell_command_output",
             description: "Read the output of a command that is still running, given the \
                 command id from the still-running result. This is the way to wait for a long \
@@ -233,7 +252,7 @@ fn schema_for(tool: api::ToolType) -> Option<ToolSchema> {
                 "required": ["command_id"],
             }),
         },
-        api::ToolType::WriteToLongRunningShellCommand => ToolSchema {
+        api::ToolType::WriteToLongRunningShellCommand => Builtin {
             name: "write_to_long_running_shell_command",
             description: "Write text to a command that is still running, for example to \
                 answer a yes/no prompt. Returns the output after the write.",
@@ -262,7 +281,7 @@ fn schema_for(tool: api::ToolType) -> Option<ToolSchema> {
         },
         _ => return None,
     };
-    Some(schema)
+    Some(schema.into())
 }
 
 /// Turns the model's JSON arguments into the proto tool call that the client runs.
@@ -407,7 +426,7 @@ pub fn to_proto(
     })
 }
 
-fn string_field(value: &Value, key: &str) -> Option<String> {
+pub(crate) fn string_field(value: &Value, key: &str) -> Option<String> {
     value.get(key)?.as_str().map(str::to_string)
 }
 

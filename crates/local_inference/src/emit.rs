@@ -25,6 +25,7 @@ use uuid::Uuid;
 use warp_multi_agent_api as api;
 use warp_multi_agent_api::client_action::Action;
 
+use crate::mcp::McpCatalog;
 use crate::provider::{Delta, StopReason};
 use crate::{inputs, tools};
 
@@ -55,6 +56,8 @@ pub struct Emitter {
     started_at: chrono::DateTime<chrono::Utc>,
     /// Tool calls being assembled, keyed by the index in the reply.
     pending_tools: BTreeMap<usize, PendingTool>,
+    /// The MCP tools this reply may call.
+    mcp: McpCatalog,
 }
 
 struct PendingTool {
@@ -98,6 +101,7 @@ impl Emitter {
             summary_message_id: is_summarize_request(request).then(new_id),
             started_at: chrono::Utc::now(),
             pending_tools: BTreeMap::new(),
+            mcp: McpCatalog::from_request(request),
         }
     }
 
@@ -206,7 +210,8 @@ impl Emitter {
             .into_values()
             .filter_map(|pending| {
                 let arguments = parse_arguments(&pending.arguments);
-                let call = tools::to_proto(&pending.id, &pending.name, &arguments)?;
+                let call = tools::to_proto(&pending.id, &pending.name, &arguments)
+                    .or_else(|| self.mcp.to_proto(&pending.id, &pending.name, &arguments))?;
                 Some(message(api::message::Message::ToolCall(call)))
             })
             .collect::<Vec<_>>();

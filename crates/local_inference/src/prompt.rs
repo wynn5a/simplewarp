@@ -12,6 +12,8 @@
 //! - The client refuses to start a command while another is still running, so the prompt points
 //!   at `read_shell_command_output` instead of `sleep`.
 
+use crate::mcp::McpCatalog;
+
 /// The system prompt for one request: the fixed text, then what the client says about the
 /// machine and the project (see [`crate::context::environment`]).
 pub fn system_prompt(request: &warp_multi_agent_api::Request) -> String {
@@ -21,6 +23,7 @@ pub fn system_prompt(request: &warp_multi_agent_api::Request) -> String {
         .and_then(|input| input.context.as_ref());
     let mut prompt = SYSTEM_PROMPT.to_string();
     prompt.push_str(&crate::context::environment(context));
+    prompt.push_str(&McpCatalog::from_request(request).prompt_section());
     prompt
 }
 

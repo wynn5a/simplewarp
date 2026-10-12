@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 use warp_multi_agent_api as api;
 use warp_multi_agent_api::message::{self, tool_call, tool_call_result};
 
-use crate::{context, inputs};
+use crate::{context, inputs, mcp};
 
 /// One turn of the conversation, in a shape that both providers can render.
 #[derive(Debug, Clone, PartialEq)]
@@ -481,6 +481,20 @@ pub fn tool_use_from_proto(call: &message::ToolCall) -> Option<ToolUse> {
             }
             ("write_to_long_running_shell_command", arguments)
         }
+        tool_call::Tool::CallMcpTool(mcp_call) => {
+            return Some(ToolUse {
+                id: call.tool_call_id.clone(),
+                name: mcp::wire_name(&mcp_call.server_id, &mcp_call.name),
+                arguments: mcp_call
+                    .args
+                    .as_ref()
+                    .map(mcp::struct_to_json)
+                    .unwrap_or_else(|| json!({})),
+            });
+        }
+        tool_call::Tool::ReadMcpResource(read) => {
+            (mcp::READ_RESOURCE_TOOL, json!({ "uri": read.uri }))
+        }
         // A tool that this crate never offers cannot appear in a local conversation, but a
         // history from a cloud conversation may hold one. Leaving it out keeps the turn list
         // valid; the matching result is rendered as plain text below.
@@ -507,6 +521,8 @@ enum Payload<'a> {
     FileGlob(&'a api::FileGlobV2Result),
     ShellPoll(&'a api::ReadShellCommandOutputResult),
     ShellWrite(&'a api::WriteToLongRunningShellCommandResult),
+    CallMcp(&'a api::CallMcpToolResult),
+    ReadMcp(&'a api::ReadMcpResourceResult),
     Cancelled,
     Unsupported,
 }
@@ -523,6 +539,8 @@ pub fn render_result(result: &message::ToolCallResult) -> ToolResult {
         Some(ProtoResult::FileGlobV2(glob)) => Payload::FileGlob(glob),
         Some(ProtoResult::ReadShellCommandOutput(poll)) => Payload::ShellPoll(poll),
         Some(ProtoResult::WriteToLongRunningShellCommand(write)) => Payload::ShellWrite(write),
+        Some(ProtoResult::CallMcpTool(call)) => Payload::CallMcp(call),
+        Some(ProtoResult::ReadMcpResource(read)) => Payload::ReadMcp(read),
         Some(ProtoResult::Cancel(_)) => Payload::Cancelled,
         _ => Payload::Unsupported,
     };
@@ -541,6 +559,8 @@ pub fn render_input_result(result: &api::request::input::ToolCallResult) -> Tool
         Some(InputResult::FileGlobV2(glob)) => Payload::FileGlob(glob),
         Some(InputResult::ReadShellCommandOutput(poll)) => Payload::ShellPoll(poll),
         Some(InputResult::WriteToLongRunningShellCommand(write)) => Payload::ShellWrite(write),
+        Some(InputResult::CallMcpTool(call)) => Payload::CallMcp(call),
+        Some(InputResult::ReadMcpResource(read)) => Payload::ReadMcp(read),
         _ => Payload::Unsupported,
     };
     finish(&result.tool_call_id, payload)
@@ -555,6 +575,8 @@ fn finish(tool_call_id: &str, payload: Payload<'_>) -> ToolResult {
         Payload::FileGlob(glob) => render_file_glob(glob),
         Payload::ShellPoll(poll) => render_shell_poll(poll),
         Payload::ShellWrite(write) => render_shell_write(write),
+        Payload::CallMcp(call) => render_call_mcp(call),
+        Payload::ReadMcp(read) => render_read_mcp(read),
         Payload::Cancelled => ("The user cancelled this tool call.".to_string(), true),
         Payload::Unsupported => ("The tool returned no readable result.".to_string(), true),
     };
@@ -748,6 +770,68 @@ fn render_file_glob(glob: &api::FileGlobV2Result) -> (String, bool) {
         }
         Some(GlobResult::Error(error)) => (error.message.clone(), true),
         None => ("The search returned nothing.".to_string(), true),
+    }
+}
+
+fn render_call_mcp(call: &api::CallMcpToolResult) -> (String, bool) {
+    use api::call_mcp_tool_result::Result as CallResult;
+    use api::call_mcp_tool_result::success::result::Result as Item;
+
+    match call.result.as_ref() {
+        Some(CallResult::Success(success)) => {
+            if success.results.is_empty() {
+                return ("The tool returned nothing.".to_string(), false);
+            }
+            let text = success
+                .results
+                .iter()
+                .filter_map(|result| result.result.as_ref())
+                .map(|item| match item {
+                    Item::Text(text) => text.text.clone(),
+                    Item::Image(image) => format!("[image: {}]", image.mime_type),
+                    Item::Resource(resource) => render_mcp_content(resource),
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            (truncate(&text), false)
+        }
+        Some(CallResult::Error(error)) => (error.message.clone(), true),
+        None => ("The tool returned nothing.".to_string(), true),
+    }
+}
+
+fn render_read_mcp(read: &api::ReadMcpResourceResult) -> (String, bool) {
+    use api::read_mcp_resource_result::Result as ReadResult;
+
+    match read.result.as_ref() {
+        Some(ReadResult::Success(success)) => {
+            if success.contents.is_empty() {
+                return ("The resource is empty.".to_string(), false);
+            }
+            let text = success
+                .contents
+                .iter()
+                .map(render_mcp_content)
+                .collect::<Vec<_>>()
+                .join("\n");
+            (truncate(&text), false)
+        }
+        Some(ReadResult::Error(error)) => (error.message.clone(), true),
+        None => ("The resource returned nothing.".to_string(), true),
+    }
+}
+
+/// Text content is shown as it is. Binary content cannot be shown to the model as text, so it is
+/// named instead.
+fn render_mcp_content(content: &api::McpResourceContent) -> String {
+    use api::mcp_resource_content::ContentType;
+
+    match content.content_type.as_ref() {
+        Some(ContentType::Text(text)) => text.content.clone(),
+        Some(ContentType::Binary(binary)) => {
+            format!("[binary resource {}: {}]", content.uri, binary.mime_type)
+        }
+        None => format!("[resource {} had no content]", content.uri),
     }
 }
 

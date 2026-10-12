@@ -12,6 +12,7 @@ use warp_multi_agent_api as api;
 
 use crate::config::Schema;
 use crate::emit::Emitter;
+use crate::mcp::McpCatalog;
 use crate::provider::{Delta, StopReason};
 use crate::{Error, OutputStream, config, convert, prompt, provider, tools};
 
@@ -29,7 +30,8 @@ pub async fn generate_local_output(request: &api::Request) -> Result<OutputStrea
         .as_ref()
         .map(|settings| settings.supported_tools.clone())
         .unwrap_or_default();
-    let tool_schemas = tools::schemas_for(&supported_tools);
+    let mut tool_schemas = tools::schemas_for(&supported_tools);
+    tool_schemas.extend(McpCatalog::from_request(request).schemas(&supported_tools));
 
     let body = provider::build_body(
         &target,
