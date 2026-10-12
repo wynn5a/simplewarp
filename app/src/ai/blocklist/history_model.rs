@@ -512,12 +512,6 @@ impl BlocklistAIHistoryModel {
             .and_then(|id| self.conversation(&id))
     }
 
-    /// True if this conversation was started from a passive entrypoint, AND the user has made no follow ups.
-    pub fn is_entirely_passive_conversation(&self, conversation_id: &AIConversationId) -> bool {
-        self.conversation(conversation_id)
-            .is_some_and(|conversation| conversation.is_entirely_passive())
-    }
-
     pub fn is_exchange_hidden(
         &self,
         conversation_id: AIConversationId,
@@ -1691,13 +1685,11 @@ impl BlocklistAIHistoryModel {
 
     /// Returns the latest exchange across all conversations for a terminal surface.
     /// This is useful for determining if a specific exchange is the most recent one.
-    /// Excludes passive code generation exchanges from consideration.
     pub fn latest_exchange_across_all_conversations(
         &self,
         terminal_surface_id: EntityId,
     ) -> Option<&AIAgentExchange> {
         self.all_live_root_task_exchanges_for_terminal_surface(terminal_surface_id)
-            .filter(|exchange| !exchange.has_passive_request())
             .max_by_key(|exchange| exchange.start_time)
     }
 

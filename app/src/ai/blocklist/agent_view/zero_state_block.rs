@@ -68,7 +68,6 @@ impl AgentViewZeroStateBlock {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         conversation_id: AIConversationId,
-        origin: AgentViewEntryOrigin,
         agent_view_controller: ModelHandle<AgentViewController>,
         sessions: &ModelHandle<Sessions>,
         terminal_model: Arc<FairMutex<TerminalModel>>,
@@ -146,7 +145,6 @@ impl AgentViewZeroStateBlock {
                 Self::recent_conversations_for_working_directory(current_working_directory, ctx)
             })
             .unwrap_or_default();
-        let should_hide = matches!(origin, AgentViewEntryOrigin::AcceptedPassiveCodeDiff);
 
         Self {
             conversation_id,
@@ -155,7 +153,7 @@ impl AgentViewZeroStateBlock {
             terminal_model,
             current_working_directory,
             cached_recent_conversations,
-            should_hide,
+            should_hide: false,
             should_show_init_callout,
             has_parent_terminal,
             state_handles,

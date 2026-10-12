@@ -66,11 +66,6 @@ impl TryFrom<&AIAgentInput> for PersistedAIInputType {
                 context: context.clone(),
                 referenced_attachments: referenced_attachments.clone(),
             }),
-            AIAgentInput::AutoCodeDiffQuery { query, context } => Ok(Self::Query {
-                text: query.clone(),
-                context: context.clone(),
-                referenced_attachments: Default::default(),
-            }),
             AIAgentInput::ActionResult { .. }
             | AIAgentInput::ResumeConversation { .. }
             | AIAgentInput::InitProjectRules { .. }
@@ -154,7 +149,7 @@ pub fn maybe_build_ai_query_upsert_event(
         return None;
     };
 
-    if is_hidden || conversation.is_entirely_passive() || is_shared_ambient_agent_session {
+    if is_hidden || is_shared_ambient_agent_session {
         return None;
     }
 

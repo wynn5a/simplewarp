@@ -113,14 +113,6 @@ impl RichContent {
         self.agent_view_conversation_id = Some(new_agent_view_conversation_id);
     }
 
-    /// Sets the associated agent view conversation id for this rich content item.
-    pub fn set_agent_view_conversation_id(
-        &mut self,
-        agent_view_conversation_id: Option<AIConversationId>,
-    ) {
-        self.agent_view_conversation_id = agent_view_conversation_id;
-    }
-
     /// Build a new `ChildView` element for this rich content
     fn element(&self) -> Box<dyn Element> {
         (self.element_builder)()

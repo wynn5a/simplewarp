@@ -149,7 +149,7 @@ impl InlineHistoryMenuDataSource {
         for conversation in
             history_model.all_live_conversations_for_terminal_surface(self.terminal_view_id)
         {
-            if conversation.is_entirely_passive() || conversation.exchange_count() == 0 {
+            if conversation.exchange_count() == 0 {
                 continue;
             }
 

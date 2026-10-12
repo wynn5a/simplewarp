@@ -2211,11 +2211,6 @@ pub enum AIAgentInput {
         intended_agent: Option<AgentType>,
     },
 
-    AutoCodeDiffQuery {
-        query: String,
-        context: Arc<[AIAgentContext]>,
-    },
-
     ResumeConversation {
         context: Arc<[AIAgentContext]>,
     },
@@ -2308,9 +2303,6 @@ impl Display for AIAgentInput {
             Self::UserQuery { .. } => {
                 write!(f, "UserQuery: {}", self.display_query().unwrap_or_default())
             }
-            Self::AutoCodeDiffQuery { query, .. } => {
-                write!(f, "AutoCodeDiffQuery: {query}")
-            }
             Self::ActionResult { result, .. } => write!(f, "ActionResult: {result}"),
             Self::ResumeConversation { .. } => write!(f, "ResumeConversation"),
             Self::InitProjectRules { .. } => write!(f, "InitProjectRules"),
@@ -2367,8 +2359,7 @@ impl AIAgentInput {
                     Some(format!("/{}", skill.name))
                 }
             }
-            Self::AutoCodeDiffQuery { .. }
-            | Self::ActionResult { .. }
+            Self::ActionResult { .. }
             | Self::ResumeConversation { .. }
             | Self::SummarizeConversation { .. } => None,
         }
@@ -2416,26 +2407,14 @@ impl AIAgentInput {
         }
     }
 
-    pub fn auto_code_diff_query(&self) -> Option<&str> {
-        let Self::AutoCodeDiffQuery { query, .. } = self else {
-            return None;
-        };
-        Some(query.as_str())
-    }
-
     pub fn is_user_query(&self) -> bool {
         matches!(self, AIAgentInput::UserQuery { .. })
-    }
-
-    pub fn is_passive_request(&self) -> bool {
-        matches!(self, AIAgentInput::AutoCodeDiffQuery { .. })
     }
 
     pub fn context(&self) -> Option<&[AIAgentContext]> {
         match self {
             Self::UserQuery { context, .. }
             | Self::ActionResult { context, .. }
-            | Self::AutoCodeDiffQuery { context, .. }
             | Self::ResumeConversation { context, .. }
             | Self::InitProjectRules { context, .. }
             | Self::CreateNewProject { context, .. }
@@ -2459,7 +2438,6 @@ impl AIAgentInput {
                 Some(res)
             }
             Self::ActionResult { .. }
-            | Self::AutoCodeDiffQuery { .. }
             | Self::ResumeConversation { .. }
             | Self::InitProjectRules { .. }
             | Self::CreateNewProject { .. }
@@ -2468,10 +2446,6 @@ impl AIAgentInput {
             | Self::SummarizeConversation { .. }
             | Self::InvokeSkill { .. } => None,
         }
-    }
-
-    pub fn is_auto_code_diff_query(&self) -> bool {
-        matches!(self, AIAgentInput::AutoCodeDiffQuery { .. })
     }
 
     /// Returns true if this input type provides its own display query that should be preserved
@@ -2627,16 +2601,6 @@ impl AIAgentExchange {
                 })
             )
         })
-    }
-
-    pub fn has_passive_request(&self) -> bool {
-        self.input.iter().any(|input| input.is_passive_request())
-    }
-
-    pub fn has_passive_code_diff(&self) -> bool {
-        self.input
-            .iter()
-            .any(|input| input.auto_code_diff_query().is_some())
     }
 
     pub fn duration(&self) -> Option<TimeDelta> {

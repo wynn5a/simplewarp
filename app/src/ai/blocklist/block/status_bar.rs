@@ -721,8 +721,7 @@ impl BlocklistAIStatusBar {
                 .is_some_and(|metadata| {
                     !metadata.should_hide_block() && metadata.long_running_control_state().is_none()
                 });
-        let should_render_warping = !model.request_type(app).is_passive()
-            && !has_expanded_requested_command_with_no_subagent
+        let should_render_warping = !has_expanded_requested_command_with_no_subagent
             && (conversation.status().is_in_progress()
                 || (active_block.is_agent_in_control() && !active_block.is_agent_blocked()));
 
@@ -784,17 +783,15 @@ impl BlocklistAIStatusBar {
                 action_model: self.action_model.as_ref(app),
                 shimmering_text_handle: &self.shimmering_text_handle,
                 summarization_start_time: self.summarization_start_time,
-                auto_execute_button: (!model.request_type(app).is_passive_code_diff()).then_some(
-                    AutoExecuteButtonProps {
-                        button_handle: &self.state_handles.autoexecute_button,
-                        keystroke: self.autoexecute_keystroke.as_ref(),
-                        is_active: model
-                            .conversation(app)
-                            .map(|c| c.autoexecute_any_action())
-                            .unwrap_or(false),
-                        is_locked: terminal_model.is_conversation_transcript_viewer(),
-                    },
-                ),
+                auto_execute_button: Some(AutoExecuteButtonProps {
+                    button_handle: &self.state_handles.autoexecute_button,
+                    keystroke: self.autoexecute_keystroke.as_ref(),
+                    is_active: model
+                        .conversation(app)
+                        .map(|c| c.autoexecute_any_action())
+                        .unwrap_or(false),
+                    is_locked: terminal_model.is_conversation_transcript_viewer(),
+                }),
                 queue_next_prompt_button: FeatureFlag::QueueSlashCommand.is_enabled().then_some(
                     ButtonProps {
                         button_handle: &self.state_handles.queue_next_prompt_button,
@@ -1018,7 +1015,6 @@ impl View for BlocklistAIStatusBar {
                         },
                         appearance,
                     )),
-                    is_passive_code_diff: false,
                     secondary_element: self.render_tip(app),
                 },
                 app,
@@ -1061,10 +1057,6 @@ impl View for BlocklistAIStatusBar {
 
         let mut container = Container::new(status_element).with_background(background);
 
-        let is_passive_code_diff = self
-            .active_exchange_model
-            .as_ref()
-            .is_some_and(|model| model.request_type(app).is_passive_code_diff());
         let is_active_exchange_in_selected_conversation = self
             .active_exchange_model
             .as_ref()
@@ -1075,7 +1067,6 @@ impl View for BlocklistAIStatusBar {
 
         if !FeatureFlag::AgentView.is_enabled()
             && self.input_model.as_ref(app).is_ai_input_enabled()
-            && !is_passive_code_diff
             && is_active_exchange_in_selected_conversation
             && !self.terminal_model.lock().is_alt_screen_active()
         {

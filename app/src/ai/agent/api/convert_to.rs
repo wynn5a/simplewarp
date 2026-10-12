@@ -81,14 +81,6 @@ pub(super) fn convert_input(
                     )),
                 });
             }
-            AIAgentInput::AutoCodeDiffQuery { query, context } => {
-                return Ok(api::request::Input {
-                    context: Some(convert_context(context.as_ref())),
-                    r#type: Some(api::request::input::Type::AutoCodeDiffQuery(
-                        api::request::input::AutoCodeDiffQuery { query },
-                    )),
-                });
-            }
             AIAgentInput::ResumeConversation { context } => {
                 return Ok(api::request::Input {
                     context: Some(convert_context(context.as_ref())),

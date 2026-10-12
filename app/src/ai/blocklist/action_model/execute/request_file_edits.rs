@@ -73,14 +73,11 @@ impl RequestFileEditsExecutor {
             .filter_map(|edit| edit.file().map(PathBuf::from))
             .collect();
 
-        // Don't allow autoexecution if the diff was generated passively.
-        let Some(latest_exchange) = BlocklistAIHistoryModel::as_ref(ctx)
+        if BlocklistAIHistoryModel::as_ref(ctx)
             .conversation(&conversation_id)
             .and_then(|c| c.latest_exchange())
-        else {
-            return false;
-        };
-        if latest_exchange.has_passive_request() {
+            .is_none()
+        {
             return false;
         }
 

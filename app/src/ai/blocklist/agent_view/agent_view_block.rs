@@ -266,10 +266,6 @@ impl View for AgentViewEntryBlock {
             );
         };
 
-        if conversation.is_entirely_passive() {
-            return Empty::new().finish();
-        }
-
         let agent_icon = render_icon_with_status(
             IconWithStatusVariant::OzAgent {
                 status: Some(conversation.status().clone()),

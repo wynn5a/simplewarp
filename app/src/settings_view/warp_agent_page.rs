@@ -82,7 +82,6 @@ const AI_SETTINGS_DROPDOWN_MAX_HEIGHT: f32 = 250.;
 
 const NEXT_COMMAND_DESCRIPTION: &str = "Let AI suggest the next command to run based on your command history, outputs, and common workflows.";
 const PROMPT_SUGGESTIONS_DESCRIPTION: &str = "Let AI suggest natural language prompts, as inline banners in the input, based on recent commands and their outputs.";
-const SUGGESTED_CODE_BANNERS_DESCRIPTION: &str = "Let AI suggest code diffs and queries as inline banners in the blocklist, based on recent commands and their outputs.";
 const CUSTOM_INFERENCE_INFO_TOOLTIP_MAX_WIDTH: f32 = 320.;
 const CUSTOM_ENDPOINT_MODAL_MAX_HEIGHT_PERCENTAGE: f32 = 0.8;
 
@@ -993,7 +992,6 @@ pub enum WarpAgentPageAction {
     ToggleActiveAI,
     ToggleIntelligentAutosuggestions,
     TogglePromptSuggestions,
-    ToggleCodeSuggestions,
     ToggleAIInputAutoDetection,
     ToggleNLDInTerminal,
     ToggleUseAgentToolbar,
@@ -1067,19 +1065,6 @@ impl TypedActionView for WarpAgentPageView {
                     Ok(_new_value) => {}
                     Err(e) => {
                         log::warn!("Failed to set value for Prompt Suggestions setting: {e:?}");
-                    }
-                }
-                ctx.notify();
-            }
-            WarpAgentPageAction::ToggleCodeSuggestions => {
-                match AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    settings
-                        .code_suggestions_enabled_internal
-                        .toggle_and_save_value(ctx)
-                }) {
-                    Ok(_new_value) => {}
-                    Err(e) => {
-                        log::warn!("Failed to set value for Code Suggestions setting: {e:?}");
                     }
                 }
                 ctx.notify();
@@ -1304,7 +1289,6 @@ struct ActiveAIWidget {
     active_ai_toggle: SwitchStateHandle,
     intelligent_autosuggestions_toggle: SwitchStateHandle,
     prompt_suggestions_toggle: SwitchStateHandle,
-    code_suggestions_toggle: SwitchStateHandle,
 }
 
 impl ActiveAIWidget {
@@ -1313,7 +1297,6 @@ impl ActiveAIWidget {
             active_ai_toggle: Default::default(),
             intelligent_autosuggestions_toggle: Default::default(),
             prompt_suggestions_toggle: Default::default(),
-            code_suggestions_toggle: Default::default(),
         }
     }
     fn is_next_command_toggleable(&self, app: &AppContext) -> bool {
@@ -1326,12 +1309,6 @@ impl ActiveAIWidget {
         AISettings::as_ref(app)
             .prompt_suggestions_enabled_internal
             .is_supported_on_current_platform()
-    }
-
-    /// The toggle is hidden while code suggestions are off in this build; see
-    /// `AISettings::is_code_suggestions_enabled`.
-    fn is_suggested_code_banners_toggleable(&self, _app: &AppContext) -> bool {
-        false
     }
 
     fn render_next_command_section(
@@ -1382,30 +1359,6 @@ impl ActiveAIWidget {
             ))
             .finish()
     }
-
-    fn render_suggested_code_banners_section(
-        &self,
-        _view: &WarpAgentPageView,
-        app: &warpui::AppContext,
-    ) -> Box<dyn warpui::Element> {
-        let ai_settings = AISettings::as_ref(app);
-        let is_toggleable = ai_settings.is_active_ai_enabled(app);
-        Flex::column()
-            .with_child(render_ai_setting_toggle(
-                "Suggested Code Banners",
-                WarpAgentPageAction::ToggleCodeSuggestions,
-                *ai_settings.code_suggestions_enabled_internal,
-                is_toggleable,
-                self.code_suggestions_toggle.clone(),
-                app,
-            ))
-            .with_child(render_ai_setting_description(
-                SUGGESTED_CODE_BANNERS_DESCRIPTION,
-                is_toggleable,
-                app,
-            ))
-            .finish()
-    }
 }
 
 impl SettingsWidget for ActiveAIWidget {
@@ -1416,9 +1369,7 @@ impl SettingsWidget for ActiveAIWidget {
     }
 
     fn should_render(&self, app: &AppContext) -> bool {
-        self.is_next_command_toggleable(app)
-            || self.is_prompt_suggestions_toggleable(app)
-            || self.is_suggested_code_banners_toggleable(app)
+        self.is_next_command_toggleable(app) || self.is_prompt_suggestions_toggleable(app)
     }
 
     fn render(
@@ -1467,10 +1418,6 @@ impl SettingsWidget for ActiveAIWidget {
 
         if self.is_prompt_suggestions_toggleable(app) {
             column.add_child(self.render_prompt_suggestions_section(view, app));
-        }
-
-        if self.is_suggested_code_banners_toggleable(app) {
-            column.add_child(self.render_suggested_code_banners_section(view, app));
         }
 
         column.finish()

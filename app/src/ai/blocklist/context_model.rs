@@ -687,10 +687,7 @@ impl BlocklistAIContextModel {
         app: &AppContext,
     ) -> Option<ConversationStatus> {
         let conversation = self.selected_conversation(app)?;
-        if conversation.is_empty()
-            || conversation.is_entirely_passive()
-            || conversation.title().is_none()
-        {
+        if conversation.is_empty() || conversation.title().is_none() {
             return None;
         }
         Some(conversation.status().clone())

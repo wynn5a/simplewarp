@@ -77,7 +77,7 @@ use crate::ai::agent::{
     AIAgentTextSection, AIIdentifiers, CancellationReason, MessageId, ProgrammingLanguage,
     RequestCommandOutputResult, RequestFileEditsResult, ServerOutputId, SummarizationType,
 };
-use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewEntryOrigin};
+use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::ai::blocklist::context_model::AttachmentType;
 use crate::ai::blocklist::inline_action::code_diff_view;
 use crate::ai::blocklist::inline_action::code_diff_view::convert_file_edits_to_file_diffs;
@@ -113,9 +113,7 @@ use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::terminal::safe_mode_settings::{
     SafeModeSettings, SafeModeSettingsChangedEvent, get_secret_obfuscation_mode,
 };
-use crate::terminal::view::{
-    CodeDiffAction, RichContentLink, RichContentLinkTooltipInfo, TerminalAction,
-};
+use crate::terminal::view::{RichContentLink, RichContentLinkTooltipInfo, TerminalAction};
 use crate::terminal::{ShellLaunchData, TerminalModel, TerminalView};
 use crate::ui_components::icons::Icon;
 use crate::util::link_detection::*;
@@ -632,10 +630,6 @@ impl CollapsibleElementState {
 pub struct AIBlock {
     model: Rc<dyn AIBlockModel<View = AIBlock>>,
 
-    /// Cached result of `model.request_type(app).is_passive()`. Safe to cache because whether a
-    /// conversation is passive or active is fixed at exchange creation and never changes for the
-    /// lifetime of the block (see `is_passive_conversation`).
-    is_passive: bool,
     terminal_model: Arc<FairMutex<TerminalModel>>,
     client_ids: ClientIdentifiers,
 
@@ -1033,11 +1027,8 @@ impl AIBlock {
             comment_states.insert(id, state);
         }
 
-        let is_passive = model.request_type(ctx).is_passive();
-
         let mut me = Self {
             model,
-            is_passive,
             terminal_model,
             client_ids,
             controller,
@@ -1181,7 +1172,7 @@ impl AIBlock {
 
         let initial_conversation_query = BlocklistAIHistoryModel::as_ref(app)
             .conversation(&conversation_id)
-            .and_then(|conversation| conversation.initial_user_query());
+            .and_then(|conversation| conversation.initial_query());
         let secret_redaction_mode = get_secret_obfuscation_mode(app);
         for (input_index, input) in self.model.inputs_to_render(app).iter().enumerate() {
             let Some(query) = input.display_user_query(initial_conversation_query.as_ref()) else {
@@ -1223,7 +1214,7 @@ impl AIBlock {
         // Include user query texts for link detection.
         let initial_conversation_query = BlocklistAIHistoryModel::as_ref(ctx)
             .conversation(&self.client_ids.conversation_id)
-            .and_then(|conversation| conversation.initial_user_query());
+            .and_then(|conversation| conversation.initial_query());
         for (input_index, input) in self.model.inputs_to_render(ctx).iter().enumerate() {
             if let Some(query) = input.display_user_query(initial_conversation_query.as_ref()) {
                 texts.push((query, TextLocation::Query { input_index }));
@@ -1352,7 +1343,6 @@ impl AIBlock {
 
         self.client_ids.conversation_id = new_conversation_id;
         self.model = new_model;
-        self.is_passive = self.model.request_type(ctx).is_passive();
         self.run_secret_redaction_on_user_query(new_conversation_id, ctx);
 
         // Re-detect all links for the new conversation.
@@ -1921,29 +1911,15 @@ impl AIBlock {
             return false;
         }
 
-        if let Some(active_conversation_id) = self
-            .agent_view_controller
+        // If the agent view is active, only AI blocks for the active agent view conversation
+        // should be visible. Without one, no AI block is.
+        self.agent_view_controller
             .as_ref(app)
             .agent_view_state()
             .active_conversation_id()
-        {
-            // If the agent view is active, only AI blocks for the active agent view conversation
-            // should be visible.
-            active_conversation_id != self.client_ids.conversation_id
-        } else {
-            // If there is no active agent view, only passive, non-hidden (we checked for if the
-            // exchange is hidden already above) exchanges are rendered.
-            //
-            // These correspond to AI blocks with a successfully received suggested code diff or
-            // unit test suggestion.
-            !self.is_passive
-        }
-    }
-
-    /// Returns `true` if this block's conversation was started from a passive entrypoint (e.g. a
-    /// suggested code diff or unit test suggestion), as opposed to a directly-issued user query.
-    pub fn is_passive_conversation(&self) -> bool {
-        self.is_passive
+            .is_none_or(|active_conversation_id| {
+                active_conversation_id != self.client_ids.conversation_id
+            })
     }
 
     fn handle_code_section_stream_update(
@@ -2095,30 +2071,12 @@ impl AIBlock {
             server_conversation_id: None,
             model_id: self.model.model_id(ctx),
         };
-        // Only show the speedbump once, update the setting afterwards.
-        let should_show_code_suggestion_speedbump =
-            self.model.request_type(ctx).is_passive_code_diff()
-                && AISettings::as_ref(ctx).show_code_suggestion_speedbump();
-        if should_show_code_suggestion_speedbump {
-            AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                if let Err(e) = settings
-                    .show_code_suggestion_speedbump
-                    .set_value(false, ctx)
-                {
-                    report_error!(
-                        e.context("Failed to persist 'Show code suggestion speedbump' setting")
-                    );
-                }
-            });
-        }
-
         let view = ctx.add_typed_action_view(|ctx| {
             CodeDiffView::new(
                 action_id,
                 self.model.as_ref(),
                 title.clone(),
                 identifiers,
-                should_show_code_suggestion_speedbump,
                 self.action_model.clone(),
                 self.shell_launch_data.clone().map(|data| data.into()),
                 ctx,
@@ -2205,49 +2163,10 @@ impl AIBlock {
                 CodeDiffViewEvent::DisplayModeChanged => {
                     ctx.notify();
                 }
-                CodeDiffViewEvent::OpenSettings => {
-                    ctx.emit(AIBlockEvent::OpenSettings);
-                }
-                CodeDiffViewEvent::CancelPassive => {
-                    ctx.emit(AIBlockEvent::DismissedPassiveBlock);
-                }
-                CodeDiffViewEvent::ViewDetails => {
-                    // We only need to set the selected conversation when agent view is disabled;
-                    // when agent view is enabled, you have to enter the agent view for the code diff
-                    // conversation to follow-up in the first place, and hitting 'view details'
-                    // shouldn't auto-enter the agent view.
-                    if !FeatureFlag::AgentView.is_enabled() {
-                        me.context_model.update(ctx, |context_model, ctx| {
-                            context_model.set_pending_query_state_for_existing_conversation(
-                                me.client_ids.conversation_id,
-                                AgentViewEntryOrigin::ViewPassiveCodeDiffDetails,
-                                ctx,
-                            );
-                        });
-                    }
-                    ctx.emit(AIBlockEvent::FocusTerminal);
-                    ctx.notify();
-                }
-                CodeDiffViewEvent::ContinuePassiveCodeDiffWithAgent {
-                    accepted: auto_resume,
-                    ..
-                } => {
-                    ctx.emit(AIBlockEvent::ContinuePassiveCodeDiffWithAgent {
-                        conversation_id: me.client_ids.conversation_id,
-                        auto_resume: *auto_resume,
-                    });
-                    ctx.emit(AIBlockEvent::FocusTerminal);
-                    ctx.notify();
-                }
                 CodeDiffViewEvent::ToggleCodeReviewPane { entrypoint } => {
                     ctx.emit(AIBlockEvent::ToggleCodeReviewPane {
                         entrypoint: *entrypoint,
                     });
-                }
-                CodeDiffViewEvent::LoadedDiffs => {
-                    if me.model.request_type(ctx).is_passive_code_diff() {
-                        ctx.emit(AIBlockEvent::PassiveCodeDiffLoaded);
-                    }
                 }
                 CodeDiffViewEvent::OpenSkill { reference, path } => {
                     ctx.emit(AIBlockEvent::OpenCodeInWarp {
@@ -2280,21 +2199,6 @@ impl AIBlock {
         self.requested_edits
             .insert(action_id.clone(), RequestedEdit::new(view));
 
-        if self.model.request_type(ctx).is_passive() {
-            BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-                history.set_exchange_hidden_status(
-                    self.terminal_view_id,
-                    self.client_ids.conversation_id,
-                    self.client_ids.client_exchange_id,
-                    false,
-                    ctx,
-                );
-            });
-            self.terminal_model
-                .lock()
-                .block_list_mut()
-                .mark_rich_content_dirty(ctx.view_id());
-        }
         ctx.notify();
     }
 
@@ -2321,12 +2225,6 @@ impl AIBlock {
 
             code_diff_view.update(ctx, |diff_view, ctx| {
                 diff_view.set_candidate_diffs(file_diffs, ctx);
-
-                // For restored conversations that include a passive code diff, we assume the diff
-                // is no longer live, so we display it as embedded instead of inline.
-                if self.model.request_type(ctx).is_passive_code_diff() {
-                    diff_view.set_embedded_display_mode(true, ctx);
-                }
 
                 // Set the state based on the action status from the action model
                 let action_status = self.action_model.as_ref(ctx).get_action_status(action_id);
@@ -3017,16 +2915,6 @@ impl AIBlock {
             return;
         }
 
-        // If there's a blocking passive code diff, focus that.
-        // We special case this since get_pending_action only focuses on active conversations,
-        // and passive code diffs are not part of an active conversation, when they initially appear.
-        if self.model.request_type(ctx).is_passive_code_diff()
-            && let Some(diff) = self.find_undismissed_code_diff(ctx)
-        {
-            ctx.focus(&diff.view);
-            return;
-        }
-
         if self.focus_subview_if_necessary(ctx) {
             return;
         }
@@ -3448,36 +3336,6 @@ impl AIBlock {
         requested_command_view.copied_from_citation().cloned()
     }
 
-    pub fn handle_passive_code_diff_action(
-        &mut self,
-        action: CodeDiffAction,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        let Some(edit) = self.find_undismissed_code_diff(ctx) else {
-            return false;
-        };
-        edit.view.update(ctx, |view, ctx| match action {
-            CodeDiffAction::Accept => view.try_accept_action(ctx),
-            CodeDiffAction::Reject => view.reject(ctx),
-            CodeDiffAction::Edit => view.expand_and_edit(ctx),
-            CodeDiffAction::ScrollToExpand => view.expand_inline_banner(ctx),
-        });
-        ctx.notify();
-        true
-    }
-
-    /// Marks all pending passive actions (code diffs and suggested prompts) as dismissed/ignored.
-    /// This hides their keybindings in the UI and makes them less interactive.
-    pub fn ignore_passive_actions(&mut self, ctx: &mut ViewContext<Self>) {
-        self.action_model.update(ctx, |action_model, ctx| {
-            for action in action_model.get_pending_actions() {
-                if let Some(edit) = self.requested_edits.get(&action.id) {
-                    edit.view.update(ctx, |view, ctx| view.dismiss(ctx));
-                }
-            }
-        });
-    }
-
     fn pending_requested_edit(&self, app: &AppContext) -> Option<&RequestedEdit> {
         self.action_model
             .as_ref(app)
@@ -3544,31 +3402,6 @@ impl AIBlock {
             });
             ctx.notify();
         }
-    }
-
-    /// Finds the undismissed passive code diff across all pending actions.
-    /// This is needed because passive code diffs are NOT added to the active conversation by default, when they first appear.
-    pub(crate) fn find_undismissed_code_diff(&self, app: &AppContext) -> Option<&RequestedEdit> {
-        let all_pending_actions = self.action_model.as_ref(app).get_pending_actions();
-
-        // Find any RequestFileEdits action that has a corresponding passive code diff view.
-        // Note that we only expect a maximum of 1 passive code diff to be undismissed at any given time.
-        all_pending_actions
-            .iter()
-            .find_map(|action| match &action.action {
-                AIAgentActionType::RequestFileEdits {
-                    file_edits: _,
-                    title: _,
-                } => self.requested_edits.get(&action.id).and_then(|edit| {
-                    let view = edit.view.as_ref(app);
-                    if view.is_passive() && !view.is_inline_banner_dismissed() {
-                        Some(edit)
-                    } else {
-                        None
-                    }
-                }),
-                _ => None,
-            })
     }
 
     pub fn saved_position_id(&self) -> String {
@@ -4042,11 +3875,6 @@ pub enum AIBlockEvent {
     ContinueConversation {
         conversation_id: AIConversationId,
     },
-    /// Emitted when a passive code diff should be injected into an agent context.
-    ContinuePassiveCodeDiffWithAgent {
-        conversation_id: AIConversationId,
-        auto_resume: bool,
-    },
     FocusTerminal,
     OpenThemeChooser,
     #[cfg(windows)]
@@ -4079,12 +3907,7 @@ pub enum AIBlockEvent {
     ToggleCodeReviewPane {
         entrypoint: CodeReviewPaneEntrypoint,
     },
-    DismissedPassiveBlock,
     OpenActiveAgentProfileEditor,
-    /// Emitted when a passive code diff has loaded its diffs and is ready to display.
-    /// This is used to trigger height recalculation since the diffs are loaded asynchronously
-    /// after the initial output completes.
-    PassiveCodeDiffLoaded,
     OpenImportedCommentInCodeReview {
         repo_path: LocalOrRemotePath,
         comment: Box<AttachedReviewComment>,

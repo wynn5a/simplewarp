@@ -462,17 +462,6 @@ define_settings_group!(AISettings, settings: [
         description: "Controls whether prompt suggestions are shown in agent mode.",
     }
 
-    // This field should not be referenced directly to lookup Code Suggestions
-    // enablement -- use the `is_code_suggestions_enabled()` getter.
-    code_suggestions_enabled_internal: CodeSuggestionsEnabled {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "agents.warp_agent.active_ai.code_suggestions_enabled",
-        description: "Controls whether AI code suggestions are enabled.",
-    }
     // Predicates that Agent Mode can use to decide if it can execute
     // a command without explicit user consent.
     //
@@ -616,18 +605,6 @@ define_settings_group!(AISettings, settings: [
     agent_mode_setup_banner_shown_for_repo_paths: AgentModeSetupBannerShownForRepoPaths {
         type: Vec<PathBuf>,
         default: vec![],
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    }
-
-    // Whether or not we should show the speedbump for showing code suggestion banners.
-    // This includes both passive code diffs and suggested prompts (passive unit tests).
-    //
-    // Not a user-visible settings - we model it as a setting so we can track if the speedbump has already been shown or not.
-    show_code_suggestion_speedbump: ShouldShowCodeSuggestionSpeedbump {
-        type: bool,
-        default: true,
         supported_platforms: SupportedPlatforms::ALL,
         surface: settings::SettingSurfaces::GUI,
         private: true,
@@ -842,15 +819,6 @@ impl AISettings {
         self.is_active_ai_enabled(app) && *self.prompt_suggestions_enabled_internal
     }
 
-    /// Always `false`. Passive code suggestions (the unit-test suggestion after a successful
-    /// `git commit` and the passive code diff after a coding prompt suggestion) sent request
-    /// inputs that the local adapter drops, so they only spent the user's key on a request that
-    /// could not be answered. The stored setting is kept so existing configs still load; see
-    /// plan-p2 P3. Turn this back on together with the adapter support for those inputs.
-    pub fn is_code_suggestions_enabled(&self, _app: &warpui::AppContext) -> bool {
-        false
-    }
-
     pub fn is_intelligent_autosuggestions_enabled(&self, app: &warpui::AppContext) -> bool {
         self.is_active_ai_enabled(app) && *self.intelligent_autosuggestions_enabled_internal
     }
@@ -922,10 +890,6 @@ impl AISettings {
     pub fn is_mcp_permission_editable(&self) -> bool {
         // TODO: Allow workspace overrides on MCP permissions.
         self.is_any_ai_enabled()
-    }
-
-    pub fn show_code_suggestion_speedbump(&self) -> bool {
-        self.is_any_ai_enabled() && *self.show_code_suggestion_speedbump
     }
 
     pub fn add_cli_agent_footer_enabled_command(

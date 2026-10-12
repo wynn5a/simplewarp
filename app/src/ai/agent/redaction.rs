@@ -40,10 +40,6 @@ pub(crate) fn redact_inputs(inputs: &mut [AIAgentInput]) {
                     .values_mut()
                     .for_each(redact_attachment);
             }
-            AIAgentInput::AutoCodeDiffQuery { query, context, .. } => {
-                redact_secrets(query);
-                redact_context(Arc::make_mut(context));
-            }
             AIAgentInput::CreateNewProject { context, .. }
             | AIAgentInput::CloneRepository { context, .. }
             | AIAgentInput::ResumeConversation { context }

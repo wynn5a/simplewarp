@@ -825,10 +825,8 @@ impl View for AIBlock {
             comments: &self.comment_states,
             addressed_comment_ids: &addressed_comment_ids,
         };
-        let initial_conversation_query = self
-            .model
-            .conversation(app)
-            .and_then(|c| c.initial_user_query());
+        let initial_conversation_query =
+            self.model.conversation(app).and_then(|c| c.initial_query());
         let query_and_index = self
             .model
             .inputs_to_render(app)
@@ -1074,7 +1072,7 @@ impl View for AIBlock {
             });
         let should_add_top_padding = contains_user_query_and_is_not_pin_to_top
             || renders_below_requested_command_view
-            || (!is_previous_blocklist_item_ai_block && !self.is_passive_conversation());
+            || !is_previous_blocklist_item_ai_block;
 
         if should_add_top_padding {
             content = content.with_padding_top(CONTENT_VERTICAL_PADDING);
@@ -1221,7 +1219,6 @@ impl AIAgentInput {
                 app,
             )),
             AIAgentInput::UserQuery { .. }
-            | AIAgentInput::AutoCodeDiffQuery { .. }
             | AIAgentInput::ResumeConversation { .. }
             | AIAgentInput::InitProjectRules { .. }
             | AIAgentInput::CreateNewProject { .. }

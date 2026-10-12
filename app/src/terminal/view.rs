@@ -207,8 +207,7 @@ use crate::ai::execution_profiles::ExecutionProfileId;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::ai::predict::prompt_suggestions::{
-    has_pending_passive_code_diff, is_accept_prompt_suggestion_bound_to_cmd_enter,
-    is_accept_prompt_suggestion_bound_to_ctrl_enter,
+    is_accept_prompt_suggestion_bound_to_cmd_enter, is_accept_prompt_suggestion_bound_to_ctrl_enter,
 };
 use crate::ai_assistant::{ASK_AI_ASSISTANT_TEXT, AskAIType};
 use crate::appearance::{Appearance, AppearanceEvent};
@@ -1304,15 +1303,6 @@ enum SelectionFocusPolicy {
     /// completes, so a selection made before or during the command doesn't prevent
     /// focus from returning to the input box.
     HoldsFocusOnlyWhileSelecting,
-}
-
-/// Actions that can be taken on a passive code diff via the input editor.
-#[derive(Clone, Debug)]
-pub enum CodeDiffAction {
-    Accept,
-    Reject,
-    Edit,
-    ScrollToExpand,
 }
 
 pub enum Event {
@@ -2468,7 +2458,6 @@ impl TerminalView {
                                 let agent_view_zero_state = ctx.add_typed_action_view(|ctx| {
                                     AgentViewZeroStateBlock::new(
                                         *conversation_id,
-                                        origin.clone(),
                                         me.agent_view_controller.clone(),
                                         &me.sessions,
                                         me.model.clone(),
@@ -4481,7 +4470,6 @@ impl TerminalView {
                     );
                 });
                 let ai_block_clone = ai_block.clone();
-                let is_passive_conversation = ai_block_clone.as_ref(ctx).is_passive_conversation();
                 self.find_model.update(ctx, move |find_model, _ctx| {
                     find_model.register_findable_rich_content_view(ai_block_clone);
                 });
@@ -4500,10 +4488,9 @@ impl TerminalView {
                     ctx,
                 );
 
-                if !is_hidden && !is_passive_conversation {
-                    // Clear agent mode query banners and hidden blocks when a new AI block is created.
+                if !is_hidden {
+                    // Clear agent mode query banners when a new AI block is created.
                     self.clear_prompt_suggestions(ctx);
-                    self.drop_hidden_passive_ai_blocks(ctx);
                 }
 
                 self.update_context_blocks_and_exchanges(ctx);
@@ -5281,12 +5268,9 @@ impl TerminalView {
                             .auto_open_code_review_pane_on_first_agent_change;
 
                         if !already_opened
-                                && should_auto_open
-                                && FeatureFlag::AutoOpenCodeReviewPane.is_enabled()
-                                && self.can_auto_open_code_review_panel(ctx)
-                                // we shouldn't auto open if this was triggered from a passive code review diff
-                                && !BlocklistAIHistoryModel::as_ref(ctx)
-                                .is_entirely_passive_conversation(&conversation_id)
+                            && should_auto_open
+                            && FeatureFlag::AutoOpenCodeReviewPane.is_enabled()
+                            && self.can_auto_open_code_review_panel(ctx)
                         {
                             self.open_code_review_pane(
                                 GitDeltaPreference::Always,
@@ -6058,7 +6042,7 @@ impl TerminalView {
         ctx: &mut ViewContext<Self>,
     ) {
         let did_resolve_prompt_suggestion = self
-            .resolve_passive_suggestion(PromptSuggestionResolution::Reject { ctrl_c: true }, ctx);
+            .resolve_prompt_suggestion(PromptSuggestionResolution::Reject { ctrl_c: true }, ctx);
         if did_resolve_prompt_suggestion {
             if FeatureFlag::AgentView.is_enabled()
                 && self.agent_view_controller.as_ref(ctx).is_active()
@@ -7704,64 +7688,6 @@ impl TerminalView {
             .is_some_and(|session| !session.is_local())
     }
 
-    /// Cleans up and removes the conversation associated with the given AI block.
-    ///
-    /// This removes the AI block from the blocklist (and cached `rich_content_views` list) and
-    /// deletes its associated conversation.
-    ///
-    /// This assumes that the deleted conversation only contains a single block -- should there
-    /// be other blocks besides `passive_block` in the same conversation, we're left in invalid
-    /// state (AI blocks rely on conversation state in the history model to render). If there is
-    /// more than one AI block corresponding to the same conversation as `passive_block`, does
-    /// nothing.
-    fn cleanup_and_remove_conversation_for_ai_block(
-        &mut self,
-        passive_block: &ViewHandle<AIBlock>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some((rich_content_idx, _)) =
-            self.rich_content_views
-                .iter()
-                .enumerate()
-                .find_map(|(idx, rich_content)| {
-                    let ai_metadata = rich_content.ai_block_metadata()?;
-                    (ai_metadata.ai_block_handle.id() == passive_block.id())
-                        .then(|| (idx, ai_metadata.ai_block_handle.clone()))
-                })
-        else {
-            return;
-        };
-
-        let has_other_blocks_in_same_conversation =
-            self.rich_content_views.iter().any(|rich_content| {
-                if let Some(ai_metadata) = rich_content.ai_block_metadata() {
-                    ai_metadata.ai_block_handle.id() != passive_block.id()
-                        && ai_metadata.ai_block_handle.as_ref(ctx).conversation_id()
-                            == passive_block.as_ref(ctx).conversation_id()
-                } else {
-                    false
-                }
-            });
-        if has_other_blocks_in_same_conversation {
-            report_error!(
-                "Attempted to clean up and delete conversation for block with other blocks in the same conversation"
-            );
-            return;
-        }
-
-        passive_block.update(ctx, |ai_block, ctx| {
-            ai_block.cleanup_block(ctx);
-        });
-        let conversation_id = passive_block.as_ref(ctx).conversation_id();
-        conversation_utils::remove_conversation(conversation_id, self.view_id, ctx);
-        self.rich_content_views.remove(rich_content_idx);
-        self.model
-            .lock()
-            .block_list_mut()
-            .remove_rich_content(passive_block.id());
-        ctx.notify();
-    }
-
     /// Sends telemetry if an AI-requested command caused the shell to exit, and
     /// returns the conversation that issued that command along with the
     /// (secret-redacted) command text so the caller can finalize it as a
@@ -8294,9 +8220,8 @@ impl TerminalView {
                     .active_block_mut()
                     .set_prompt_snapshot(prompt_snapshot);
 
-                // Clear any previously active AM query suggestion banners and hidden blocks.
+                // Clear any previously active AM query suggestion banners.
                 self.clear_prompt_suggestions(ctx);
-                self.drop_hidden_passive_ai_blocks(ctx);
 
                 // If the first word of the command is a shell alias, expand it
                 // for subshell/SSH detection. This enables warpification for
@@ -10157,41 +10082,6 @@ impl TerminalView {
                 input.notify_and_notify_children(ctx);
             });
         }
-        if let Some(ai_block) = self.last_ai_block() {
-            ai_block.update(ctx, |ai_block, ctx| {
-                ai_block.ignore_passive_actions(ctx);
-            });
-        };
-    }
-
-    /// Removes hidden AI blocks for passive requests from the sumtree.
-    ///
-    /// Hidden AI blocks are only generated when generating passive codegen suggestions after a
-    /// compiler error.
-    fn drop_hidden_passive_ai_blocks(&mut self, ctx: &mut ViewContext<Self>) {
-        let mut ai_block_ids_to_remove = vec![];
-        self.rich_content_views.retain(|rich_content| {
-            if let Some(ai_metadata) = rich_content.ai_block_metadata() {
-                let is_hidden = ai_metadata.ai_block_handle.read(ctx, |ai_block, ctx| {
-                    ai_block.is_passive_conversation() && ai_block.is_hidden(ctx)
-                });
-                if is_hidden {
-                    ai_block_ids_to_remove.push(ai_metadata.ai_block_handle.id());
-                }
-                !is_hidden
-            } else {
-                true
-            }
-        });
-
-        for view_id in ai_block_ids_to_remove {
-            self.model
-                .lock()
-                .block_list_mut()
-                .remove_rich_content(view_id);
-        }
-
-        ctx.notify();
     }
 
     /// Removes AI blocks from `rich_content_views` that match the given conversation and exchange IDs.
@@ -10461,9 +10351,7 @@ impl TerminalView {
         else {
             return;
         };
-        if conversation.is_entirely_passive()
-            || !conversation.status().should_trigger_notification()
-        {
+        if !conversation.status().should_trigger_notification() {
             return;
         }
 
@@ -14465,16 +14353,6 @@ impl TerminalView {
                 self.focus_ai_block_if_self_focused(&block, ctx);
                 self.maybe_send_agent_mode_desktop_notification(&conversation_id, ctx);
             }
-            AIBlockEvent::PassiveCodeDiffLoaded => {
-                if is_restored {
-                    return;
-                }
-                self.model
-                    .lock()
-                    .block_list_mut()
-                    .refresh_heights_for_loaded_passive_code_diff(block.id());
-                ctx.notify();
-            }
             AIBlockEvent::Finished => {
                 if is_restored {
                     return;
@@ -14493,12 +14371,6 @@ impl TerminalView {
                 }
                 self.open_code_diff(view.clone(), ctx);
                 ctx.notify();
-            }
-            AIBlockEvent::DismissedPassiveBlock => {
-                if is_restored {
-                    return;
-                }
-                self.cleanup_and_remove_conversation_for_ai_block(&block, ctx);
             }
             AIBlockEvent::ActionFinished => {
                 if is_restored {
@@ -14597,26 +14469,6 @@ impl TerminalView {
             }
             AIBlockEvent::ContinueConversation { conversation_id } => {
                 self.handle_continue_conversation(conversation_id, ctx);
-            }
-            AIBlockEvent::ContinuePassiveCodeDiffWithAgent {
-                conversation_id,
-                auto_resume,
-            } => {
-                if !self
-                    .agent_view_controller
-                    .as_ref(ctx)
-                    .agent_view_state()
-                    .is_active()
-                {
-                    self.set_rich_content_agent_view_conversation_id(block.id(), *conversation_id);
-                    self.handle_continue_conversation(conversation_id, ctx);
-                }
-
-                if *auto_resume {
-                    self.ai_controller.update(ctx, |controller, ctx| {
-                        controller.request_follow_up_after_actions(*conversation_id, ctx);
-                    });
-                }
             }
             AIBlockEvent::ResumeConversation { conversation_id } => {
                 self.handle_resume_conversation(conversation_id, ctx);
@@ -14839,10 +14691,8 @@ impl TerminalView {
             let ai_metadata = rich_content.ai_block_metadata()?;
             let ai_block = ai_metadata.ai_block_handle.as_ref(ctx);
 
-            (!ai_block.is_finished()
-                && !ai_block.is_passive_conversation()
-                && !ai_block.is_hidden(ctx))
-            .then_some(&ai_metadata.ai_block_handle)
+            (!ai_block.is_finished() && !ai_block.is_hidden(ctx))
+                .then_some(&ai_metadata.ai_block_handle)
         })
     }
 
@@ -15381,12 +15231,12 @@ impl TerminalView {
             }
             InputEvent::UnhandledCmdEnter => {
                 if is_accept_prompt_suggestion_bound_to_cmd_enter(ctx) {
-                    self.resolve_passive_suggestion(PromptSuggestionResolution::Accept, ctx);
+                    self.resolve_prompt_suggestion(PromptSuggestionResolution::Accept, ctx);
                 }
             }
             InputEvent::CtrlEnter => {
                 if is_accept_prompt_suggestion_bound_to_ctrl_enter(ctx) {
-                    self.resolve_passive_suggestion(PromptSuggestionResolution::Accept, ctx);
+                    self.resolve_prompt_suggestion(PromptSuggestionResolution::Accept, ctx);
                 }
             }
             InputEvent::EnterAgentView {
@@ -15595,9 +15445,6 @@ impl TerminalView {
             }
             InputEvent::OpenFilesPalette { source } => {
                 ctx.emit(Event::OpenFilesPalette { source: *source })
-            }
-            InputEvent::TryHandlePassiveCodeDiff(action) => {
-                self.resolve_prompt_suggestion_diff(action.clone(), ctx);
             }
             InputEvent::ShowToast { message, flavor } => {
                 ctx.emit(Event::ShowToast {
@@ -20347,7 +20194,7 @@ impl TypedActionView for TerminalView {
                 });
             }
             ResolvePromptSuggestion(resolution) => {
-                self.resolve_passive_suggestion(*resolution, ctx);
+                self.resolve_prompt_suggestion(*resolution, ctx);
             }
             ToggleConversationDetailsPanel => {
                 self.is_conversation_details_panel_open = !self.is_conversation_details_panel_open;
@@ -20892,7 +20739,6 @@ impl View for TerminalView {
             .inline_banners_state
             .prompt_suggestions_banner
             .is_some()
-            || has_pending_passive_code_diff(&model_lock, app)
         {
             context.set.insert(flags::HAS_PENDING_PROMPT_SUGGESTION);
         }

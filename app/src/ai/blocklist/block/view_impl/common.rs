@@ -102,7 +102,6 @@ const IMAGE_SOURCE_LINK_LINE_INDEX: usize = 1;
 
 pub const LOAD_OUTPUT_MESSAGE: &str = "Warping...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_ADJUSTING: &str = "Adjusting tasks...";
-pub const LOAD_OUTPUT_MESSAGE_FOR_PASSIVE_CODE_GEN: &str = "Generating fix...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_CREATING_DIFF: &str = "Creating diff...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_SUMMARIZING_CONVERSATION: &str = "Summarizing conversation...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_SUMMARIZING_TOOL_CALL_RESULT: &str =
@@ -270,8 +269,6 @@ pub fn render_warping_indicator<V: View>(
         } else {
             base_message.to_string()
         }
-    } else if props.model.request_type(app).is_passive_code_diff() {
-        LOAD_OUTPUT_MESSAGE_FOR_PASSIVE_CODE_GEN.to_string()
     } else if is_last_message_requesting_file_edits {
         LOAD_OUTPUT_MESSAGE_FOR_CREATING_DIFF.to_string()
     } else if is_interrupt_query_for_same_conversation
@@ -450,7 +447,6 @@ pub fn render_warping_indicator<V: View>(
             } else {
                 None
             },
-            is_passive_code_diff: props.model.request_type(app).is_passive_code_diff(),
             secondary_element: props.secondary_element,
         },
         app,
@@ -473,7 +469,6 @@ pub struct WarpingIndicatorProps {
     /// today for the `Check now` affordance next to `Last seen by agent ...`.
     pub non_shimmering_suffix: Option<Box<dyn Element>>,
     pub buttons: Option<Box<dyn Element>>,
-    pub is_passive_code_diff: bool,
     pub secondary_element: Option<Box<dyn Element>>,
 }
 
@@ -508,7 +503,6 @@ pub fn render_warping_indicator_base(
         non_shimmering_text,
         non_shimmering_suffix,
         buttons,
-        is_passive_code_diff,
         secondary_element,
     } = props;
     // Whether a secondary element (an agent tip or fallback-model explanation)
@@ -608,33 +602,24 @@ pub fn render_warping_indicator_base(
 
     let content = Clipped::new(row.finish()).finish();
 
-    if is_passive_code_diff {
-        Container::new(content)
-            // Use custom padding for the passive code diff block
-            .with_padding_top(8.)
-            .with_padding_bottom(4.)
-            .with_horizontal_padding(CONTENT_HORIZONTAL_PADDING)
-            .finish()
+    let mut container = Container::new(
+        ConstrainedBox::new(content)
+            .with_height(warping_footer_height(
+                appearance.monospace_font_size(),
+                has_secondary_element,
+            ))
+            .finish(),
+    )
+    .with_padding_right(CONTENT_HORIZONTAL_PADDING);
+
+    if FeatureFlag::AgentView.is_enabled() {
+        container = container.with_padding_left(*terminal::view::PADDING_LEFT);
     } else {
-        let mut container = Container::new(
-            ConstrainedBox::new(content)
-                .with_height(warping_footer_height(
-                    appearance.monospace_font_size(),
-                    has_secondary_element,
-                ))
-                .finish(),
-        )
-        .with_padding_right(CONTENT_HORIZONTAL_PADDING);
-
-        if FeatureFlag::AgentView.is_enabled() {
-            container = container.with_padding_left(*terminal::view::PADDING_LEFT);
-        } else {
-            container = container
-                .with_padding_left(CONTENT_HORIZONTAL_PADDING + (STATUS_ICON_SIZE_DELTA / 2.));
-        }
-
-        container.finish()
+        container =
+            container.with_padding_left(CONTENT_HORIZONTAL_PADDING + (STATUS_ICON_SIZE_DELTA / 2.));
     }
+
+    container.finish()
 }
 
 /// Render output text as shown in the "stopped" and "loading" status banners
@@ -3269,7 +3254,6 @@ pub(super) fn query_prefix_highlight_len(
         match input {
             AIAgentInput::InvokeSkill { skill, .. } => Some(1 + skill.name.len()),
             AIAgentInput::UserQuery { .. }
-            | AIAgentInput::AutoCodeDiffQuery { .. }
             | AIAgentInput::ResumeConversation { .. }
             | AIAgentInput::InitProjectRules { .. }
             | AIAgentInput::CreateNewProject { .. }

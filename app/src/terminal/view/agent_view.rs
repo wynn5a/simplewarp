@@ -1,7 +1,7 @@
 use warp_core::ui::appearance::Appearance;
 use warp_errors::report_error;
 use warpui::keymap::Keystroke;
-use warpui::{EntityId, SingletonEntity, ViewContext};
+use warpui::{SingletonEntity, ViewContext};
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
@@ -302,12 +302,6 @@ impl TerminalView {
         position: RichContentInsertionPosition,
         ctx: &mut ViewContext<Self>,
     ) {
-        if BlocklistAIHistoryModel::as_ref(ctx)
-            .conversation(&params.conversation_id)
-            .is_some_and(|conversation| conversation.is_entirely_passive())
-        {
-            return;
-        }
         let conversation_id = params.conversation_id;
         let origin = params.origin.clone();
         let agent_view_block =
@@ -346,31 +340,5 @@ impl TerminalView {
             position,
             ctx,
         );
-    }
-
-    /// Retags the rich content view with the given id so it renders under `conversation_id`'s
-    /// agent view. Updates both the local `rich_content_views` entry and the block list so
-    /// `should_hide_for_agent_view_state` picks up the new association.
-    pub(super) fn set_rich_content_agent_view_conversation_id(
-        &mut self,
-        rich_content_view_id: EntityId,
-        conversation_id: AIConversationId,
-    ) {
-        let Some(rich_content) = self
-            .rich_content_views
-            .iter_mut()
-            .find(|rich_content| rich_content.view_id() == rich_content_view_id)
-        else {
-            return;
-        };
-
-        rich_content.set_agent_view_conversation_id(Some(conversation_id));
-        self.model
-            .lock()
-            .block_list_mut()
-            .update_agent_view_conversation_id_for_rich_content(
-                rich_content_view_id,
-                Some(conversation_id),
-            );
     }
 }

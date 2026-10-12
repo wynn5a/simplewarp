@@ -221,6 +221,26 @@ impl ConvertToExchanges for &api::Task {
             }
         }
 
+        // Exchanges that began as a passive code diff are no longer supported, so they are
+        // dropped whole rather than restored without their opening input.
+        let passive_request_ids: HashSet<&str> = self
+            .messages
+            .iter()
+            .filter(|message| {
+                matches!(
+                    &message.message,
+                    Some(api::message::Message::SystemQuery(
+                        api::message::SystemQuery {
+                            r#type: Some(api::message::system_query::Type::AutoCodeDiff(_)),
+                            ..
+                        }
+                    ))
+                )
+            })
+            .map(|message| message.request_id.as_str())
+            .filter(|request_id| !request_id.is_empty())
+            .collect();
+
         // Process messages in chronological order
         let mut current_inputs = Vec::new();
         let mut current_outputs = Vec::new();
@@ -232,12 +252,14 @@ impl ConvertToExchanges for &api::Task {
         // 2. System queries, but only if they are displayed as user queries/initiate conversations, like queries:
         //   * from the new project flow (displayed as user queries)
         //   * from the clone repository flow (displayed as user queries)
-        //   * from auto code diff queries (initiate new conversations)
         // 3. tool call results (as we also render these like inputs)
         for api_message in self.messages.iter() {
             let Some(message) = &api_message.message else {
                 continue;
             };
+            if passive_request_ids.contains(api_message.request_id.as_str()) {
+                continue;
+            }
 
             let task_id = TaskId::new(api_message.task_id.clone());
             // Check if request_id has changed - if so, create an exchange from accumulated messages
@@ -318,18 +340,12 @@ impl ConvertToExchanges for &api::Task {
                             });
                             true
                         }
-                        api::message::system_query::Type::AutoCodeDiff(auto_code_diff) => {
-                            current_inputs.push(AIAgentInput::AutoCodeDiffQuery {
-                                query: auto_code_diff.query.clone(),
-                                context: convert_input_context(query.context.as_ref()),
-                            });
-                            true
-                        }
                         // TriggerSuggestPrompt is not rendered as user input, so we don't want to include it as an input in the exchange.
                         // ResumeConversation is actually added to the task's messages as a plain UserQuery, so we don't expect to encounter it in the task's messages.
                         // FetchReviewComments backed the removed /pr-comments slash command; the
                         // proto variant is retained for back-compat but is no longer rendered.
-                        api::message::system_query::Type::ResumeConversation(_)
+                        api::message::system_query::Type::AutoCodeDiff(_)
+                        | api::message::system_query::Type::ResumeConversation(_)
                         | api::message::system_query::Type::FetchReviewComments(_)
                         | api::message::system_query::Type::GeneratePassiveSuggestions(_)
                         // TODO: Implement this for real. ZB adding this to bump proto version for unrelated API changes.

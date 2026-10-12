@@ -15210,9 +15210,6 @@ impl Workspace {
         if ai_settings.is_prompt_suggestions_enabled(app) {
             context.set.insert(flags::PROMPT_SUGGESTIONS_FLAG);
         }
-        if ai_settings.is_code_suggestions_enabled(app) {
-            context.set.insert(flags::CODE_SUGGESTIONS_FLAG);
-        }
 
         if *ai_settings.include_agent_commands_in_history.value() {
             context

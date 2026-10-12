@@ -61,7 +61,7 @@ impl FindableRichContentView for AIBlock {
         // initial conversation query) so highlight ranges line up with the rendered text.
         let initial_conversation_query = BlocklistAIHistoryModel::as_ref(ctx)
             .conversation(&self.client_ids.conversation_id)
-            .and_then(|conversation| conversation.initial_user_query());
+            .and_then(|conversation| conversation.initial_query());
         for (i, input) in self.model.inputs_to_render(ctx).iter().enumerate() {
             if let Some(query) = input.display_user_query(initial_conversation_query.as_ref()) {
                 for find_match_range in compute_find_matches(&query, options).into_iter() {

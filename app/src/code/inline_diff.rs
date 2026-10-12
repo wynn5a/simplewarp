@@ -247,7 +247,7 @@ impl DiffViewer for InlineDiffView {
             editor.set_vertical_scrollbar_appearance(mode.scrollbar_appearance());
             editor.set_horizontal_scrollbar_appearance(mode.scrollbar_appearance());
             editor.set_interaction_state(interaction_state, ctx);
-            editor.set_show_nav_bar(mode.show_nav_bar());
+            editor.set_show_nav_bar(true);
             editor.set_nav_bar_behavior(NavBarBehavior::NotClosable, ctx);
         });
     }

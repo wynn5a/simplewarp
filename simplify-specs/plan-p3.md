@@ -321,6 +321,7 @@ Rounds landed on master, each verified with format, `clippy --workspace --all-ta
 | §3 fake quota | `8d08071a9` | `AIRequestUsageModel` + its always-false guards, "requires AI credits" tooltip, credits-based default-model switch modal in the agent settings page |
 | §4.10 MCP (Phase 3b) | `58923a77d` | `crates/local_inference` now reads `Request::mcp_context`: each connected server tool is offered to the model as `mcp_<server id>_<tool>` and run as `CallMCPTool`; one `read_mcp_resource` tool reads resources (the prompt lists them). `CallMCPToolResult`/`ReadMCPResourceResult` are rendered back to the model (text kept, images/binary named); history calls keep the same name. |
 | §5 flags | (this commit) | Deleted: `SequentialStorage` (reversed grid storage is now the only layout), `MaximizeFlatStorage`, `InBandGeneratorsForSSH`, `RecordPtyThroughput` (+ `local_tty/recorder.rs`), `LSPAsATool` (+ the LSP repo watcher). Enabled in the `simplewarp` set: `NldPromptHistoryMatch`, `CycleNextCommandSuggestion`, `PartialNextCommandSuggestions`, `ResizeFix`, `SelectablePrompt`, `AgentViewPromptChip`, `AIContextMenuCommands`, `CommandCorrectionsHistoryRule`, `AlacrittySettingsImport`, `McpJsonTreeView`, `BoxDrawingGlyphs`, `RemoveAutosuggestionDuringTabCompletions`, `FileGlobV2Warnings`, `RememberFastForwardState`, `RestorePromptOnInlineModelSelectorSearch`, `ToggleBootstrapBlock`, `CodeReviewScrollPreservation`, `SshDragAndDrop`, `Projects`, and `DragTabsToWindows` (macOS/Windows). Kept off on purpose: `RunGeneratorsWithCmdExe`, `MSYS2Shells` (Windows-only, unverifiable here). |
+| Passive code diff | (this commit) | `AIAgentInput::AutoCodeDiffQuery`, `AIRequestType`/`PassiveRequestType`, `is_entirely_passive*`/`is_passive_conversation`, `DisplayMode::InlineBanner` and the whole passive banner of `CodeDiffView` (speedbump, iterate/accept-and-continue, dismiss, scroll-to-expand), `CodeDiffAction`/`TryHandlePassiveCodeDiff`, the passive keybinding context flag, `request_follow_up_after_actions`, the `show_code_suggestion_speedbump` and `code_suggestions_enabled_internal` settings (+ the hidden "Suggested Code Banners" toggle). Restoring a saved conversation now drops whole exchanges that began as an `AutoCodeDiff` system query (test added); the proto types in persisted/saved data are untouched. |
 
 ### Findings that change earlier claims
 
@@ -347,8 +348,7 @@ Rounds landed on master, each verified with format, `clippy --workspace --all-ta
   pass.
 - R3: `JsonObjectType` tombstone variants (`CloudEnvironment`/`ScheduledAmbientAgent`/
   `CloudAgentConfig`) deliberately kept so old object-metadata rows still parse.
-- R4.8, R4.10; the passive code-diff cluster (`AutoCodeDiffQuery`, hidden/"entirely passive"
-  exchanges) is only restored from saved conversations now and could be the next cut.
+- R4.8, R4.10.
 - `mcp_context` Phase 3b and the constant-false flags: done (see the two rows above). The LSP crate
   still carries the unused `did_change_watched_files` / `WatchedFilesRegistry` path that only the
   deleted repo watcher fed; it can go with a later LSP pass. No live app launch or integration

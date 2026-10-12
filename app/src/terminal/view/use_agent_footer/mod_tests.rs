@@ -10,9 +10,7 @@ use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{AIAgentInput, ServerOutputId, UserQueryMode};
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::block::cli_controller::UserTakeOverReason;
-use crate::ai::blocklist::model::{
-    AIBlockModel, AIBlockOutputStatus, AIRequestType, OutputStatusUpdateCallback,
-};
+use crate::ai::blocklist::model::{AIBlockModel, AIBlockOutputStatus, OutputStatusUpdateCallback};
 use crate::ai::blocklist::{AIBlock, ClientIdentifiers};
 use crate::ai::llms::LLMId;
 use crate::features::FeatureFlag;
@@ -73,10 +71,6 @@ impl AIBlockModel for PendingAIBlockModel {
         _callback: OutputStatusUpdateCallback<AIBlock>,
         _ctx: &mut ViewContext<AIBlock>,
     ) {
-    }
-
-    fn request_type(&self, _app: &AppContext) -> AIRequestType {
-        AIRequestType::Active
     }
 }
 

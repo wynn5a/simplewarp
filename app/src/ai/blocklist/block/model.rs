@@ -13,33 +13,6 @@ use crate::ai::agent::{
 };
 use crate::ai::llms::LLMId;
 
-#[derive(Debug, Clone, Copy)]
-pub enum PassiveRequestType {
-    CodeDiff,
-}
-
-/// The type of request that triggered the AI block.
-#[derive(Default, Debug, Clone, Copy)]
-pub enum AIRequestType {
-    #[default]
-    Active,
-    Passive(PassiveRequestType),
-}
-
-impl AIRequestType {
-    pub fn is_active(&self) -> bool {
-        matches!(self, AIRequestType::Active)
-    }
-
-    pub fn is_passive(&self) -> bool {
-        matches!(self, AIRequestType::Passive(_))
-    }
-
-    pub fn is_passive_code_diff(&self) -> bool {
-        matches!(self, AIRequestType::Passive(PassiveRequestType::CodeDiff))
-    }
-}
-
 /// UI-layer representation of agent output to be rendered in an [`AIBlock`].
 #[derive(Debug, Clone)]
 pub enum AIBlockOutputStatus {
@@ -178,9 +151,6 @@ pub trait AIBlockModel {
         callback: OutputStatusUpdateCallback<Self::View>,
         ctx: &mut ViewContext<Self::View>,
     );
-
-    /// Returns the type of request that triggered the AI block.
-    fn request_type(&self, app: &AppContext) -> AIRequestType;
 }
 
 #[cfg(any(test, feature = "integration_tests"))]
@@ -191,7 +161,6 @@ pub mod testing {
     use crate::ai::agent::conversation::AIConversationId;
     use crate::ai::agent::{AIAgentInput, AIAgentOutput, ServerOutputId, Shared};
     use crate::ai::blocklist::AIBlock;
-    use crate::ai::blocklist::model::{AIRequestType, PassiveRequestType};
     use crate::ai::llms::LLMId;
 
     /// The output shape a [`FakeAIBlockModel`] reports, mirroring the streaming,
@@ -264,18 +233,6 @@ pub mod testing {
             _callback: OutputStatusUpdateCallback<AIBlock>,
             _ctx: &mut ViewContext<AIBlock>,
         ) {
-        }
-
-        fn request_type(&self, app: &AppContext) -> AIRequestType {
-            let inputs = self.inputs_to_render(app);
-            if inputs
-                .iter()
-                .any(|input| input.auto_code_diff_query().is_some())
-            {
-                AIRequestType::Passive(PassiveRequestType::CodeDiff)
-            } else {
-                AIRequestType::Active
-            }
         }
     }
 }

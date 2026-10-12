@@ -1629,14 +1629,6 @@ impl BlockList {
         }
     }
 
-    pub fn refresh_heights_for_loaded_passive_code_diff(
-        &mut self,
-        passive_code_diff_block_id: EntityId,
-    ) {
-        self.mark_rich_content_dirty(passive_code_diff_block_id);
-        self.update_blocks_and_sumtree(None, None, |_| {}, |_| {});
-    }
-
     /// Associates the given blocks with a conversation, making them visible in that conversation's agent view.
     /// Returns a Vec of (block_id, visibility) for blocks that were found.
     pub fn associate_blocks_with_conversation<'a>(

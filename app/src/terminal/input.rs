@@ -152,9 +152,7 @@ use crate::ai::predict::next_command_model::{
     NextCommandModel, NextCommandModelEvent, NextCommandSuggestionState, ZeroStateSuggestionInfo,
     is_command_valid, is_next_command_enabled,
 };
-use crate::ai::predict::prompt_suggestions::{
-    has_pending_passive_code_diff, is_accept_prompt_suggestion_bound_to_ctrl_enter,
-};
+use crate::ai::predict::prompt_suggestions::is_accept_prompt_suggestion_bound_to_ctrl_enter;
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::appearance::{Appearance, AppearanceEvent};
 use crate::channel::{Channel, ChannelState};
@@ -236,7 +234,6 @@ use crate::terminal::model::session::shell_quote_arg;
 use crate::terminal::package_installers::command_at_cursor_has_common_package_installer_prefix;
 use crate::terminal::prompt_render_helper::should_render_ps1_prompt;
 use crate::terminal::universal_developer_input::AtContextMenuDisabledReason;
-use crate::terminal::view::CodeDiffAction;
 use crate::terminal::view::inline_banner::PromptSuggestionsView;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
@@ -843,7 +840,6 @@ pub enum Event {
     OpenFilesPalette {
         source: PaletteSource,
     },
-    TryHandlePassiveCodeDiff(CodeDiffAction),
     ShowToast {
         message: String,
         flavor: ToastFlavor,
@@ -904,7 +900,6 @@ pub enum InputAction {
     CycleNextCommandSuggestion,
 
     /// A passive code diff action.
-    TryHandlePassiveCodeDiff(CodeDiffAction),
 
     /// Clears the AI context menu search query back to the @ character and resets menu state.
     ClearAndResetAIContextMenuQuery,
@@ -1739,15 +1734,6 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings(slash_command_bindings);
 
-    // Fixed bindings for passive code diffs
-    app.register_fixed_bindings([FixedBinding::new(
-        cmd_or_ctrl_shift("e"),
-        InputAction::TryHandlePassiveCodeDiff(CodeDiffAction::Edit),
-        id!("Input")
-            & id!(flags::CODE_SUGGESTIONS_FLAG)
-            & id!(flags::PASSIVE_CODE_DIFF_KEYBINDINGS_ENABLED),
-    )]);
-
     if FeatureFlag::AgentView.is_enabled() {
         app.register_fixed_bindings([FixedBinding::new(
             "shift-?",
@@ -1992,8 +1978,6 @@ impl Input {
             // Clones used in render_decorator_elements closure below.
             let prompt_render_helper_clone = prompt_render_helper.clone();
             let model_clone = model.clone();
-            // Clone used in keymap_context_modifier closure below.
-            let terminal_model_for_keymap_context = model.clone();
             let has_prompt_suggestion_banner_for_keymap = has_prompt_suggestion_banner.clone();
             let input_render_state_model_handle_clone = input_render_state_model_handle.clone();
 
@@ -2134,15 +2118,11 @@ impl Input {
                             .insert(flags::TERMINAL_INPUT_PAGE_KEYS_HANDLED_BY_INPUT);
 
                         // When ctrl-enter is bound to accepting prompt suggestions and there's
-                        // a pending passive code diff, suggested prompt, or prompt suggestion
-                        // banner, set a flag so the editor's ctrl-enter binding doesn't match
-                        // (allowing the terminal-level binding to handle it).
+                        // a prompt suggestion banner, set a flag so the editor's ctrl-enter
+                        // binding doesn't match (allowing the terminal-level binding to handle
+                        // it).
                         if is_accept_prompt_suggestion_bound_to_ctrl_enter(app)
-                            && (has_pending_passive_code_diff(
-                                &terminal_model_for_keymap_context.lock(),
-                                app,
-                            ) || has_prompt_suggestion_banner_for_keymap
-                                .load(Ordering::Relaxed))
+                            && has_prompt_suggestion_banner_for_keymap.load(Ordering::Relaxed)
                         {
                             context
                                 .set
@@ -6915,11 +6895,6 @@ impl Input {
             self.cycle_next_command_suggestion(ctx);
         } else {
             self.editor.update(ctx, |editor, ctx| editor.move_down(ctx));
-
-            // Try to expand the most recent passive code diff if it exists.
-            ctx.emit(Event::TryHandlePassiveCodeDiff(
-                CodeDiffAction::ScrollToExpand,
-            ));
         }
     }
 
@@ -11963,9 +11938,6 @@ impl TypedActionView for Input {
                     ctx,
                 );
             }
-            InputAction::TryHandlePassiveCodeDiff(action) => {
-                ctx.emit(Event::TryHandlePassiveCodeDiff(action.clone()));
-            }
             InputAction::ToggleAgentViewShortcuts => {
                 self.agent_shortcut_view_model.update(ctx, |model, ctx| {
                     if model.is_shortcut_view_open() {
@@ -12164,10 +12136,6 @@ impl View for Input {
             ctx.set.insert(flags::AI_INPUT_AUTODETECTION_FLAG);
         }
 
-        if ai_settings.is_code_suggestions_enabled(app) {
-            ctx.set.insert(flags::CODE_SUGGESTIONS_FLAG);
-        }
-
         if let Some(workflow) = self.workflows_state.selected_workflow_state.clone()
             && workflow.should_show_more_info_view
         {
@@ -12195,7 +12163,7 @@ impl View for Input {
 
         if BlocklistAIHistoryModel::as_ref(app)
             .all_live_conversations_for_terminal_surface(self.terminal_view_id)
-            .any(|conversation| conversation.initial_user_query().is_some())
+            .any(|conversation| conversation.initial_query().is_some())
         {
             ctx.set.insert("ActiveAIConversationHasHistory");
         }
@@ -12231,21 +12199,6 @@ impl View for Input {
             ctx.set.insert("TerminalView_EmptyBlockList");
         } else {
             ctx.set.insert("TerminalView_NonEmptyBlockList");
-        }
-
-        // Only enable keybindings for passive code diffs when there is one pending in the
-        // blocklist that is undismissed (i.e. keybindings are shown in the banner/block).
-        // This is to prevent any keybinding conflicts (with actions such as split pane
-        // down on non-Macs).
-        let has_undismissed_passive_code_diff = model_lock
-            .block_list()
-            .last_non_hidden_ai_block_handle(app)
-            .is_some_and(|ai_block| {
-                let block = ai_block.as_ref(app);
-                block.is_passive_conversation() && block.find_undismissed_code_diff(app).is_some()
-            });
-        if has_undismissed_passive_code_diff {
-            ctx.set.insert(flags::PASSIVE_CODE_DIFF_KEYBINDINGS_ENABLED);
         }
 
         for (_, command) in self.slash_command_data_source.as_ref(app).active_commands() {

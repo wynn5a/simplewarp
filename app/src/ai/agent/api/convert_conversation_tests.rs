@@ -1458,3 +1458,65 @@ fn test_handoff_rehydration_system_query_is_hidden() {
         "Agent output should still be rendered"
     );
 }
+
+fn restored_message(id: &str, request_id: &str, message: api::message::Message) -> api::Message {
+    api::Message {
+        fetched_memories: vec![],
+        id: id.to_string(),
+        task_id: "task1".to_string(),
+        server_message_data: "".to_string(),
+        citations: vec![],
+        message: Some(message),
+        request_id: request_id.to_string(),
+        timestamp: None,
+    }
+}
+
+#[test]
+fn test_into_exchanges_drops_passive_code_diff_exchanges() {
+    let agent_output = |text: &str| {
+        api::message::Message::AgentOutput(api::message::AgentOutput {
+            text: text.to_string(),
+        })
+    };
+    let messages = vec![
+        restored_message(
+            "passive_query",
+            "req1",
+            api::message::Message::SystemQuery(api::message::SystemQuery {
+                r#type: Some(api::message::system_query::Type::AutoCodeDiff(
+                    api::message::AutoCodeDiff {
+                        query: "fix the build".to_string(),
+                    },
+                )),
+                ..Default::default()
+            }),
+        ),
+        restored_message("passive_output", "req1", agent_output("a suggested diff")),
+        restored_message(
+            "user_query",
+            "req2",
+            api::message::Message::UserQuery(api::message::UserQuery {
+                query: "real question".to_string(),
+                ..Default::default()
+            }),
+        ),
+        restored_message("real_output", "req2", agent_output("real answer")),
+    ];
+    let task = api::Task {
+        id: "task1".to_string(),
+        messages,
+        dependencies: None,
+        description: "".to_string(),
+        summary: "".to_string(),
+        server_data: "".to_string(),
+    };
+
+    let exchanges = task.into_exchanges();
+
+    assert_eq!(exchanges.len(), 1, "the passive exchange is dropped");
+    assert!(matches!(
+        exchanges[0].input.as_slice(),
+        [AIAgentInput::UserQuery { query, .. }] if query == "real question"
+    ));
+}

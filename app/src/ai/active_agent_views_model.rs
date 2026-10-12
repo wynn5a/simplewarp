@@ -378,15 +378,11 @@ impl ActiveAgentViewsModel {
         for handles in self.agent_view_handles.values() {
             if let Some(controller) = handles.controller.upgrade(ctx) {
                 let state = controller.as_ref(ctx).agent_view_state();
-                if let Some(conversation_id) = state.active_conversation_id() {
-                    let Some(conversation) = history_model.conversation(&conversation_id) else {
-                        continue;
-                    };
-                    if !conversation.is_entirely_passive()
-                        && state.was_conversation_modified_since_opening(history_model)
-                    {
-                        ids.insert(conversation_id);
-                    }
+                if let Some(conversation_id) = state.active_conversation_id()
+                    && history_model.conversation(&conversation_id).is_some()
+                    && state.was_conversation_modified_since_opening(history_model)
+                {
+                    ids.insert(conversation_id);
                 }
             }
         }

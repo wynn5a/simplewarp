@@ -23,7 +23,6 @@ pub mod text {
     pub fn format_input<W: Write>(input: &AIAgentInput, w: &mut W) -> io::Result<()> {
         match input {
             AIAgentInput::UserQuery { .. }
-            | AIAgentInput::AutoCodeDiffQuery { .. }
             | AIAgentInput::CreateNewProject { .. }
             | AIAgentInput::CloneRepository { .. }
             | AIAgentInput::InitProjectRules { .. }
@@ -555,7 +554,6 @@ pub mod json {
             match input {
                 // Do not include the user query, since it's already provided as input to the agent.
                 AIAgentInput::UserQuery { .. }
-                | AIAgentInput::AutoCodeDiffQuery { .. }
                 | AIAgentInput::CreateNewProject { .. }
                 | AIAgentInput::CloneRepository { .. }
                 | AIAgentInput::InitProjectRules { .. }

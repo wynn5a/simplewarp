@@ -7,7 +7,7 @@ pub mod input_context;
 mod pending_response_streams;
 pub mod response_stream;
 mod slash_command;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use ai::skills::{ParsedSkill, SkillPathOrigin, SkillReference};
@@ -35,11 +35,10 @@ use crate::ai::agent::api::{self, ServerConversationToken};
 use crate::ai::agent::conversation::{AIConversation, AIConversationId, ConversationStatus};
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
-    AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment, AIAgentContext,
-    AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus, AIIdentifiers, CancellationOutcome,
-    CancellationReason, EntrypointType, FinishedAIAgentOutput, RenderableAIError, RequestMetadata,
-    RunningCommand, StaticQueryType, TransientNetworkErrorKind, UserQueryMode,
-    extract_user_query_mode,
+    AIAgentActionResult, AIAgentAttachment, AIAgentContext, AIAgentExchangeId, AIAgentInput,
+    AIAgentOutputStatus, AIIdentifiers, CancellationOutcome, CancellationReason, EntrypointType,
+    FinishedAIAgentOutput, RenderableAIError, RequestMetadata, RunningCommand, StaticQueryType,
+    TransientNetworkErrorKind, UserQueryMode, extract_user_query_mode,
 };
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::llms::{LLMId, LLMPreferences};
@@ -264,8 +263,6 @@ pub struct BlocklistAIController {
     /// Pending auto-resume tasks that are waiting for network connectivity.
     /// These should be cancelled when a new request is sent for the same conversation.
     pending_auto_resume_handles: HashMap<AIConversationId, SpawnedFutureHandle>,
-    /// Passive conversations explicitly requested to follow up after actions complete.
-    pending_passive_follow_ups: HashSet<AIConversationId>,
 }
 
 enum InputQueryType {
@@ -353,36 +350,20 @@ impl BlocklistAIController {
             }
 
             let history_model = BlocklistAIHistoryModel::handle(ctx);
-            let Some(is_entirely_passive_code_diff) = history_model
-                .as_ref(ctx)
-                .conversation(conversation_id)
-                .map(|conversation| conversation.is_entirely_passive_code_diff())
-            else {
-                return;
-            };
-
             let Some(finished_action_results) =
                 action_model.get_finished_action_results(*conversation_id)
             else {
                 return;
             };
-            let is_passive_code_diff = is_entirely_passive_code_diff
-                && finished_action_results.last().is_some_and(|result| {
-                    matches!(result.result, AIAgentActionResultType::RequestFileEdits(_))
-                });
-            let has_manual_follow_up = me.pending_passive_follow_ups.contains(conversation_id);
-
             // A `Succeeded` cancellation (e.g. an optimistic long-running-command
             // completion or a revert) is itself the terminal result, so it neither
             // triggers a follow-up nor counts as a cancellation.
             let treat_as_success =
                 matches!(cancellation_outcome, Some(CancellationOutcome::Succeeded));
-            let should_trigger_follow_up_request = (!is_passive_code_diff
-                && !treat_as_success
+            let should_trigger_follow_up_request = !treat_as_success
                 && finished_action_results
                     .iter()
-                    .any(|result| result.result.should_trigger_request_upon_completion()))
-                || has_manual_follow_up;
+                    .any(|result| result.result.should_trigger_request_upon_completion());
             if !should_trigger_follow_up_request {
                 if matches!(
                     cancellation_outcome,
@@ -404,16 +385,7 @@ impl BlocklistAIController {
                     // (It would otherwise remain `InProgress`, which would be correct, since we'd be
                     // immediately triggering a follow-up request).
                     //
-                    // In practice, the only time where this codepath gets triggered is upon completion
-                    // of a passive code diff action, where we don't autosend the next request.
-                    //
-                    // With passive code diffs, its most appropriate to mark the conversation
-                    // successful if the passive diff was accepted. In practice, there's only ever
-                    // one RequestFileEdits action, so `finished_action_results` at this point
-                    // should only have a single element.
-                    //
-                    // If the user does end up following up on the passive diff-originated conversation,
-                    // the status will once again be updated to `InProgress`.
+                    // If the user follows up later, the status is updated to `InProgress` again.
                     let updated_conversation_status = if finished_action_results
                         .iter()
                         .all(|result| result.result.is_successful())
@@ -488,7 +460,6 @@ impl BlocklistAIController {
             terminal_surface_id,
             ambient_agent_task_id: None,
             pending_auto_resume_handles: HashMap::new(),
-            pending_passive_follow_ups: HashSet::new(),
         }
     }
 
@@ -1047,41 +1018,6 @@ impl BlocklistAIController {
         slash_command.send_request(self, Some(queued_query_id), conversation_id, ctx);
     }
 
-    /// Mark a conversation to follow up after its actions complete and attempt to send immediately
-    /// if results are already available.
-    pub fn request_follow_up_after_actions(
-        &mut self,
-        conversation_id: AIConversationId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.pending_passive_follow_ups.insert(conversation_id);
-
-        if self
-            .in_flight_response_streams
-            .has_active_stream_for_conversation(conversation_id, ctx)
-        {
-            return;
-        }
-
-        let has_pending_actions = self
-            .action_model
-            .as_ref(ctx)
-            .get_pending_actions_for_conversation(&conversation_id)
-            .next()
-            .is_some();
-        if has_pending_actions {
-            return;
-        }
-
-        let finished_action_results = self
-            .action_model
-            .as_ref(ctx)
-            .get_finished_action_results(conversation_id);
-        if finished_action_results.is_some_and(|results| !results.is_empty()) {
-            self.send_follow_up_for_conversation(conversation_id, ctx);
-        }
-    }
-
     /// Sends a custom AI input, building context from the current session.
     pub fn send_ai_input_with_context(
         &mut self,
@@ -1146,8 +1082,6 @@ impl BlocklistAIController {
             /*is_queued_prompt*/ false,
             ctx,
         );
-
-        self.pending_passive_follow_ups.remove(&conversation_id);
     }
 
     pub fn resume_conversation(
@@ -1260,7 +1194,6 @@ impl BlocklistAIController {
             .is_autoexecute_any_action();
         let history_model = BlocklistAIHistoryModel::handle(ctx);
         let id = history_model.update(ctx, |history_model, ctx| {
-            // We don't mark passive conversations as "the active conversation" (at least when they first appear).
             history_model.start_new_conversation(
                 self.terminal_surface_id,
                 is_autoexecute_override,
@@ -1330,13 +1263,6 @@ impl BlocklistAIController {
         {
             handle.abort();
         }
-
-        // Passive background requests never auto-resume: a resume would issue a fresh
-        // turn on a conversation the user never sees.
-        let is_passive_request = request_input
-            .all_inputs()
-            .any(|input| input.is_passive_request());
-        let can_attempt_resume_on_error = can_attempt_resume_on_error && !is_passive_request;
 
         // Make sure there's no existing response stream for the conversation. If
         // there is, something has gone wrong.
@@ -1449,15 +1375,13 @@ impl BlocklistAIController {
             model_id: request_params.model.clone(),
             stream_id: response_stream_id.clone(),
         });
-        if !is_passive_request {
-            history_model.update(ctx, |history_model, ctx| {
-                history_model.mark_active_conversation_id(
-                    conversation_data.id,
-                    self.terminal_surface_id,
-                    ctx,
-                );
-            });
-        }
+        history_model.update(ctx, |history_model, ctx| {
+            history_model.mark_active_conversation_id(
+                conversation_data.id,
+                self.terminal_surface_id,
+                ctx,
+            );
+        });
 
         // Trigger a snapshot save to persist the agent view state when a user query is sent.
         // This ensures the agent view is restored if the app restarts.
@@ -1855,7 +1779,6 @@ impl BlocklistAIController {
                     return;
                 };
                 let new_exchange_ids = conversation.new_exchange_ids_for_response(&stream_id);
-                let mut was_passive_request = false;
                 let mut is_any_exchange_unfinished = false;
                 let mut actions_to_queue = vec![];
 
@@ -1864,7 +1787,6 @@ impl BlocklistAIController {
                         log::warn!("Exchange not found.");
                         return;
                     };
-                    was_passive_request |= exchange.has_passive_request();
                     is_any_exchange_unfinished |= !exchange.output_status.is_finished();
 
                     if let AIAgentOutputStatus::Finished {
@@ -1887,12 +1809,10 @@ impl BlocklistAIController {
                         );
                     });
 
-                    if !was_passive_request
-                        && matches!(
-                            stream_cancellation.reason.conversation_outcome(),
-                            CancellationOutcome::Cancelled
-                        )
-                    {
+                    if matches!(
+                        stream_cancellation.reason.conversation_outcome(),
+                        CancellationOutcome::Cancelled
+                    ) {
                         self.set_input_mode_for_cancellation(ctx);
                     }
                 } else if is_any_exchange_unfinished {

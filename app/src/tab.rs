@@ -1024,7 +1024,7 @@ impl<'a> TabComponent<'a> {
             });
         }
 
-        if conversation.is_empty() || conversation.is_entirely_passive() {
+        if conversation.is_empty() {
             return None;
         }
 
@@ -1095,11 +1095,6 @@ impl<'a> TabComponent<'a> {
             .map(|view| view.id())?;
         let ai_history_model = BlocklistAIHistoryModel::as_ref(ctx);
         let conversation = ai_history_model.active_conversation(terminal_view_id)?;
-
-        // Don't show tooltip for passive conversations
-        if conversation.is_entirely_passive() {
-            return None;
-        }
 
         let conversation_title = conversation.title()?;
         let trimmed_title = conversation_title.trim().to_owned();

@@ -13,7 +13,6 @@ use crate::ai::agent::{
     ServerOutputId, Shared,
 };
 use crate::ai::blocklist::history_model;
-use crate::ai::blocklist::model::{AIRequestType, PassiveRequestType};
 use crate::ai::llms::LLMId;
 
 /// Standard [`AIBlock`] impl for live outputs corresponding to an `OutputStream`.
@@ -207,17 +206,5 @@ where
                 }
             }
         });
-    }
-
-    fn request_type(&self, app: &AppContext) -> AIRequestType {
-        if self
-            .exchange(app)
-            .map(|exchange| exchange.has_passive_code_diff())
-            .unwrap_or(false)
-        {
-            AIRequestType::Passive(PassiveRequestType::CodeDiff)
-        } else {
-            AIRequestType::Active
-        }
     }
 }

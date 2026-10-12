@@ -574,9 +574,8 @@ impl TerminalView {
             .as_ref(ctx)
             .selected_conversation(ctx)
             .filter(|conversation| {
-                !conversation.is_entirely_passive()
-                    && (conversation.title().is_some_and(|title| !title.is_empty())
-                        || FeatureFlag::AgentView.is_enabled())
+                conversation.title().is_some_and(|title| !title.is_empty())
+                    || FeatureFlag::AgentView.is_enabled()
             })
     }
 

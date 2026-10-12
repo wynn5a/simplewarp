@@ -116,8 +116,6 @@ pub enum AgentViewEntryOrigin {
     AgentRequestedNewConversation,
     /// Entered agent view via accepting a prompt suggestion.
     AcceptedPromptSuggestion,
-    /// Entered agent view via accepting a passive code diff.
-    AcceptedPassiveCodeDiff,
     /// Entered agent view by starting conversation with an inline code review submission.
     InlineCodeReview,
     /// Entered agent view via the CLI (e.g. `warp agent run`).
@@ -163,7 +161,6 @@ pub enum AgentViewEntryOrigin {
     // launched, those callsites for updating the selected conversation will be removed along with
     // these variants.
     ContinueConversationButton,
-    ViewPassiveCodeDiffDetails,
     ResumeConversationButton,
 }
 
