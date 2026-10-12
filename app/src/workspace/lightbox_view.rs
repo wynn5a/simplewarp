@@ -88,21 +88,6 @@ impl LightboxView {
         self.start_asset_loads(ctx);
     }
 
-    /// Update a single image at the given index without replacing the full list.
-    pub fn update_image_at(
-        &mut self,
-        index: usize,
-        image: LightboxImage,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if let Some(slot) = self.params.images.get_mut(index) {
-            if let lightbox::LightboxImageSource::Resolved { ref asset_source } = image.source {
-                Self::start_asset_load(asset_source, ctx);
-            }
-            *slot = image;
-        }
-    }
-
     /// Kick off asset loads for all `Resolved` images and schedule re-renders.
     fn start_asset_loads(&self, ctx: &mut ViewContext<Self>) {
         for img in &self.params.images {

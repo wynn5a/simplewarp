@@ -54,7 +54,7 @@ use crate::settings::ai::AISettings;
 use crate::settings::{
     AISettingsChangedEvent, AliasExpansionSettings, AppEditorSettings, CodeEditorLineNumberMode,
     CodeSettings, CtrlTabBehavior, DEFAULT_QUAKE_MODE_SIZE_PERCENTAGES, DefaultSessionMode,
-    ExtraMetaKeys, GPUSettings, GlobalHotkeyMode, InputSettings, InputSettingsChangedEvent,
+    GPUSettings, GlobalHotkeyMode, InputSettings, InputSettingsChangedEvent,
     QUAKE_WINDOW_AUTOHIDE_SUPPORTED, QuakeModeSettings, ScrollSettings, ScrollSettingsChangedEvent,
     SelectionSettings, SshSettings, TabBehavior,
 };
@@ -779,7 +779,6 @@ pub enum FeaturesPageAction {
     QuakeEditorSetHeightPercentage,
     QuakeEditorResetWidthHeight,
     QuakeEditorTogglePinWindow,
-    SetExtraMetaKeys(ExtraMetaKeys),
     ToggleLeftMetaKey,
     ToggleRightMetaKey,
     ToggleMouseReporting,
@@ -788,8 +787,6 @@ pub enum FeaturesPageAction {
     ToggleFocusReporting,
     ToggleLongRunningNotifications,
     SetLongRunningNotificationThreshold,
-    /// Legacy. To be combined with `ToggleNeedsAttentionNotifications` when desktop notifs are unflagged.
-    TogglePasswordPromptNotifications,
     ToggleAgentTaskCompletedNotifications,
     ToggleNeedsAttentionNotifications,
     ToggleNotificationSound,
@@ -1161,15 +1158,6 @@ impl TypedActionView for FeaturesPageView {
                         )
                 });
             }
-            SetExtraMetaKeys(extra_meta_keys) => {
-                KeysSettings::handle(ctx).update(ctx, |keys_settings, ctx| {
-                    report_if_error!(
-                        keys_settings
-                            .extra_meta_keys
-                            .set_value(*extra_meta_keys, ctx)
-                    )
-                });
-            }
             ToggleLeftMetaKey => {
                 let current_meta_keys = *KeysSettings::as_ref(ctx).extra_meta_keys;
                 KeysSettings::handle(ctx).update(ctx, |keys_settings, ctx| {
@@ -1256,21 +1244,6 @@ impl TypedActionView for FeaturesPageView {
                         }
                     });
                 }
-            }
-            TogglePasswordPromptNotifications => {
-                let current_settings = SessionSettings::as_ref(ctx).notifications.value().clone();
-                let is_password_prompt_enabled = !current_settings.is_password_prompt_enabled;
-
-                SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    let new_settings = NotificationsSettings {
-                        is_password_prompt_enabled,
-                        ..current_settings
-                    };
-                    if let Err(e) = settings.notifications.set_value(new_settings, ctx) {
-                        report_error!(e.context("Error persisting notifications setting"));
-                    }
-                });
-                ctx.notify();
             }
             ToggleAgentTaskCompletedNotifications => {
                 let current_settings = SessionSettings::as_ref(ctx).notifications.value().clone();

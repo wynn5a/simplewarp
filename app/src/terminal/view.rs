@@ -166,9 +166,8 @@ use crate::ai::agent::redaction::redact_secrets;
 use crate::ai::agent::{
     AIAgentActionId, AIAgentActionType, AIAgentCitation, AIAgentContext, AIAgentExchangeId,
     AIAgentInput, AIAgentOutputStatus, AIAgentPtyWriteMode, AIAgentTextSection,
-    AgentReviewCommentBatch, CancellationReason, CurrentHead, DiffBase,
-    FinishedAIAgentOutput, PassiveSuggestionTrigger, RenderableAIError, ServerOutputId,
-    ShellCommandCompletedTrigger,
+    AgentReviewCommentBatch, CancellationReason, CurrentHead, DiffBase, FinishedAIAgentOutput,
+    PassiveSuggestionTrigger, RenderableAIError, ServerOutputId, ShellCommandCompletedTrigger,
 };
 use crate::ai::blocklist::agent_view::{
     AgentViewController, AgentViewControllerEvent, AgentViewConversationSelection,
@@ -1076,7 +1075,6 @@ pub enum ContextMenuAction {
     /// Ask AI about the current context. Handled by blocklist AI if its feature flag is enabled and
     /// the AI assistant panel otherwise.
     AskAI(AskAISource),
-    OpenWorkflowModal,
     CopyExternalDebuggingId {
         request_id: Option<ServerOutputId>,
         conversation_id: ServerConversationToken,
@@ -1133,7 +1131,6 @@ pub enum InputContextMenuAction {
     ShowCommandSearch,
     ShowAICommandSearch,
     AskWarpAI,
-    SaveAsWorkflow,
     ToggleInputHintText,
 }
 
@@ -1178,7 +1175,6 @@ impl fmt::Debug for ContextMenuAction {
             EditAgentToolbar => f.write_str("EditAgentToolbar"),
             EditCLIAgentToolbar => f.write_str("EditCLIAgentToolbar"),
             AskAI(_) => f.write_str("AskAIAssistant"),
-            OpenWorkflowModal => f.write_str("OpenWorkflowModal"),
             CopyBlockFilteredOutputs => f.write_str("CopyBlockFilteredOutput"),
             CopyAIBlockQuery { .. } => f.write_str("CopyAIBlockPrompt"),
             CopyAIBlockOutput { .. } => f.write_str("CopyAIBlockOutput"),
@@ -1208,7 +1204,6 @@ impl fmt::Debug for InputContextMenuAction {
             ShowCommandSearch => f.write_str("CommandSearch"),
             ShowAICommandSearch => f.write_str("AICommandSearch"),
             AskWarpAI => f.write_str("AskWarpAI"),
-            SaveAsWorkflow => f.write_str("SaveAsWorkflow"),
             ToggleInputHintText => f.write_str("ToggleInputHintText"),
         }
     }
@@ -7486,13 +7481,6 @@ impl TerminalView {
         ctx.notify();
     }
 
-    fn insert_command_correction(&mut self, correction: &Correction, ctx: &mut ViewContext<Self>) {
-        self.input.update(ctx, |input, ctx| {
-            input.replace_buffer_content(correction.command.as_str(), ctx);
-            ctx.notify()
-        });
-    }
-
     fn resolve_prompt_suggestion(
         &mut self,
         resolution: PromptSuggestionResolution,
@@ -9883,13 +9871,6 @@ impl TerminalView {
         self.mark_agent_init_callout_as_shown_for_directory(&path, ctx);
 
         self.init_project(true, ctx);
-    }
-
-    fn summarize_conversation(&mut self, ctx: &mut ViewContext<Self>) {
-        self.ai_controller.update(ctx, |controller, ctx| {
-            controller
-                .send_slash_command_request(SlashCommandRequest::Summarize { prompt: None }, ctx);
-        });
     }
 
     fn init_project(
@@ -12293,21 +12274,6 @@ impl TerminalView {
         ctx.notify();
     }
 
-    fn open_workflow_modal_from_block(
-        &mut self,
-        block_index: BlockIndex,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Make the block for which we're showing the modal the only selected block.
-        self.reset_selection_to_single_block(block_index, ctx);
-        self.scroll_to_if_not_visible(block_index, ctx);
-
-        // Set the command in the modal to the command of the block.
-        if let Some(block) = self.model.lock().block_list().block_at(block_index) {
-            ctx.emit(Event::OpenWorkflowWithCommand(block.command_to_string()))
-        }
-    }
-
     fn open_workflow_modal_from_ai_generated_workflow(
         &mut self,
         workflow: Workflow,
@@ -13523,7 +13489,6 @@ impl TerminalView {
 
         self.rich_content_views.clear();
 
-
         // Clear screen will remove all blocks except the started block so insert
         // the label mouse state here to make sure this is handled.
         self.block_list_mouse_states
@@ -13768,22 +13733,6 @@ impl TerminalView {
         self.input.update(ctx, |input, ctx| {
             input.handle_action(&InputAction::ShowAiCommandSearch, ctx)
         });
-    }
-
-    fn save_as_workflow_from_input(&mut self, ctx: &mut ViewContext<Self>) {
-        let (all_current_input_text, selected_input_text) = self.input.read(ctx, |input, ctx| {
-            input.editor().read(ctx, |editor, ctx| {
-                (editor.buffer_text(ctx), editor.selected_text(ctx))
-            })
-        });
-
-        let command = if selected_input_text.is_empty() {
-            all_current_input_text
-        } else {
-            selected_input_text
-        };
-
-        self.open_workflow_modal_with_command(command, ctx);
     }
 
     fn toggle_input_hint_text(&mut self, ctx: &mut ViewContext<Self>) {
@@ -18510,7 +18459,6 @@ impl TerminalView {
             AskAI(ask_source) => {
                 self.ask_ai(ask_source, ctx);
             }
-            OpenWorkflowModal => self.open_workflow_modal(ctx),
             CopyBlockFilteredOutputs => self.context_menu_copy_filtered_block_outputs(ctx),
             CopyAIBlockQuery { ai_block_view_id } => {
                 for rich_content in self.rich_content_views.iter() {
@@ -18762,7 +18710,6 @@ impl TerminalView {
             ShowCommandSearch => self.command_search_from_input(ctx),
             AskWarpAI => self.ask_ai(&AskAISource::SelectedInputText, ctx),
             ShowAICommandSearch => self.ai_command_search_from_input(ctx),
-            SaveAsWorkflow => self.save_as_workflow_from_input(ctx),
             ToggleInputHintText => self.toggle_input_hint_text(ctx),
         }
         self.close_context_menu(ctx, false);
@@ -19833,16 +19780,7 @@ impl TypedActionView for TerminalView {
                 "Showed initialization block",
                 WarpA11yRole::TextareaRole,
             )),
-            ShowWarpifySettings => Custom(AccessibilityContent::new_without_help(
-                "Opened Warpify Settings",
-                WarpA11yRole::ButtonRole,
-            )),
-            OpenFilesPalette { .. } => Custom(AccessibilityContent::new_without_help(
-                "Opened file search palette",
-                WarpA11yRole::ButtonRole,
-            )),
-            InsertCommandCorrection { .. }
-            | BlockListContextMenu(_)
+            BlockListContextMenu(_)
             | CloseContextMenu
             | Paste
             | MiddleClickOnGrid { .. }
@@ -19893,8 +19831,7 @@ impl TypedActionView for TerminalView {
             | SetMarkedText { .. }
             | ResumeConversation
             | ForkConversationFromLastKnownGoodState
-            | ClearMarkedText
-            | StartLspServer => ActionAccessibilityContent::from_debug(),
+            | ClearMarkedText => ActionAccessibilityContent::from_debug(),
             OpenCodeInWarp { .. } => ActionAccessibilityContent::from_debug(),
             OpenInWarpBanner(action) => self.open_in_warp_banner_accessibility_content(*action),
             OpenAIBlockAttachedBlocksMenu { .. } => Custom(AccessibilityContent::new_without_help(
@@ -19940,13 +19877,11 @@ impl TypedActionView for TerminalView {
             | NotificationsErrorBanner(_)
             | OpenWorkflowModal
             | OpenWorkflowModalForAIWorkflow(_)
-            | OpenWorkflowModalForBlock(_)
             | OpenWorkflowModalWithCloudWorkflow(_)
             | AskAIAssistant { .. }
             | ToggleSnackbarInActivePane
             | SetInputModeAgent
             | SetInputModeTerminal
-            | HyperlinkClick { .. }
             | StartFileDropTarget
             | StopFileDropTarget
             | RunNativeShellCompletions { .. }
@@ -19966,8 +19901,6 @@ impl TypedActionView for TerminalView {
             | AddProjectAtCurrentDirectory
             | AgentModeSetupSpeedbumpBanner(_)
             | DismissCodeToolbeltTooltip
-            | SummarizeConversation
-            | ToggleLongRunningCommandControl
             | ToggleHideCliResponses
             | OpenConversationsPalette
             | ExitAgentView
@@ -20238,9 +20171,6 @@ impl TypedActionView for TerminalView {
                 self.notifications_discovery_banner_action(*action, ctx)
             }
             JumpToBookmark(index) => self.jump_to_bookmark(*index, ctx),
-            InsertCommandCorrection { correction } => {
-                self.insert_command_correction(correction, ctx);
-            }
             ToggleGridSecret {
                 handle,
                 show_secret,
@@ -20287,9 +20217,6 @@ impl TypedActionView for TerminalView {
             OpenWorkflowModal => self.open_workflow_modal(ctx),
             OpenWorkflowModalForAIWorkflow(workflow) => {
                 self.open_workflow_modal_from_ai_generated_workflow(workflow.clone(), ctx)
-            }
-            OpenWorkflowModalForBlock(block_index) => {
-                self.open_workflow_modal_from_block(*block_index, ctx)
             }
             OpenWorkflowModalWithCloudWorkflow(workflow_id) => {
                 self.open_workflow_modal_with_existing(*workflow_id, ctx)
@@ -20431,9 +20358,6 @@ impl TypedActionView for TerminalView {
                 }
                 ctx.notify();
             }
-            HyperlinkClick(hyperlink) => {
-                self.open_hyperlink_uri(&hyperlink.url, ctx);
-            }
             StartFileDropTarget => {
                 let Some(session) = self
                     .active_block_session_id()
@@ -20468,7 +20392,6 @@ impl TypedActionView for TerminalView {
             } => self.set_marked_text_on_terminal(marked_text, selected_range, ctx),
             ClearMarkedText => self.clear_marked_text_on_terminal(ctx),
             ShowInitializationBlock => self.show_initialization_block(),
-            ShowWarpifySettings => ctx.emit(Event::OpenSettings(SettingsSection::Warpify)),
             DeleteAttachment { index } => {
                 self.ai_context_model.update(ctx, |context_model, ctx| {
                     context_model.remove_pending_attachment(*index, ctx);
@@ -20635,7 +20558,6 @@ impl TypedActionView for TerminalView {
                 }));
             }
             InitProject => self.init_project(false, ctx),
-            SummarizeConversation => self.summarize_conversation(ctx),
             AddProjectAtCurrentDirectory => {
                 // Get the current working directory and add it as a project
                 if let Some(current_dir) = self.pwd() {
@@ -20715,7 +20637,6 @@ impl TypedActionView for TerminalView {
             PickRepoToOpen => {
                 ctx.dispatch_typed_action(&WorkspaceAction::OpenRepository { path: None });
             }
-            OpenFilesPalette { source } => ctx.emit(Event::OpenFilesPalette { source: *source }),
             DismissCodeToolbeltTooltip => {
                 CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
                     if let Err(e) = settings
@@ -20729,27 +20650,8 @@ impl TypedActionView for TerminalView {
                 });
                 ctx.notify();
             }
-            StartLspServer => {
-                self.start_lsp_server_in_active_pwd(ctx);
-            }
             OpenConversationsPalette => {
                 ctx.emit(Event::OpenConversationHistory);
-            }
-            ToggleLongRunningCommandControl => {
-                let terminal_model = self.model.lock();
-                let active_block = terminal_model.block_list().active_block();
-                if active_block.is_agent_in_control() {
-                    drop(terminal_model);
-                    self.cli_subagent_controller.update(ctx, |controller, ctx| {
-                        controller.switch_control_to_user(UserTakeOverReason::Manual, ctx);
-                    });
-                } else if active_block.is_eligible_for_agent_handoff() {
-                    drop(terminal_model);
-                    self.cli_subagent_controller.update(ctx, |controller, ctx| {
-                        controller.handoff_active_command_control_to_agent(ctx);
-                    });
-                }
-                ctx.notify();
             }
             ToggleHideCliResponses => {
                 self.cli_subagent_controller.update(ctx, |controller, ctx| {

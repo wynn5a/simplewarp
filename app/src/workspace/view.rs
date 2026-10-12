@@ -107,8 +107,8 @@ use super::util::{
 };
 use super::{ActiveSession, TabBarDropTargetData, TabBarLocation, WorkspaceRegistry, util};
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
+use crate::ai::agent::AIAgentInput;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
-use crate::ai::agent::{AIAgentInput, EntrypointType};
 use crate::ai::agent_management::AgentManagementEvent;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::agent_view::agent_input_footer::editor::AgentToolbarEditorMode;
@@ -188,7 +188,6 @@ use crate::search::command_palette::view::{
 use crate::search::command_search::searcher::{AcceptedHistoryItem, CommandSearchItemAction};
 use crate::search::command_search::settings::CommandSearchSettings;
 use crate::search::command_search::view::{CommandSearchEvent, CommandSearchView};
-use crate::search::slash_command_menu::static_commands::commands;
 use crate::search::{self, QueryFilter};
 use crate::server::cloud_objects::update_manager::{UpdateManager, UpdateManagerEvent};
 use crate::server::ids::{ObjectUid, SyncId};
@@ -2689,26 +2688,6 @@ impl Workspace {
                     .lock()
                     .is_conversation_transcript_viewer()
             })
-    }
-
-    /// Add and focus a new terminal pane in AI mode in a new tab.
-    fn add_terminal_tab_in_ai_mode(
-        &mut self,
-        zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.add_new_session_tab_internal_with_default_session_mode_behavior(
-            NewSessionSource::Tab,
-            Some(ctx.window_id()),
-            None,
-            None,
-            false,
-            DefaultSessionModeBehavior::Ignore,
-            ctx,
-        );
-        self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
-            pane_group.start_agent_mode_in_new_pane(None, zero_state_prompt_suggestion_type, ctx);
-        });
     }
 
     /// Add and focus a new terminal pane in AI mode. Add the terminal pane to the right of
@@ -7764,27 +7743,6 @@ impl Workspace {
         });
     }
 
-    pub fn toggle_error_underlining(&mut self, ctx: &mut ViewContext<Self>) {
-        InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
-            report_if_error!(input_settings.error_underlining.toggle_and_save_value(ctx));
-        });
-    }
-
-    pub fn toggle_syntax_highlighting(&mut self, ctx: &mut ViewContext<Self>) {
-        InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
-            report_if_error!(
-                input_settings
-                    .syntax_highlighting
-                    .toggle_and_save_value(ctx)
-            );
-        });
-    }
-
-    pub fn change_cursor(&mut self, cursor_shape: Cursor, ctx: &mut ViewContext<Self>) {
-        ctx.set_cursor_shape(cursor_shape);
-        ctx.notify();
-    }
-
     pub fn set_a11y_verbosity(
         &mut self,
         verbosity: AccessibilityVerbosity,
@@ -12419,53 +12377,6 @@ impl Workspace {
         });
     }
 
-    fn toggle_mouse_reporting(&mut self, ctx: &mut ViewContext<Self>) {
-        let prev_mouse_reporting_enabled =
-            AltScreenReporting::handle(ctx).update(ctx, |reporting, ctx| {
-                let prev_mouse_reporting_enabled = *reporting.mouse_reporting_enabled.value();
-                reporting
-                    .mouse_reporting_enabled
-                    .set_value(!prev_mouse_reporting_enabled, ctx)
-                    .expect("MouseReportingEnabled failed to serialize");
-                prev_mouse_reporting_enabled
-            });
-
-        let verb = if prev_mouse_reporting_enabled {
-            "disabled"
-        } else {
-            "enabled"
-        };
-        let mut message = format!("You {verb} mouse reporting.");
-        if let Some(keystroke) =
-            keybinding_name_to_keystroke("workspace:toggle_mouse_reporting", ctx)
-        {
-            let _ = write!(message, " Press {} to undo.", keystroke.displayed());
-        }
-
-        self.toast_stack.update(ctx, |view, ctx| {
-            let new_toast = DismissibleToast::default(message);
-            view.add_ephemeral_toast(new_toast, ctx);
-        });
-    }
-
-    fn toggle_scroll_reporting(&mut self, ctx: &mut ViewContext<Self>) {
-        AltScreenReporting::handle(ctx).update(ctx, |reporting, ctx| {
-            reporting
-                .scroll_reporting_enabled
-                .toggle_and_save_value(ctx)
-                .expect("ScrollReportingEnabled failed to serialize");
-        });
-    }
-
-    fn toggle_focus_reporting(&mut self, ctx: &mut ViewContext<Self>) {
-        AltScreenReporting::handle(ctx).update(ctx, |reporting, ctx| {
-            reporting
-                .focus_reporting_enabled
-                .toggle_and_save_value(ctx)
-                .expect("FocusReportingEnabled failed to serialize");
-        });
-    }
-
     /// This listens for changes to keybindings and keeps the cached versions up-to-date in our
     /// tooltips.
     fn handle_keybinding_changed(
@@ -16160,9 +16071,6 @@ impl TypedActionView for Workspace {
                 source,
             } => self.toggle_palette(*palette_mode, *source, ctx),
             ViewLogs => self.view_logs(ctx),
-            ChangeCursor(cursor) => self.change_cursor(*cursor, ctx),
-            ToggleErrorUnderlining => self.toggle_error_underlining(ctx),
-            ToggleSyntaxHighlighting => self.toggle_syntax_highlighting(ctx),
             SetA11yVerbosityLevel(verbosity) => self.set_a11y_verbosity(*verbosity, ctx),
             ToggleNotifications => self.toggle_notifications(ctx),
             ToggleTabColor { color, tab_index } => self.toggle_tab_color(*tab_index, *color, ctx),
@@ -16197,9 +16105,6 @@ impl TypedActionView for Workspace {
                 filter,
                 init_content,
             }) => self.show_command_search(*filter, init_content, ctx),
-            ToggleMouseReporting => self.toggle_mouse_reporting(ctx),
-            ToggleScrollReporting => self.toggle_scroll_reporting(ctx),
-            ToggleFocusReporting => self.toggle_focus_reporting(ctx),
             StartTabDrag => {
                 // Drag supersedes any multi-selection; clear it to avoid stale highlights.
                 self.clear_tab_multi_selection(ctx);
@@ -16363,11 +16268,6 @@ impl TypedActionView for Workspace {
                 });
                 ctx.notify();
             }
-            OpenAgentManagementView => {
-                // The agent management view was removed (it required a Warp
-                // account/server, which this build never has). The action
-                // stays because it's an external local-control command surface.
-            }
             ClosePanel => {
                 if self.left_panel_view.is_self_or_child_focused(ctx) {
                     self.close_left_panel(ctx);
@@ -16378,14 +16278,6 @@ impl TypedActionView for Workspace {
             }
             OpenInExplorer { path } => {
                 ctx.open_file_path_in_explorer(path);
-            }
-            OpenFilePath { path } => {
-                ctx.open_file_path(path);
-            }
-            NewTabInAgentMode {
-                zero_state_prompt_suggestion_type,
-            } => {
-                self.add_terminal_tab_in_ai_mode(*zero_state_prompt_suggestion_type, ctx);
             }
             NewPaneInAgentMode {
                 zero_state_prompt_suggestion_type,
@@ -16530,12 +16422,6 @@ impl TypedActionView for Workspace {
             OpenPromptEditor { open_source } => {
                 self.open_prompt_editor(*open_source, ctx);
             }
-            OpenAgentToolbarEditor => {
-                self.open_agent_toolbar_editor(AgentToolbarEditorMode::AgentView, ctx);
-            }
-            OpenCLIAgentToolbarEditor => {
-                self.open_agent_toolbar_editor(AgentToolbarEditorMode::CLIAgent, ctx);
-            }
             OpenHeaderToolbarEditor => {
                 self.open_header_toolbar_editor(ctx);
             }
@@ -16602,26 +16488,6 @@ impl TypedActionView for Workspace {
             #[cfg(all(enable_crash_recovery, target_os = "linux"))]
             DismissWaylandCrashRecoveryBanner => {
                 self.dismiss_workspace_banner(ctx, &WorkspaceBanner::WaylandCrashRecovery);
-            }
-            FixInAgentMode { query } => {
-                self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
-                    pane_group.add_terminal_pane_in_agent_mode(None, None, ctx);
-                    if let Some(terminal_view) = pane_group.focused_session_view(ctx) {
-                        terminal_view.update(ctx, |terminal_view, terminal_view_ctx| {
-                            terminal_view.ai_controller().update(
-                                terminal_view_ctx,
-                                |controller, ctx| {
-                                    controller.send_user_query_in_new_conversation(
-                                        query.to_owned(),
-                                        None,
-                                        EntrypointType::UserInitiated,
-                                        ctx,
-                                    );
-                                },
-                            );
-                        });
-                    }
-                });
             }
             OpenAIFactCollection => {
                 self.open_ai_fact_collection_pane(None, None, ctx);
@@ -16706,12 +16572,6 @@ impl TypedActionView for Workspace {
                 });
                 ctx.notify();
             }
-            OpenFileInNewTab {
-                full_path,
-                line_and_column,
-            } => {
-                self.add_tab_for_code_file(full_path.clone(), *line_and_column, ctx);
-            }
             OpenRepository { path } => {
                 self.open_repository(path.as_deref(), ctx);
             }
@@ -16721,18 +16581,6 @@ impl TypedActionView for Workspace {
             NewCodeFile => {
                 self.add_tab_for_new_code_file(ctx);
             }
-            OpenNotebook { id } => self.open_notebook(&NotebookSource::Existing(*id), ctx, true),
-            RunWorkflow {
-                workflow,
-                workflow_source,
-                argument_override,
-            } => self.run_workflow_in_active_input(
-                workflow,
-                *workflow_source,
-                argument_override.clone(),
-                TerminalSessionFallbackBehavior::default(),
-                ctx,
-            ),
             RestoreOrNavigateToConversation {
                 pane_view_locator,
                 window_id,
@@ -16775,20 +16623,6 @@ impl TypedActionView for Workspace {
             } => {
                 self.summarize_active_ai_conversation(prompt.clone(), initial_prompt.clone(), ctx);
             }
-            InsertForkSlashCommand => {
-                self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
-                    if let Some(terminal_view) = pane_group.active_session_view(ctx) {
-                        terminal_view.update(ctx, |terminal, ctx| {
-                            let command_name = commands::FORK.name;
-
-                            terminal.input().update(ctx, |input, ctx| {
-                                input.replace_buffer_content(&format!("{} ", command_name), ctx);
-                                ctx.focus_self();
-                            });
-                        });
-                    }
-                });
-            }
             CreatePersonalEnvVarCollection => {
                 self.open_env_var_collection(
                     &EnvVarCollectionSource::New {
@@ -16799,9 +16633,6 @@ impl TypedActionView for Workspace {
                     false,
                     ctx,
                 );
-            }
-            FileRenamed { old_path, new_path } => {
-                self.rename_tabs_with_file_path(old_path, new_path, ctx);
             }
             FileDeleted { path } => {
                 self.close_tabs_with_file_path(path, ctx);
@@ -16910,11 +16741,6 @@ impl TypedActionView for Workspace {
                     self.toggle_left_panel_view(&LeftPanelAction::ProjectExplorer, is_showing, ctx);
                 }
             }
-            OpenProjectExplorer => {
-                if *CodeSettings::as_ref(ctx).show_project_explorer {
-                    self.open_left_panel_view(&LeftPanelAction::ProjectExplorer, ctx);
-                }
-            }
             ToggleGlobalSearch => {
                 if FeatureFlag::GlobalSearch.is_enabled()
                     && *CodeSettings::as_ref(ctx).show_global_search
@@ -16970,11 +16796,6 @@ impl TypedActionView for Workspace {
                         is_showing,
                         ctx,
                     );
-                }
-            }
-            OpenConversationListView => {
-                if FeatureFlag::AgentViewConversationListView.is_enabled() {
-                    self.open_left_panel_view(&LeftPanelAction::ConversationListView, ctx);
                 }
             }
             ShowRewindConfirmationDialog {
@@ -17093,14 +16914,6 @@ impl TypedActionView for Workspace {
                     self.lightbox_view = Some(handle);
                 }
                 ctx.notify();
-            }
-            UpdateLightboxImage { index, image } => {
-                if let Some(handle) = &self.lightbox_view {
-                    handle.update(ctx, |view, ctx| {
-                        view.update_image_at(*index, image.clone(), ctx);
-                    });
-                    ctx.notify();
-                }
             }
             SyncTrafficLights => {
                 self.sync_window_button_visibility(ctx);

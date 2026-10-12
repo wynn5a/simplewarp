@@ -42,6 +42,12 @@ pub enum WelcomeTipsViewState {
 }
 
 impl WelcomeTipsViewState {
+    pub fn toggle_popup(&mut self) {
+        if let WelcomeTipsViewState::Available { is_popup_open, .. } = self {
+            *is_popup_open = !*is_popup_open;
+        }
+    }
+
     pub fn is_popup_open(&self) -> bool {
         matches!(
             self,
@@ -55,12 +61,6 @@ impl WelcomeTipsViewState {
     pub fn close_popup(&mut self) {
         if let WelcomeTipsViewState::Available { is_popup_open, .. } = self {
             *is_popup_open = false;
-        }
-    }
-
-    pub fn toggle_popup(&mut self) {
-        if let WelcomeTipsViewState::Available { is_popup_open, .. } = self {
-            *is_popup_open = !*is_popup_open;
         }
     }
 }

@@ -3,11 +3,9 @@ use std::ops::Range;
 use std::path::PathBuf;
 
 use ai::skills::SkillReference;
-use command_corrections::Correction;
 use pathfinder_geometry::vector::Vector2F;
 use warp_util::user_input::UserInput;
 use warpui::EntityId;
-use warpui::elements::HyperlinkUrl;
 use warpui::event::ModifiersState;
 use warpui::units::Lines;
 
@@ -21,7 +19,6 @@ use crate::ai::agent::AIAgentExchangeId;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
-use crate::search::command_palette::PaletteSource;
 use crate::server::ids::SyncId;
 use crate::terminal::available_shells::AvailableShell;
 use crate::terminal::block_list_element::{
@@ -123,9 +120,6 @@ pub enum TerminalAction {
     AltSelect(SelectAction<Point>),
     MaybeClearAltSelect,
     AltMouseAction(MouseState),
-    InsertCommandCorrection {
-        correction: Correction,
-    },
     BlockListContextMenu(BlockListMenuSource),
     CloseContextMenu,
     Paste,
@@ -245,7 +239,6 @@ pub enum TerminalAction {
     },
     OpenWorkflowModal,
     OpenWorkflowModalForAIWorkflow(Workflow),
-    OpenWorkflowModalForBlock(BlockIndex),
     OpenWorkflowModalWithCloudWorkflow(SyncId),
     AskAIAssistant {
         block_index: BlockIndex,
@@ -274,7 +267,6 @@ pub enum TerminalAction {
     /// Sets the input mode to Terminal Mode
     SetInputModeTerminal,
 
-    HyperlinkClick(HyperlinkUrl),
     StartFileDropTarget,
     StopFileDropTarget,
     SetMarkedText {
@@ -283,7 +275,6 @@ pub enum TerminalAction {
     },
     ClearMarkedText,
     ShowInitializationBlock,
-    ShowWarpifySettings,
     /// Removes a pending attachment (image or file) by index in the unified list.
     DeleteAttachment {
         index: usize,
@@ -302,7 +293,6 @@ pub enum TerminalAction {
         entrypoint: CodeReviewPaneEntrypoint,
     },
     InitProject,
-    SummarizeConversation,
     AddProjectAtCurrentDirectory,
     OpenProjectRulesPane,
     OpenViewMCPPane,
@@ -315,13 +305,7 @@ pub enum TerminalAction {
     OpenAddPromptPane,
     OpenConversationsPalette,
     PickRepoToOpen,
-    OpenFilesPalette {
-        source: PaletteSource,
-    },
     DismissCodeToolbeltTooltip,
-    /// Start a Language Server for the current working directory (if supported)
-    StartLspServer,
-    ToggleLongRunningCommandControl,
     ToggleHideCliResponses,
     ExitAgentView,
     StartNewAgentConversation {
@@ -459,9 +443,6 @@ impl fmt::Debug for TerminalAction {
             }
             NotificationsErrorBanner(action) => write!(f, "NotificationsErrorBanner({action:?})"),
             JumpToBookmark(index) => write!(f, "JumpToBookmark({index:?})"),
-            InsertCommandCorrection { .. } => {
-                write!(f, "InsertCommandCorrection",)
-            }
             OpenGridLink(_) => f.write_str("OpenGridLink"),
             OpenRichContentLink(_) => f.write_str("OpenRichContentLink"),
             ToggleGridSecret { show_secret, .. } => write!(f, "ToggleGridSecret {show_secret:?}"),
@@ -475,9 +456,6 @@ impl fmt::Debug for TerminalAction {
             OpenCodeInWarp { .. } => f.write_str("OpenCodeInWarp"),
             OpenWorkflowModal => f.write_str("OpenWorkflowModal"),
             OpenWorkflowModalForAIWorkflow(_) => f.write_str("OpenWorkflowModalForAIWorkflow"),
-            OpenWorkflowModalForBlock(block_index) => {
-                write!(f, "OpenWorkflowModalForBlock({block_index:?})")
-            }
             OpenWorkflowModalWithCloudWorkflow(_) => {
                 f.write_str("OpenWorkflowModalWithCloudWorkflow")
             }
@@ -511,7 +489,6 @@ impl fmt::Debug for TerminalAction {
             DragAndDropFiles(_) => write!(f, "DragAndDropFiles"),
             SetInputModeAgent => write!(f, "SetInputModeAgent"),
             SetInputModeTerminal => write!(f, "SetInputModeTerminal"),
-            HyperlinkClick(hyperlink_url) => write!(f, "HyperlinkClick({hyperlink_url:?})"),
             StartFileDropTarget => write!(f, "StartFileDropTarget"),
             StopFileDropTarget => write!(f, "StopFileDropTarget"),
             RunNativeShellCompletions { buffer_text, .. } => {
@@ -523,7 +500,6 @@ impl fmt::Debug for TerminalAction {
             } => write!(f, "SetMarkedText {{{marked_text:?}, {selected_range:?}}}"),
             ClearMarkedText => write!(f, "ClearMarkedText"),
             ShowInitializationBlock => write!(f, "ShowInitializationBlock"),
-            ShowWarpifySettings => write!(f, "ShowWarpifySettings"),
             DeleteAttachment { index } => write!(f, "DeleteAttachment({index:?})"),
             OpenAttachmentLightbox { index } => {
                 write!(f, "OpenAttachmentLightbox({index:?})")
@@ -549,13 +525,7 @@ impl fmt::Debug for TerminalAction {
             OpenAddPromptPane => write!(f, "OpenAddPromptPane"),
             OpenConversationsPalette => write!(f, "OpenConversationsPalette"),
             PickRepoToOpen => write!(f, "PickRepoToOpen"),
-            OpenFilesPalette { .. } => write!(f, "OpenFilesPalette"),
             DismissCodeToolbeltTooltip => write!(f, "DismissCodeToolbeltTooltip"),
-            StartLspServer => write!(f, "StartLspServer"),
-            SummarizeConversation => write!(f, "SummarizeConversation"),
-            ToggleLongRunningCommandControl => {
-                write!(f, "TakeOverLongRunningCommandControlForUser")
-            }
             ToggleHideCliResponses => write!(f, "ToggleHideCliResponses"),
             ExitAgentView => write!(f, "ExitAgentView"),
             StartNewAgentConversation { origin } => {

@@ -196,31 +196,22 @@ pub enum ActivationReason {
 #[derive(Debug, Clone)]
 pub enum PaneGroupAction {
     Add(Direction),
-    Remove(PaneId),
     RemoveActive,
     Activate(PaneId, ActivationReason),
     ResizeMove(Vector2F),
     StartResizing(DraggedBorder),
     ResetPaneSizes(EntityId),
-    Move {
-        id: PaneId,
-        target_pane_id: PaneId,
-        direction: Direction,
-    },
     EndResizing,
     ResizeLeft,
     ResizeRight,
     ResizeUp,
     ResizeDown,
-    NavigatePrev,
-    NavigateNext,
     NavigateLeft,
     NavigateRight,
     NavigateUp,
     NavigateDown,
     ToggleMaximizePane,
     HandleFocusChange,
-    FocusTerminalView(EntityId),
 }
 #[derive(PartialEq)]
 enum PaneRemovalReason {
@@ -3524,22 +3515,6 @@ impl PaneGroup {
         }
     }
 
-    /// Focused the specified terminal view, if it belongs to this pane group.
-    pub fn focus_terminal_view(&mut self, terminal_view_id: EntityId, ctx: &mut ViewContext<Self>) {
-        let pane_id = self
-            .pane_contents
-            .keys()
-            .find(|id| match self.terminal_view_from_pane_id(**id, ctx) {
-                Some(terminal_view) => terminal_view_id == terminal_view.id(),
-                _ => false,
-            })
-            .cloned();
-
-        if let Some(pane_id) = pane_id {
-            self.focus_pane_by_id(pane_id, ctx);
-        }
-    }
-
     /// Show a notification error for the pane that we tried to send a notification for.
     pub fn show_notification_error(
         &mut self,
@@ -4877,7 +4852,6 @@ impl TypedActionView for PaneGroup {
                 };
                 self.add_terminal_pane(*direction, chosen_shell, ctx);
             }
-            Remove(view_id) => self.close_pane_with_confirmation(*view_id, ctx),
             RemoveActive => self.close_active_pane_with_confirmation(ctx),
             Activate(view_id, reason) => self.focus_pane_on_mouse_event(*view_id, *reason, ctx),
             ResizeMove(position) => self.maybe_resize_pane(*position, ctx),
@@ -4888,20 +4862,12 @@ impl TypedActionView for PaneGroup {
             ResizeRight => self.resize_right(ctx),
             ResizeUp => self.resize_up(ctx),
             ResizeDown => self.resize_down(ctx),
-            NavigatePrev => self.navigate_prev_pane(ctx),
-            NavigateNext => self.navigate_next_pane(ctx),
             NavigateLeft => self.navigate_pane_by_direction(Direction::Left, ctx),
             NavigateRight => self.navigate_pane_by_direction(Direction::Right, ctx),
             NavigateUp => self.navigate_pane_by_direction(Direction::Up, ctx),
             NavigateDown => self.navigate_pane_by_direction(Direction::Down, ctx),
             ToggleMaximizePane => self.toggle_maximize_pane(ctx),
-            Move {
-                id,
-                target_pane_id,
-                direction,
-            } => self.move_pane(*id, *target_pane_id, *direction, ctx),
             HandleFocusChange => self.handle_focus_change(ctx),
-            FocusTerminalView(terminal_view_id) => self.focus_terminal_view(*terminal_view_id, ctx),
         }
     }
 }

@@ -37,9 +37,9 @@ use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
     AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment, AIAgentContext,
     AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus, AIIdentifiers, CancellationOutcome,
-    CancellationReason, EntrypointType, FinishedAIAgentOutput,
-    RenderableAIError, RequestCost, RequestMetadata, RunningCommand,
-    StaticQueryType, TransientNetworkErrorKind, UserQueryMode, extract_user_query_mode,
+    CancellationReason, EntrypointType, FinishedAIAgentOutput, RenderableAIError, RequestCost,
+    RequestMetadata, RunningCommand, StaticQueryType, TransientNetworkErrorKind, UserQueryMode,
+    extract_user_query_mode,
 };
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::llms::{LLMId, LLMPreferences};
@@ -48,9 +48,7 @@ use crate::global_resource_handles::GlobalResourceHandlesProvider;
 use crate::network::NetworkStatus;
 use crate::persistence::ModelEvent;
 use crate::terminal::ShellLaunchData;
-use crate::terminal::model::block::{
-    CURSOR_MARKER, formatted_terminal_contents_for_input,
-};
+use crate::terminal::model::block::{CURSOR_MARKER, formatted_terminal_contents_for_input};
 use crate::terminal::model::session::SessionType;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::terminal_model::TerminalModel;

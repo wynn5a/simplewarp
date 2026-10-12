@@ -286,7 +286,6 @@ pub enum WarpifyPageAction {
     /// Toggles whether the legacy SSH wrapper attaches to an existing
     /// ControlMaster for the destination host instead of creating its own.
     ToggleReuseSshControlMaster,
-    OpenUrl(String),
 }
 
 impl TypedActionView for WarpifyPageView {
@@ -314,9 +313,6 @@ impl TypedActionView for WarpifyPageView {
                             .toggle_and_save_value(ctx)
                     );
                 });
-            }
-            OpenUrl(url) => {
-                ctx.open_url(url.as_str());
             }
         }
     }

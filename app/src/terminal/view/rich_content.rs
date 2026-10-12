@@ -329,7 +329,6 @@ impl TerminalView {
         }
         self.rich_content_views.push(rich_content);
 
-
         // Scroll to bottom
         self.update_scroll_position_locking(ScrollPositionUpdate::AfterRichBlockInserted, ctx);
 

@@ -986,7 +986,6 @@ pub enum EditorAction {
         selected_range: Range<usize>,
     },
     ClearMarkedText,
-    ImeCommit(UserInput<String>),
     Tab,
     ShiftTab,
     Copy,
@@ -1004,7 +1003,6 @@ pub enum EditorAction {
     DeleteWordLeft,
     DeleteWordRight,
     CutAllRight,
-    CutAllLeft,
     DeleteAllRight,
     DeleteAllLeft,
     Delete,
@@ -1022,7 +1020,6 @@ pub enum EditorAction {
     PageDown,
     CmdUp,
     CmdDown,
-    ClearLines,
     ClearAndCopyLines,
     CtrlC,
     MoveToLineStart,
@@ -1211,7 +1208,6 @@ pub enum PlainTextEditorViewAction {
     CutWordRight,
     Tab,
     Indent,
-    Unindent,
     /// The user accepted a completion suggestion; either the full suggestion or a common prefix
     /// amongst all given suggestions.
     AcceptCompletionSuggestion,
@@ -5225,6 +5221,7 @@ impl EditorView {
         ctx.emit(Event::VimStatusUpdate)
     }
 
+    #[cfg(test)]
     fn ime_commit(&mut self, text: &str, ctx: &mut ViewContext<Self>) {
         // If Vim is in Normal or Visual mode, we don't want to insert any text.
         if matches!(
@@ -8261,7 +8258,6 @@ impl TypedActionView for EditorView {
             CutWordRight => self.cut_word_right(ctx),
             DeleteWordLeft => self.delete_word_left(ctx),
             DeleteWordRight => self.delete_word_right(ctx),
-            CutAllLeft => self.delete_all(CutDirection::Left, true /* cut */, ctx),
             CutAllRight => self.delete_all(CutDirection::Right, true /* cut */, ctx),
             DeleteAllLeft => {
                 self.delete_all(CutDirection::Left, false /* cut */, ctx);
@@ -8281,7 +8277,6 @@ impl TypedActionView for EditorView {
             PageDown => self.page_down(ctx),
             CmdUp => self.cmd_up(ctx),
             CmdDown => self.cursor_bottom(ctx),
-            ClearLines => self.clear_lines(ctx),
             ClearAndCopyLines => self.clear_and_copy_lines(ctx),
             CtrlC => self.handle_ctrl_c(ctx),
             MoveToLineStart => self.move_to_line_start(ctx),
@@ -8387,7 +8382,6 @@ impl TypedActionView for EditorView {
                     ctx.emit(Event::SetAIContextMenuOpen(*open));
                 }
             }
-            ImeCommit(text) => self.ime_commit(text, ctx),
             SetMarkedText {
                 marked_text,
                 selected_range,

@@ -1,13 +1,9 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use ui_components::lightbox;
-use warp_util::path::LineAndColumnArg;
 use warpui::accessibility::AccessibilityVerbosity;
 use warpui::geometry::rect::RectF;
 use warpui::geometry::vector::Vector2F;
-use warpui::platform::Cursor;
 use warpui::{EntityId, WindowId};
 
 use super::global_actions::{ForkFromExchange, ForkedConversationDestination};
@@ -23,7 +19,6 @@ use crate::palette::PaletteMode;
 use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::search;
 use crate::search::command_palette::PaletteSource;
-use crate::server::ids::SyncId;
 use crate::settings_view::{SettingsAction as SettingsTabAction, SettingsSection};
 use crate::tab::{NewSessionMenuItem, SelectedTabColor};
 use crate::tab_configs::TabConfig;
@@ -31,7 +26,6 @@ use crate::terminal::available_shells::AvailableShell;
 use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::themes::theme_chooser::ThemeChooserMode;
-use crate::workflows::{WorkflowSource, WorkflowType};
 use crate::workspace::PaneViewLocator;
 use crate::workspace::tab_group::TabGroupId;
 
@@ -290,10 +284,7 @@ pub enum WorkspaceAction {
     },
     /// Open the log directory in the system file explorer with the current log file selected.
     ViewLogs,
-    ChangeCursor(Cursor),
     ToggleBlockSnackbar,
-    ToggleErrorUnderlining,
-    ToggleSyntaxHighlighting,
     SetA11yVerbosityLevel(AccessibilityVerbosity),
     ToggleNotifications,
     ToggleTabColor {
@@ -313,9 +304,6 @@ pub enum WorkspaceAction {
     ToggleKeybindingsPage,
     ShowCommandSearch(CommandSearchOptions),
     CreatePersonalEnvVarCollection,
-    ToggleMouseReporting,
-    ToggleScrollReporting,
-    ToggleFocusReporting,
     StartTabDrag,
     DragTab {
         tab_index: usize,
@@ -376,8 +364,6 @@ pub enum WorkspaceAction {
     OpenPromptEditor {
         open_source: PromptEditorOpenSource,
     },
-    OpenAgentToolbarEditor,
-    OpenCLIAgentToolbarEditor,
     OpenHeaderToolbarEditor,
     ShowHeaderToolbarContextMenu {
         position: Vector2F,
@@ -394,10 +380,6 @@ pub enum WorkspaceAction {
     FocusRightPanel,
     /// Open a local path in the file explorer.
     OpenInExplorer {
-        path: PathBuf,
-    },
-    /// Open a local file with the system's default application.
-    OpenFilePath {
         path: PathBuf,
     },
     TerminateApp,
@@ -418,11 +400,6 @@ pub enum WorkspaceAction {
         /// Whether to ensure agent mode is enabled when inserting content
         ensure_agent_mode: bool,
     },
-    /// Open a new tab with its input in AI mode.
-    NewTabInAgentMode {
-        /// The type of zero state prompt suggestion to start with (optional).
-        zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
-    },
     /// Open a new pane with its input in AI mode.
     NewPaneInAgentMode {
         /// The type of zero state prompt suggestion to start with (optional).
@@ -432,11 +409,6 @@ pub enum WorkspaceAction {
     /// information.
     #[cfg(target_os = "linux")]
     DismissWaylandCrashRecoveryBanner,
-    /// Open a new pane with its input in AI mode
-    /// with query "Fix this" with error name and details from AI summary.
-    FixInAgentMode {
-        query: String,
-    },
     OpenAIFactCollection,
     OpenMCPServerCollection,
     FocusTerminalViewInWorkspace {
@@ -451,19 +423,6 @@ pub enum WorkspaceAction {
     },
     /// Jump to the terminal pane of the most recent agent toast
     JumpToLatestToast,
-    /// Open a file in a new tab with a code pane
-    OpenFileInNewTab {
-        full_path: PathBuf,
-        line_and_column: Option<LineAndColumnArg>,
-    },
-    OpenNotebook {
-        id: SyncId,
-    },
-    RunWorkflow {
-        workflow: Arc<WorkflowType>,
-        workflow_source: WorkflowSource,
-        argument_override: Option<HashMap<String, String>>,
-    },
     ScrollToSettingsWidget {
         page: SettingsSection,
         widget_id: &'static str,
@@ -497,8 +456,6 @@ pub enum WorkspaceAction {
         /// Where to open the forked conversation.
         destination: ForkedConversationDestination,
     },
-    /// Insert the /fork slash command into the active terminal's input.
-    InsertForkSlashCommand,
     /// Summarize the active AI conversation in the focused pane.
     SummarizeAIConversation {
         prompt: Option<String>,
@@ -514,11 +471,6 @@ pub enum WorkspaceAction {
     UndoRevertInCodeReviewPane {
         window_id: WindowId,
         view_id: EntityId,
-    },
-    /// Handle a file being renamed in the file tree
-    FileRenamed {
-        old_path: PathBuf,
-        new_path: PathBuf,
     },
     /// Handle a file being deleted in the file tree
     FileDeleted {
@@ -542,13 +494,10 @@ pub enum WorkspaceAction {
     NavigatePrevPaneOrPanel,
     NavigateNextPaneOrPanel,
     ToggleProjectExplorer,
-    OpenProjectExplorer,
     ToggleGlobalSearch,
     ToggleHiddenFiles,
     OpenGlobalSearch,
     ToggleConversationListView,
-    OpenConversationListView,
-    OpenAgentManagementView,
     /// Install the opencode-warp plugin from GitHub into the global opencode config.
     #[cfg(debug_assertions)]
     InstallOpenCodeWarpPlugin,
@@ -580,11 +529,6 @@ pub enum WorkspaceAction {
         images: Vec<lightbox::LightboxImage>,
         /// The index of the image to display initially.
         initial_index: usize,
-    },
-    /// Update a single image in the currently open lightbox.
-    UpdateLightboxImage {
-        index: usize,
-        image: lightbox::LightboxImage,
     },
     ShowSessionConfigModal,
     /// Open the "New worktree" modal for creating a reusable worktree tab config.
@@ -705,12 +649,7 @@ impl WorkspaceAction {
             | AddWindowWithShell { .. }
             | CloseWindow
             | ScrollToSettingsWidget { .. }
-            | NewTabInAgentMode { .. }
             | NewPaneInAgentMode { .. }
-            | FixInAgentMode { .. }
-            | OpenNotebook { .. }
-            | RunWorkflow { .. }
-            | OpenFileInNewTab { .. }
             | RestoreOrNavigateToConversation { .. }
             | NewCodeFile
             | ForkAIConversation { .. }
@@ -736,10 +675,7 @@ impl WorkspaceAction {
             | ResetZoom
             | OpenPalette { .. }
             | TogglePalette { mode: _, source: _ }
-            | ChangeCursor(_)
             | ToggleBlockSnackbar
-            | ToggleErrorUnderlining
-            | ToggleSyntaxHighlighting
             | OpenLaunchConfigSaveModal
             | ToggleTabRightClickMenu { .. }
             | ToggleTabSelectionRightClickMenu { .. }
@@ -755,9 +691,6 @@ impl WorkspaceAction {
             | ToggleUserMenu
             | ToggleKeybindingsPage
             | ShowCommandSearch(_)
-            | ToggleMouseReporting
-            | ToggleScrollReporting
-            | ToggleFocusReporting
             | CreatePersonalEnvVarCollection
             | OpenInExplorer { .. }
             | DragTab { .. }
@@ -793,8 +726,6 @@ impl WorkspaceAction {
             | ToggleSyncTerminalInputsInTab
             | DisableTerminalInputSync
             | OpenPromptEditor { .. }
-            | OpenAgentToolbarEditor
-            | OpenCLIAgentToolbarEditor
             | OpenHeaderToolbarEditor
             | ShowHeaderToolbarContextMenu { .. }
             | OpenLink(_)
@@ -810,8 +741,6 @@ impl WorkspaceAction {
             | RunAISuggestedCommand { .. }
             | RunCommand { .. }
             | InsertInInput { .. }
-            | InsertForkSlashCommand
-            | OpenFilePath { .. }
             | TerminateApp
             | TabHoverWidthStart { .. }
             | TabHoverWidthEnd
@@ -829,18 +758,14 @@ impl WorkspaceAction {
             | NavigatePrevPaneOrPanel
             | NavigateNextPaneOrPanel
             | ToggleProjectExplorer
-            | OpenProjectExplorer
             | ToggleGlobalSearch
             | ToggleHiddenFiles
             | OpenGlobalSearch
             | ToggleConversationListView
-            | OpenConversationListView
-            | OpenAgentManagementView
             | ShowRewindConfirmationDialog { .. }
             | ExecuteRewindAIConversation { .. }
             | ExecuteDeleteConversation { .. }
             | OpenLightbox { .. }
-            | UpdateLightboxImage { .. }
             | ShowSessionConfigModal
             | SaveCurrentTabAsNewConfig(_)
             | SyncTrafficLights
@@ -858,7 +783,6 @@ impl WorkspaceAction {
             SampleProcess => false,
             #[cfg(target_os = "macos")]
             InstallCli | UninstallCli => false,
-            FileRenamed { .. } => false, // File rename doesn't change workspace state
             FileDeleted { .. } => false, // File deletion doesn't change workspace state
             #[cfg(target_os = "linux")]
             DismissWaylandCrashRecoveryBanner => false,
