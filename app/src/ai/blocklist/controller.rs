@@ -52,7 +52,6 @@ use crate::terminal::model::block::{CURSOR_MARKER, formatted_terminal_contents_f
 use crate::terminal::model::session::SessionType;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::terminal_model::TerminalModel;
-use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
 
 #[derive(Debug, Clone)]
 pub struct SessionContext {
@@ -956,29 +955,6 @@ impl BlocklistAIController {
             ctx,
         );
         true
-    }
-
-    /// Sends a request triggered by a zero-state prompt suggestion.
-    pub fn send_zero_state_prompt_suggestion(
-        &mut self,
-        query_type: ZeroStatePromptSuggestionType,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.send_query(
-            InputQuery {
-                which_task: WhichTask::NewConversation,
-                input_query: InputQueryType::UserSubmittedQueryFromInput {
-                    query: query_type.query().to_string(),
-                    static_query_type: query_type.static_query_type(),
-                    running_command: None,
-                },
-                additional_attachments: HashMap::new(),
-                queued_query_id: None,
-            },
-            EntrypointType::ZeroStateAgentModePromptSuggestion,
-            /*is_queued_prompt*/ false,
-            ctx,
-        );
     }
 
     /// Sends a custom [`AIAgentInput`] query.

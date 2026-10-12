@@ -2199,7 +2199,6 @@ pub enum EntrypointType {
         is_static: bool,
         is_coding: bool,
     },
-    ZeroStateAgentModePromptSuggestion,
     InitProjectRules,
     TriggerPassiveSuggestion {
         trigger: Option<PassiveSuggestionTriggerType>,

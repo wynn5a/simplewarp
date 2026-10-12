@@ -1061,10 +1061,6 @@ pub enum NewWorkspaceSource {
     NotebookFromFilePath {
         file_path: Option<PathBuf>,
     },
-    AgentSession {
-        options: Box<NewTerminalOptions>,
-        initial_query: Option<String>,
-    },
     /// A tab is being transferred from another window via the transferable views framework.
     /// The workspace will create a placeholder tab, which will be replaced by the transferred
     /// PaneGroup after window creation.

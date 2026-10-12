@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use serde::Serialize;
 use warp_core::ui::theme::color::internal_colors::{neutral_2, neutral_3};
 use warpui::elements::{
     ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty, Fill, Flex,
@@ -15,8 +14,8 @@ use warpui::{
     ViewContext, ViewHandle,
 };
 
+use crate::ai::agent::PassiveSuggestionTrigger;
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::agent::{PassiveSuggestionTrigger, StaticQueryType};
 use crate::ai::blocklist::BlocklistAIInputModel;
 use crate::ai::blocklist::prompt::prompt_alert::{PromptAlertState, PromptAlertView};
 use crate::ai::predict::prompt_suggestions::ACCEPT_PROMPT_SUGGESTION_KEYBINDING;
@@ -30,58 +29,6 @@ use crate::util::bindings::keybinding_name_to_keystroke;
 
 const INLINE_BANNER_SPACING: f32 = 8.;
 const INLINE_BANNER_BUTTON_PADDING: f32 = 8.;
-
-/// Types of zero-state prompt suggestions.
-#[derive(Debug, Copy, Clone, Serialize)]
-pub enum ZeroStatePromptSuggestionType {
-    Explain,
-    Fix,
-    Install,
-    Code,
-    Deploy,
-    SomethingElse,
-}
-
-/// Places zero-stage prompt suggestions are surfaced.
-#[derive(Debug, Copy, Clone, Serialize)]
-pub enum ZeroStatePromptSuggestionTriggeredFrom {
-    InputBar,
-    AgentModeHomepage,
-    TryAgentModeBanner,
-    AgentManagementPopup,
-}
-
-impl ZeroStatePromptSuggestionType {
-    /// Constant for the number of zero-state prompt suggestion types.
-    pub const COUNT: usize = 5;
-
-    pub fn query(&self) -> &'static str {
-        match self {
-            Self::Explain => "Explain this to me.",
-            Self::Fix => "Help me fix this.",
-            Self::Install => {
-                "Help me install a binary/dependency. What information do I need to provide to you to do this?"
-            }
-            Self::Code => {
-                "Help me write some code. What information do I need to provide to you to do this?"
-            }
-            Self::Deploy => {
-                "Help me deploy my project. What information do I need to provide to you to do this?"
-            }
-            Self::SomethingElse => "Something else?",
-        }
-    }
-
-    pub fn static_query_type(&self) -> Option<StaticQueryType> {
-        match self {
-            Self::Explain | Self::Fix => None,
-            Self::Install => Some(StaticQueryType::Install),
-            Self::Code => Some(StaticQueryType::Code),
-            Self::Deploy => Some(StaticQueryType::Deploy),
-            Self::SomethingElse => Some(StaticQueryType::SomethingElse),
-        }
-    }
-}
 
 const KEYBOARD_SHORTCUT_MARGIN: f32 = 8.;
 

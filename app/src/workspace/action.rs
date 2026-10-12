@@ -23,7 +23,6 @@ use crate::settings_view::{SettingsAction as SettingsTabAction, SettingsSection}
 use crate::tab::{NewSessionMenuItem, SelectedTabColor};
 use crate::tab_configs::TabConfig;
 use crate::terminal::available_shells::AvailableShell;
-use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::themes::theme_chooser::ThemeChooserMode;
 use crate::workspace::PaneViewLocator;
@@ -401,10 +400,7 @@ pub enum WorkspaceAction {
         ensure_agent_mode: bool,
     },
     /// Open a new pane with its input in AI mode.
-    NewPaneInAgentMode {
-        /// The type of zero state prompt suggestion to start with (optional).
-        zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
-    },
+    NewPaneInAgentMode,
     /// Dismisses the Wayland crash recovery banner and opens a link to our docs page with more
     /// information.
     #[cfg(target_os = "linux")]
@@ -649,7 +645,7 @@ impl WorkspaceAction {
             | AddWindowWithShell { .. }
             | CloseWindow
             | ScrollToSettingsWidget { .. }
-            | NewPaneInAgentMode { .. }
+            | NewPaneInAgentMode
             | RestoreOrNavigateToConversation { .. }
             | NewCodeFile
             | ForkAIConversation { .. }

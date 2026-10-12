@@ -947,9 +947,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([EditableBinding::new(
         "workspace:toggle_ai_assistant",
         *NEW_AGENT_PANE_LABEL,
-        WorkspaceAction::NewPaneInAgentMode {
-            zero_state_prompt_suggestion_type: None,
-        },
+        WorkspaceAction::NewPaneInAgentMode,
     )
     .with_enabled(|| FeatureFlag::AgentMode.is_enabled())
     .with_context_predicate(id!("Workspace") & id!(flags::IS_ANY_AI_ENABLED))

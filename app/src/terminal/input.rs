@@ -111,10 +111,7 @@ use super::shell::ShellType;
 use super::universal_developer_input::{
     UniversalDeveloperInputButtonBar, UniversalDeveloperInputButtonBarEvent,
 };
-use super::view::inline_banner::{
-    PromptSuggestionBannerState, ZeroStatePromptSuggestionTriggeredFrom,
-    ZeroStatePromptSuggestionType,
-};
+use super::view::inline_banner::PromptSuggestionBannerState;
 use super::view::queued_prompts_panel::{QueuedPromptsPanelEvent, QueuedPromptsPanelView};
 use super::view::{
     ExecuteCommandEvent, PADDING_LEFT as TERMINAL_VIEW_PADDING_LEFT, SyncInputType, TerminalAction,
@@ -910,9 +907,6 @@ pub enum InputAction {
 
     /// Generate a new Next Command suggestion.
     CycleNextCommandSuggestion,
-
-    /// Inserts a zero state prompt suggestion into the input buffer and executes the query for Agent Mode.
-    InsertZeroStatePromptSuggestion(ZeroStatePromptSuggestionType),
 
     /// A passive code diff action.
     TryHandlePassiveCodeDiff(CodeDiffAction),
@@ -2982,12 +2976,8 @@ impl Input {
 
     /// Primary entry point for submitting the input buffer as an AI query. Every submission
     /// runs on this machine.
-    fn submit_ai_query_with_routing(
-        &mut self,
-        zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.submit_ai_query_local(zero_state_prompt_suggestion_type, ctx);
+    fn submit_ai_query_with_routing(&mut self, ctx: &mut ViewContext<Self>) {
+        self.submit_ai_query_local(ctx);
     }
 
     fn prefix_mode(&self, ctx: &AppContext) -> InputPrefixMode {
@@ -4277,23 +4267,6 @@ impl Input {
         ctx.notify();
     }
 
-    // Auto-attach the last block for this query.
-    fn auto_attach_last_block_for_query(&mut self, ctx: &mut ViewContext<Self>) {
-        let last_block_id = {
-            let model = self.model.lock();
-            model
-                .block_list()
-                .last_non_hidden_block()
-                .map(|block| block.id().clone())
-        };
-
-        if let Some(block_id) = last_block_id {
-            self.ai_context_model.update(ctx, |context_model, ctx| {
-                context_model.set_pending_context_block_ids(vec![block_id], true, ctx);
-            });
-        }
-    }
-
     pub fn clear_attached_context(&mut self, ctx: &mut ViewContext<Self>) {
         self.ai_context_model.update(ctx, |model, ctx| {
             model.reset_context_to_default(ctx);
@@ -4303,31 +4276,6 @@ impl Input {
 
     pub fn ai_input_model(&self) -> &ModelHandle<BlocklistAIInputModel> {
         &self.ai_input_model
-    }
-
-    /// Inserts a zero state prompt suggestion into the input buffer and executes the query for Agent Mode.
-    pub fn insert_zero_state_prompt_suggestion(
-        &mut self,
-        suggestion_type: ZeroStatePromptSuggestionType,
-        _triggered_from: ZeroStatePromptSuggestionTriggeredFrom,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if !AIRequestUsageModel::as_ref(ctx).has_any_ai_remaining(ctx) {
-            return;
-        }
-
-        match suggestion_type {
-            ZeroStatePromptSuggestionType::Explain | ZeroStatePromptSuggestionType::Fix => {
-                self.auto_attach_last_block_for_query(ctx);
-            }
-            _ => {}
-        }
-
-        self.focus_input_box(ctx);
-        // TODO(advait): Avoid using user-simulated codepaths here. Revisit function to use here.
-        self.submit_ai_query_with_routing(Some(suggestion_type), ctx);
-
-        ctx.notify()
     }
 
     fn cancel_active_conversation(
@@ -10473,7 +10421,7 @@ impl Input {
             && AISettings::as_ref(ctx).is_any_ai_enabled()
             && self.ai_input_model.as_ref(ctx).is_ai_input_enabled()
         {
-            self.submit_ai_query_with_routing(None, ctx);
+            self.submit_ai_query_with_routing(ctx);
         } else {
             if FeatureFlag::WorkflowAliases.is_enabled() {
                 let mut command_string = self.editor.as_ref(ctx).buffer_text(ctx);
@@ -10924,11 +10872,7 @@ impl Input {
     /// Submit the input buffer contents as an AI query to continue the conversation locally on the
     /// machine. This is the local case of [`Self::submit_ai_query_with_routing`]; prefer calling
     /// that so remote panes are routed correctly.
-    fn submit_ai_query_local(
-        &mut self,
-        zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn submit_ai_query_local(&mut self, ctx: &mut ViewContext<Self>) {
         self.editor.update(ctx, |editor, ctx| {
             editor.abort_attached_images_future_handle(ctx);
         });
@@ -10963,12 +10907,6 @@ impl Input {
 
         if PromptAlertView::does_alert_block_ai_requests(ctx) {
             return;
-        }
-
-        if let Some(zero_state_prompt_suggestion_type) = zero_state_prompt_suggestion_type {
-            return self.ai_controller.update(ctx, move |controller, ctx| {
-                controller.send_zero_state_prompt_suggestion(zero_state_prompt_suggestion_type, ctx)
-            });
         }
 
         let ai_query = self.editor.as_ref(ctx).buffer_text(ctx);
@@ -12051,13 +11989,6 @@ impl TypedActionView for Input {
             }
             InputAction::CycleNextCommandSuggestion => {
                 self.cycle_next_command_suggestion(ctx);
-            }
-            InputAction::InsertZeroStatePromptSuggestion(suggestion_type) => {
-                self.insert_zero_state_prompt_suggestion(
-                    *suggestion_type,
-                    ZeroStatePromptSuggestionTriggeredFrom::InputBar,
-                    ctx,
-                );
             }
             InputAction::EnableAutoDetection => {
                 // Call the same logic that clicking the lightbulb icon triggers

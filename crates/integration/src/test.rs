@@ -6706,9 +6706,7 @@ pub fn test_agent_mode_pane_minimum_size() -> Builder {
                     app.dispatch_typed_action(
                         *window_id,
                         &[workspace_view_id],
-                        &WorkspaceAction::NewPaneInAgentMode {
-                            zero_state_prompt_suggestion_type: None,
-                        },
+                        &WorkspaceAction::NewPaneInAgentMode,
                     );
                 })
                 .add_named_assertion_with_data_from_prior_step(

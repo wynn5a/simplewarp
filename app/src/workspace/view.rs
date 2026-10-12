@@ -246,7 +246,6 @@ use crate::terminal::session_settings::{
 use crate::terminal::settings::{SpacingMode, TerminalSettings};
 use crate::terminal::shell::ShellType;
 use crate::terminal::view::docker_sandbox::DEFAULT_DOCKER_SANDBOX_BASE_IMAGE;
-use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
 use crate::terminal::view::load_ai_conversation::{
     RestorationDirState, RestoreConversationEntryBehavior, RestoredAIConversation,
 };
@@ -2504,21 +2503,6 @@ impl Workspace {
                     ctx,
                 );
             }
-            NewWorkspaceSource::AgentSession {
-                options,
-                initial_query,
-            } => {
-                self.add_tab_with_pane_layout(
-                    PanesLayout::SingleTerminal(options),
-                    Arc::new(HashMap::new()),
-                    None,
-                    ctx,
-                );
-                // Enter agent mode with the environment creation query.
-                self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
-                    pane_group.start_agent_mode_in_new_pane(initial_query.as_deref(), None, ctx);
-                });
-            }
             NewWorkspaceSource::NotebookFromFilePath { file_path } => {
                 self.add_tab_for_file_notebook(file_path, ctx);
             }
@@ -2597,7 +2581,6 @@ impl Workspace {
             NewWorkspaceSource::Empty { .. }
             | NewWorkspaceSource::FromTemplate { .. }
             | NewWorkspaceSource::Session { .. }
-            | NewWorkspaceSource::AgentSession { .. }
             | NewWorkspaceSource::NotebookFromFilePath { .. } => should_default_open,
         }
     }
@@ -2692,17 +2675,9 @@ impl Workspace {
 
     /// Add and focus a new terminal pane in AI mode. Add the terminal pane to the right of
     /// all other panes, as a split on the root node.
-    fn add_terminal_pane_in_ai_mode(
-        &mut self,
-        zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn add_terminal_pane_in_ai_mode(&mut self, ctx: &mut ViewContext<Self>) {
         self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
-            pane_group.add_terminal_pane_in_agent_mode(
-                None,
-                zero_state_prompt_suggestion_type,
-                ctx,
-            );
+            pane_group.add_terminal_pane_in_agent_mode(None, ctx);
         });
     }
 
@@ -16000,7 +15975,7 @@ impl TypedActionView for Workspace {
                     "My settings.toml file has an error: {error_description}. Please fix it."
                 );
                 self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
-                    pane_group.add_terminal_pane_in_agent_mode(None, None, ctx);
+                    pane_group.add_terminal_pane_in_agent_mode(None, ctx);
                     if let Some(terminal_view) = pane_group.focused_session_view(ctx) {
                         terminal_view.update(ctx, |terminal_view, terminal_view_ctx| {
                             // The modify-settings skill should always be available for
@@ -16279,11 +16254,7 @@ impl TypedActionView for Workspace {
             OpenInExplorer { path } => {
                 ctx.open_file_path_in_explorer(path);
             }
-            NewPaneInAgentMode {
-                zero_state_prompt_suggestion_type,
-            } => {
-                self.add_terminal_pane_in_ai_mode(*zero_state_prompt_suggestion_type, ctx);
-            }
+            NewPaneInAgentMode => self.add_terminal_pane_in_ai_mode(ctx),
             DragTab {
                 tab_index,
                 tab_position,

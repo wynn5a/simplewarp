@@ -4,7 +4,7 @@ use settings::Setting as _;
 use warp_core::ui::theme::Fill;
 use warp_errors::report_if_error;
 use warpui::elements::{
-    Align, Border, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius,
+    Align, Border, ChildAnchor, Clipped, ConstrainedBox, Container, CornerRadius,
     CrossAxisAlignment, Empty, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle,
     OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius, Stack,
 };
@@ -12,9 +12,7 @@ use warpui::keymap::FixedBinding;
 use warpui::platform::Cursor;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::{
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
-};
+use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
 use crate::Appearance;
 use crate::appearance::AppearanceEvent;
@@ -24,13 +22,12 @@ use crate::context_chips::renderer::Renderer as ContextChipRenderer;
 use crate::context_chips::{
     ChipAvailability, ChipRuntimeCapabilities, ContextChipKind, available_chips,
 };
-use crate::settings::{FontSettings, WarpPromptSeparator};
+use crate::settings::FontSettings;
 use crate::terminal::SizeInfo;
 use crate::terminal::blockgrid_element::BlockGridElement;
 use crate::terminal::model::ObfuscateSecrets;
 use crate::terminal::model::blockgrid::BlockGrid;
 use crate::terminal::session_settings::SessionSettings;
-use crate::view_components::{Dropdown, DropdownItem};
 
 const MODAL_WIDTH: f32 = 700.;
 const BORDER_WIDTH: f32 = 1.;
@@ -43,13 +40,8 @@ const SECTION_UNIFORM_PADDING: f32 = 24.;
 const MARGIN_BETWEEN_MODAL_SECTIONS: f32 = 16.;
 const SLP_ROW_BOTTOM_PADDING: f32 = 8.;
 const SLP_ROW_TOP_MARGIN: f32 = 8.;
-const CHECKBOX_MARGIN_RIGHT: f32 = 4.;
-const DROPDOWN_LABEL_MARGIN_LEFT: f32 = 24.;
-const DROPDOWN_LABEL_MARGIN_RIGHT: f32 = 4.;
-const DROPDOWN_WIDTH: f32 = 72.;
 
 const MODAL_CONTENT_FONT_SIZE: f32 = 14.;
-const CHECKBOX_SIZE: f32 = 16.;
 
 const MODAL_TITLE: &str = "Edit prompt";
 const WARP_PROMPT_SECTION_HEADER: &str = "Warp terminal prompt";
@@ -84,7 +76,6 @@ struct MouseStateHandles {
     restore_default_warp_prompt_handle: MouseStateHandle,
     warp_prompt_mouse_state_handle: MouseStateHandle,
     ps1_mouse_state_handle: MouseStateHandle,
-    same_line_prompt_checkbox_state_handle: MouseStateHandle,
 }
 
 pub struct EditorModal {
@@ -101,18 +92,6 @@ pub struct EditorModal {
     /// be changed while the modal is opened, and will be used when
     /// saving changes.
     prompt_type: PromptType,
-
-    /// Whether same line prompt is currently enabled or not. Similar
-    /// to above, value reflects most recently saved setting when modal
-    /// is opened. It can be changed while the modal is opened, and it is
-    /// used for saving changes.
-    same_line_prompt_enabled: bool,
-
-    /// Dropdown to select the separator for the Warp prompt, in the case of
-    /// same line prompt. This separator is added at the end of the Warp prompt.
-    warp_prompt_separator_dropdown: ViewHandle<Dropdown<EditorModalAction>>,
-    /// The separator currently selected for the Warp prompt.
-    warp_prompt_separator: WarpPromptSeparator,
 
     /// True if there was any change while the modal was open.
     is_dirty: bool,
@@ -155,67 +134,11 @@ pub enum EditorModalAction {
     UsePS1,
     UseWarpPrompt,
     ResetWarpPrompt,
-    ToggleSameLinePrompt,
-    SetWarpPromptSeparator { separator: WarpPromptSeparator },
 }
 
 impl EditorModal {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         let prompt_type = PromptType::from_settings(ctx);
-
-        let same_line_prompt_enabled = SessionSettings::as_ref(ctx)
-            .saved_prompt
-            .value()
-            .same_line_prompt_enabled();
-
-        let warp_prompt_separator = match SessionSettings::as_ref(ctx).saved_prompt.value() {
-            PromptSelection::CustomChipSelection(config) => config.separator(),
-            // If the "default Warp prompt" i.e. no context chips, is selected, then default to no Warp prompt separator.
-            _ => WarpPromptSeparator::None,
-        };
-        let warp_prompt_separator_label = warp_prompt_separator.dropdown_item_label().to_owned();
-
-        let warp_prompt_separator_dropdown = ctx.add_typed_action_view(|ctx| {
-            let mut dropdown = Dropdown::new(ctx);
-            dropdown.set_top_bar_max_width(DROPDOWN_WIDTH);
-            dropdown.set_menu_width(DROPDOWN_WIDTH, ctx);
-            let items = vec![
-                DropdownItem::new(
-                    WarpPromptSeparator::None.dropdown_item_label(),
-                    EditorModalAction::SetWarpPromptSeparator {
-                        separator: WarpPromptSeparator::None,
-                    },
-                ),
-                DropdownItem::new(
-                    WarpPromptSeparator::PercentSign.dropdown_item_label(),
-                    EditorModalAction::SetWarpPromptSeparator {
-                        separator: WarpPromptSeparator::PercentSign,
-                    },
-                ),
-                DropdownItem::new(
-                    WarpPromptSeparator::DollarSign.dropdown_item_label(),
-                    EditorModalAction::SetWarpPromptSeparator {
-                        separator: WarpPromptSeparator::DollarSign,
-                    },
-                ),
-                DropdownItem::new(
-                    WarpPromptSeparator::ChevronSymbol.dropdown_item_label(),
-                    EditorModalAction::SetWarpPromptSeparator {
-                        separator: WarpPromptSeparator::ChevronSymbol,
-                    },
-                ),
-            ];
-
-            if prompt_type != PromptType::PS1 && same_line_prompt_enabled {
-                dropdown.set_enabled(ctx);
-            } else {
-                dropdown.set_disabled(ctx);
-            }
-
-            dropdown.set_items(items, ctx);
-            dropdown.set_selected_by_name(warp_prompt_separator_label, ctx);
-            dropdown
-        });
 
         // Context-chip colors are theme-derived, so rebuild the chips when the
         // theme changes to keep an open editor in sync (preserving the current
@@ -243,9 +166,6 @@ impl EditorModal {
             is_dirty: false,
             prompt_type,
             chip_runtime_capabilities: Default::default(),
-            same_line_prompt_enabled,
-            warp_prompt_separator_dropdown,
-            warp_prompt_separator,
         }
     }
 
@@ -298,28 +218,8 @@ impl EditorModal {
         self.update_used_chips(used_chips, ctx);
 
         self.prompt_type = PromptType::from_settings(ctx);
-        self.same_line_prompt_enabled = SessionSettings::as_ref(ctx)
-            .saved_prompt
-            .value()
-            .same_line_prompt_enabled();
 
         ctx.notify();
-    }
-
-    /// Updates the state of the Warp prompt separator dropdown to be enabled/disabled based on the current state of the modal.
-    fn update_warp_separator_dropdown_state(&mut self, ctx: &mut ViewContext<Self>) {
-        // If we are using the Warp prompt and SLP is enabled, then we enable the dropdown. Otherwise, disable it.
-        if self.prompt_type != PromptType::PS1 && self.same_line_prompt_enabled {
-            self.warp_prompt_separator_dropdown
-                .update(ctx, |dropdown, ctx| {
-                    dropdown.set_enabled(ctx);
-                });
-        } else {
-            self.warp_prompt_separator_dropdown
-                .update(ctx, |dropdown, ctx| {
-                    dropdown.set_disabled(ctx);
-                });
-        }
     }
 
     fn save_prompt_to_settings(&mut self, ctx: &mut ViewContext<Self>) {
@@ -376,15 +276,11 @@ impl TypedActionView for EditorModal {
             Self::Action::UsePS1 => {
                 self.is_dirty = true;
                 self.prompt_type = PromptType::PS1;
-                // Disable the Warp separator dropdown (only applies to Warp prompt).
-                self.update_warp_separator_dropdown_state(ctx);
                 ctx.notify();
             }
             Self::Action::UseWarpPrompt => {
                 self.is_dirty = true;
                 self.prompt_type = PromptType::warp_prompt_from_settings(ctx);
-                // Enable the Warp separator dropdown, if SLP is on.
-                self.update_warp_separator_dropdown_state(ctx);
                 ctx.notify();
             }
             Self::Action::ResetWarpPrompt => {
@@ -392,28 +288,8 @@ impl TypedActionView for EditorModal {
                 self.prompt_type = PromptType::WarpDefault;
 
                 let default_prompt = PromptConfiguration::default_prompt();
-                self.same_line_prompt_enabled = default_prompt.same_line_prompt_enabled();
-                self.warp_prompt_separator = default_prompt.separator();
-                // Disable the Warp separator dropdown, since SLP is off for the default Warp prompt.
-                self.update_warp_separator_dropdown_state(ctx);
                 let restored_chips = default_prompt.chip_kinds();
                 self.update_used_chips(restored_chips, ctx);
-                ctx.notify();
-            }
-            Self::Action::ToggleSameLinePrompt => {
-                self.is_dirty = true;
-                self.same_line_prompt_enabled = !self.same_line_prompt_enabled;
-
-                // In case we had previously picked default Warp prompt, but now the user toggled
-                // same line prompt - it's no longer the default prompt.
-                self.prompt_type = PromptType::Warp;
-
-                self.update_warp_separator_dropdown_state(ctx);
-                ctx.notify();
-            }
-            Self::Action::SetWarpPromptSeparator { separator } => {
-                self.is_dirty = true;
-                self.warp_prompt_separator = *separator;
                 ctx.notify();
             }
         }
@@ -558,69 +434,6 @@ impl EditorModal {
         } else {
             button.finish()
         }
-    }
-
-    // TODO: consider supporting SLP with the new Warp prompt.
-    #[allow(dead_code)]
-    fn render_same_line_prompt_section(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let label = appearance
-            .ui_builder()
-            .span("Same line prompt".to_string())
-            .with_style(UiComponentStyles {
-                font_size: Some(MODAL_CONTENT_FONT_SIZE),
-                ..Default::default()
-            })
-            .build()
-            .finish();
-
-        let mut checkbox = appearance
-            .ui_builder()
-            .checkbox(
-                self.mouse_state_handles
-                    .same_line_prompt_checkbox_state_handle
-                    .clone(),
-                Some(CHECKBOX_SIZE),
-            )
-            .check(self.same_line_prompt_enabled)
-            .build()
-            .on_click(move |ctx, _, _| {
-                ctx.dispatch_typed_action(EditorModalAction::ToggleSameLinePrompt);
-            });
-
-        if self.prompt_type == PromptType::PS1 {
-            checkbox = checkbox.disable();
-        }
-
-        Flex::row()
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(
-                Container::new(label)
-                    .with_margin_right(CHECKBOX_MARGIN_RIGHT)
-                    .finish(),
-            )
-            .with_child(checkbox.finish())
-            .with_child(
-                Container::new(
-                    appearance
-                        .ui_builder()
-                        .span("Separator".to_string())
-                        .with_style(UiComponentStyles {
-                            font_size: Some(MODAL_CONTENT_FONT_SIZE),
-                            ..Default::default()
-                        })
-                        .build()
-                        .finish(),
-                )
-                .with_margin_left(DROPDOWN_LABEL_MARGIN_LEFT)
-                .with_margin_right(DROPDOWN_LABEL_MARGIN_RIGHT)
-                .finish(),
-            )
-            .with_child(
-                Container::new(ChildView::new(&self.warp_prompt_separator_dropdown).finish())
-                    .with_margin_left(DROPDOWN_LABEL_MARGIN_RIGHT)
-                    .finish(),
-            )
-            .finish()
     }
 
     fn render_warp_prompt_section(&self, appearance: &Appearance) -> Box<dyn Element> {

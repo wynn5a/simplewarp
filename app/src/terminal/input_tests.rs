@@ -7477,7 +7477,7 @@ fn test_remove_ignored_suggestion_on_ai_query_execution() {
             });
             input.clear_buffer_and_reset_undo_stack(ctx);
             input.user_insert(test_query, ctx);
-            input.submit_ai_query_local(None, ctx);
+            input.submit_ai_query_local(ctx);
         });
 
         // Verify the query is no longer ignored

@@ -16,9 +16,6 @@ impl EntrypointType {
                 (false, true) => "PROMPT_SUGGESTION.CODING".to_string(),
                 (false, false) => "PROMPT_SUGGESTION.SIMPLE".to_string(),
             },
-            Self::ZeroStateAgentModePromptSuggestion => {
-                "ZERO_STATE_AGENT_MODE_PROMPT_SUGGESTION".to_string()
-            }
             Self::InitProjectRules => "INIT_PROJECT_RULES".to_string(),
             Self::UserInitiated => "USER_INITIATED".to_string(),
             Self::AgentInitiated => "AGENT_INITIATED".to_string(),
