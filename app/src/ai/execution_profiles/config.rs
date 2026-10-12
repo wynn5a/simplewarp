@@ -15,7 +15,6 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use super::{AIExecutionProfile, ActionPermission, WriteToPtyPermission};
 use crate::ai::llms::LLMId;
-use crate::cloud_object::model::generic_string_model::StringModel as _;
 use crate::settings::AgentModeCommandExecutionPredicate;
 
 /// Reserved key for the one required default profile.

@@ -60,7 +60,6 @@ pub enum AmbientConversationStatus {
     Cancelled {
         reason: CancellationReason,
     },
-    #[allow(dead_code)]
     Blocked {
         blocked_action: String,
     },

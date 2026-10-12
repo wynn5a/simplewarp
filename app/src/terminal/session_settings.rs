@@ -310,13 +310,6 @@ define_settings_group!(SessionSettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
-    should_add_agent_mode_chip: ShouldAddAgentModeChip {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    },
     notifications: Notifications {
         type: NotificationsSettings,
         default: NotificationsSettings::default(),
@@ -327,17 +320,6 @@ define_settings_group!(SessionSettings, settings: [
         max_table_depth: 1,
         description: "Notification preferences for terminal events.",
     }
-    // This is a legacy setting that we no longer allow users to toggle after
-    // context chips were introduced. We keep it only to respect users who
-    // had previously disabled the dirty files chip via this setting.
-    git_prompt_dirty_indicator: LegacyGitPromptDirtyIndicator {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-        storage_key: "GitPromptDirtyIndicator",
-    },
     // TODO: Remove this setting when `FeatureFlag::ProfilesDesignRevamp` is cleaned up.
     // When ProfilesDesignRevamp is enabled, model selectors are always shown in the prompt.
     // This setting only controls visibility when ProfilesDesignRevamp is disabled.
@@ -368,31 +350,11 @@ define_settings_group!(SessionSettings, settings: [
         toml_path: "agents.third_party.cli_agent_toolbar_chip_selection_setting",
         description: "Controls the layout of context chips in the CLI Agent toolbar.",
     },
-    notification_toast_duration_secs: NotificationToastDurationSecs {
-        type: u64,
-        default: 8,
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "notifications.toast_duration_secs",
-        description: "How long notification toasts are displayed, in seconds.",
-    },
     // Tracks whether the `gh` CLI is installed and authenticated on this machine.
     // Not synced because `gh` CLI availability is machine-specific.
     github_pr_chip_default_validation: GithubPrChipDefaultValidation {
         type: GithubPrPromptChipDefaultValidation,
         default: GithubPrPromptChipDefaultValidation::Unvalidated,
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    },
-    // One-time flag: whether we've already migrated the handoff-to-cloud chip
-    // into a user's custom agent toolbar layout. When `Default`, the chip is
-    // already present via `AgentToolbarItemKind::default_right()`, so this
-    // only matters for `Custom` layouts that were saved before the chip existed.
-    did_add_handoff_chip_to_toolbar: DidAddHandoffChipToToolbar {
-        type: bool,
-        default: false,
         supported_platforms: SupportedPlatforms::ALL,
         surface: settings::SettingSurfaces::GUI,
         private: true,

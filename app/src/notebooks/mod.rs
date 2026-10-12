@@ -8,8 +8,7 @@ pub mod notebook;
 mod styles;
 
 use async_trait::async_trait;
-pub use cloud_object_models::{CloudNotebook, CloudNotebookModel, NotebookId, SerializedNotebook};
-use cloud_objects::cloud_object::SerializedModel;
+pub use cloud_object_models::{CloudNotebook, CloudNotebookModel, NotebookId};
 use warpui::AppContext;
 
 use crate::cloud_object::{
@@ -22,16 +21,6 @@ use crate::server::ids::SyncId;
 impl CloudModelType for CloudNotebookModel {
     type CloudObjectType = CloudNotebook;
     type IdType = NotebookId;
-
-    fn serialized(&self) -> SerializedModel {
-        let serialized = SerializedNotebook {
-            data: self.data.clone(),
-            ai_document_id: self.ai_document_id.as_ref().map(|id| id.to_string()),
-            conversation_id: self.conversation_id.clone(),
-        };
-        let json = serde_json::to_string(&serialized).expect("Failed to serialize notebook");
-        SerializedModel::new(json)
-    }
 
     fn model_type_name(&self) -> &'static str {
         if self.ai_document_id.is_some() {

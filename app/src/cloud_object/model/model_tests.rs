@@ -52,7 +52,6 @@ fn mock_cloud_notebook(id: SyncId, title: String, folder_id: Option<SyncId>) -> 
             title,
             data: "test".into(),
             ai_document_id: None,
-            conversation_id: None,
         },
         CloudObjectMetadata {
             folder_id,

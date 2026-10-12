@@ -14,7 +14,6 @@ const MAX_RESULTS: usize = 50;
 pub struct CommandDataSource;
 
 impl CommandDataSource {
-    #[allow(dead_code)]
     pub fn new() -> Self {
         Self
     }

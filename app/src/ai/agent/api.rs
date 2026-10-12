@@ -22,7 +22,7 @@ use warp_core::features::FeatureFlag;
 use warp_core::user_preferences::GetUserPreferences;
 use warpui::{AppContext, EntityId, SingletonEntity as _};
 
-use super::{AIAgentInput, MCPContext, MCPServer, RequestMetadata, ServerOutputId, Suggestions};
+use super::{AIAgentInput, MCPContext, MCPServer, RequestMetadata, ServerOutputId};
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::{RequestInput, SessionContext};
@@ -75,7 +75,6 @@ pub struct RequestParams {
     pub forked_from_conversation_token: Option<ServerConversationToken>,
     pub ambient_agent_task_id: Option<AmbientAgentTaskId>,
     pub tasks: Vec<warp_multi_agent_api::Task>,
-    pub existing_suggestions: Option<Suggestions>,
     pub metadata: Option<RequestMetadata>,
     pub session_context: SessionContext,
     pub model: LLMId,
@@ -115,7 +114,6 @@ pub struct ConversationData {
     pub server_conversation_token: Option<ServerConversationToken>,
     pub forked_from_conversation_token: Option<ServerConversationToken>,
     pub ambient_agent_task_id: Option<AmbientAgentTaskId>,
-    pub existing_suggestions: Option<Suggestions>,
 }
 
 /// The user's active rules, in a stable order so that an unchanged set of rules produces an
@@ -146,7 +144,6 @@ impl RequestParams {
             forked_from_conversation_token: None,
             ambient_agent_task_id: None,
             tasks: vec![],
-            existing_suggestions: None,
             metadata: None,
             session_context: SessionContext::new_for_test(),
             model: LLMId::from("test-model"),
@@ -293,7 +290,6 @@ impl RequestParams {
             forked_from_conversation_token: conversation.forked_from_conversation_token,
             ambient_agent_task_id: conversation.ambient_agent_task_id,
             tasks: conversation.tasks,
-            existing_suggestions: conversation.existing_suggestions,
             context_window_limit,
             metadata,
             session_context,

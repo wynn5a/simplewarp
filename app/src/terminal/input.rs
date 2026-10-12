@@ -876,7 +876,6 @@ pub enum InputState {
 #[derive(Clone, Debug)]
 pub enum InputAction {
     FocusInputBox,
-    CtrlR,
     CtrlD,
     Up,
     PageUp,
@@ -9014,54 +9013,6 @@ impl Input {
         ctx.emit(Event::CtrlD);
     }
 
-    fn ctrl_r(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.suggestions_mode_model.as_ref(ctx).is_history_up() {
-            // Iterate through menu if we're already in history substring mode and
-            // the user hits ctrl-r.
-            self.input_suggestions
-                .update(ctx, |input_suggestions, ctx| {
-                    input_suggestions.select_prev(ctx);
-                });
-        } else if !self.ai_input_model.as_ref(ctx).is_ai_input_enabled() {
-            self.fuzzy_history_search(ctx);
-        }
-    }
-
-    fn fuzzy_history_search(&mut self, ctx: &mut ViewContext<Self>) {
-        if !self.can_query_history(ctx) {
-            return;
-        }
-
-        self.focus_input_box(ctx);
-
-        let editor = self.editor.as_ref(ctx);
-
-        let original_cursor_point = editor.single_cursor_to_point(ctx);
-
-        // Although we don't use suggestions_mode_model when using Voltron,
-        // we still close the input suggestion menu before opening the Voltron modal,
-        // which involves resetting the cursor point.
-        let original_buffer = editor.buffer_text(ctx);
-        let original_input_type = self.ai_input_model.as_ref(ctx).input_type();
-        let original_input_was_locked = self.ai_input_model.as_ref(ctx).is_input_type_locked();
-        self.suggestions_mode_model.update(ctx, |m, ctx| {
-            m.set_mode(
-                InputSuggestionsMode::HistoryUp {
-                    original_buffer,
-                    original_cursor_point,
-                    search_mode: HistorySearchMode::Fuzzy,
-                    original_input_type,
-                    original_input_was_locked,
-                },
-                ctx,
-            );
-        });
-
-        self.select_and_refresh_voltron(VoltronItem::History, ctx);
-
-        ctx.notify();
-    }
-
     /// Returns a collection of history entries that are user AI queries or shell commands in order
     /// from oldest to most recent.
     fn collate_ai_and_command_history<'a>(
@@ -11927,22 +11878,6 @@ impl Input {
         feature_item: VoltronItem,
         ctx: &mut ViewContext<Input>,
     ) {
-        let welcome_tip_feature = match feature_item {
-            VoltronItem::AiCommands => Some(Tip::Action(TipAction::AiCommandSearch)),
-            VoltronItem::History => Some(Tip::Action(TipAction::HistorySearch)),
-            VoltronItem::Workflows => None,
-        };
-
-        if let Some(welcome_tip_feature) = welcome_tip_feature {
-            self.tips_completed.update(ctx, |tips_completed, ctx| {
-                mark_feature_used_and_write_to_user_defaults(
-                    welcome_tip_feature,
-                    tips_completed,
-                    ctx,
-                );
-                ctx.notify();
-            });
-        }
         // If input suggestions are opened we should close them when opening voltron
         if self.suggestions_mode_model.as_ref(ctx).is_visible() {
             self.close_input_suggestions_and_restore_buffer(true, true, ctx);
@@ -12082,7 +12017,6 @@ impl TypedActionView for Input {
             InputAction::PageUp => self.editor_page_up(ctx),
             InputAction::PageDown => self.editor_page_down(ctx),
             InputAction::CtrlD => self.ctrl_d(ctx),
-            InputAction::CtrlR => self.ctrl_r(ctx),
             InputAction::ClearScreen => self.clear_screen(ctx),
             InputAction::SelectAndRefreshVoltron(feature_name) => {
                 self.select_and_refresh_voltron(*feature_name, ctx);
@@ -12392,12 +12326,6 @@ impl View for Input {
             InputSuggestionsMode::AIContextMenu { .. }
         ) {
             ctx.set.insert("AIContextMenuOpen");
-        } else if self
-            .suggestions_mode_model
-            .as_ref(app)
-            .is_conversation_menu()
-        {
-            ctx.set.insert(flags::OPEN_INLINE_CONVERSATION_MENU);
         }
 
         if self.is_editing_queued_prompt(app) {

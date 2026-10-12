@@ -11,8 +11,8 @@ use crate::ai::agent::task::TaskId;
 use crate::ai::agent::util::parse_markdown_into_text_and_code_sections;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionType, AIAgentAttachment, AIAgentCitation, AIAgentOutputMessage,
-    AIAgentText, ArtifactCreatedData, MessageId, SubagentCall, SubagentType,
-    SuggestedAgentModeWorkflow, SuggestedRule, Suggestions, SummarizationType, UserQueryMode,
+    AIAgentText, ArtifactCreatedData, MessageId, SubagentCall, SubagentType, SummarizationType,
+    UserQueryMode,
 };
 use crate::ai::artifact_download::sanitized_basename;
 
@@ -496,31 +496,6 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
                 Ok(MaybeAIAgentAction::NoClientRepresentation)
             }
             _ => Err(ToolToAIAgentActionError::UnexpectedTool),
-        }
-    }
-}
-
-impl From<api::Suggestions> for Suggestions {
-    fn from(api_suggestions: api::Suggestions) -> Self {
-        Self {
-            rules: api_suggestions
-                .rules
-                .into_iter()
-                .map(|rule| SuggestedRule {
-                    name: rule.name,
-                    content: rule.content,
-                    logging_id: rule.logging_id.into(),
-                })
-                .collect(),
-            agent_mode_workflows: api_suggestions
-                .workflows
-                .into_iter()
-                .map(|workflow| SuggestedAgentModeWorkflow {
-                    name: workflow.name,
-                    prompt: workflow.prompt,
-                    logging_id: workflow.logging_id.into(),
-                })
-                .collect(),
         }
     }
 }

@@ -1840,7 +1840,6 @@ fn box_persisted_generic_string_object(
         PersistedGenericStringObject::AIFact(object) => Box::new(object),
         PersistedGenericStringObject::MCPServer(object) => Box::new(object),
         PersistedGenericStringObject::TemplatableMCPServer(object) => Box::new(object),
-        PersistedGenericStringObject::AIExecutionProfile(object) => Box::new(object),
     }
 }
 

@@ -30,10 +30,6 @@ pub enum SlashCommandRequest {
         url: String,
     },
     InitProjectRules,
-    CreateEnvironment {
-        repos: Vec<String>,
-        use_current_dir: bool,
-    },
     Summarize {
         prompt: Option<String>,
     },
@@ -218,12 +214,10 @@ impl SlashCommandRequest {
         app: &AppContext,
     ) -> Option<AIConversationId> {
         match self {
-            Self::Summarize { .. } | Self::CreateEnvironment { .. } | Self::InvokeSkill { .. } => {
-                controller
-                    .context_model
-                    .as_ref(app)
-                    .selected_conversation_id(app)
-            }
+            Self::Summarize { .. } | Self::InvokeSkill { .. } => controller
+                .context_model
+                .as_ref(app)
+                .selected_conversation_id(app),
             _ => None,
         }
     }
@@ -249,27 +243,6 @@ impl SlashCommandRequest {
                 context,
                 display_query: Some("/init".to_string()),
             }],
-            SlashCommandRequest::CreateEnvironment {
-                mut repos,
-                use_current_dir,
-            } => {
-                let display_query = if repos.is_empty() {
-                    "/create-environment".to_string()
-                } else {
-                    format!("/create-environment {}", repos.join(" "))
-                };
-
-                // Add "." to represent the current working directory
-                if use_current_dir {
-                    repos.push(String::from("."));
-                }
-
-                vec![AIAgentInput::CreateEnvironment {
-                    context,
-                    display_query: Some(display_query),
-                    repo_paths: repos,
-                }]
-            }
             SlashCommandRequest::Summarize { prompt, .. } => {
                 vec![AIAgentInput::SummarizeConversation { prompt, context }]
             }
@@ -304,7 +277,6 @@ impl SlashCommandRequest {
             SlashCommandRequest::CloneRepository { .. } => EntrypointType::CloneRepository,
             SlashCommandRequest::InitProjectRules => EntrypointType::InitProjectRules,
             SlashCommandRequest::CreateNewProject { .. }
-            | SlashCommandRequest::CreateEnvironment { .. }
             | SlashCommandRequest::Summarize { .. }
             | SlashCommandRequest::InvokeSkill { .. } => EntrypointType::UserInitiated,
         }

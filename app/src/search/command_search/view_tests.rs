@@ -7,7 +7,6 @@ use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::server_api::ServerApiProvider;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
-use crate::system::SystemStats;
 use crate::test_util::settings::initialize_settings_for_tests;
 
 fn initialize_app(app: &mut App) {
@@ -15,7 +14,6 @@ fn initialize_app(app: &mut App) {
 
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| NetworkStatus::new());
-    app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_| UpdateManager::mock());
     app.add_singleton_model(|_| Appearance::mock());

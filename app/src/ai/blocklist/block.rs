@@ -1817,14 +1817,6 @@ impl AIBlock {
     }
 
     fn handle_complete_output(&mut self, output: &AIAgentOutput, ctx: &mut ViewContext<Self>) {
-        let mut suggestions = BlocklistAIHistoryModel::as_ref(ctx)
-            .existing_suggestions_for_conversation(self.client_ids.conversation_id)
-            .cloned()
-            .unwrap_or_default();
-        if let Some(output_suggestions) = &output.suggestions {
-            suggestions.extend(output_suggestions);
-        }
-
         for action in output.actions() {
             match action {
                 AIAgentAction {

@@ -15155,18 +15155,6 @@ impl Workspace {
             context.set.insert(flags::RESTORE_SESSION_CONTEXT_FLAG);
         }
 
-        if *session_settings.honor_ps1 {
-            context.set.insert(flags::HONOR_PS1_CONTEXT_FLAG);
-        }
-
-        if session_settings
-            .saved_prompt
-            .value()
-            .same_line_prompt_enabled()
-        {
-            context.set.insert(flags::WARP_SAME_LINE_PROMPT_FLAG);
-        }
-
         if *ssh_settings.reuse_existing_control_master.value() {
             context
                 .set
@@ -15350,15 +15338,6 @@ impl Workspace {
         }
         if *tab_settings.show_code_review_button.value() {
             context.set.insert(flags::SHOW_CODE_REVIEW_BUTTON_FLAG);
-        }
-        if *tab_settings.show_code_review_diff_stats.value() {
-            context.set.insert(flags::SHOW_CODE_REVIEW_DIFF_STATS_FLAG);
-        }
-        if *general_settings
-            .auto_open_code_review_pane_on_first_agent_change
-            .value()
-        {
-            context.set.insert(flags::AUTO_OPEN_CODE_REVIEW_PANE_FLAG);
         }
         if *tab_settings.use_vertical_tabs.value() {
             context.set.insert(flags::USE_VERTICAL_TABS_FLAG);
@@ -17249,28 +17228,8 @@ impl View for Workspace {
         if *CodeSettings::as_ref(app).show_global_search {
             context.set.insert(flags::SHOW_GLOBAL_SEARCH);
         }
-        if *CodeSettings::as_ref(app).show_hidden_files {
-            context.set.insert(flags::SHOW_HIDDEN_FILES);
-        }
 
         self.add_toggle_setting_context_flags(app, &mut context);
-
-        let sync_state = SyncedInputState::as_ref(app);
-
-        if sync_state.is_syncing_all_inputs(self.window_id) {
-            context.set.insert(flags::SYNC_ALL_TABS_FLAG);
-        } else if sync_state
-            .is_syncing_all_panes_in_pane_group(self.window_id, self.active_tab_pane_group().id())
-        {
-            context.set.insert(flags::SYNC_ALL_PANES_IN_CURRENT_TAB);
-        }
-
-        let is_universal_developer_input_enabled =
-            InputSettings::as_ref(app).is_universal_developer_input_enabled(app);
-
-        if is_universal_developer_input_enabled {
-            context.set.insert(flags::UNIVERSAL_DEVELOPER_INPUT_ENABLED);
-        }
 
         let default_terminal = DefaultTerminal::as_ref(app);
         if default_terminal.is_warp_default() {

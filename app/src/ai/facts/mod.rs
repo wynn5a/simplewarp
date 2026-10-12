@@ -2,9 +2,7 @@ pub use cloud_object_models::{AIFact, AIMemory, CloudAIFact, CloudAIFactModel};
 
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
-use crate::cloud_object::{
-    GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType,
-};
+use crate::cloud_object::{GenericStringObjectFormat, JsonObjectType};
 
 pub mod manager;
 pub mod view;
@@ -16,10 +14,6 @@ impl StringModel for AIFact {
 
     fn model_type_name(&self) -> &'static str {
         "Rule"
-    }
-
-    fn should_enforce_revisions() -> bool {
-        true
     }
 
     fn model_format() -> GenericStringObjectFormat {
@@ -38,10 +32,6 @@ impl StringModel for AIFact {
         match self {
             AIFact::Memory(memory) => memory.content.clone(),
         }
-    }
-
-    fn uniqueness_key(&self) -> Option<GenericStringObjectUniqueKey> {
-        None
     }
 }
 

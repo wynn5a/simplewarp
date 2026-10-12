@@ -11,9 +11,7 @@ pub mod view;
 
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
-use crate::cloud_object::{
-    GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType,
-};
+use crate::cloud_object::{GenericStringObjectFormat, JsonObjectType};
 use crate::terminal::shell::ShellType;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -94,10 +92,6 @@ impl StringModel for EnvVarCollection {
         "Environment variables"
     }
 
-    fn should_enforce_revisions() -> bool {
-        true
-    }
-
     fn model_format() -> GenericStringObjectFormat {
         GenericStringObjectFormat::Json(Self::json_object_type())
     }
@@ -114,10 +108,6 @@ impl StringModel for EnvVarCollection {
         }
     }
 
-    fn uniqueness_key(&self) -> Option<GenericStringObjectUniqueKey> {
-        None
-    }
-
     fn should_show_activity_toasts() -> bool {
         true
     }
@@ -127,10 +117,6 @@ impl StringModel for EnvVarCollection {
     }
 
     fn can_export(&self) -> bool {
-        true
-    }
-
-    fn supports_linking(&self) -> bool {
         true
     }
 }

@@ -1258,9 +1258,7 @@ fn create_exchange_from_messages(
     let ai_output = AIAgentOutput {
         messages: outputs.to_vec(),
         citations,
-        api_metadata_bytes: None,
         server_output_id: server_output_id.map(|id| ServerOutputId::new(id.to_owned())),
-        suggestions: None,
         model_info: model_used.map(|model| OutputModelInfo {
             model_id: model.model_id.clone().into(),
             display_name: model.model_display_name.clone(),

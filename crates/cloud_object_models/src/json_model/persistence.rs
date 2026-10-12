@@ -10,10 +10,9 @@ use diesel::SqliteConnection;
 use diesel::result::Error;
 
 use crate::{
-    CloudAIExecutionProfile, CloudAIExecutionProfileModel, CloudAIFact, CloudAIFactModel,
-    CloudEnvVarCollection, CloudEnvVarCollectionModel, CloudMCPServer, CloudMCPServerModel,
-    CloudTemplatableMCPServer, CloudTemplatableMCPServerModel, CloudWorkflowEnum,
-    CloudWorkflowEnumModel,
+    CloudAIFact, CloudAIFactModel, CloudEnvVarCollection, CloudEnvVarCollectionModel,
+    CloudMCPServer, CloudMCPServerModel, CloudTemplatableMCPServer, CloudTemplatableMCPServerModel,
+    CloudWorkflowEnum, CloudWorkflowEnumModel,
 };
 
 pub enum PersistedGenericStringObject {
@@ -22,7 +21,6 @@ pub enum PersistedGenericStringObject {
     AIFact(CloudAIFact),
     MCPServer(CloudMCPServer),
     TemplatableMCPServer(CloudTemplatableMCPServer),
-    AIExecutionProfile(CloudAIExecutionProfile),
 }
 
 pub fn read_generic_string_objects(
@@ -105,24 +103,13 @@ pub fn read_generic_string_objects(
                         )
                     })
                 }
-                JsonObjectType::AIExecutionProfile => {
-                    let model = CloudAIExecutionProfileModel::deserialize_owned(&object.data);
-                    model.ok().map(|model| {
-                        PersistedGenericStringObject::AIExecutionProfile(
-                            CloudAIExecutionProfile::new(
-                                object_id,
-                                model,
-                                to_cloud_object_metadata(metadata),
-                                cloud_object_permissions,
-                            ),
-                        )
-                    })
-                }
                 // TODO: Implement CloudAgentConfig model when full sync support is added
                 JsonObjectType::CloudAgentConfig => None,
-                // Environments and scheduled agents were only ever synced from the server;
-                // stale rows are skipped.
-                JsonObjectType::CloudEnvironment | JsonObjectType::ScheduledAmbientAgent => None,
+                // Profiles now persist as settings; environments and scheduled agents were only
+                // ever synced from the server. Stale rows are skipped.
+                JsonObjectType::AIExecutionProfile
+                | JsonObjectType::CloudEnvironment
+                | JsonObjectType::ScheduledAmbientAgent => None,
             }
         })
         .collect())

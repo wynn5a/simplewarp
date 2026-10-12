@@ -29,7 +29,6 @@ enum QuitScope<'a> {
     Tabs(Vec<WeakViewHandle<PaneGroup>>),
     Window(WindowId),
     App,
-    #[allow(dead_code)]
     EditorTab {
         file_name: Option<String>,
         editor_status: Vec<CodeEditorStatus>,
@@ -248,7 +247,6 @@ impl UnsavedStateSummary<'static> {
         Self::for_scope(QuitScope::Tabs(tabs), ctx)
     }
 
-    #[allow(dead_code)]
     pub fn for_editor_tab(
         file_name: Option<String>,
         editor_status: Vec<CodeEditorStatus>,
@@ -418,14 +416,12 @@ impl<'a> QuitWarningDialog<'a> {
         self
     }
 
-    #[allow(dead_code)]
     /// Set the callback to invoke if the user wants to save changes before exiting an editor tab.
     pub fn on_save_changes<F: FnOnce(&mut AppContext) + 'static>(mut self, f: F) -> Self {
         self.on_save_changes = Some(Box::new(f));
         self
     }
 
-    #[allow(dead_code)]
     /// Set the callback to invoke if the user wants to discard changes before exiting an editor tab.
     pub fn on_discard_changes<F: FnOnce(&mut AppContext) + 'static>(mut self, f: F) -> Self {
         self.on_discard_changes = Some(Box::new(f));

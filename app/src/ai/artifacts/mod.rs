@@ -199,24 +199,6 @@ impl From<api::message::artifact_event::FileArtifact> for Artifact {
     }
 }
 
-impl From<api::message::artifact_event::PlanArtifact> for Artifact {
-    fn from(plan: api::message::artifact_event::PlanArtifact) -> Self {
-        Artifact::Plan {
-            document_uid: plan.document_id,
-            notebook_uid: if plan.notebook_uid.is_empty() {
-                None
-            } else {
-                Some(NotebookId::from(plan.notebook_uid))
-            },
-            title: if plan.title.is_empty() {
-                None
-            } else {
-                Some(plan.title)
-            },
-        }
-    }
-}
-
 /// Parse GitHub PR URL to extract repo and number.
 /// Expected format: https://github.com/{owner}/{repo}/pull/{number}
 pub fn parse_github_pr_url(url: &str) -> Option<(String, u32)> {

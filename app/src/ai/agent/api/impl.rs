@@ -132,9 +132,7 @@ pub async fn generate_multi_agent_output(
             parent_agent_id: String::new(),
             agent_name: String::new(),
         }),
-        existing_suggestions: params
-            .existing_suggestions
-            .map(|suggestions| suggestions.into()),
+        existing_suggestions: None,
         mcp_context: params.mcp_context.map(Into::into),
     };
 

@@ -128,7 +128,6 @@ fn add_notebook(id: SyncId, title: impl Into<String>, data: impl Into<String>, a
                     title: title.into(),
                     data: data.into(),
                     ai_document_id: None,
-                    conversation_id: None,
                 },
                 CloudObjectMetadata::mock(),
                 CloudObjectPermissions::mock_personal(),

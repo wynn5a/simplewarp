@@ -4,7 +4,7 @@ use warp_cli::mcp::MCPSpec;
 
 use crate::ai::mcp::TemplatableMCPServer;
 
-/// Build the `mcp_servers` map to send to the public ambient-agent API.
+/// Build the `mcp_servers` map for an agent run.
 ///
 /// Returns the unwrapped server map (`{ <server_name>: <server_config>, ... }`).
 /// If user input includes wrapper shapes like `{ "mcpServers": { ... } }`, we unpack them.

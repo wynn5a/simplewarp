@@ -88,7 +88,6 @@ pub fn read_notebooks(
                     title: notebook.title.unwrap_or_default(),
                     data: notebook.data.unwrap_or_default(),
                     ai_document_id,
-                    conversation_id: None,
                 },
                 to_cloud_object_metadata(metadata),
                 cloud_object_permissions,

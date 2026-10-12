@@ -164,7 +164,6 @@ impl UpdateManager {
                 title: notebook.model().title.to_owned(),
                 data: data.to_string(),
                 ai_document_id: notebook.model().ai_document_id,
-                conversation_id: notebook.model().conversation_id.clone(),
             };
             self.update_object(new_notebook, notebook_id, ctx);
         } else {
@@ -184,7 +183,6 @@ impl UpdateManager {
                 title: title.to_string(),
                 data: notebook.model().data.to_owned(),
                 ai_document_id: notebook.model().ai_document_id,
-                conversation_id: notebook.model().conversation_id.clone(),
             };
             self.update_object(new_notebook, notebook_id, ctx);
         } else {

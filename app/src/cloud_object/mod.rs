@@ -4,7 +4,6 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use cloud_objects::UserUid;
-use cloud_objects::cloud_object::SerializedModel;
 use lazy_static::lazy_static;
 use regex::Regex;
 use warpui::{AppContext, SingletonEntity};
@@ -86,11 +85,6 @@ pub trait CloudObject: Debug {
 
     /// Returns the CloudObjectTypeAndId for this object.
     fn cloud_object_type_and_id(&self) -> CloudObjectTypeAndId;
-
-    // Whether to clear this object from the local SQLite DB on a unique key conflict.
-    fn should_clear_on_unique_key_conflict(&self) -> bool {
-        false
-    }
 
     /// Whether to show a warning if this object is unsaved at quit time
     /// (which typically blocks the user from quitting)
@@ -278,18 +272,6 @@ pub trait CloudModelType: Debug + Clone + Send + Sync {
     where
         Self: Sized;
 
-    /// Returns a serialized model.
-    fn serialized(&self) -> SerializedModel;
-
-    /// Returns whether this model type should clear on a unique key conflict.
-    fn should_clear_on_unique_key_conflict(&self) -> bool {
-        false
-    }
-
-    /// Returns whether this model type supports web links
-    fn supports_linking(&self) -> bool {
-        true
-    }
     /// Whether this model type can be exported.
     fn can_export(&self) -> bool {
         false
@@ -401,10 +383,6 @@ where
 
     fn cloud_object_type_and_id(&self) -> CloudObjectTypeAndId {
         self.model().cloud_object_type_and_id(self.id)
-    }
-
-    fn should_clear_on_unique_key_conflict(&self) -> bool {
-        self.model().should_clear_on_unique_key_conflict()
     }
 
     fn upsert_event(&self) -> ModelEvent {

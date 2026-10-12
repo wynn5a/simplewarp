@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 pub use cloud_object_models::{CloudFolder, CloudFolderModel};
-use cloud_objects::cloud_object::SerializedModel;
 pub use cloud_objects::ids::FolderId;
 
 use super::{CloudModelType, CloudObjectUpsertParams, ObjectType};
@@ -33,9 +32,5 @@ impl CloudModelType for CloudFolderModel {
         ModelEvent::UpsertFolder {
             folder: CloudFolder::from(params),
         }
-    }
-
-    fn serialized(&self) -> SerializedModel {
-        SerializedModel::new(self.name.to_owned())
     }
 }

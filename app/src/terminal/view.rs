@@ -2472,11 +2472,7 @@ impl TerminalView {
                                 .is_empty();
                             let should_insert_zero_state_block = *is_new
                                 && !has_pending_blocks
-                                && !matches!(
-                                    origin,
-                                    AgentViewEntryOrigin::CreateEnvironment
-                                        | AgentViewEntryOrigin::SlashInit
-                                );
+                                && !matches!(origin, AgentViewEntryOrigin::SlashInit);
                             if should_insert_zero_state_block {
                                 let mut should_show_init_callout = false;
                                 if let Some(directory) = me.current_local_repo_path() {

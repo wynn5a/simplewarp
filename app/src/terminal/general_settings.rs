@@ -84,13 +84,6 @@ define_settings_group!(GeneralSettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: true,
     },
-    agent_mode_onboarding_block_shown: AgentModeOnboardingBlockShown {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    },
     user_default_shell_unsupported_banner_state: UserDefaultShellUnsupportedBannerState {
         type: BannerState,
         default: BannerState::default(),
@@ -106,13 +99,6 @@ define_settings_group!(GeneralSettings, settings: [
         private: true,
     },
     open_in_warp_banner_dismissed_for_code_and_text: OpenInWarpBannerDismissedCode {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    },
-    build_plan_migration_modal_dismissed: BuildPlanMigrationModalDismissed {
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,

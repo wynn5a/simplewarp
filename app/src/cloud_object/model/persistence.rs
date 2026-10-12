@@ -206,14 +206,6 @@ impl CloudModel {
             .and_then(|object| object.into())
     }
 
-    /// Returns only active (not trashed) folders in cloud model.
-    pub fn get_all_active_folders(&self) -> impl Iterator<Item = &CloudFolder> {
-        self.objects_by_id
-            .values()
-            .filter(|object| !object.is_trashed(self))
-            .filter_map(|object| object.into())
-    }
-
     pub fn get_workflow(&self, workflow_id: &SyncId) -> Option<&CloudWorkflow> {
         self.objects_by_id
             .get(&workflow_id.uid())

@@ -1472,10 +1472,6 @@ impl BlocklistAIController {
             server_conversation_token: conversation_server_token,
             forked_from_conversation_token: conversation_forked_from_token,
             ambient_agent_task_id: self.ambient_agent_task_id,
-            existing_suggestions: history_model
-                .as_ref(ctx)
-                .existing_suggestions_for_conversation(conversation_id)
-                .cloned(),
         };
 
         // Log an error if tool call results do not have corresponding tool calls in task context

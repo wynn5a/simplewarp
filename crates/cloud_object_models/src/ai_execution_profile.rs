@@ -1,13 +1,9 @@
 use std::path::PathBuf;
 
 use ai::LLMId;
-use cloud_objects::cloud_object::{GenericCloudObject, GenericStringModel, JsonObjectType};
-use cloud_objects::ids::GenericStringObjectId;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-
-use crate::{JsonModel, JsonSerializer};
 
 pub const PROFILE_NAME_MAX_LENGTH: usize = 50;
 
@@ -281,6 +277,17 @@ impl Default for AIExecutionProfile {
 }
 
 impl AIExecutionProfile {
+    pub fn display_name(&self) -> String {
+        // Handles case where default profile was previously created and named "Untitled"
+        if self.is_default_profile {
+            "Default".to_string()
+        } else if self.name.trim().is_empty() {
+            "Untitled".to_string()
+        } else {
+            self.name.clone()
+        }
+    }
+
     #[cfg(feature = "agent_mode_evals")]
     pub fn create_agent_mode_eval_profile() -> Self {
         Self {
@@ -334,13 +341,3 @@ impl AIExecutionProfile {
         }
     }
 }
-
-impl JsonModel for AIExecutionProfile {
-    fn json_object_type() -> JsonObjectType {
-        JsonObjectType::AIExecutionProfile
-    }
-}
-
-pub type CloudAIExecutionProfile =
-    GenericCloudObject<GenericStringObjectId, CloudAIExecutionProfileModel>;
-pub type CloudAIExecutionProfileModel = GenericStringModel<AIExecutionProfile, JsonSerializer>;

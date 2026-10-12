@@ -69,15 +69,6 @@ impl CloudObjectTypeAndId {
         }
     }
 
-    pub fn as_folder_id(self) -> Option<SyncId> {
-        match self {
-            CloudObjectTypeAndId::Notebook(_) => None,
-            CloudObjectTypeAndId::Workflow(_) => None,
-            CloudObjectTypeAndId::GenericStringObject { .. } => None,
-            CloudObjectTypeAndId::Folder(f) => Some(f),
-        }
-    }
-
     pub fn as_notebook_id(self) -> Option<SyncId> {
         match self {
             CloudObjectTypeAndId::Notebook(id) => Some(id),
@@ -90,10 +81,6 @@ impl CloudObjectTypeAndId {
             CloudObjectTypeAndId::GenericStringObject { object_type: _, id } => Some(id),
             _ => None,
         }
-    }
-
-    pub fn drive_row_position_id(self) -> String {
-        format!("WarpDriveRow_{}", self.uid())
     }
 
     pub fn from_generic_string_object(object_type: GenericStringObjectFormat, id: SyncId) -> Self {

@@ -5,12 +5,7 @@ pub use cloud_object_models::{
 
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
-use crate::cloud_object::{
-    CloudObjectUuid, GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType,
-    UniquePer,
-};
-
-const UNIQUENESS_KEY_PREFIX: &str = "templatable_mcp_server";
+use crate::cloud_object::{CloudObjectUuid, GenericStringObjectFormat, JsonObjectType};
 
 impl CloudObjectUuid for TemplatableMCPServer {
     fn uuid(&self) -> uuid::Uuid {
@@ -23,10 +18,6 @@ impl StringModel for TemplatableMCPServer {
 
     fn model_type_name(&self) -> &'static str {
         "MCP server"
-    }
-
-    fn should_enforce_revisions() -> bool {
-        true
     }
 
     fn model_format() -> GenericStringObjectFormat {
@@ -43,13 +34,6 @@ impl StringModel for TemplatableMCPServer {
 
     fn display_name(&self) -> String {
         self.name.clone()
-    }
-
-    fn uniqueness_key(&self) -> Option<GenericStringObjectUniqueKey> {
-        Some(GenericStringObjectUniqueKey {
-            key: format!("{UNIQUENESS_KEY_PREFIX}_{}", self.uuid),
-            unique_per: UniquePer::User,
-        })
     }
 }
 

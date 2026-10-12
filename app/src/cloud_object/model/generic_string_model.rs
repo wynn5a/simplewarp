@@ -8,7 +8,7 @@ pub use cloud_objects::ids::GenericStringObjectId;
 
 use crate::cloud_object::{
     CloudModelType, CloudObject, CloudObjectTypeAndId, GenericCloudObject,
-    GenericStringObjectFormat, GenericStringObjectUniqueKey, ObjectType,
+    GenericStringObjectFormat, ObjectType,
 };
 use crate::persistence::ModelEvent;
 use crate::server::ids::SyncId;
@@ -43,12 +43,6 @@ pub trait StringModel: Clone + Debug + PartialEq + Send + Sync + 'static {
     /// Returns the name of this model type (e.g. Workflow, Folder, Notebook)
     fn model_type_name(&self) -> &'static str;
 
-    /// Whether we should enforce revisions for this model type.
-    /// If revisions are not enforced, updates will have last-write-wins semantics.
-    /// If revisions are enforced, the object will need to add logic to
-    /// the update manager for how conflicts are resolved.
-    fn should_enforce_revisions() -> bool;
-
     /// Returns the serialization format for this model.
     fn model_format() -> GenericStringObjectFormat;
 
@@ -67,23 +61,8 @@ pub trait StringModel: Clone + Debug + PartialEq + Send + Sync + 'static {
         false
     }
 
-    /// Returns whether this model can be shared via a link
-    fn supports_linking(&self) -> bool {
-        false
-    }
-
     /// Sets the display name for this model
     fn set_display_name(&mut self, _name: &str) {}
-
-    /// Returns whether this model type should clear on a unique key conflict.
-    fn should_clear_on_unique_key_conflict(&self) -> bool {
-        false
-    }
-
-    /// Returns a unique key for this object, if one exists. Unique keys are used
-    /// to enforce that only one object with a given key can exist in the generic string
-    /// object database.
-    fn uniqueness_key(&self) -> Option<GenericStringObjectUniqueKey>;
 }
 
 impl<M, S> CloudStringObject for GenericCloudObject<GenericStringObjectId, GenericStringModel<M, S>>
@@ -102,7 +81,7 @@ where
     }
 
     fn serialized(&self) -> SerializedModel {
-        self.model().serialized()
+        S::serialize(&self.model().string_model)
     }
 
     fn clone_box(&self) -> Box<dyn CloudStringObject> {
@@ -125,10 +104,6 @@ where
 {
     type CloudObjectType = GenericCloudObject<GenericStringObjectId, Self>;
     type IdType = GenericStringObjectId;
-
-    fn serialized(&self) -> SerializedModel {
-        S::serialize(&self.string_model)
-    }
 
     fn model_type_name(&self) -> &'static str {
         self.string_model.model_type_name()
@@ -161,10 +136,6 @@ where
         }
     }
 
-    fn supports_linking(&self) -> bool {
-        self.string_model.supports_linking()
-    }
-
     fn should_show_activity_toasts(&self) -> bool {
         M::should_show_activity_toasts()
     }
@@ -175,9 +146,5 @@ where
 
     fn can_export(&self) -> bool {
         self.string_model.can_export()
-    }
-
-    fn should_clear_on_unique_key_conflict(&self) -> bool {
-        self.string_model.should_clear_on_unique_key_conflict()
     }
 }

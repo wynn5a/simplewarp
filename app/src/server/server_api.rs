@@ -151,8 +151,7 @@ impl ServerApiProvider {
         }
     }
 
-    /// Returns the shared HTTP client. This client is wired into network logging
-    /// and includes standard Warp request headers.
+    /// Returns the shared HTTP client, which is wired into network logging.
     pub fn get_http_client(&self) -> Arc<http_client::Client> {
         self.http_client.clone()
     }

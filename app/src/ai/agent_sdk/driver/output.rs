@@ -28,10 +28,8 @@ pub mod text {
             | AIAgentInput::CloneRepository { .. }
             | AIAgentInput::InitProjectRules { .. }
             | AIAgentInput::CodeReview { .. }
-            | AIAgentInput::CreateEnvironment { .. }
             | AIAgentInput::SummarizeConversation { .. }
-            | AIAgentInput::InvokeSkill { .. }
-            | AIAgentInput::StartFromAmbientRunPrompt { .. } => {
+            | AIAgentInput::InvokeSkill { .. } => {
                 // Do not include the user query, since it's already provided as input to the agent.
                 Ok(())
             }
@@ -574,10 +572,8 @@ pub mod json {
                 | AIAgentInput::CloneRepository { .. }
                 | AIAgentInput::InitProjectRules { .. }
                 | AIAgentInput::CodeReview { .. }
-                | AIAgentInput::CreateEnvironment { .. }
                 | AIAgentInput::SummarizeConversation { .. }
-                | AIAgentInput::InvokeSkill { .. }
-                | AIAgentInput::StartFromAmbientRunPrompt { .. } => None,
+                | AIAgentInput::InvokeSkill { .. } => None,
                 // These input types should not occur in a SDK-run agent.
                 AIAgentInput::ResumeConversation { .. }
                 | AIAgentInput::TriggerPassiveSuggestion { .. } => None,

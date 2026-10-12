@@ -21,7 +21,6 @@ fn add_local_notebook(app: &mut App) -> CloudObjectTypeAndId {
             title: "local".to_owned(),
             data: String::new(),
             ai_document_id: None,
-            conversation_id: None,
         },
         Owner::mock_current_user(),
         None,

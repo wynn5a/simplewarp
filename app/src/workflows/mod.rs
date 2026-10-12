@@ -16,7 +16,6 @@ pub mod workflow_view;
 
 use async_trait::async_trait;
 pub use categories::{CategoriesView, CategoriesViewEvent, WorkflowsViewAction};
-use cloud_objects::cloud_object::SerializedModel;
 
 use crate::cloud_object::{
     CloudModelType, CloudObjectTypeAndId, CloudObjectUpsertParams, ObjectType,
@@ -146,12 +145,6 @@ impl WorkflowType {
 impl CloudModelType for CloudWorkflowModel {
     type CloudObjectType = CloudWorkflow;
     type IdType = WorkflowId;
-
-    fn serialized(&self) -> SerializedModel {
-        SerializedModel::new(
-            serde_json::to_string(&self.data).expect("failed to serialize workflow"),
-        )
-    }
 
     fn model_type_name(&self) -> &'static str {
         if self.data.is_agent_mode_workflow() {

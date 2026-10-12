@@ -7,10 +7,8 @@ use warpui::{App, SingletonEntity};
 
 use super::{
     AIConversation, AIConversationAutoexecuteMode, AIConversationId, ConversationStatus,
-    ConversationUsageTotals, RestoreConversationError, artifact_from_fork_proto,
-    footer_model_token_usage,
+    ConversationUsageTotals, RestoreConversationError, footer_model_token_usage,
 };
-use crate::ai::artifacts::Artifact;
 use crate::ai::llms::LLMPreferences;
 use crate::network::NetworkStatus;
 use crate::persistence::model::{AgentConversationData, ConversationUsageMetadata};
@@ -888,35 +886,6 @@ fn restored_conversation_ignores_persisted_autoexecute_override_when_disabled() 
     assert_eq!(
         conversation.autoexecute_override(),
         AIConversationAutoexecuteMode::RespectUserSettings
-    );
-}
-
-#[test]
-fn fork_artifacts_adds_file_artifacts_to_conversation() {
-    let proto_artifact = api::message::artifact_event::ConversationArtifact {
-        artifact: Some(
-            api::message::artifact_event::conversation_artifact::Artifact::File(
-                api::message::artifact_event::FileArtifact {
-                    artifact_uid: "artifact-file-1".to_string(),
-                    filepath: "outputs/report.txt".to_string(),
-                    mime_type: "text/plain".to_string(),
-                    size_bytes: 42,
-                    description: "Daily summary".to_string(),
-                },
-            ),
-        ),
-    };
-
-    assert_eq!(
-        artifact_from_fork_proto(&proto_artifact),
-        Some(Artifact::File {
-            artifact_uid: "artifact-file-1".to_string(),
-            filepath: "outputs/report.txt".to_string(),
-            filename: "report.txt".to_string(),
-            mime_type: "text/plain".to_string(),
-            description: Some("Daily summary".to_string()),
-            size_bytes: Some(42),
-        })
     );
 }
 

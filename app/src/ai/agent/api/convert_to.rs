@@ -8,7 +8,7 @@ use warp_multi_agent_api as api;
 use crate::ai::agent::{
     AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment, AIAgentContext, AIAgentInput,
     DriveObjectPayload, MCPContext, PassiveSuggestionTrigger, RunningCommand, StaticQueryType,
-    Suggestions, UserQueryMode,
+    UserQueryMode,
 };
 use crate::ai::block_context::BlockContext;
 
@@ -103,18 +103,6 @@ pub(super) fn convert_input(
                     context: Some(convert_context(context.as_ref())),
                     r#type: Some(api::request::input::Type::InitProjectRules(
                         api::request::input::InitProjectRules {},
-                    )),
-                });
-            }
-            AIAgentInput::CreateEnvironment {
-                context,
-                repo_paths,
-                ..
-            } => {
-                return Ok(api::request::Input {
-                    context: Some(convert_context(context.as_ref())),
-                    r#type: Some(api::request::input::Type::CreateEnvironment(
-                        api::request::input::CreateEnvironment { repo_paths },
                     )),
                 });
             }
@@ -230,26 +218,6 @@ pub(super) fn convert_input(
                     )),
                 });
             }
-            AIAgentInput::StartFromAmbientRunPrompt {
-                ambient_run_id,
-                context,
-                runtime_skill,
-                attachments_dir,
-            } => {
-                return Ok(api::request::Input {
-                    context: Some(convert_context(context.as_ref())),
-                    r#type: Some(api::request::input::Type::StartFromAmbientRunPrompt(
-                        api::request::input::StartFromAmbientRunPrompt {
-                            ambient_run_id,
-                            // Deprecated, we always resolve base_prompt from the stored task config.
-                            runtime_base_prompt: String::new(),
-
-                            runtime_skill: runtime_skill.map(|skill| skill.into()),
-                            attachments_dir: attachments_dir.unwrap_or_default(),
-                        },
-                    )),
-                });
-            }
             other_input => match convert_input_to_user_input(other_input) {
                 Ok(api_input) => api_inputs.push(api_input),
                 Err(ConvertToAPITypeError::Ignore) => (),
@@ -342,7 +310,6 @@ fn convert_input_to_user_input(
         AIAgentInput::ResumeConversation { .. } => Err(ConvertToAPITypeError::Ignore),
         AIAgentInput::InitProjectRules { .. } => Err(ConvertToAPITypeError::Ignore),
         AIAgentInput::CodeReview { .. } => Err(ConvertToAPITypeError::Ignore),
-        AIAgentInput::CreateEnvironment { .. } => Err(ConvertToAPITypeError::Ignore),
         AIAgentInput::InvokeSkill { .. } => Err(ConvertToAPITypeError::Ignore),
         invalid_input => Err(anyhow!(
             "Cannot convert non user query or action result input into API UserInput: {invalid_input:?}"
@@ -735,31 +702,6 @@ fn api_pull_request_state(
         "CLOSED" => Some(State::Closed),
         "MERGED" => Some(State::Merged),
         _ => None,
-    }
-}
-
-impl From<Suggestions> for api::Suggestions {
-    fn from(value: Suggestions) -> Self {
-        Self {
-            rules: value
-                .rules
-                .into_iter()
-                .map(|rule| api::SuggestedRule {
-                    name: rule.name,
-                    content: rule.content,
-                    logging_id: rule.logging_id.to_string(),
-                })
-                .collect(),
-            workflows: value
-                .agent_mode_workflows
-                .into_iter()
-                .map(|workflow| api::SuggestedAgentModeWorkflow {
-                    name: workflow.name,
-                    prompt: workflow.prompt,
-                    logging_id: workflow.logging_id.to_string(),
-                })
-                .collect(),
-        }
     }
 }
 

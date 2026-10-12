@@ -38,7 +38,6 @@ use crate::ai::blocklist::{
 };
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::llms::LLMPreferences;
-use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::network::NetworkStatus;
 use crate::search::ai_context_menu::view::AIContextMenu;
 use crate::settings::{AISettings, AISettingsChangedEvent, InputSettings};

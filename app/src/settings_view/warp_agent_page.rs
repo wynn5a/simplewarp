@@ -2349,7 +2349,7 @@ impl ApiKeysWidget {
 
         let tooltip_text = FormattedText::new([FormattedTextLine::Line(vec![
             FormattedTextFragment::plain_text(
-                "BYOK and custom endpoints are intended for individual use and small teams. Companies or organizations with more than 10 employees should use Warp Business or Enterprise.",
+                "BYOK and custom endpoints are intended for individual use and small teams.",
             ),
         ])]);
         let tooltip_background = appearance.theme().tooltip_background();

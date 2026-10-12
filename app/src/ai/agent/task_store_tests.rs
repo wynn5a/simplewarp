@@ -61,8 +61,6 @@ fn create_exchange_with_subagent_call(subtask_id: &TaskId) -> AIAgentExchange {
         }],
         citations: vec![],
         server_output_id: None,
-        api_metadata_bytes: None,
-        suggestions: None,
         model_info: None,
         request_cost: None,
     };

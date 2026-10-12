@@ -350,9 +350,6 @@ fn format_for_copy_preserves_visual_markdown_sections() {
     );
 }
 
-#[path = "suggestions_tests.rs"]
-mod suggestions;
-
 #[test]
 fn provider_429_maps_to_quota_limit_with_body_message() {
     let cases: [(&str, Option<&str>); 5] = [

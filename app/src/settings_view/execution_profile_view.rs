@@ -18,7 +18,6 @@ use crate::ai::execution_profiles::profiles::{
 use crate::ai::execution_profiles::{ActionPermission, ExecutionProfileId, WriteToPtyPermission};
 use crate::ai::llms::LLMPreferences;
 use crate::appearance::Appearance;
-use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme};

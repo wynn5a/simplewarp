@@ -125,22 +125,6 @@ pub enum GenericStringObjectFormat {
     Json(JsonObjectType),
 }
 
-/// Represents a unique key for a generic string object. The server enforces that
-/// no two generic string objects have the same key.
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub struct GenericStringObjectUniqueKey {
-    /// The unique key. E.g. for cloud prefs this is the storage key of the pref.
-    pub key: String,
-
-    /// Whether this key is unique for all generic string objects, or unique per user.
-    pub unique_per: UniquePer,
-}
-
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub enum UniquePer {
-    User,
-}
-
 // Temporarily suppress clippy warnings about the `ToString` impl until we
 // move `ObjectType` away from using `std::fmt::Display` for serialization.
 #[allow(clippy::to_string_trait_impl)]
@@ -320,21 +304,6 @@ impl CloudObjectMetadata {
             creator_uid: None,
         }
     }
-}
-
-// Used for event tracking purposes, matches
-// up with GraphQL enum of the same name.
-#[derive(Copy, Default, Clone, Debug, Eq, PartialEq)]
-pub enum CloudObjectEventEntrypoint {
-    TeamSettings,
-    ResourceCenter,
-    UniversalSearch,
-    ManagementUI,
-    Blocklist,
-    ImportModal,
-    Onboarding,
-    #[default]
-    Unknown,
 }
 
 // A newtype for a serialized model that wraps a plain string.

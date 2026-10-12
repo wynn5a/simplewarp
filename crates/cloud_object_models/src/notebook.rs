@@ -5,21 +5,11 @@ use cloud_objects::cloud_object::GenericCloudObject;
 use cloud_objects::ids::ServerId;
 use serde::{Deserialize, Serialize};
 
-/// Serialized representation of a notebook for sync queue
-#[derive(Serialize, Deserialize)]
-pub struct SerializedNotebook {
-    pub data: String,
-    pub ai_document_id: Option<String>,
-    pub conversation_id: Option<String>,
-}
-
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct CloudNotebookModel {
     pub title: String,
     pub data: String,
     pub ai_document_id: Option<AIDocumentId>,
-    /// This is the server-generated conversation token, not the client-side AIConversationId.
-    pub conversation_id: Option<String>,
 }
 
 /// This is the notebook_id in the database associated with this notebook.
