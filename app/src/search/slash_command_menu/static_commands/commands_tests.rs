@@ -178,3 +178,15 @@ fn copy_debugging_id_command_has_correct_registry_metadata() {
     // Hidden when there is no active conversation.
     assert!(!command.is_active(Availability::ALWAYS));
 }
+
+#[test]
+fn new_worktree_command_is_local_shell_only() {
+    let command = COMMAND_REGISTRY
+        .get_command_with_name(NEW_WORKTREE.name)
+        .expect("expected /new-worktree to be registered");
+
+    assert!(command.argument.is_none());
+    assert!(command.is_active(Availability::LOCAL | Availability::TERMINAL_VIEW));
+    assert!(!command.is_active(Availability::TERMINAL_VIEW));
+    assert!(!command.is_active(Availability::LOCAL | Availability::AGENT_VIEW));
+}

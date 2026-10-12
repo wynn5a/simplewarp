@@ -2601,6 +2601,27 @@ fn test_unified_new_session_menu_uses_new_worktree_config_label_and_order() {
 }
 
 #[test]
+fn test_open_new_worktree_modal_action_opens_and_closes_modal() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let workspace = mock_workspace(&mut app);
+
+        workspace.update(&mut app, |workspace, ctx| {
+            assert!(!workspace.current_workspace_state.is_new_worktree_modal_open);
+
+            workspace.handle_action(&WorkspaceAction::OpenNewWorktreeModal, ctx);
+            assert!(workspace.current_workspace_state.is_new_worktree_modal_open);
+            assert!(workspace.new_worktree_modal.is_open());
+
+            workspace.close_new_worktree_modal(ctx);
+            assert!(!workspace.current_workspace_state.is_new_worktree_modal_open);
+            assert!(!workspace.new_worktree_modal.is_open());
+        });
+    });
+}
+
+#[test]
 fn test_unified_new_session_menu_includes_reopen_closed_session() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);

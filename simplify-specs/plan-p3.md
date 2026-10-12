@@ -312,6 +312,13 @@ Rounds landed on master, each verified with format, `clippy --workspace --all-ta
 | R3/R4 part 2 | `eba0c1b5f` | passive-suggestion unit-test + code-diff halves (model reduced to static prompt suggestions), ~45 never-dispatched action variants + the handlers they orphaned |
 | R5 | `42e0eebcb` | zero-state prompt-suggestion chips and their parameter chain, `NewWorkspaceSource::AgentSession`, editor-modal same-line-prompt section |
 | R4.4 part | `5376b74cd` | profile context-window UI/plumbing in both editors, `LLMContextWindow`, discount chip, `request_multiplier` |
+| R2 tail | `8928dfdd9` | never-enabled `completions_v2` stack (see below) |
+| Tips + worktree | `31b82b11b` | welcome-tips popup, `TipsCompleted` model and its two settings, `TerminalViewResources` (empty afterwards), dead `tab_configs/telemetry.rs`; new `/new-worktree` slash command (local, shell/terminal view) opens the existing new-worktree modal |
+| Credits UI + `pr-comments` | `9fd56adca` | `/cost`, usage footer + `ConversationUsageView`, context-window toolbar chip (variant kept as a never-rendered tombstone), details-panel "Credits used", `AIConversation` usage/cost state, persisted `ConversationUsageMetadata` types, `RequestCost`, `ContextWindowUsageV2`/`Breakdown`/`PromptCacheExpiryWarning` flags (`V2` folded on: split panes keep their header), `context-remaining-*` icons, `pr-comments` bundled skill |
+| R4.1 tail | `6bfca9749` | `AIAgentInput::TriggerPassiveSuggestion`, `PassiveSuggestionTrigger*`, `PromptSuggestion`/`TriggerPassiveSuggestion` entrypoints, `SuggestPrompt`/`SuggestNewConversation` actions + results + executors + `SuggestedUnitTestsView`; saved tool calls/results map to "gone" like the other removed tools, persisted rows still deserialize |
+| R5 small | `da44f77db` | `RefreshConfig::OnFileChanges`, `WorkflowsFocusState`, prompt-editor configuration row, `NotificationsSettings::is_password_prompt_enabled` (struct is `serde(default)`, old files still load) |
+| R3 tail | `efef75dec` | `AgentConfigSnapshot` keeps only live fields (`host` file key still accepted, test added), `source_repo` module |
+| §3 fake quota | `8d08071a9` | `AIRequestUsageModel` + its always-false guards, "requires AI credits" tooltip, credits-based default-model switch modal in the agent settings page |
 
 ### Findings that change earlier claims
 
@@ -323,10 +330,9 @@ Rounds landed on master, each verified with format, `clippy --workspace --all-ta
   `llms_tests.rs`. Both left in place.
 - **§4.6 left alone:** `RenderableAIError::QuotaLimit` is reachable through the provider-429
   mapping (`mod_tests.rs`), so only the wire `StreamFinished` arms are unreachable; not worth a cut.
-- **Orphaned local features (enable-or-delete decision, per the scope rule):** nothing dispatches
-  `WorkspaceAction::ToggleWelcomeTips` (welcome-tips popup + `TipsView`) or
-  `OpenNewWorktreeModal` (new-worktree modal). Their action variants were kept; the compiler
-  cannot see them as dead.
+- **Orphaned local features (resolved 2026-10-12):** the welcome-tips popup was deleted; the
+  new-worktree modal now opens from the `/new-worktree` slash command (`OpenNewWorktreeModal`),
+  and submitting it writes a tab config whose commands run `git worktree add` locally.
 - `OpenVerticalTabsPanel` is constructed only by two tests in `workspace/view_tests.rs`.
 
 ### Not done yet
@@ -337,11 +343,8 @@ Rounds landed on master, each verified with format, `clippy --workspace --all-ta
   the `plugin_host`/`completions_v2`/`warp_completer/v2` features, `rquickjs`, and every `v2` module
   in `warp_completer` (`legacy` files were renamed to `imp`). CI/presubmit no longer run the v2 test
   pass.
-- R3: `JsonObjectType` tombstone variants (optional); `AgentConfigSnapshot` dead fields.
-- R4.1 tail: `PromptSuggestionExecutor`, `SuggestNewConversation` executor,
-  `SuggestedUnitTestsView` plumbing, `AIAgentInput::TriggerPassiveSuggestion` /
-  `PassiveSuggestionTrigger::{CommandRun,FilesChanged,AgentResponseCompleted}` (now unconstructed;
-  the integration assertion `assert_exchange_has_trigger_suggest_prompt` still references one).
-- R4.5 credits UI (needs the P7 product decision), R4.8, R4.9 `pr-comments` skill, R4.10.
-- R5 small items: tips gamified-counter machinery, `RefreshConfig` variants, `WorkflowsFocusState`,
-  `BannerTextContent::plain_text`, `render_search_bar`; `AIRequestUsageModel` fake-quota cleanup.
+- R3: `JsonObjectType` tombstone variants (`CloudEnvironment`/`ScheduledAmbientAgent`/
+  `CloudAgentConfig`) deliberately kept so old object-metadata rows still parse.
+- R4.8, R4.10; the passive code-diff cluster (`AutoCodeDiffQuery`, hidden/"entirely passive"
+  exchanges) is only restored from saved conversations now and could be the next cut.
+- `mcp_context` Phase 3b and the 31 constant-false flags: user decisions still open.
