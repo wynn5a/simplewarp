@@ -1,8 +1,6 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use warp_cli::agent::Harness;
 
-use crate::source_repo::SourceRepo;
-
 /// Runtime configuration snapshot for agent execution.
 ///
 /// This is the merged/resolved config used when spawning or running an agent.
@@ -21,15 +19,6 @@ pub struct AgentConfigSnapshot {
     /// MCP server configuration map (unwrapped; no `mcpServers` wrapper).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<serde_json::Map<String, serde_json::Value>>,
-    /// Profile ID for local agent runs. This configures the terminal session
-    /// with the specified execution profile. Only used for local runs, not cloud runs.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub profile_id: Option<String>,
-    /// Self-hosted worker ID that should execute this task.
-    /// If None or Some("warp"), the task will be dispatched to Warp-hosted (Namespace) workers.
-    /// Otherwise, the task will only be assigned to a connected self-hosted worker with matching ID.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub worker_host: Option<String>,
     /// Skill spec to use as the base prompt for the agent.
     /// Format: "skill_name", "repo:skill_name", or "org/repo:skill_name".
     /// The skill is resolved at runtime in the agent environment.
@@ -39,13 +28,6 @@ pub struct AgentConfigSnapshot {
     /// If None, we use Warp's default ("oz").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub harness: Option<HarnessConfig>,
-    /// Authentication secrets for third-party harnesses.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub harness_auth_secrets: Option<HarnessAuthSecretsConfig>,
-    /// Extra repositories the worker should clone in addition to the environment's repos.
-    /// This is server-populated for per-task sources such as a GitHub webhook's origin repo.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub additional_source_repos: Option<Vec<SourceRepo>>,
 }
 
 /// Configuration for a third-party execution harness.
@@ -97,16 +79,6 @@ fn deserialize_harness<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Har
     }))
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct HarnessAuthSecretsConfig {
-    /// Name of a managed secret for Claude Code harness authentication.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub claude_auth_secret_name: Option<String>,
-    /// Name of a managed secret for Codex harness authentication.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub codex_auth_secret_name: Option<String>,
-}
-
 impl AgentConfigSnapshot {
     /// Returns true if this config is empty (no options are set).
     pub fn is_empty(&self) -> bool {
@@ -116,12 +88,8 @@ impl AgentConfigSnapshot {
             model_id,
             base_prompt,
             mcp_servers,
-            profile_id,
-            worker_host,
             skill_spec,
             harness,
-            harness_auth_secrets,
-            additional_source_repos,
         } = self;
 
         name.is_none()
@@ -129,15 +97,7 @@ impl AgentConfigSnapshot {
             && model_id.is_none()
             && base_prompt.is_none()
             && mcp_servers.is_none()
-            && profile_id.is_none()
-            && worker_host.is_none()
             && skill_spec.is_none()
             && harness.is_none()
-            && harness_auth_secrets.is_none()
-            && additional_source_repos.is_none()
     }
 }
-
-#[cfg(test)]
-#[path = "agent_config_snapshot_tests.rs"]
-mod tests;

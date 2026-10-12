@@ -34,6 +34,17 @@ fn loads_json_and_validates_mcp_servers() {
 }
 
 #[test]
+fn accepts_legacy_host_key() {
+    let file = write_temp(
+        ".json",
+        &json!({ "model_id": "gpt-4o", "host": "my-worker" }).to_string(),
+    );
+    let loaded = super::load_config_file(file.path()).unwrap();
+
+    assert_eq!(loaded.file.model_id.as_deref(), Some("gpt-4o"));
+}
+
+#[test]
 fn loads_yaml() {
     let contents = r#"
 model_id: gpt-4o
@@ -100,12 +111,8 @@ fn merge_precedence_cli_over_file_and_merges_mcp() {
             "a".to_string(),
             json!({"command": "npx", "args": []}),
         )])),
-        profile_id: None,
-        worker_host: None,
         skill_spec: None,
         harness: None,
-        harness_auth_secrets: None,
-        additional_source_repos: None,
     };
 
     let merged = super::merge_with_precedence(Some(&loaded), cli);

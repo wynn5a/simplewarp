@@ -19,7 +19,6 @@ pub mod folder;
 pub mod json_model;
 pub mod mcp;
 pub mod notebook;
-pub mod source_repo;
 pub mod workflow;
 pub mod workflow_enum;
 
@@ -31,6 +30,5 @@ pub use folder::*;
 pub use json_model::*;
 pub use mcp::*;
 pub use notebook::*;
-pub use source_repo::*;
 pub use workflow::*;
 pub use workflow_enum::*;

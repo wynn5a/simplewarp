@@ -140,12 +140,8 @@ fn build_merged_config_and_task(
         model_id: oz_model,
         base_prompt: file_merged.base_prompt,
         mcp_servers: config_file::merge_mcp_servers(file_merged.mcp_servers, cli_mcp_servers),
-        profile_id: args.profile.clone(),
-        worker_host: file_merged.worker_host,
         skill_spec: file_merged.skill_spec,
         harness: harness_override,
-        harness_auth_secrets: None,
-        additional_source_repos: None,
     };
 
     let runtime_mcp_specs = match merged_config.mcp_servers.as_ref() {

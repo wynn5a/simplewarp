@@ -25,7 +25,10 @@ pub struct AgentConfigSnapshotFile {
     pub base_prompt: Option<String>,
     #[serde(default)]
     pub mcp_servers: Option<Map<String, Value>>,
+    /// Accepted so existing config files keep parsing; self-hosted workers are gone, so the value
+    /// is unused.
     #[serde(default)]
+    #[allow(dead_code)]
     pub host: Option<String>,
 }
 
@@ -145,7 +148,6 @@ pub fn merge_with_precedence(
     let base_prompt = cli.base_prompt.or_else(|| file.base_prompt.clone());
 
     let mcp_servers = merge_mcp_servers(file.mcp_servers.clone(), cli.mcp_servers);
-    let worker_host = cli.worker_host.or_else(|| file.host.clone());
 
     AgentConfigSnapshot {
         name,
@@ -153,12 +155,8 @@ pub fn merge_with_precedence(
         model_id,
         base_prompt,
         mcp_servers,
-        profile_id: None,
-        worker_host,
         skill_spec: cli.skill_spec,
         harness: cli.harness,
-        harness_auth_secrets: cli.harness_auth_secrets,
-        additional_source_repos: None,
     }
 }
 
