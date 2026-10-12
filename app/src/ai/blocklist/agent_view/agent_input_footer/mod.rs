@@ -25,7 +25,6 @@ use warpui::{
     ViewHandle,
 };
 
-use crate::ai::AIRequestUsageModel;
 use crate::ai::blocklist::history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::blocklist::prompt::prompt_alert::PromptAlertView;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
@@ -246,9 +245,6 @@ impl AgentInputFooter {
 
         ctx.subscribe_to_model(&NetworkStatus::handle(ctx), |_, _, _, ctx| {
             ctx.notify();
-        });
-        ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |_, _, _, ctx| {
-            ctx.notify()
         });
         ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, event, ctx| {
             if matches!(event, AISettingsChangedEvent::AIAutoDetectionEnabled) {

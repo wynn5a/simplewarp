@@ -7034,7 +7034,7 @@ impl TypedActionView for CodeReviewView {
                 ctx.notify();
             }
             CodeReviewAction::SubmitReviewComments => {
-                if self.comment_list_view.as_ref(ctx).can_send(ctx) {
+                if self.comment_list_view.as_ref(ctx).can_send() {
                     self.handle_submit_review_with_comments(ctx);
                     ctx.notify();
                 }

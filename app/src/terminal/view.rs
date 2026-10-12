@@ -406,7 +406,7 @@ use crate::workspace::{
     CommandSearchOptions, ForkAIConversationParams, ForkFromExchange,
     ForkedConversationDestination, ToastStack, WorkspaceAction,
 };
-use crate::{AIAgentActionResultType, AIRequestUsageModel, ActiveSession as WindowActiveSession};
+use crate::{AIAgentActionResultType, ActiveSession as WindowActiveSession};
 
 lazy_static! {
     // A set of commands that perform minimal work that we use as a baseline to measure the latency of blocks.
@@ -7321,11 +7321,6 @@ impl TerminalView {
                 }
                 return false;
             }
-        }
-
-        // Return early if we've run out of AI usage.
-        if !AIRequestUsageModel::as_ref(ctx).has_any_ai_remaining(ctx) {
-            return false;
         }
 
         let Some(banner_state) = &self.inline_banners_state.prompt_suggestions_banner else {

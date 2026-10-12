@@ -35,7 +35,6 @@ use warpui::{
     ViewHandle, WeakViewHandle,
 };
 
-use crate::ai::request_usage_model::AIRequestUsageModel;
 use crate::appearance::Appearance;
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code::editor::comment_editor::DEFAULT_COMMENT_MAX_WIDTH;
@@ -120,7 +119,6 @@ pub struct CommentListDebugState {
     pub sendable_comments: usize,
     pub is_collapsed: bool,
     pub is_outdated_section_collapsed: Option<bool>,
-    pub ai_available: bool,
     pub ai_enabled: bool,
     pub send_button_tooltip_text: String,
 }
@@ -288,7 +286,6 @@ impl CommentListView {
     }
 
     pub fn debug_state(&self, ctx: &AppContext) -> CommentListDebugState {
-        let ai_available = AIRequestUsageModel::as_ref(ctx).has_any_ai_remaining(ctx);
         let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         let sendable_comments = self
             .comments_by_id
@@ -298,7 +295,6 @@ impl CommentListView {
         let send_button_tooltip_text = Self::send_button_tooltip_text(
             &self.review_destination,
             sendable_comments > 0,
-            ai_available,
             ai_enabled,
         )
         .into_owned();
@@ -309,7 +305,6 @@ impl CommentListView {
             sendable_comments,
             is_collapsed: self.is_collapsed,
             is_outdated_section_collapsed: self.is_outdated_section_collapsed,
-            ai_available,
             ai_enabled,
             send_button_tooltip_text,
         }
@@ -897,26 +892,22 @@ impl CommentListView {
     }
 
     /// Whether the queued review comments can currently be sent to an agent.
-    pub fn can_send(&self, ctx: &AppContext) -> bool {
+    pub fn can_send(&self) -> bool {
         let has_sendable_comments = self.has_non_outdated_comments();
         match &self.review_destination {
             ReviewDestination::None => false,
-            ReviewDestination::Warp => {
-                AIRequestUsageModel::as_ref(ctx).has_any_ai_remaining(ctx) && has_sendable_comments
-            }
+            ReviewDestination::Warp => has_sendable_comments,
         }
     }
 
     /// Keep the stored "Send to Agent" button's enabled state and tooltip in sync with the current
     /// destination / comment / AI-availability state.
     fn sync_send_button(&mut self, ctx: &mut ViewContext<Self>) {
-        let ai_available = AIRequestUsageModel::as_ref(ctx).has_any_ai_remaining(ctx);
         let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
-        let enabled = self.can_send(ctx);
+        let enabled = self.can_send();
         let tooltip = Self::send_button_tooltip_text(
             &self.review_destination,
             self.has_non_outdated_comments(),
-            ai_available,
             ai_enabled,
         )
         .into_owned();
@@ -930,13 +921,10 @@ impl CommentListView {
     fn send_button_tooltip_text(
         destination: &ReviewDestination,
         has_sendable_comments: bool,
-        ai_available: bool,
         ai_enabled: bool,
     ) -> Cow<'static, str> {
         if !ai_enabled {
             Cow::Borrowed("AI must be enabled to send comments to Agent")
-        } else if !ai_available {
-            Cow::Borrowed("Agent code review requires AI credits")
         } else if matches!(destination, ReviewDestination::None) {
             Cow::Borrowed("All terminals are busy")
         } else if !has_sendable_comments {
@@ -1156,7 +1144,7 @@ impl TypedActionView for CommentListView {
                 ctx.emit(CommentListEvent::Cancelled);
             }
             CommentListAction::Submit => {
-                if self.can_send(ctx) {
+                if self.can_send() {
                     ctx.emit(CommentListEvent::Submitted);
                 }
             }

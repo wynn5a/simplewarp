@@ -77,7 +77,6 @@ pub mod pane_manager;
 mod privacy;
 mod privacy_page;
 mod remove_custom_endpoint_confirmation_dialog;
-mod set_default_model_modal;
 mod settings_file_footer;
 pub(crate) mod settings_page;
 mod warp_agent_page;

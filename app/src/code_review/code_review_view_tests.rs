@@ -16,7 +16,6 @@ use warpui::{App, ViewHandle};
 use super::*;
 use crate::NotebookKeybindings;
 use crate::ai::persisted_workspace::PersistedWorkspace;
-use crate::ai::request_usage_model::AIRequestUsageModel;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code::editor::view::{CodeEditorRenderOptions, CodeEditorView};
@@ -80,7 +79,6 @@ fn initialize_test_app(app: &mut App) {
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(NotebookKeybindings::new);
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-    app.add_singleton_model(|_| AIRequestUsageModel::new());
 }
 
 /// Creates a LocalCodeEditorView with the given content

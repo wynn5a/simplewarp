@@ -164,7 +164,6 @@ use workflows::manager::WorkflowManager;
 use workspace::sync_inputs::SyncedInputState;
 
 use self::features::FeatureFlag;
-use crate::ai::AIRequestUsageModel;
 use crate::ai::facts::manager::AIFactManager;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::llms::LLMPreferences;
@@ -919,8 +918,6 @@ pub(crate) fn initialize_app(
                 Default::default(),
             )
         });
-
-    ctx.add_singleton_model(|_| AIRequestUsageModel::new());
 
     ctx.add_singleton_model(::ai::api_keys::ApiKeyManager::new);
 

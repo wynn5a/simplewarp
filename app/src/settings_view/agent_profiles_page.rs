@@ -38,7 +38,6 @@ use super::settings_page::{
     render_dropdown_item_label, render_input_list, render_separator,
 };
 use super::{SettingsAction, SettingsSection, ToggleSettingActionPair, flags};
-use crate::ai::AIRequestUsageModel;
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::execution_profiles::model_menu_items::available_model_menu_items;
 use crate::ai::execution_profiles::profiles::{
@@ -724,12 +723,6 @@ impl AgentProfilesPageView {
                 });
                 ctx.notify();
             }
-        });
-
-        let ai_request_model = AIRequestUsageModel::handle(ctx);
-        ctx.subscribe_to_model(&ai_request_model, |me, _, _, ctx| {
-            Self::refresh_base_model_menu(&me.base_model_dropdown, ctx);
-            Self::refresh_coding_model_menu(&me.coding_model_dropdown, ctx);
         });
 
         let profile_views = Self::create_profile_views(ctx);

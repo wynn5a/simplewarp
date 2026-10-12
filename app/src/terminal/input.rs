@@ -120,7 +120,6 @@ use super::warpify::SubshellSource;
 use super::{History, HistoryEntry, SizeInfo, TerminalModel, UpArrowHistoryConfig, prompt};
 #[allow(unused_imports)]
 use crate::ASSETS;
-use crate::ai::AIRequestUsageModel;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{AIAgentContext, AIAgentExchangeId, CancellationReason, EntrypointType};
 use crate::ai::agent_conversations_model::{
@@ -2719,14 +2718,6 @@ impl Input {
                     }
                 }
             }
-        });
-
-        let ai_req_usage_model = AIRequestUsageModel::handle(ctx);
-        ctx.subscribe_to_model(&ai_req_usage_model, |_, _, _, ctx| {
-            ctx.notify();
-        });
-        ctx.observe(&ai_req_usage_model, |_, _, ctx| {
-            ctx.notify();
         });
 
         let agent_status_view = ctx.add_typed_action_view(|ctx| {

@@ -16,7 +16,6 @@ fn initialize_app(app: &mut App) {
         warpui_extras::secure_storage::register_noop("test", ctx);
         ctx.add_singleton_model(ApiKeyManager::new);
     });
-    app.add_singleton_model(|_| AIRequestUsageModel::new());
 }
 
 fn determine_state(app: &mut App) -> PromptAlertState {

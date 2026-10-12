@@ -7,7 +7,6 @@ use warpui::elements::{
 };
 use warpui::{AppContext, Element, Entity, SingletonEntity, View, ViewContext};
 
-use crate::ai::AIRequestUsageModel;
 use crate::ai::blocklist::error_color;
 use crate::network::NetworkStatus;
 use crate::ui_components::icons::Icon;
@@ -33,14 +32,8 @@ pub struct PromptAlertView {
 
 impl PromptAlertView {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let request_usage_model = AIRequestUsageModel::handle(ctx);
         let network_status = NetworkStatus::handle(ctx);
         let api_key_manager = ApiKeyManager::handle(ctx);
-
-        ctx.subscribe_to_model(&request_usage_model, |me, _, _, ctx| {
-            me.state = Self::determine_state(ctx);
-            ctx.notify();
-        });
 
         ctx.subscribe_to_model(&network_status, |me, _, _, ctx| {
             me.state = Self::determine_state(ctx);

@@ -29,7 +29,6 @@ use warpui::{
 };
 
 use crate::BlocklistAIHistoryModel;
-use crate::ai::AIRequestUsageModel;
 use crate::ai::blocklist::block::cli_controller::CLISubagentController;
 use crate::ai::blocklist::prompt::PromptIconButtonTheme;
 use crate::ai::blocklist::prompt::prompt_alert::PromptAlertView;
@@ -441,9 +440,6 @@ impl UniversalDeveloperInputButtonBar {
 
         ctx.subscribe_to_model(&NetworkStatus::handle(ctx), |_, _, _, ctx| {
             ctx.notify();
-        });
-        ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |_, _, _, ctx| {
-            ctx.notify()
         });
 
         ctx.subscribe_to_model(&SessionSettings::handle(ctx), |_, _, event, ctx| {

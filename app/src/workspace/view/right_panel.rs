@@ -1355,7 +1355,7 @@ impl RightPanelView {
 
     fn log_code_review_debug_state(debug_state: &CodeReviewCommentDebugState) {
         log::info!(
-            "Active code review view: repo_path={}, has_active_comment_model={}, review_destination={:?}, total_comments={}, sendable_comments={}, is_collapsed={}, is_outdated_section_collapsed={:?}, ai_available={}, ai_enabled={}, send_button_tooltip={}",
+            "Active code review view: repo_path={}, has_active_comment_model={}, review_destination={:?}, total_comments={}, sendable_comments={}, is_collapsed={}, is_outdated_section_collapsed={:?}, ai_enabled={}, send_button_tooltip={}",
             Self::format_optional_location(debug_state.repo_path.as_ref()),
             debug_state.has_active_comment_model,
             debug_state.comment_list.review_destination,
@@ -1363,7 +1363,6 @@ impl RightPanelView {
             debug_state.comment_list.sendable_comments,
             debug_state.comment_list.is_collapsed,
             debug_state.comment_list.is_outdated_section_collapsed,
-            debug_state.comment_list.ai_available,
             debug_state.comment_list.ai_enabled,
             debug_state.comment_list.send_button_tooltip_text,
         );
