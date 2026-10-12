@@ -298,3 +298,47 @@ docker sandbox, external secrets, git/gh operations.
 Verification per round as usual: `./script/format`, clippy, nextest (excluding the 10 known
 integration timeouts). After each round the compiler's dead_code warnings will surface any
 newly-orphaned items.
+
+## 10. Execution log (2026-10-12)
+
+Rounds landed on master, each verified with format, `clippy --workspace --all-targets -D warnings`
+(simplewarp set) and the warp lib nextest suite (3,8xx tests, 0 fail):
+
+| Round | Commit | What |
+| --- | --- | --- |
+| R1 | `1282690eb` | §0 fixed: `update_object_metadata` filters `client_id`; regression test `update_object_metadata_persists_trash_state` fails without the fix; dead `server_id` reads dropped |
+| R2 | `b4381d345` | `http_server`, `prevent_sleep`, `scope.rs`, `SecureSetting` + owner-only fallback write, `http_client` dead builder API, `warp_features` dead API, `RuntimeFeatureFlags` + `CrossRepoContext` flags |
+| R3/R4/R5 part 1 | `c8dbec2dc` | §2 cloud-object machinery, `AIExecutionProfile` cloud wrapper, `PlanArtifact` chain, 6 zero-reader settings, 13 dead context flags, `CreateEnvironment`/`StartFromAmbientRunPrompt`, Suggestions round trip + `api_metadata_bytes`, `SystemStats`, dead `CtrlR` chain + Voltron arms, stale allows/copy |
+| R3/R4 part 2 | `eba0c1b5f` | passive-suggestion unit-test + code-diff halves (model reduced to static prompt suggestions), ~45 never-dispatched action variants + the handlers they orphaned |
+| R5 | `42e0eebcb` | zero-state prompt-suggestion chips and their parameter chain, `NewWorkspaceSource::AgentSession`, editor-modal same-line-prompt section |
+| R4.4 part | `5376b74cd` | profile context-window UI/plumbing in both editors, `LLMContextWindow`, discount chip, `request_multiplier` |
+
+### Findings that change earlier claims
+
+- **§2/§4 `CtrlR` correction:** `InputAction::CtrlR` had no constructor at all, so the Voltron
+  History no-op was not user-reachable (the live ctrl-r path is `CustomAction::CommandSearch`).
+- **§4.4 `LLMSpec` is not dead UI:** the Auto/Reasoning sidecars in `profile_model_selector.rs`
+  still render Intelligence/Speed/Cost bars from a defaulted spec, so removing `LLMSpec` is a
+  sidecar redesign, not a deletion. `DisableReason` is likewise pinned by the reconcile tests in
+  `llms_tests.rs`. Both left in place.
+- **§4.6 left alone:** `RenderableAIError::QuotaLimit` is reachable through the provider-429
+  mapping (`mod_tests.rs`), so only the wire `StreamFinished` arms are unreachable; not worth a cut.
+- **Orphaned local features (enable-or-delete decision, per the scope rule):** nothing dispatches
+  `WorkspaceAction::ToggleWelcomeTips` (welcome-tips popup + `TipsView`) or
+  `OpenNewWorktreeModal` (new-worktree modal). Their action variants were kept; the compiler
+  cannot see them as dead.
+- `OpenVerticalTabsPanel` is constructed only by two tests in `workspace/view_tests.rs`.
+
+### Not done yet
+
+- **R2 tail / R6 (decision):** `warp_js` + `plugin_host` + `command-signatures-v2` cannot be
+  separated from `warp_completer`'s `v2` modules (~3.4k lines) and the `completions_v2` flow in
+  AGENTS.md; all of it is local, so it is a per-feature call, not a remote-service deletion.
+- R3: `JsonObjectType` tombstone variants (optional); `AgentConfigSnapshot` dead fields.
+- R4.1 tail: `PromptSuggestionExecutor`, `SuggestNewConversation` executor,
+  `SuggestedUnitTestsView` plumbing, `AIAgentInput::TriggerPassiveSuggestion` /
+  `PassiveSuggestionTrigger::{CommandRun,FilesChanged,AgentResponseCompleted}` (now unconstructed;
+  the integration assertion `assert_exchange_has_trigger_suggest_prompt` still references one).
+- R4.5 credits UI (needs the P7 product decision), R4.8, R4.9 `pr-comments` skill, R4.10.
+- R5 small items: tips gamified-counter machinery, `RefreshConfig` variants, `WorkflowsFocusState`,
+  `BannerTextContent::plain_text`, `render_search_bar`; `AIRequestUsageModel` fake-quota cleanup.
