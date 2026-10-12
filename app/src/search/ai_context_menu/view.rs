@@ -8,8 +8,8 @@ use repo_metadata::repositories::DetectedRepositories;
 use settings::Setting as _;
 use warp_core::features::FeatureFlag;
 use warpui::elements::{
-    AnchorPair, Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-    Dismiss, Empty, Fill, Flex, Hoverable, Icon, MouseStateHandle, OffsetPositioning, OffsetType,
+    AnchorPair, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Dismiss,
+    Empty, Fill, Flex, Hoverable, Icon, MouseStateHandle, OffsetPositioning, OffsetType,
     ParentElement, PositionedElementOffsetBounds, PositioningAxis, Radius, SavePosition,
     ScrollStateHandle, Scrollable, ScrollableElement, ScrollbarWidth, Shrinkable, Stack, Text,
     UniformList, UniformListState, XAxisAnchor, YAxisAnchor,
@@ -1409,11 +1409,6 @@ impl AIContextMenu {
         } else {
             fallback
         }
-    }
-
-    #[allow(dead_code)]
-    fn render_search_bar(&self) -> Box<dyn Element> {
-        ChildView::new(&self.search_bar).finish()
     }
 }
 

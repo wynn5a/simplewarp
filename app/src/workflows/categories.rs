@@ -270,14 +270,7 @@ pub struct CategoriesView {
     selected_workflow_index: usize,
     workflows_mouse_state_handles: Vec<MouseStateHandle>,
     selected_workflow_type: WorkflowViewType,
-    focus_state: WorkflowsFocusState,
     search_term: String,
-}
-
-#[allow(dead_code)]
-enum WorkflowsFocusState {
-    Editor,
-    WorkflowTypesSidebar,
 }
 
 #[derive(Copy, Clone)]
@@ -399,7 +392,6 @@ impl CategoriesView {
             selected_workflow_index: 0,
             workflows_mouse_state_handles: Default::default(),
             selected_workflow_type: WorkflowViewType::All,
-            focus_state: WorkflowsFocusState::Editor,
             category_names: Default::default(),
             search_term: String::new(),
         };
@@ -623,7 +615,6 @@ impl CategoriesView {
         self.workflow_list_state = Default::default();
         self.workflows_types_list_state = Default::default();
         self.selected_workflow_type = WorkflowViewType::All;
-        self.focus_state = WorkflowsFocusState::Editor;
         self.compute_active_workflows(ctx);
 
         ctx.notify();
@@ -841,9 +832,6 @@ impl CategoriesView {
 
     /// Renders the list of workflow types as a left sidebar.
     fn render_workflow_types_sidebar(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let workflows_type_sidebar_focused =
-            matches!(self.focus_state, WorkflowsFocusState::WorkflowTypesSidebar);
-
         let workflow_types = vec![
             WorkflowViewType::All,
             WorkflowViewType::LocalPersonal,
@@ -853,10 +841,8 @@ impl CategoriesView {
         let mut workflow_types_list = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_children(workflow_types.into_iter().map(|workflow_type| {
-                let selection_state = SelectionState::new(
-                    self.selected_workflow_type == workflow_type,
-                    workflows_type_sidebar_focused,
-                );
+                let selection_state =
+                    SelectionState::new(self.selected_workflow_type == workflow_type, false);
                 Container::new(workflow_type.render(
                     selection_state,
                     self.category_names.deref(),
@@ -902,7 +888,7 @@ impl CategoriesView {
 
                         let selection_state = SelectionState::new(
                             workflow_type == view.selected_workflow_type,
-                            workflows_type_sidebar_focused,
+                            false,
                         );
 
                         workflow_type.render(
@@ -950,7 +936,6 @@ impl CategoriesView {
         }
 
         let selected_index = self.selected_workflow_index;
-        let is_workflows_list_focused = matches!(self.focus_state, WorkflowsFocusState::Editor);
 
         let list = UniformList::new(
             self.workflow_list_state.list_state.clone(),
@@ -965,10 +950,8 @@ impl CategoriesView {
                     .take(range.end - range.start)
                     .map(
                         |(index, (workflow_match_type, workflow, mouse_state_handle))| {
-                            let selection_state = SelectionState::new(
-                                index == selected_index,
-                                is_workflows_list_focused,
-                            );
+                            let selection_state =
+                                SelectionState::new(index == selected_index, true);
                             let workflow = render_workflow(
                                 workflow.as_workflow(),
                                 appearance,
@@ -1035,7 +1018,6 @@ impl CategoriesView {
     }
 
     fn focus_editor(&mut self, ctx: &mut ViewContext<Self>) {
-        self.focus_state = WorkflowsFocusState::Editor;
         ctx.notify();
     }
 
@@ -1210,10 +1192,7 @@ impl VoltronFeatureViewMeta for CategoriesView {
             EditorEvent::Navigate(NavigationKey::Down) => self.editor_down(ctx),
             EditorEvent::Enter => self.editor_enter(ctx),
             EditorEvent::Escape => self.close(ctx),
-            EditorEvent::Activate => {
-                self.focus_state = WorkflowsFocusState::Editor;
-                ctx.notify();
-            }
+            EditorEvent::Activate => ctx.notify(),
             _ => {}
         }
     }

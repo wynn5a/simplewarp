@@ -81,10 +81,6 @@ pub struct NotificationsSettings {
     )]
     pub long_running_threshold: Duration,
 
-    /// Legacy. To be combined with `is_needs_attention_enabled` when desktop notifs are unflagged.
-    #[schemars(description = "Whether to notify when a password prompt is detected.")]
-    pub is_password_prompt_enabled: bool,
-
     #[schemars(description = "Whether to notify when an agent task completes.")]
     pub is_agent_task_completed_enabled: bool,
     #[schemars(description = "Whether to notify when a session needs attention.")]
@@ -100,7 +96,6 @@ impl Default for NotificationsSettings {
             mode: NotificationsMode::Unset,
             is_long_running_enabled: true,
             long_running_threshold: *DEFAULT_THRESHOLD_FOR_LONG_RUNNING_NOTIFICATION,
-            is_password_prompt_enabled: true,
             is_agent_task_completed_enabled: true,
             is_needs_attention_enabled: true,
             play_notification_sound: true,

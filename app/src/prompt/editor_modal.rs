@@ -38,8 +38,6 @@ const PRIMARY_BUTTON_HEIGHT: f32 = 40.;
 const SECTION_UNIFORM_PADDING: f32 = 24.;
 
 const MARGIN_BETWEEN_MODAL_SECTIONS: f32 = 16.;
-const SLP_ROW_BOTTOM_PADDING: f32 = 8.;
-const SLP_ROW_TOP_MARGIN: f32 = 8.;
 
 const MODAL_CONTENT_FONT_SIZE: f32 = 14.;
 
@@ -352,13 +350,11 @@ impl EditorModal {
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn render_prompt_section(
         &self,
         appearance: &Appearance,
         selected: bool,
         header_row: Box<dyn Element>,
-        configuration_row: Option<Box<dyn Element>>,
         body: Box<dyn Element>,
         mouse_state_handle: MouseStateHandle,
         on_click_action: EditorModalAction,
@@ -370,17 +366,7 @@ impl EditorModal {
         };
 
         Hoverable::new(mouse_state_handle.clone(), |mouse_state| {
-            let mut column: Flex = Flex::column().with_child(header_row).with_child(body);
-            let mut bottom_padding = SECTION_UNIFORM_PADDING;
-            // Any configuration settings specific to the prompt type.
-            if let Some(configuration_row) = configuration_row {
-                bottom_padding = SLP_ROW_BOTTOM_PADDING;
-                column.add_child(
-                    Container::new(configuration_row)
-                        .with_margin_top(SLP_ROW_TOP_MARGIN)
-                        .finish(),
-                );
-            }
+            let column: Flex = Flex::column().with_child(header_row).with_child(body);
             let background = appearance.theme().surface_2();
             let border_color = if selected {
                 appearance.theme().accent()
@@ -395,7 +381,7 @@ impl EditorModal {
                 .with_border(border)
                 .with_padding_top(SECTION_UNIFORM_PADDING)
                 .with_padding_right(SECTION_UNIFORM_PADDING)
-                .with_padding_bottom(bottom_padding)
+                .with_padding_bottom(SECTION_UNIFORM_PADDING)
                 .with_padding_left(SECTION_UNIFORM_PADDING)
                 .with_corner_radius(CornerRadius::with_all(Radius::Pixels(CORNER_RADIUS_PIXELS)))
                 .with_background(background)
@@ -472,7 +458,6 @@ impl EditorModal {
             appearance,
             matches!(self.prompt_type, PromptType::Warp | PromptType::WarpDefault),
             header_row,
-            None,
             body,
             self.mouse_state_handles
                 .warp_prompt_mouse_state_handle
@@ -516,7 +501,6 @@ impl EditorModal {
             appearance,
             matches!(self.prompt_type, PromptType::PS1),
             header,
-            None,
             body,
             self.mouse_state_handles.ps1_mouse_state_handle.clone(),
             EditorModalAction::UsePS1,

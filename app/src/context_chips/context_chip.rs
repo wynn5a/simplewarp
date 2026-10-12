@@ -356,10 +356,9 @@ pub enum PromptGenerator {
 pub enum RefreshConfig {
     #[default]
     OnDemandOnly,
-    #[allow(dead_code)]
-    Periodically { interval: Duration },
-    #[allow(dead_code)]
-    OnFileChanges { filepath: String },
+    Periodically {
+        interval: Duration,
+    },
 }
 
 #[derive(Clone, Debug)]

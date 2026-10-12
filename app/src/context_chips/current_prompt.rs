@@ -1068,17 +1068,6 @@ impl CurrentPrompt {
                         ctx,
                     );
                 }
-                RefreshConfig::OnFileChanges { filepath } => {
-                    log::debug!("Unimplemented: would've watched changes to filepath: {filepath}");
-                    // fall back to OnDemandOnly behavior instead
-                    self.fetch_chip_value_once(
-                        chip_kind,
-                        chip.generator(),
-                        chip.on_click_generator().cloned(),
-                        true,
-                        ctx,
-                    );
-                }
             };
         });
     }

@@ -51,7 +51,6 @@ pub struct BannerTextContent<T: Action + Clone> {
 }
 
 impl<T: Action + Clone> BannerTextContent<T> {
-    #[allow(dead_code)]
     pub fn plain_text(text: impl Into<String>) -> Self {
         Self {
             text: vec![FormattedTextFragment::plain_text(text)],
