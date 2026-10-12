@@ -14,17 +14,15 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_color::ColorU;
-use pathfinder_geometry::vector::vec2f;
 use warp_core::channel::ChannelState;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_error;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::elements::new_scrollable::SingleAxisConfig;
 use warpui::elements::{
-    Align, Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius,
-    CrossAxisAlignment, Empty, Expanded, Fill, Flex, FormattedTextElement, Hoverable,
-    MainAxisAlignment, MainAxisSize, NewScrollable, OffsetPositioning, ParentAnchor, ParentElement,
-    ParentOffsetBounds, Radius, Shrinkable, Stack, Text,
+    Align, Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
+    Expanded, Fill, Flex, FormattedTextElement, Hoverable, MainAxisAlignment, NewScrollable,
+    ParentElement, Radius, Shrinkable, Text,
 };
 use warpui::keymap::Keystroke;
 use warpui::platform::{Cursor, OperatingSystem};
@@ -36,8 +34,7 @@ use warpui::{
 use super::common::{
     DebugFooterProps, FailedOutputProps, FindContext, STATUS_FOOTER_VERTICAL_PADDING,
     STATUS_ICON_SIZE_DELTA, TextSectionsProps, render_debug_footer, render_failed_output,
-    render_informational_footer, render_output_status_text, render_scrollable_collapsible_content,
-    render_text_sections,
+    render_output_status_text, render_scrollable_collapsible_content, render_text_sections,
 };
 use super::imported_comments::render_imported_comments;
 use super::{
@@ -82,9 +79,7 @@ use crate::ai::blocklist::inline_action::requested_command::RequestedCommand;
 use crate::ai::blocklist::inline_action::suggested_unit_tests::SuggestedUnitTestsView;
 use crate::ai::blocklist::keyboard_navigable_buttons::KeyboardNavigableButtons;
 use crate::ai::blocklist::secret_redaction::SecretRedactionState;
-use crate::ai::blocklist::view_util::{
-    FAILED_OUTPUT_USAGE_NOTICE_TEXT, format_credits, should_show_failed_output_usage_notice,
-};
+use crate::ai::blocklist::view_util::should_show_failed_output_debug_footer;
 use crate::ai::blocklist::{AIBlockResponseRating, BlocklistAIActionModel};
 use crate::ai::paths::shell_native_absolute_path;
 use crate::ai::skills::{
@@ -137,7 +132,6 @@ pub(crate) struct Props<'a> {
     pub(super) open_all_comments_button: &'a ViewHandle<ActionButton>,
     pub(super) has_accepted_edits: bool,
     pub(super) finish_reason: Option<&'a FinishReason>,
-    pub(super) is_usage_footer_expanded: bool,
     pub(super) terminal_view_id: EntityId,
     pub(super) is_conversation_transcript_viewer: bool,
     pub(super) imported_comments: &'a HashMap<AIAgentActionId, ImportedCommentGroup>,
@@ -867,18 +861,12 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                 .finish(),
             );
 
-            if should_show_failed_output_usage_notice(
+            if should_show_failed_output_debug_footer(
                 error,
                 props.model.is_latest_visible_exchange_in_root_task(app),
                 has_expanded_last_requested_command,
                 props.model.is_restored(),
             ) {
-                output_items.add_child(
-                    render_informational_footer(app, FAILED_OUTPUT_USAGE_NOTICE_TEXT.to_string())
-                        .with_agent_output_item_spacing(app)
-                        .finish(),
-                );
-
                 output_items.add_child(
                     render_debug_footer(
                         DebugFooterProps {
@@ -2266,8 +2254,6 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
         flex.add_child(fork_button);
     }
 
-    flex.add_child(render_usage_button(props, app));
-
     // Review changes button.
     if props.has_accepted_edits {
         // Only show Review Changes button if we're in a git repository
@@ -2296,146 +2282,6 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
     }
 
     Some(flex.finish().with_content_item_spacing().finish())
-}
-
-/// Renders the usage button that, on click, will expand & collapse the usage summary footer.
-fn render_usage_button(props: Props, app: &AppContext) -> Box<dyn Element> {
-    let Some(conversation) = props.model.conversation(app) else {
-        return Empty::new().finish();
-    };
-
-    // If this conversation has no usage metadata (e.g. a forked conversation from
-    // mid-way through a prior conversation where the server did not send
-    // ConversationUsageMetadata), avoid rendering the usage button entirely.
-    let headline_credits = conversation.credits_spent();
-    let has_any_usage = headline_credits > 0.0
-        || conversation.credits_spent_for_last_block().is_some()
-        || !conversation.token_usage().is_empty()
-        || conversation.tool_usage_metadata().total_tool_calls() > 0;
-    if !has_any_usage {
-        return Empty::new().finish();
-    }
-
-    let appearance = Appearance::as_ref(app);
-    let ui_builder = appearance.ui_builder().clone();
-
-    let expansion_icon = if props.is_usage_footer_expanded {
-        Icon::ChevronDown
-    } else {
-        Icon::ChevronRight
-    };
-
-    let total_credits_spent = headline_credits;
-    let mut credit_usage_text = format_credits(total_credits_spent);
-    if let Some(credits_spent_for_last_block) = conversation.credits_spent_for_last_block() {
-        // Only show the credits spent for the last block if it is different from the total credits spent
-        // and we spent a non-zero amount of credits for the last block.
-        // Avoid showing the credits spent for the last block if the request failed, as we refund user
-        // credits in that case (so no credits were in fact spent).
-        if credits_spent_for_last_block > 0.0
-            && total_credits_spent != credits_spent_for_last_block
-            && props.model.status(app).error().is_none()
-        {
-            // If the first part of the decimal is 0, we just display the whole number.
-            if credits_spent_for_last_block.fract() < 0.1 {
-                credit_usage_text = format!(
-                    "{credit_usage_text} (+{})",
-                    credits_spent_for_last_block.trunc() as i32
-                );
-            } else {
-                credit_usage_text =
-                    format!("{credit_usage_text} (+{credits_spent_for_last_block:.1})");
-            }
-        }
-    }
-
-    let icon_size = icon_size(app);
-    let button_row = Flex::row()
-        .with_cross_axis_alignment(CrossAxisAlignment::Center)
-        .with_main_axis_size(MainAxisSize::Min)
-        .with_child(
-            Container::new(
-                Text::new_inline(
-                    credit_usage_text,
-                    appearance.ui_font_family(),
-                    appearance.monospace_font_size(),
-                )
-                .with_color(
-                    appearance
-                        .theme()
-                        .sub_text_color(appearance.theme().background())
-                        .into(),
-                )
-                .with_selectable(false)
-                .finish(),
-            )
-            .with_padding_top(2.)
-            .with_margin_left(4.)
-            .finish(),
-        )
-        .with_child(
-            Container::new(
-                // Expansion icon
-                ConstrainedBox::new(
-                    expansion_icon
-                        .to_warpui_icon(
-                            appearance
-                                .theme()
-                                .sub_text_color(appearance.theme().background()),
-                        )
-                        .finish(),
-                )
-                .with_width(icon_size)
-                .with_height(icon_size)
-                .finish(),
-            )
-            .with_margin_top(1.)
-            .finish(),
-        );
-
-    Hoverable::new(
-        props.state_handles.usage_button_handle.clone(),
-        |mouse_state| {
-            let mut content = Container::new(button_row.finish());
-
-            if mouse_state.is_hovered() || mouse_state.is_clicked() {
-                let background = if mouse_state.is_clicked() {
-                    appearance.theme().background()
-                } else {
-                    blended_colors::neutral_4(appearance.theme()).into()
-                };
-
-                content = content
-                    .with_background(background)
-                    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)));
-
-                // Show tooltip on hover or while clicked
-                let mut stack = Stack::new().with_child(content.finish());
-                let tooltip = ui_builder
-                    .tool_tip("Show credit usage details".to_string())
-                    .build()
-                    .finish();
-                stack.add_positioned_overlay_child(
-                    tooltip,
-                    OffsetPositioning::offset_from_parent(
-                        vec2f(0., 8.),
-                        ParentOffsetBounds::WindowByPosition,
-                        ParentAnchor::BottomMiddle,
-                        ChildAnchor::TopMiddle,
-                    ),
-                );
-
-                stack.finish()
-            } else {
-                content.finish()
-            }
-        },
-    )
-    .on_click(|ctx, _, _| {
-        ctx.dispatch_typed_action(AIBlockAction::ToggleIsUsageFooterExpanded);
-    })
-    .with_cursor(Cursor::PointingHand)
-    .finish()
 }
 
 pub fn action_icon<V: View>(

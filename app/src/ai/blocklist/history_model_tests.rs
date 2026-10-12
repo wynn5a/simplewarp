@@ -113,7 +113,6 @@ fn create_exchange_with_query(
         time_to_first_token_ms: None,
         working_directory,
         model_id: LLMId::from("test-model"),
-        request_cost: None,
         coding_model_id: LLMId::from("test-coding-model"),
         cli_agent_model_id: LLMId::from("test-cli-agent-model"),
     }
@@ -154,7 +153,6 @@ fn test_initialize_historical_conversations_uses_root_task_description_title() {
                 conversation_id: conversation_id.to_string(),
                 conversation_data: serde_json::to_string(&AgentConversationData {
                     server_conversation_token: Some("renamed-title-token".to_string()),
-                    conversation_usage_metadata: None,
                     reverted_action_ids: None,
                     forked_from_server_conversation_token: None,
                     artifacts_json: None,
@@ -1338,7 +1336,6 @@ fn test_find_by_token_after_insert_forked_conversation_from_tasks() {
         let forked_conversation_id = AIConversationId::new();
         let conversation_data = AgentConversationData {
             server_conversation_token: Some("forked-token".to_string()),
-            conversation_usage_metadata: None,
             reverted_action_ids: None,
             forked_from_server_conversation_token: None,
             artifacts_json: None,
@@ -1544,7 +1541,6 @@ fn test_fork_then_bind_handoff_token_resolves_to_forked_conversation() {
             vec![root_task],
             Some(AgentConversationData {
                 server_conversation_token: Some("src-token".to_string()),
-                conversation_usage_metadata: None,
                 reverted_action_ids: None,
                 forked_from_server_conversation_token: None,
                 artifacts_json: None,
@@ -1624,7 +1620,6 @@ fn test_fork_then_bind_handoff_token_persists_to_restored_conversation() {
             vec![root_task],
             Some(AgentConversationData {
                 server_conversation_token: Some("src-token".to_string()),
-                conversation_usage_metadata: None,
                 reverted_action_ids: None,
                 forked_from_server_conversation_token: None,
                 artifacts_json: None,
@@ -1729,7 +1724,6 @@ fn test_fork_then_bind_handoff_token_updates_cached_metadata_and_emits_refresh_e
             vec![root_task],
             Some(AgentConversationData {
                 server_conversation_token: Some("src-token".to_string()),
-                conversation_usage_metadata: None,
                 reverted_action_ids: None,
                 forked_from_server_conversation_token: None,
                 artifacts_json: None,
@@ -1850,7 +1844,6 @@ fn test_fork_conversation_preserves_task_ids_when_requested() {
             vec![root_task, subtask],
             Some(AgentConversationData {
                 server_conversation_token: Some("src-token".to_string()),
-                conversation_usage_metadata: None,
                 reverted_action_ids: None,
                 forked_from_server_conversation_token: None,
                 artifacts_json: None,
@@ -1993,7 +1986,6 @@ fn test_fork_conversation_title_override_replaces_prefix() {
             vec![root_task],
             Some(AgentConversationData {
                 server_conversation_token: None,
-                conversation_usage_metadata: None,
                 reverted_action_ids: None,
                 forked_from_server_conversation_token: None,
                 artifacts_json: None,
@@ -2667,7 +2659,6 @@ fn straddle_rewind_followup_requests_are_clean_and_durable() {
             vec![root_task, subtask],
             Some(AgentConversationData {
                 server_conversation_token: Some("token-1".to_string()),
-                conversation_usage_metadata: None,
                 reverted_action_ids: None,
                 forked_from_server_conversation_token: None,
                 artifacts_json: None,

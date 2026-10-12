@@ -49,8 +49,6 @@ pub fn model_leading_icon(llm: &LLMInfo, flags: ModelIconFlags) -> Icon {
     }
 }
 
-const CUSTOM_ENDPOINT_USAGE_FALLBACK_LABEL: &str = "Custom endpoint";
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LLMUsageMetadata {
     pub credit_multiplier: Option<f32>,
@@ -702,16 +700,6 @@ impl LLMPreferences {
     /// Returns `None` if the id isn't a known custom model `config_key`.
     pub fn custom_llm_info_for_id(&self, id: &LLMId) -> Option<&LLMInfo> {
         self.custom_llms.iter().find(|info| info.id == *id)
-    }
-
-    /// Footer label for custom endpoint usage keyed by the request config_key.
-    /// The synthetic custom LLMInfo already owns alias-or-name display semantics.
-    pub fn custom_endpoint_usage_display_label(&self, config_key: &str) -> String {
-        let config_key = LLMId::from(config_key);
-        self.custom_llm_info_for_id(&config_key)
-            .map(|info| info.display_name.as_str())
-            .map(str::to_string)
-            .unwrap_or_else(|| CUSTOM_ENDPOINT_USAGE_FALLBACK_LABEL.to_string())
     }
 
     /// Iterator over the user's custom-endpoint LLMs.

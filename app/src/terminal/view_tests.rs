@@ -647,7 +647,6 @@ fn exchange_with_inputs(inputs: Vec<AIAgentInput>) -> AIAgentExchange {
         time_to_first_token_ms: None,
         working_directory: None,
         model_id: LLMId::from("test-model"),
-        request_cost: None,
         coding_model_id: LLMId::from("test-coding-model"),
         cli_agent_model_id: LLMId::from("test-cli-agent-model"),
     }

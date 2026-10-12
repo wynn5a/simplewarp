@@ -23,7 +23,6 @@ const PROVIDER_BUTTON_ICON_SIZE: f32 = 14.;
 const PROVIDER_BUTTON_ICON_TEXT_GAP: f32 = 8.;
 const ERROR_APOLOGY_TEXT: &str = "I'm sorry, I couldn't complete that request.";
 const INTERNAL_WARP_ERROR: &str = "Internal Warp error.";
-pub const FAILED_OUTPUT_USAGE_NOTICE_TEXT: &str = "This response won't count towards your usage.";
 /// Text to use as a label throughout the app for user interactions that will attach selected
 /// block(s) or text selections to a new AI query.
 pub static ATTACH_AS_AGENT_MODE_CONTEXT_TEXT: LazyLock<&'static str> =
@@ -123,8 +122,8 @@ pub fn failed_output_presentation(
     })
 }
 
-/// Whether a failed Agent Mode response should explain that it will not count towards usage.
-pub fn should_show_failed_output_usage_notice(
+/// Whether a failed Agent Mode response should show the debug footer.
+pub fn should_show_failed_output_debug_footer(
     error: &RenderableAIError,
     is_latest_visible_exchange_in_root_task: bool,
     has_expanded_last_requested_command: bool,
@@ -220,23 +219,6 @@ pub fn get_attached_blocks_chip_element_position_id(view_id: EntityId) -> String
 /// Returns the saved position ID of the overflow menu inside the [`AIBlock`] header.
 pub fn get_ai_block_overflow_menu_element_position_id(view_id: EntityId) -> String {
     format!("aiblock:{view_id}.overflow_menu_position")
-}
-
-/// Formats credit count to display as whole numbers when the value is effectively a whole number,
-/// otherwise displays with one decimal place.
-/// Returns a formatted string with proper pluralization ("credit" vs "credits").
-pub fn format_credits(credits: f32) -> String {
-    // If the first part of the decimal is 0, we just display the whole number.
-    if credits.fract() < 0.1 {
-        let whole = credits.trunc() as i32;
-        if whole == 1 {
-            format!("{whole} credit")
-        } else {
-            format!("{whole} credits")
-        }
-    } else {
-        format!("{credits:.1} credits")
-    }
 }
 
 /// Renders a secondary button with an MCP/skill provider icon and a text label.

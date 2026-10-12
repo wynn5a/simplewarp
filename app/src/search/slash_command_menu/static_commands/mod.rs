@@ -72,7 +72,6 @@ pub enum SlashCommandKind {
     Queue,
     ForkAndCompact,
     ForkFrom,
-    Cost,
     Conversations,
     Rewind,
     ExportToClipboard,

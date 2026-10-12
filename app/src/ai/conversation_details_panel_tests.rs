@@ -90,7 +90,6 @@ fn test_from_conversation_populates_local_conversation_fields() {
             directory,
             AgentConversationData {
                 server_conversation_token: None,
-                conversation_usage_metadata: None,
                 reverted_action_ids: None,
                 forked_from_server_conversation_token: None,
                 artifacts_json: None,
@@ -119,7 +118,6 @@ fn test_from_conversation_populates_local_conversation_fields() {
 
             assert_eq!(data.title, "test query");
             assert_eq!(data.source_prompt.as_deref(), Some("test query"));
-            assert!(data.credits.is_some());
         });
     });
 }

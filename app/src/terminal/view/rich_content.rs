@@ -143,10 +143,6 @@ impl RichContent {
         matches!(self.metadata, Some(RichContentMetadata::AIBlock(_)))
     }
 
-    pub fn is_usage_footer(&self) -> bool {
-        matches!(self.metadata, Some(RichContentMetadata::UsageFooter))
-    }
-
     pub fn is_inline_agent_view_header(&self) -> bool {
         matches!(
             self.metadata,
@@ -205,7 +201,6 @@ pub enum RichContentMetadata {
         /// The ID corresponding to the `AIAgentExchange` represented in this block.
         exchange_id: AIAgentExchangeId,
     },
-    UsageFooter,
     InitStep {
         step_kind: InitStepKind,
         block_handle: ViewHandle<InitStepBlock>,

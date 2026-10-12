@@ -290,7 +290,6 @@ impl Task {
             model_id: existing_exchange.model_id.clone(),
             coding_model_id: existing_exchange.coding_model_id.clone(),
             cli_agent_model_id: existing_exchange.cli_agent_model_id.clone(),
-            request_cost: None,
         };
         new_exchange
             .init_output(
@@ -418,7 +417,6 @@ impl Task {
             model_id: existing_exchange.model_id.clone(),
             coding_model_id: existing_exchange.coding_model_id.clone(),
             cli_agent_model_id: existing_exchange.cli_agent_model_id.clone(),
-            request_cost: None,
         };
         new_exchange
             .init_output(

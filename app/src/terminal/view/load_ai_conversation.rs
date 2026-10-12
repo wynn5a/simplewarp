@@ -768,7 +768,6 @@ impl TerminalView {
 
         let conversation_data = AgentConversationData {
             server_conversation_token: None,
-            conversation_usage_metadata: None,
             reverted_action_ids: None,
             forked_from_server_conversation_token: None,
             artifacts_json: None,

@@ -260,7 +260,7 @@ pub trait SlashCommandDataSource {
         // cached `active_repo_root`. The cache is only refreshed after async git
         // detection resolves, but the pwd-changed recompute runs immediately on
         // `cd`; keying off the cache would leave repo-gated commands (e.g.
-        // `/pr-comments`) available in the stale window after leaving a repo.
+        // `/open-code-review`) available in the stale window after leaving a repo.
         // Repo roots are only tracked for local sessions, so this is gated on
         // `is_local`. `active_repo_root` is retained solely as the recompute
         // trigger that re-runs this once detection caches a newly-entered

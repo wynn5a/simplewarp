@@ -61,7 +61,6 @@ pub struct AgentConversationDisplayData {
     pub created_at: DateTime<Utc>,
     pub last_updated: DateTime<Utc>,
     pub status: AgentRunDisplayStatus,
-    pub request_usage: Option<f32>,
     pub working_directory: Option<String>,
     pub harness: Option<Harness>,
     pub artifacts: Vec<Artifact>,
@@ -125,20 +124,6 @@ fn conversation_display_status(
         .conversation(&metadata.nav_data.id)
         .map(|conversation| AgentRunDisplayStatus::from_conversation_status(conversation.status()))
         .unwrap_or(AgentRunDisplayStatus::Succeeded)
-}
-
-fn conversation_request_usage(
-    metadata: &ConversationMetadata,
-    history_model: &BlocklistAIHistoryModel,
-) -> Option<f32> {
-    history_model
-        .conversation(&metadata.nav_data.id)
-        .map(|conversation| conversation.credits_spent())
-        .or_else(|| {
-            history_model
-                .get_conversation_metadata(&metadata.nav_data.id)
-                .and_then(|metadata| metadata.credits_spent)
-        })
 }
 
 fn conversation_artifacts(
@@ -218,7 +203,6 @@ fn entry_for_conversation_parts(
             created_at: metadata.nav_data.last_updated.into(),
             last_updated: metadata.nav_data.last_updated.into(),
             status: status.clone(),
-            request_usage: conversation_request_usage(&metadata, history_model),
             working_directory: metadata
                 .nav_data
                 .latest_working_directory

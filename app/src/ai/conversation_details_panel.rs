@@ -94,8 +94,6 @@ pub struct ConversationDetailsData {
     title: String,
     /// When the conversation was created.
     created_at: Option<DateTime<Local>>,
-    /// Total credits spent on the conversation/task.
-    credits: Option<f32>,
     /// Total duration of the conversation.
     run_time: Option<Duration>,
     /// Artifacts created during the conversation (plans, PRs, branches).
@@ -142,7 +140,6 @@ impl ConversationDetailsData {
                 .title()
                 .unwrap_or_else(|| "Conversation".to_string()),
             created_at,
-            credits: Some(conversation.credits_spent()),
             run_time,
             artifacts: conversation.artifacts().to_vec(),
             source_prompt: conversation.initial_query(),
@@ -740,15 +737,6 @@ impl View for ConversationDetailsPanel {
                     );
                 }
             }
-        }
-
-        if let Some(credits) = self.data.credits {
-            let formatted = format!("{credits:.1}");
-            content.add_child(
-                Container::new(self.render_simple_field("Credits used", &formatted, appearance))
-                    .with_margin_bottom(FIELD_SPACING)
-                    .finish(),
-            );
         }
 
         if let Some(duration) = self.data.run_time {

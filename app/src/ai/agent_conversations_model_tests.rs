@@ -362,7 +362,6 @@ fn test_server_token_assignment_emits_conversation_updated() {
             "root-task",
             AgentConversationData {
                 server_conversation_token: None,
-                conversation_usage_metadata: None,
                 reverted_action_ids: None,
                 forked_from_server_conversation_token: None,
                 artifacts_json: None,

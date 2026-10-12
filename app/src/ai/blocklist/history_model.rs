@@ -10,9 +10,6 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use warp_multi_agent_api::client_action::{Action, StartNewConversation};
 use warp_multi_agent_api::message::tool_call::Tool;
-use warp_multi_agent_api::response_event::stream_finished::{
-    ConversationUsageMetadata, TokenUsage,
-};
 use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity};
 
 use super::RequestInput;
@@ -27,7 +24,7 @@ use crate::ai::agent::task::TaskId;
 use crate::ai::agent::task::helper::{MessageExt, ToolCallExt};
 use crate::ai::agent::{
     AIAgentActionId, AIAgentExchange, AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus,
-    CancellationReason, FinishedAIAgentOutput, MessageId, RenderableAIError, RequestCost,
+    CancellationReason, FinishedAIAgentOutput, MessageId, RenderableAIError,
 };
 use crate::ai::artifacts::Artifact;
 use crate::input_suggestions::HistoryOrder;
@@ -62,8 +59,6 @@ pub struct AIConversationMetadata {
 
     pub initial_working_directory: Option<String>,
 
-    pub credits_spent: Option<f32>,
-
     pub server_conversation_token: Option<ServerConversationToken>,
 
     /// Whether the full conversation data exists in the local database.
@@ -97,7 +92,6 @@ impl From<&AIConversation> for AIConversationMetadata {
             initial_query,
             last_modified_at,
             initial_working_directory: conversation.initial_working_directory(),
-            credits_spent: Some(conversation.credits_spent()),
             server_conversation_token,
             has_local_data: true,
             has_cloud_data,
@@ -1021,7 +1015,6 @@ impl BlocklistAIHistoryModel {
 
         let conversation_data = AgentConversationData {
             server_conversation_token: None,
-            conversation_usage_metadata: Some(source_conversation.usage_metadata()),
             reverted_action_ids,
             forked_from_server_conversation_token: source_conversation
                 .server_conversation_token()
@@ -1185,7 +1178,6 @@ impl BlocklistAIHistoryModel {
         // be recomputed based on the retained exchanges in a follow-up.
         let conversation_data = AgentConversationData {
             server_conversation_token: None,
-            conversation_usage_metadata: None,
             reverted_action_ids,
             forked_from_server_conversation_token: conversation
                 .server_conversation_token()
@@ -1259,46 +1251,6 @@ impl BlocklistAIHistoryModel {
             }
         }
         Ok(())
-    }
-
-    pub fn update_conversation_cost_and_usage_for_request(
-        &mut self,
-        conversation_id: AIConversationId,
-        request_cost: Option<RequestCost>,
-        token_usage: Vec<TokenUsage>,
-        usage_metadata: Option<ConversationUsageMetadata>,
-        was_user_initiated_request: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        // Track whether this update changes any state derived by
-        // `BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated`
-        // subscribers (e.g. the orchestration credit rollup or the TUI
-        // footer's usage entry). We emit the event only when there's actual
-        // data to react to.
-        let emits_usage_event =
-            request_cost.is_some() || usage_metadata.is_some() || !token_usage.is_empty();
-        if let Some(conversation) = self.conversations_by_id.get_mut(&conversation_id) {
-            if let Err(e) = conversation.update_cost_and_usage_for_request(
-                request_cost,
-                token_usage,
-                usage_metadata,
-                was_user_initiated_request,
-                ctx,
-            ) {
-                log::warn!(
-                    "Failed to update request cost for conversation {conversation_id}: {e:#}"
-                );
-            }
-            if emits_usage_event {
-                ctx.emit(BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated {
-                    conversation_id,
-                });
-            }
-        } else {
-            log::warn!(
-                "Failed to update request cost because conversation {conversation_id} was not found"
-            );
-        }
     }
 
     pub fn mark_response_stream_completed_successfully(
@@ -2079,15 +2031,6 @@ pub enum BlocklistAIHistoryEvent {
         previous_terminal_surface_id: EntityId,
         new_terminal_surface_id: EntityId,
     },
-
-    /// Emitted when a conversation's `conversation_usage_metadata` is updated
-    /// (for example after a `StreamFinished` event). Subscribers that derive
-    /// data from cross-conversation usage — e.g. the orchestration credit
-    /// rollup in the agent-mode footer — can listen for this to re-render
-    /// when a descendant's credits change.
-    ConversationUsageMetadataUpdated {
-        conversation_id: AIConversationId,
-    },
 }
 
 impl BlocklistAIHistoryEvent {
@@ -2176,12 +2119,6 @@ impl BlocklistAIHistoryEvent {
                 terminal_surface_id,
                 ..
             } => *terminal_surface_id,
-            // ConversationUsageMetadataUpdated is conversation-scoped and
-            // has no terminal_surface_id. Cross-pane consumers (e.g. the
-            // orchestrator footer reading descendant credits) can't be
-            // disambiguated by a single terminal surface pane.
-            BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated { .. } => None,
-            // Conversation-scoped; subscribers resolve the owning view via conversation_id.
         }
     }
 }

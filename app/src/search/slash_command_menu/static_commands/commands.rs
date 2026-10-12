@@ -425,18 +425,6 @@ pub const FORK_FROM: StaticCommand = StaticCommand {
     argument: None,
 };
 
-pub const COST: StaticCommand = StaticCommand {
-    name: "/cost",
-    description: "Toggle credit usage details",
-    kind: SlashCommandKind::Cost,
-    supported_surfaces: SlashCommandSurfaces::GuiOnly {
-        icon_path: "bundled/svg/bar-chart-04.svg",
-    },
-    availability: Availability::AGENT_VIEW.union(Availability::AI_ENABLED),
-    auto_enter_ai_mode: false,
-    argument: None,
-};
-
 pub const CONVERSATIONS: StaticCommand = StaticCommand {
     name: "/conversations",
     description: "Open conversation history",
@@ -579,7 +567,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
         ADD_MCP,
         ADD_PROMPT.clone(),
         ADD_RULE,
-        COST,
         INIT,
         OPEN_PROJECT_RULES,
         OPEN_MCP_SERVERS,

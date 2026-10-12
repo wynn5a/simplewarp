@@ -20,7 +20,6 @@ mod permissions;
 mod persistence;
 pub mod prompt;
 pub mod summarization_cancel_dialog;
-pub mod usage;
 
 pub(crate) mod view_util;
 

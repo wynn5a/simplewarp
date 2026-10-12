@@ -236,7 +236,6 @@ fn entry_icon_uses_harness() {
             created_at: Utc::now(),
             last_updated: Utc::now(),
             status: AgentRunDisplayStatus::Succeeded,
-            request_usage: None,
             working_directory: None,
             harness: Some(Harness::Codex),
             artifacts: Vec::new(),

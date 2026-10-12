@@ -189,10 +189,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::MCPGroupedServerContext,
         #[cfg(feature = "fork_from_command")]
         FeatureFlag::ForkFromCommand,
-        #[cfg(feature = "context_window_usage_v2")]
-        FeatureFlag::ContextWindowUsageV2,
-        #[cfg(feature = "context_window_usage_breakdown")]
-        FeatureFlag::ContextWindowUsageBreakdown,
         #[cfg(feature = "global_search")]
         FeatureFlag::GlobalSearch,
         #[cfg(feature = "revert_to_checkpoints")]
@@ -287,8 +283,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::TrimTrailingBlankLines,
         #[cfg(feature = "nld_prompt_history_match")]
         FeatureFlag::NldPromptHistoryMatch,
-        #[cfg(feature = "prompt_cache_expiry_warning")]
-        FeatureFlag::PromptCacheExpiryWarning,
         #[cfg(feature = "osc_hyperlinks")]
         FeatureFlag::OscHyperlinks,
         #[cfg(feature = "program_status_protocol")]

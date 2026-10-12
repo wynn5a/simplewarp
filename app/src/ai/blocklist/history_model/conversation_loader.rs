@@ -279,10 +279,6 @@ impl BlocklistAIHistoryModel {
                     return None;
                 }
 
-                let credits_spent = conversation_data
-                    .as_ref()
-                    .and_then(|data| data.conversation_usage_metadata.as_ref())
-                    .map(|m| m.credits_spent + m.platform_credits_spent);
                 let artifacts = conversation_data
                     .as_ref()
                     .and_then(|data| data.artifacts_json.as_ref())
@@ -301,7 +297,6 @@ impl BlocklistAIHistoryModel {
                         initial_query,
                         last_modified_at: agent_conversation.conversation.last_modified_at,
                         initial_working_directory,
-                        credits_spent,
                         // If we have a server token, the conversation was synced to cloud
                         has_cloud_data: server_conversation_token.is_some(),
                         server_conversation_token,

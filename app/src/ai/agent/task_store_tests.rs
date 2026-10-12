@@ -25,7 +25,6 @@ fn create_test_exchange() -> AIAgentExchange {
         time_to_first_token_ms: None,
         working_directory: None,
         model_id: LLMId::from(""),
-        request_cost: None,
         coding_model_id: LLMId::from(""),
         cli_agent_model_id: LLMId::from(""),
     }
@@ -62,7 +61,6 @@ fn create_exchange_with_subagent_call(subtask_id: &TaskId) -> AIAgentExchange {
         citations: vec![],
         server_output_id: None,
         model_info: None,
-        request_cost: None,
     };
 
     AIAgentExchange {
@@ -79,7 +77,6 @@ fn create_exchange_with_subagent_call(subtask_id: &TaskId) -> AIAgentExchange {
         time_to_first_token_ms: None,
         working_directory: None,
         model_id: LLMId::from(""),
-        request_cost: None,
         coding_model_id: LLMId::from(""),
         cli_agent_model_id: LLMId::from(""),
     }

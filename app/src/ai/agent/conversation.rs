@@ -14,11 +14,9 @@ use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::WarpTheme;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_error;
-use warp_multi_agent_api::response_event::stream_finished;
-use warp_multi_agent_api::response_event::stream_finished::TokenUsage;
 use warp_multi_agent_api::{self as api};
 use warpui::color::ColorU;
-use warpui::{AppContext, EntityId, ModelContext, SingletonEntity};
+use warpui::{EntityId, ModelContext, SingletonEntity};
 
 use super::api::ServerConversationToken;
 use super::task::helper::*;
@@ -31,7 +29,7 @@ use super::task_store::TaskStore;
 use super::{
     AIAgentAction, AIAgentActionId, AIAgentContext, AIAgentExchange, AIAgentExchangeId,
     AIAgentInput, AIAgentOutput, AIAgentOutputStatus, FinishedAIAgentOutput, MessageId,
-    OutputModelInfo, RenderableAIError, RequestCost, ServerOutputId, Shared,
+    OutputModelInfo, RenderableAIError, ServerOutputId, Shared,
 };
 use crate::ai::agent::api::convert_conversation::{
     ConvertToExchanges, proto_timestamp_to_local_datetime,
@@ -50,126 +48,15 @@ use crate::ai::blocklist::{
     BlocklistAIHistoryEvent, ConversationStatusUpdate, RequestInput, ResponseStreamId,
     SerializedBlockListItem,
 };
-use crate::ai::llms::LLMPreferences;
 use crate::ai::skills::SkillDescriptor;
 use crate::persistence::ModelEvent;
-use crate::persistence::model::{
-    AgentConversationData, ContextWindowSegment, ConversationUsageMetadata, ModelTokenUsage,
-    PersistedAutoexecuteMode, ToolUsageMetadata,
-};
+use crate::persistence::model::{AgentConversationData, PersistedAutoexecuteMode};
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::model::block::{
     AgentInteractionMetadata, AgentViewVisibility, BlockId, SerializedAIMetadata, SerializedBlock,
 };
 use crate::ui_components::icons::Icon;
 use crate::{BlocklistAIHistoryModel, GlobalResourceHandlesProvider};
-
-fn footer_model_token_usage(
-    usage_metadata: &stream_finished::ConversationUsageMetadata,
-    llm_preferences: &LLMPreferences,
-) -> Vec<ModelTokenUsage> {
-    // warp + byok rows merge on their server-known model id. Custom endpoint
-    // rows live in a separate bucket keyed by their upstream `config_key` so
-    // they never collide with a warp/byok row that happens to share the same
-    // resolved alias. The `config_key` itself is not retained on
-    // `ModelTokenUsage`; it is translated to an alias up front and only the
-    // alias flows downstream (display + shared-session replay).
-    let mut standard_usage: HashMap<String, ModelTokenUsage> = HashMap::new();
-    for (model_id, usage) in &usage_metadata.warp_token_usage {
-        let entry = standard_usage
-            .entry(model_id.clone())
-            .or_insert_with(|| ModelTokenUsage {
-                model_id: model_id.clone(),
-                ..Default::default()
-            });
-        entry.warp_tokens += usage.total_tokens;
-        for (category, tokens) in &usage.token_usage_by_category {
-            *entry
-                .warp_token_usage_by_category
-                .entry(category.clone())
-                .or_default() += *tokens;
-        }
-    }
-    for (model_id, usage) in &usage_metadata.byok_token_usage {
-        let entry = standard_usage
-            .entry(model_id.clone())
-            .or_insert_with(|| ModelTokenUsage {
-                model_id: model_id.clone(),
-                ..Default::default()
-            });
-        entry.byok_tokens += usage.total_tokens;
-        for (category, tokens) in &usage.token_usage_by_category {
-            *entry
-                .byok_token_usage_by_category
-                .entry(category.clone())
-                .or_default() += *tokens;
-        }
-    }
-
-    let mut custom_usage: HashMap<String, ModelTokenUsage> = HashMap::new();
-    for (config_key, usage) in &usage_metadata.custom_endpoint_token_usage {
-        let label = llm_preferences.custom_endpoint_usage_display_label(config_key);
-        let entry = custom_usage
-            .entry(config_key.clone())
-            .or_insert_with(|| ModelTokenUsage {
-                model_id: label,
-                ..Default::default()
-            });
-        entry.custom_endpoint_tokens += usage.total_tokens;
-        for (category, tokens) in &usage.token_usage_by_category {
-            *entry
-                .custom_endpoint_token_usage_by_category
-                .entry(category.clone())
-                .or_default() += *tokens;
-        }
-    }
-
-    standard_usage
-        .into_values()
-        .chain(custom_usage.into_values())
-        .collect()
-}
-
-/// Conversation usage totals for compact displays (e.g. the TUI footer's
-/// usage entry).
-///
-/// A projection computed on demand from existing conversation state — named
-/// so the underlying types don't leak through `tui_export`.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct ConversationUsageTotals {
-    /// Total credits spent (inference + platform), from the server's
-    /// cumulative usage metadata — the same number the GUI's usage footer
-    /// shows as "Credits spent (total)" and the conversation details panel
-    /// shows as "Credits used".
-    pub credits_spent: f32,
-    /// Total provider cost across all models, in US cents. `None` means the
-    /// server did not provide a historical baseline; it must not be rendered
-    /// as `$0.00` or as an incremental-only total.
-    pub cost_in_cents: Option<f32>,
-    /// Whether the conversation has reported any usage. Derived from the
-    /// contents of the usage metadata (not its mere presence), so a restored
-    /// conversation that never ran a request keeps the footer entry hidden,
-    /// while a restored legacy conversation with real usage but an unknown
-    /// historical cost still shows it.
-    pub has_usage: bool,
-}
-
-/// Whether persisted or server usage metadata carries evidence that the
-/// conversation actually incurred usage. Metadata presence alone is not
-/// enough: the local persistence path always writes a (possibly all-default)
-/// metadata blob, and a restored conversation that never ran a request must
-/// keep the footer's usage entry hidden.
-fn usage_metadata_indicates_usage(metadata: &ConversationUsageMetadata) -> bool {
-    // A present provider cost counts even at 0.0: the server only records a
-    // cost once a turn has completed accounting, so `Some(0.0)` is a known
-    // zero baseline (rendered as $0.00), unlike `None` (unknown).
-    metadata.credits_spent != 0.0
-        || metadata.platform_credits_spent != 0.0
-        || metadata.total_provider_cost_in_cents.is_some()
-        || !metadata.token_usage.is_empty()
-        || metadata.context_window_usage != 0.0
-        || metadata.was_summarized
-}
 
 // basic info for creating a dummy command block based on an exchange's inputs
 pub(crate) struct CommandBlockInfo {
@@ -231,10 +118,6 @@ pub struct AIConversation {
     /// Tracks whether the code review has been opened at least once for this conversation.
     has_opened_code_review: bool,
 
-    /// Usage metadata for this conversation, including summarization status, context window usage,
-    /// credits spent, token usage, and tool usage.
-    conversation_usage_metadata: ConversationUsageMetadata,
-
     /// The server-generated unique "token" for this conversation.
     ///
     /// This must be roundtripped to the server when sending follow-ups within a given conversation.
@@ -262,18 +145,6 @@ pub struct AIConversation {
     /// A set of action IDs that have been reverted by the user.
     reverted_action_ids: HashSet<AIAgentActionId>,
 
-    /// A set of suggestion logging IDs that have been dismissed for this conversation.
-    total_request_cost: RequestCost,
-    total_token_usage_by_model: HashMap<String, TokenUsage>,
-    /// Server-authoritative cumulative provider cost in US cents. New
-    /// conversations start at a known zero; restored legacy conversations can
-    /// remain `None` until a server snapshot is available.
-    total_provider_cost_in_cents: Option<f32>,
-    /// True once hydrated usage metadata shows evidence of usage (see
-    /// [`usage_metadata_indicates_usage`]) or a live response reports usage
-    /// (even when its numeric totals are zero).
-    has_usage_metadata: bool,
-
     /// Fallback title used when no task description or initial query exists.
     fallback_display_title: Option<String>,
 
@@ -298,7 +169,6 @@ impl AIConversation {
             status: ConversationStatus::InProgress,
             status_error: None,
             has_opened_code_review: false,
-            conversation_usage_metadata: ConversationUsageMetadata::default(),
             server_conversation_token: None,
             forked_from_server_conversation_token: None,
             transaction: None,
@@ -306,10 +176,6 @@ impl AIConversation {
             added_exchanges_by_response: Default::default(),
             hidden_exchanges: Default::default(),
             reverted_action_ids: Default::default(),
-            total_request_cost: RequestCost::new(0.),
-            total_token_usage_by_model: Default::default(),
-            total_provider_cost_in_cents: Some(0.),
-            has_usage_metadata: false,
             fallback_display_title: None,
             artifacts: Vec::new(),
         }
@@ -430,8 +296,6 @@ impl AIConversation {
         let (
             server_conversation_token,
             forked_from_server_conversation_token,
-            has_usage_metadata,
-            conversation_usage_metadata,
             reverted_action_ids,
             artifacts,
             autoexecute_override,
@@ -439,11 +303,6 @@ impl AIConversation {
             let server_conversation_token = data
                 .server_conversation_token
                 .map(ServerConversationToken::new);
-            let has_usage_metadata = data
-                .conversation_usage_metadata
-                .as_ref()
-                .is_some_and(usage_metadata_indicates_usage);
-            let conversation_usage_metadata = data.conversation_usage_metadata.unwrap_or_default();
             let reverted_action_ids: HashSet<AIAgentActionId> = data
                 .reverted_action_ids
                 .unwrap_or_default()
@@ -475,8 +334,6 @@ impl AIConversation {
             (
                 server_conversation_token,
                 forked_from_server_conversation_token,
-                has_usage_metadata,
-                conversation_usage_metadata,
                 reverted_action_ids,
                 artifacts,
                 autoexecute_override,
@@ -485,14 +342,11 @@ impl AIConversation {
             (
                 None,
                 None,
-                false,
-                ConversationUsageMetadata::default(),
                 HashSet::new(),
                 Vec::new(),
                 AIConversationAutoexecuteMode::default(),
             )
         };
-        let total_provider_cost_in_cents = conversation_usage_metadata.total_provider_cost_in_cents;
 
         Ok(Self {
             id,
@@ -503,7 +357,6 @@ impl AIConversation {
             // TODO(alokedesai): Support session restoration for code review comments.
             code_review: None,
             has_opened_code_review: false,
-            conversation_usage_metadata,
             server_conversation_token,
             forked_from_server_conversation_token,
             transaction: None,
@@ -511,10 +364,6 @@ impl AIConversation {
             added_exchanges_by_response: Default::default(),
             hidden_exchanges: Default::default(),
             reverted_action_ids,
-            total_request_cost: RequestCost::new(0.),
-            total_token_usage_by_model: Default::default(),
-            total_provider_cost_in_cents,
-            has_usage_metadata,
             optimistic_cli_subagent_subtask_id: None,
             fallback_display_title: None,
             artifacts,
@@ -541,10 +390,6 @@ impl AIConversation {
         self.is_cli_agent_transcript
     }
 
-    pub fn was_summarized(&self) -> bool {
-        self.conversation_usage_metadata.was_summarized
-    }
-
     /// Returns true if the conversation is currently being summarized.
     pub fn is_summarizing(&self) -> bool {
         let Some(exchange) = self.latest_visible_exchange() else {
@@ -563,33 +408,6 @@ impl AIConversation {
                 }
             )
         })
-    }
-
-    pub fn context_window_usage(&self) -> f32 {
-        self.conversation_usage_metadata.context_window_usage
-    }
-
-    /// The per-segment breakdown of the context window (e.g. system prompt,
-    /// tool definitions, conversation history). Scaled so the segments sum to
-    /// `context_window_usage`. Empty when the server did not emit segments.
-    pub fn context_window_segments(&self) -> &[ContextWindowSegment] {
-        &self.conversation_usage_metadata.context_window_segments
-    }
-
-    /// Total credits spent in the conversation, including both LLM inference
-    /// and platform credits.
-    pub fn credits_spent(&self) -> f32 {
-        let total = self.conversation_usage_metadata.credits_spent
-            + self.conversation_usage_metadata.platform_credits_spent;
-        (total * 10.0).round() / 10.0
-    }
-
-    pub fn inference_credits_spent(&self) -> f32 {
-        self.conversation_usage_metadata.credits_spent
-    }
-
-    pub fn platform_credits_spent(&self) -> f32 {
-        self.conversation_usage_metadata.platform_credits_spent
     }
 
     /// Test-only helper that simulates the root-task upgrade performed by the
@@ -615,37 +433,6 @@ impl AIConversation {
             .into_server_created_task(server_task, None, None)
             .expect("upgrading optimistic root to a server-backed task should succeed");
         self.task_store.set_root_task(server_root);
-    }
-
-    // Credits spent over the last block, where the block comprises
-    // all agent outputs since the most recent user input.
-    pub fn credits_spent_for_last_block(&self) -> Option<f32> {
-        self.conversation_usage_metadata
-            .credits_spent_for_last_block
-            .map(|credits| (credits * 10.0).round() / 10.0)
-    }
-
-    /// Time to first token for the last completed set of agent responses
-    /// since the most recent user query
-    pub fn time_to_first_token_for_last_user_query_ms(&self) -> i64 {
-        let exchanges = self.all_exchanges();
-        if exchanges.is_empty() {
-            return 0;
-        }
-
-        // Walk backwards from the end to find all exchanges in the last block
-        // (everything since the last user query).
-        for exchange in exchanges.iter().rev() {
-            if exchange.has_user_query() {
-                return exchange.time_to_first_token_ms.unwrap_or(0);
-            }
-        }
-
-        // If we never found a user query, return the time_to_first_token_ms from the first exchange
-        exchanges
-            .first()
-            .and_then(|ex| ex.time_to_first_token_ms)
-            .unwrap_or(0)
     }
 
     /// Helper to derive an exchange's finish time from its associated task messages.
@@ -690,61 +477,6 @@ impl AIConversation {
 
         // If not cancelled or errored, it's successful
         ConversationStatus::Success
-    }
-
-    /// Total agent response time for the last completed set of agent responses
-    /// since the most recent user query.
-    pub fn total_agent_response_time_since_last_user_query_ms(&self) -> i64 {
-        let exchanges = self.all_exchanges();
-        if exchanges.is_empty() {
-            return 0;
-        }
-
-        // Walk backwards, accumulating durations until we find a user query
-        let mut total_ms: i64 = 0;
-        for exchange in exchanges.iter().rev() {
-            total_ms += exchange
-                .duration()
-                .map(|duration| duration.num_milliseconds())
-                .unwrap_or(0);
-
-            if exchange.has_user_query() {
-                break;
-            }
-        }
-
-        total_ms
-    }
-
-    /// Wall-to-wall response time for the last completed set of agent responses.
-    pub fn wall_to_wall_response_time_since_last_query(&self) -> Option<i64> {
-        let exchanges = self.all_exchanges();
-        let last_exchange = exchanges.last().copied()?;
-        let finish_time = last_exchange.finish_time?;
-
-        // Walk backwards to find the most recent exchange with a user query
-        let start_time = exchanges.iter().rev().find_map(|exchange| {
-            if exchange.has_user_query() {
-                Some(exchange.start_time)
-            } else {
-                None
-            }
-        })?;
-
-        let duration = finish_time.signed_duration_since(start_time);
-        Some(duration.num_milliseconds())
-    }
-
-    pub fn token_usage(&self) -> &[ModelTokenUsage] {
-        &self.conversation_usage_metadata.token_usage
-    }
-
-    pub fn tool_usage_metadata(&self) -> &ToolUsageMetadata {
-        &self.conversation_usage_metadata.tool_usage_metadata
-    }
-
-    pub fn usage_metadata(&self) -> ConversationUsageMetadata {
-        self.conversation_usage_metadata.clone()
     }
 
     pub fn status(&self) -> &ConversationStatus {
@@ -1301,7 +1033,6 @@ impl AIConversation {
                 model_id: model_id.clone(),
                 coding_model_id: coding_model_id.clone(),
                 cli_agent_model_id: cli_agent_model_id.clone(),
-                request_cost: None,
             };
 
             let new_exchange_id = new_exchange.id;
@@ -1462,89 +1193,6 @@ impl AIConversation {
 
         self.server_conversation_token =
             Some(ServerConversationToken::new(init_event.conversation_id));
-        Ok(())
-    }
-
-    pub fn update_cost_and_usage_for_request(
-        &mut self,
-        request_cost: Option<RequestCost>,
-        token_usage: Vec<TokenUsage>,
-        usage_metadata: Option<stream_finished::ConversationUsageMetadata>,
-        was_user_initiated_request: bool,
-        ctx: &AppContext,
-    ) -> Result<(), UpdateConversationError> {
-        self.has_usage_metadata |=
-            request_cost.is_some() || usage_metadata.is_some() || !token_usage.is_empty();
-        for usage in token_usage.into_iter() {
-            if let Some(total_provider_cost_in_cents) = self.total_provider_cost_in_cents.as_mut() {
-                *total_provider_cost_in_cents += usage.cost_in_cents;
-            }
-            let entry = self
-                .total_token_usage_by_model
-                .entry(usage.model_id.clone())
-                .or_insert_with(|| TokenUsage {
-                    model_id: usage.model_id.clone(),
-                    total_input: 0,
-                    output: 0,
-                    input_cache_read: 0,
-                    input_cache_write: 0,
-                    cost_in_cents: 0.0,
-                });
-
-            entry.total_input += usage.total_input;
-            entry.output += usage.output;
-            entry.input_cache_read += usage.input_cache_read;
-            entry.input_cache_write += usage.input_cache_write;
-            entry.cost_in_cents += usage.cost_in_cents;
-        }
-
-        if let Some(request_cost) = request_cost {
-            let credits_spent_for_last_block = self
-                .conversation_usage_metadata
-                .credits_spent_for_last_block
-                .get_or_insert(0.0);
-
-            // If this exchange begins with a user input (implying it is initiating a new response),
-            // reset credits spent to only include credits for this new response.
-            if was_user_initiated_request {
-                *credits_spent_for_last_block = 0.;
-            }
-
-            // Accumulate response credit usage.
-            *credits_spent_for_last_block += request_cost.value() as f32;
-            self.total_request_cost += request_cost;
-        }
-
-        if let Some(usage_metadata) = usage_metadata {
-            self.conversation_usage_metadata.context_window_usage =
-                usage_metadata.context_window_usage;
-            self.conversation_usage_metadata.credits_spent = usage_metadata.credits_spent;
-            self.conversation_usage_metadata.platform_credits_spent =
-                usage_metadata.platform_credits_spent;
-            let llm_preferences = LLMPreferences::as_ref(ctx);
-            self.conversation_usage_metadata.token_usage =
-                footer_model_token_usage(&usage_metadata, llm_preferences);
-
-            self.conversation_usage_metadata.tool_usage_metadata = usage_metadata
-                .tool_usage_metadata
-                .as_ref()
-                .map(Into::into)
-                .unwrap_or_default();
-
-            self.conversation_usage_metadata.context_window_segments = usage_metadata
-                .context_window_segments
-                .iter()
-                .map(Into::into)
-                .collect();
-
-            // A conversation can never go from summarized to un-summarized,
-            // so we only update the summarized flag if it's going from false to true.
-            if usage_metadata.summarized && !self.conversation_usage_metadata.was_summarized {
-                self.conversation_usage_metadata.was_summarized = usage_metadata.summarized;
-            }
-        }
-        self.conversation_usage_metadata
-            .total_provider_cost_in_cents = self.total_provider_cost_in_cents;
         Ok(())
     }
 
@@ -1814,24 +1462,7 @@ impl AIConversation {
             // When running evals, log exchanges as they finish so there's a record if the container is killed due to timeout
             // and there's no chance to gracefully export the whole conversation at the end.
             let exchange_number = self.all_exchanges().len();
-            let token_usage = self.total_token_usage();
-            let token_usage_json: Vec<serde_json::Value> = token_usage
-                .iter()
-                .map(|usage| {
-                    serde_json::json!({
-                        "model_id": usage.model_id,
-                        "total_input": usage.total_input,
-                        "output": usage.output,
-                        "input_cache_read": usage.input_cache_read,
-                        "input_cache_write": usage.input_cache_write,
-                        "cost_in_cents": usage.cost_in_cents
-                    })
-                })
-                .collect();
-            println!(
-                "===== Exchange {exchange_number} - token_usage={}",
-                serde_json::to_string(&token_usage_json).unwrap_or_default()
-            );
+            println!("===== Exchange {exchange_number}");
             for input in &exchange.input {
                 println!("\nInput:\n\n{input}\n");
             }
@@ -2523,7 +2154,6 @@ impl AIConversation {
                     .server_conversation_token
                     .clone()
                     .map(|token| token.into()),
-                conversation_usage_metadata: Some(self.conversation_usage_metadata.clone()),
                 reverted_action_ids,
                 forked_from_server_conversation_token: self
                     .forked_from_server_conversation_token
@@ -2648,27 +2278,6 @@ impl AIConversation {
         self.task_store
             .all_exchanges_rev()
             .find_map(|exchange| exchange.working_directory.clone())
-    }
-
-    #[allow(dead_code)]
-    pub fn total_request_cost(&self) -> RequestCost {
-        self.total_request_cost
-    }
-
-    #[allow(dead_code)]
-    pub fn total_token_usage(&self) -> Vec<TokenUsage> {
-        self.total_token_usage_by_model.values().cloned().collect()
-    }
-
-    /// Compact usage totals for lightweight displays (e.g. the TUI footer's
-    /// usage entry): the GUI-consistent credits total plus the server-seeded
-    /// provider cost and any permitted live per-request deltas.
-    pub fn usage_totals(&self) -> ConversationUsageTotals {
-        ConversationUsageTotals {
-            credits_spent: self.inference_credits_spent() + self.platform_credits_spent(),
-            cost_in_cents: self.total_provider_cost_in_cents,
-            has_usage: self.has_usage_metadata,
-        }
     }
 
     /// Normalize all newlines to CRLF so restored blocks render lines starting at column 0,
@@ -3339,7 +2948,6 @@ impl AIAgentExchange {
                         citations: vec![],
                         server_output_id: Some(server_output_id),
                         model_info: None,
-                        request_cost: None,
                     }));
                 }
                 Ok(())

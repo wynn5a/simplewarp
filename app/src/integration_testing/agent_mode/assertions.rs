@@ -1024,26 +1024,6 @@ fn get_exchange_count(
         .map_or(0, |c| c.root_task_exchanges().count())
 }
 
-/// Assert that the active conversation was summarized due to context window limits.
-pub fn assert_conversation_was_summarized() -> AssertionCallback {
-    Box::new(|app, window_id| {
-        let terminal_view = terminal_view(app, window_id, 0, 0);
-        BlocklistAIHistoryModel::handle(app).update(app, |history_model, _| {
-            let Some(conversation) = history_model.active_conversation(terminal_view.id()) else {
-                return AssertionOutcome::failure("No active conversation".to_owned());
-            };
-
-            if conversation.was_summarized() {
-                AssertionOutcome::Success
-            } else {
-                AssertionOutcome::immediate_failure(
-                    "Expected conversation to be summarized due to large context window, but it was not".to_owned(),
-                )
-            }
-        })
-    })
-}
-
 /// Asserts that no exchanges exist in the history model (which also means no conversations).
 pub fn assert_no_exchanges() -> AssertionCallback {
     Box::new(|app, window_id| {

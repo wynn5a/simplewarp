@@ -303,13 +303,6 @@ pub enum FeatureFlag {
     /// Enables the /fork-from slash command.
     ForkFromCommand,
 
-    /// Enables v2 of the context window usage UI.
-    ContextWindowUsageV2,
-
-    /// Enables the expandable per-segment context window usage breakdown in
-    /// the conversation usage card.
-    ContextWindowUsageBreakdown,
-
     /// Enables global search
     GlobalSearch,
 
@@ -467,10 +460,6 @@ pub enum FeatureFlag {
     /// Enables state-mutating recovery for abnormal terminal lifecycle sequences.
     TerminalLifecycleRecovery,
 
-    /// Shows a warning in the agent view when the active conversation's
-    /// provider-side prompt cache has expired.
-    PromptCacheExpiryWarning,
-
     /// Renders MCP tool-call request and response JSON as an interactive
     /// collapsible tree with typed colors and per-row Copy JSON, instead of
     /// a flat pretty-printed blob.
@@ -513,7 +502,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::LocalDockerSandbox,
     FeatureFlag::RestorePromptOnInlineModelSelectorSearch,
     FeatureFlag::TerminalLifecycleRecovery,
-    FeatureFlag::PromptCacheExpiryWarning,
     FeatureFlag::JupyterNotebookRendering,
     FeatureFlag::McpJsonTreeView,
     FeatureFlag::BoxDrawingGlyphs,

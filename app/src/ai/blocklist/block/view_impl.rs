@@ -987,7 +987,6 @@ impl View for AIBlock {
                 open_all_comments_button: &self.open_all_comments_button,
                 has_accepted_edits,
                 finish_reason: self.finish_reason.as_ref(),
-                is_usage_footer_expanded: self.is_usage_footer_expanded,
                 terminal_view_id: self.terminal_view_id,
                 is_conversation_transcript_viewer,
                 imported_comments: &self.imported_comments,

@@ -12,7 +12,7 @@ pub(super) mod util;
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
-use std::ops::{AddAssign, Deref, DerefMut, Range};
+use std::ops::{Deref, DerefMut, Range};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -385,48 +385,6 @@ impl AIAgentOutputStatus {
     }
 }
 
-// This value is the cost of a single request.
-// It is returned as part of the final response chunk from the agent.
-#[derive(Clone, Copy, Default, Deserialize, Serialize, PartialOrd, Derivative)]
-#[derivative(Debug, PartialEq, Eq)]
-pub struct RequestCost(f64);
-
-impl RequestCost {
-    pub fn new(value: f64) -> Self {
-        Self(value)
-    }
-
-    pub fn value(&self) -> f64 {
-        self.0
-    }
-
-    pub fn zero() -> Self {
-        Self(0.0)
-    }
-
-    pub fn one() -> Self {
-        Self(1.0)
-    }
-}
-
-impl AddAssign for RequestCost {
-    fn add_assign(&mut self, rhs: Self) {
-        self.0 += rhs.0;
-    }
-}
-
-impl std::iter::Sum for RequestCost {
-    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        Self(iter.map(|cost| cost.0).sum())
-    }
-}
-
-impl std::fmt::Display for RequestCost {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
 /// The AI output received in response to a user prompt/query.
 #[derive(Clone, Default, Derivative)]
 #[derivative(Debug, PartialEq, Eq)]
@@ -441,9 +399,6 @@ pub struct AIAgentOutput {
 
     /// Information about the model that generated this output.
     pub model_info: Option<OutputModelInfo>,
-
-    /// The number of requests that the request cost.
-    pub request_cost: Option<RequestCost>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2713,9 +2668,6 @@ pub struct AIAgentExchange {
 
     /// The model to which the request was sent.
     pub model_id: LLMId,
-
-    // The request count for the exchange.
-    pub request_cost: Option<RequestCost>,
 
     /// The coding model to which the request was sent.
     pub coding_model_id: LLMId,

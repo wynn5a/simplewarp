@@ -155,12 +155,11 @@ async fn load_bundled_skill_definitions(
         .await
         .into_iter()
         .map(|(id, skill)| {
-            let icon = icon_for_bundled_skill(&id);
             let activation = activation_for_bundled_skill(&id, resources_dir);
             let bundled = BundledSkillDefinition {
                 skill,
                 activation,
-                icon,
+                icon: Icon::WarpLogoLight,
             };
             (id, bundled)
         })
@@ -298,16 +297,6 @@ pub(crate) fn build_bundled_skill_context(
     ]
     .into_iter()
     .collect()
-}
-
-/// Returns the icon for a bundled skill, given its directory-based ID.
-/// Skills with a known brand (e.g. `pr-comments` → GitHub) get a
-/// branded icon; everything else falls back to the Warp logo.
-pub(crate) fn icon_for_bundled_skill(skill_id: &str) -> Icon {
-    match skill_id {
-        "pr-comments" => Icon::Github,
-        _ => Icon::WarpLogoLight,
-    }
 }
 
 /// Returns the activation condition for a bundled skill.

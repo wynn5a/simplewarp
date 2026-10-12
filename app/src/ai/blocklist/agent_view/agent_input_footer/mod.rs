@@ -4,24 +4,21 @@ pub mod toolbar_item;
 
 use std::sync::Arc;
 
-use chrono::{DateTime, Local};
 use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
-use pathfinder_geometry::vector::{Vector2F, vec2f};
+use pathfinder_geometry::vector::Vector2F;
 use settings::ToggleableSetting;
 use toolbar_item::AgentToolbarItemKind;
 use warp_core::ui::color::ContrastingColor;
 use warp_core::ui::color::blend::Blend;
 use warp_core::ui::color::contrast::MinimumAllowedContrast;
+use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
-use warp_core::ui::theme::{AnsiColorIdentifier, Fill};
 use warp_errors::report_if_error;
-use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::elements::{
-    ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-    DispatchEventResult, Element, Empty, EventHandler, Flex, MainAxisAlignment, MainAxisSize,
-    OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius, Shrinkable, Stack,
-    Wrap, WrapFill, WrapFillEntireRun,
+    ChildView, Clipped, ConstrainedBox, Container, CrossAxisAlignment, DispatchEventResult,
+    Element, EventHandler, Flex, MainAxisAlignment, MainAxisSize, ParentElement, Shrinkable, Wrap,
+    WrapFill, WrapFillEntireRun,
 };
 use warpui::{
     AppContext, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
@@ -31,7 +28,6 @@ use warpui::{
 use crate::ai::AIRequestUsageModel;
 use crate::ai::blocklist::history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::blocklist::prompt::prompt_alert::PromptAlertView;
-use crate::ai::blocklist::usage::icon_for_context_window_usage;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::appearance::Appearance;
 use crate::completer::SessionContext;
@@ -91,7 +87,6 @@ pub struct AgentInputFooter {
     terminal_view_id: EntityId,
     nld_button: ViewHandle<ActionButton>,
     file_button: ViewHandle<ActionButton>,
-    context_window_button: ViewHandle<ActionButton>,
     /// Non-interactive indicators for a cloud follow-up pane: one shown when attached to a live
     /// remote VM, one when the next follow-up will start a new cloud VM. See
     /// [`AIQueryRouting`].
@@ -115,15 +110,6 @@ pub struct AgentInputFooter {
 
     // Fast-forward (auto-approve) toggle button shown in the agent view footer.
     fast_forward_button: ViewHandle<ActionButton>,
-
-    /// Pending one-shot timer that refreshes the context-window button at the
-    /// prompt-cache expiry instant so the notification dot appears while idle.
-    prompt_cache_expiry_timer_handle: Option<SpawnedFutureHandle>,
-
-    /// Whether the active conversation's prompt cache has expired. Drives the
-    /// yellow notification dot on the context-window chip when the
-    /// `PromptCacheExpiryWarning` flag is enabled.
-    prompt_cache_expired: bool,
 }
 
 impl AgentInputFooter {
@@ -241,14 +227,6 @@ impl AgentInputFooter {
             },
         );
 
-        let context_window_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("", AgentInputButtonTheme)
-                .with_icon(Icon::ContextRemaining100)
-                .with_tooltip("Context window usage")
-                .with_size(button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-        });
-
         let profile_model_selector_full = ctx.add_typed_action_view(|ctx| {
             let mut selector = ProfileModelSelector::new(
                 menu_positioning_provider.clone(),
@@ -331,14 +309,12 @@ impl AgentInputFooter {
                     | BlocklistAIHistoryEvent::RemoveConversation { .. }
                     | BlocklistAIHistoryEvent::UpdatedAutoexecuteOverride { .. } => {
                         me.sync_fast_forward_button(ctx);
-                        me.update_context_window_button(ctx);
                         me.model_selector.update(ctx, |_, ctx| ctx.notify());
                         ctx.notify();
                     }
                     BlocklistAIHistoryEvent::UpdatedConversationStatus { .. }
                     | BlocklistAIHistoryEvent::AppendedExchange { .. }
                     | BlocklistAIHistoryEvent::UpdatedStreamingExchange { .. } => {
-                        me.update_context_window_button(ctx);
                         me.model_selector.update(ctx, |_, ctx| ctx.notify());
                         ctx.notify();
                     }
@@ -357,7 +333,6 @@ impl AgentInputFooter {
             file_button,
             file_explorer_button,
             settings_button,
-            context_window_button,
             model_selector: profile_model_selector_full,
             prompt_alert,
             terminal_model,
@@ -366,11 +341,8 @@ impl AgentInputFooter {
             cli_display_chips: vec![],
             display_chip_config,
             fast_forward_button,
-            prompt_cache_expiry_timer_handle: None,
-            prompt_cache_expired: false,
         };
         me.sync_fast_forward_button(ctx);
-        me.update_context_window_button(ctx);
         me.update_display_chips(&prompt, ctx);
         me
     }
@@ -486,8 +458,8 @@ impl AgentInputFooter {
             // Handled by the available_in() guard above; included for exhaustiveness.
             AgentToolbarItemKind::ModelSelector
             | AgentToolbarItemKind::NLDToggle
-            | AgentToolbarItemKind::ContextWindowUsage
             | AgentToolbarItemKind::FastForwardToggle
+            | AgentToolbarItemKind::ContextWindowUsage
             | AgentToolbarItemKind::HandoffToCloud => None,
         }
     }
@@ -668,67 +640,6 @@ impl AgentInputFooter {
         });
     }
 
-    fn update_context_window_button(&mut self, ctx: &mut ViewContext<Self>) {
-        if let Some(conversation) =
-            BlocklistAIHistoryModel::as_ref(ctx).active_conversation(self.terminal_view_id)
-        {
-            let usage = conversation.context_window_usage();
-            let icon = icon_for_context_window_usage(usage);
-            let remaining_pct = ((1.0 - usage) * 100.0).round() as i32;
-
-            let expiry = conversation.latest_exchange().and_then(|exchange| {
-                let output = exchange.output_status.output()?;
-                output.get().model_info.as_ref()?.prompt_cache_expires_at
-            });
-            let is_cache_expired = FeatureFlag::PromptCacheExpiryWarning.is_enabled()
-                && expiry.is_some_and(|expiry| expiry <= Local::now());
-            let context_remaining_tooltip = format!("{remaining_pct}% context remaining");
-            let tooltip = if is_cache_expired {
-                format!("{context_remaining_tooltip} · prompt cache expired")
-            } else {
-                context_remaining_tooltip
-            };
-
-            self.prompt_cache_expired = is_cache_expired;
-            self.context_window_button.update(ctx, |button, ctx| {
-                button.set_icon(Some(icon), ctx);
-                button.set_tooltip(Some(tooltip), ctx);
-            });
-
-            self.reschedule_prompt_cache_expiry_timer(expiry, ctx);
-        }
-    }
-
-    /// Schedules a refresh of the context-window button at the prompt-cache
-    /// expiry instant so the notification dot appears while the conversation is idle.
-    fn reschedule_prompt_cache_expiry_timer(
-        &mut self,
-        expiry: Option<DateTime<Local>>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if let Some(handle) = self.prompt_cache_expiry_timer_handle.take() {
-            handle.abort();
-        }
-        if !FeatureFlag::PromptCacheExpiryWarning.is_enabled() {
-            return;
-        }
-        // Only future expiries need a timer; past ones already render as expired.
-        let Some(delay) = expiry.and_then(|expiry| (expiry - Local::now()).to_std().ok()) else {
-            return;
-        };
-        let handle = ctx.spawn(
-            async move {
-                Timer::after(delay).await;
-            },
-            |me, _, ctx| {
-                me.prompt_cache_expiry_timer_handle = None;
-                me.update_context_window_button(ctx);
-                ctx.notify();
-            },
-        );
-        self.prompt_cache_expiry_timer_handle = Some(handle);
-    }
-
     fn render_toolbar_item(
         &self,
         item: &AgentToolbarItemKind,
@@ -760,46 +671,6 @@ impl AgentInputFooter {
             }
             AgentToolbarItemKind::NLDToggle => Some(ChildView::new(&self.nld_button).finish()),
             AgentToolbarItemKind::FileAttach => Some(ChildView::new(&self.file_button).finish()),
-            AgentToolbarItemKind::ContextWindowUsage => {
-                let has_conversation = FeatureFlag::ContextWindowUsageV2.is_enabled()
-                    && BlocklistAIHistoryModel::as_ref(app)
-                        .active_conversation(self.terminal_view_id)
-                        .is_some();
-                has_conversation.then(|| {
-                    let chip = ChildView::new(&self.context_window_button).finish();
-                    if !self.prompt_cache_expired {
-                        return chip;
-                    }
-
-                    let appearance = Appearance::as_ref(app);
-                    let dot = Container::new(
-                        ConstrainedBox::new(Empty::new().finish())
-                            .with_width(6.)
-                            .with_height(6.)
-                            .finish(),
-                    )
-                    .with_corner_radius(CornerRadius::with_all(Radius::Percentage(50.)))
-                    .with_background(Fill::Solid(
-                        AnsiColorIdentifier::Yellow
-                            .to_ansi_color(&appearance.theme().terminal_colors().normal)
-                            .into(),
-                    ))
-                    .finish();
-
-                    let mut stack = Stack::new();
-                    stack.add_child(chip);
-                    stack.add_positioned_overlay_child(
-                        dot,
-                        OffsetPositioning::offset_from_parent(
-                            vec2f(3., -3.),
-                            ParentOffsetBounds::WindowByPosition,
-                            ParentAnchor::TopRight,
-                            ChildAnchor::TopRight,
-                        ),
-                    );
-                    stack.finish()
-                })
-            }
             AgentToolbarItemKind::FastForwardToggle => FeatureFlag::FastForwardAutoexecuteButton
                 .is_enabled()
                 .then(|| ChildView::new(&self.fast_forward_button).finish()),
@@ -807,7 +678,7 @@ impl AgentInputFooter {
             // was folded permanently off (round 4an, part 2/2) — it required
             // a Warp account/server, which this build never has. The variant
             // stays for persisted-toolbar-layout backwards compatibility.
-            AgentToolbarItemKind::HandoffToCloud => None,
+            AgentToolbarItemKind::ContextWindowUsage | AgentToolbarItemKind::HandoffToCloud => None,
             AgentToolbarItemKind::FileExplorer => item
                 .is_available(app)
                 .then(|| ChildView::new(&self.file_explorer_button).finish()),

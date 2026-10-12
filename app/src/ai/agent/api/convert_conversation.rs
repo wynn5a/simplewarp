@@ -1268,7 +1268,6 @@ fn create_exchange_from_messages(
                 .as_ref()
                 .map(|ts| proto_timestamp_to_local_datetime(ts.seconds, ts.nanos)),
         }),
-        request_cost: None,
     };
 
     // There is a special case where an exchange consists of only ActionResults with no outputs
@@ -1327,7 +1326,6 @@ fn create_exchange_from_messages(
         time_to_first_token_ms,
         working_directory,
         model_id: default_model_id.clone(),
-        request_cost: None,
         coding_model_id: default_model_id.clone(),
         cli_agent_model_id: default_model_id,
         added_message_ids: message_ids.iter().map(|s| s.clone().into()).collect(),

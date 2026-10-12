@@ -235,10 +235,10 @@ fn mock_response_stream_updates_history_through_controller() {
                             reason: Some(response_event::stream_finished::Reason::Done(
                                 response_event::stream_finished::Done {},
                             )),
-                            conversation_usage_metadata: None,
                             token_usage: vec![],
                             should_refresh_model_config: false,
                             request_cost: None,
+                            ..Default::default()
                         },
                     )),
                 },

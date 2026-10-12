@@ -50,6 +50,7 @@ pub enum AgentToolbarItemKind {
     // Agent view only
     ModelSelector,
     NLDToggle,
+    // Never rendered; the variant stays so persisted toolbar layouts that list it still parse.
     ContextWindowUsage,
 
     // CLI agent only
@@ -113,7 +114,7 @@ impl AgentToolbarItemKind {
             Self::ModelSelector => Some(Icon::Agent),
             Self::NLDToggle => Some(Icon::NLD),
             Self::FileAttach => Some(Icon::Plus),
-            Self::ContextWindowUsage => Some(Icon::ContextRemaining100),
+            Self::ContextWindowUsage => None,
             Self::FileExplorer => Some(Icon::FileCopy),
             Self::RichInput => Some(Icon::TextInput),
             Self::VoiceInput => None,
@@ -134,7 +135,10 @@ impl AgentToolbarItemKind {
             // was folded permanently off (round 4an) — it required a Warp
             // account/server, which this build never has. The variant stays
             // for persisted-toolbar-layout backwards compatibility.
-            Self::HandoffToCloud | Self::RichInput | Self::VoiceInput => false,
+            Self::HandoffToCloud
+            | Self::RichInput
+            | Self::VoiceInput
+            | Self::ContextWindowUsage => false,
             // Matches the gating on every other project explorer entry point, so the chip
             // cannot open a tool view the rest of the app hides. See
             // `Workspace::compute_left_panel_views` and the `SHOW_PROJECT_EXPLORER`
@@ -161,11 +165,7 @@ impl AgentToolbarItemKind {
 
     /// Default right-side items for the agent view footer.
     pub fn default_right() -> Vec<Self> {
-        vec![
-            Self::ContextWindowUsage,
-            Self::ModelSelector,
-            Self::FileAttach,
-        ]
+        vec![Self::ModelSelector, Self::FileAttach]
     }
 
     /// All items available for the agent view footer configurator.
@@ -178,7 +178,6 @@ impl AgentToolbarItemKind {
             Self::ModelSelector,
             Self::NLDToggle,
             Self::FileAttach,
-            Self::ContextWindowUsage,
             // Opt-in only: deliberately absent from `default_left`/`default_right`.
             Self::FileExplorer,
         ]);

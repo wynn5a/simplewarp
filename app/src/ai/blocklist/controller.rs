@@ -37,8 +37,8 @@ use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
     AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment, AIAgentContext,
     AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus, AIIdentifiers, CancellationOutcome,
-    CancellationReason, EntrypointType, FinishedAIAgentOutput, RenderableAIError, RequestCost,
-    RequestMetadata, RunningCommand, StaticQueryType, TransientNetworkErrorKind, UserQueryMode,
+    CancellationReason, EntrypointType, FinishedAIAgentOutput, RenderableAIError, RequestMetadata,
+    RunningCommand, StaticQueryType, TransientNetworkErrorKind, UserQueryMode,
     extract_user_query_mode,
 };
 use crate::ai::ambient_agents::AmbientAgentTaskId;
@@ -1399,12 +1399,7 @@ impl BlocklistAIController {
             .all_inputs()
             .any(|input| input.is_user_query());
         ctx.subscribe_to_model(&response_stream, move |me, _, event, ctx| {
-            me.handle_response_stream_event(
-                input_contains_user_query,
-                event,
-                &response_stream_clone,
-                ctx,
-            );
+            me.handle_response_stream_event(event, &response_stream_clone, ctx);
         });
 
         history_model.update(ctx, |history_model, ctx| {
@@ -1504,7 +1499,7 @@ impl BlocklistAIController {
     ) {
         let stream_clone = stream.clone();
         ctx.subscribe_to_model(&stream, move |me, _, event, ctx| {
-            me.handle_response_stream_event(false, event, &stream_clone, ctx);
+            me.handle_response_stream_event(event, &stream_clone, ctx);
         });
         self.in_flight_response_streams.register_new_stream(
             stream_id,
@@ -1688,7 +1683,6 @@ impl BlocklistAIController {
 
     fn handle_response_stream_event(
         &mut self,
-        did_input_contain_user_query: bool,
         event: &ResponseStreamEvent,
         response_stream: &ModelHandle<ResponseStream>,
         ctx: &mut ModelContext<Self>,
@@ -1746,7 +1740,6 @@ impl BlocklistAIController {
                                     &stream_id,
                                     finished_event,
                                     conversation_id,
-                                    did_input_contain_user_query,
                                     ctx,
                                 );
                             }
@@ -1979,28 +1972,10 @@ impl BlocklistAIController {
     pub(super) fn handle_response_stream_finished(
         &mut self,
         stream_id: &ResponseStreamId,
-        mut finished_event: warp_multi_agent_api::response_event::StreamFinished,
+        finished_event: warp_multi_agent_api::response_event::StreamFinished,
         conversation_id: AIConversationId,
-        did_request_contain_user_query: bool,
         ctx: &mut ModelContext<Self>,
     ) {
-        let history_model = BlocklistAIHistoryModel::handle(ctx);
-        history_model.update(ctx, |history_model, ctx| {
-            // Update conversation cost and usage information before updating and
-            // persisting the conversation.
-            history_model.update_conversation_cost_and_usage_for_request(
-                conversation_id,
-                finished_event.request_cost.map(|cost| {
-                    // Total credits charged for this request = inference (`exact`) + platform.
-                    RequestCost::new(f64::from(cost.exact) + f64::from(cost.platform_credits))
-                }),
-                finished_event.token_usage,
-                finished_event.conversation_usage_metadata.take(),
-                did_request_contain_user_query,
-                ctx,
-            );
-        });
-
         let history_model = BlocklistAIHistoryModel::handle(ctx);
         match finished_event.reason {
             Some(warp_multi_agent_api::response_event::stream_finished::Reason::Done(_)) | None => {

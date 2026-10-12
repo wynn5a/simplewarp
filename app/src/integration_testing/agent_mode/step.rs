@@ -196,16 +196,8 @@ pub fn capture_impl_artifacts() -> TestStep {
                 };
 
                 super::record_pending_runtime_tag(
-                    "impl.total_request_cost",
-                    conversation.total_request_cost().to_string(),
-                );
-                super::record_pending_runtime_tag(
                     "impl.total_exchanges",
                     conversation.all_exchanges().len().to_string(),
-                );
-                super::record_pending_runtime_tag(
-                    "impl.was_summarized",
-                    conversation.was_summarized().to_string(),
                 );
                 if let Some(token) = conversation.server_conversation_token() {
                     super::record_pending_runtime_tag(
@@ -213,34 +205,6 @@ pub fn capture_impl_artifacts() -> TestStep {
                         token.as_str().to_owned(),
                     );
                 }
-                for usage in conversation.total_token_usage().iter() {
-                    let prefix = format!(
-                        "impl.{}{}",
-                        super::RUNTIME_TAG_TOKEN_USAGE_PREFIX,
-                        usage.model_id
-                    );
-                    super::record_pending_runtime_tag(
-                        format!("{prefix}.total_input"),
-                        usage.total_input.to_string(),
-                    );
-                    super::record_pending_runtime_tag(
-                        format!("{prefix}.output"),
-                        usage.output.to_string(),
-                    );
-                    super::record_pending_runtime_tag(
-                        format!("{prefix}.input_cache_read"),
-                        usage.input_cache_read.to_string(),
-                    );
-                    super::record_pending_runtime_tag(
-                        format!("{prefix}.input_cache_write"),
-                        usage.input_cache_write.to_string(),
-                    );
-                    super::record_pending_runtime_tag(
-                        format!("{prefix}.cost_in_cents"),
-                        usage.cost_in_cents.to_string(),
-                    );
-                }
-
                 // Persist the impl `git diff` to a dedicated file so `on_finish`'s
                 // CODE_DIFF_OUTPUT_FILE still works for whichever conversation
                 // happens to be active at finish time.
