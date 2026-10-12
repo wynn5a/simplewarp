@@ -694,14 +694,11 @@ impl WarpAgentPageView {
             SetDefaultModelModalBodyEvent::Close => self.hide_set_default_model_modal(ctx),
             SetDefaultModelModalBodyEvent::SetDefault(id) => {
                 // Mirror `WarpAgentPageAction::SetBaseModel`: set the active
-                // profile's base model and clear any stale context-window limit.
+                // profile's base model.
                 AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
                     let profile_id = profiles_model.active_profile(None, ctx).id().clone();
                     profiles_model.set_base_model(&profile_id, Some(id.clone()), ctx);
-                    profiles_model.set_context_window_limit(&profile_id, None, ctx);
                 });
-                // The Profiles page owns the context-window editor and resyncs
-                // it from the resulting `ProfileUpdated` event.
                 self.hide_set_default_model_modal(ctx);
 
                 let window_id = ctx.window_id();

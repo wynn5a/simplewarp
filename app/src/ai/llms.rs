@@ -53,7 +53,6 @@ const CUSTOM_ENDPOINT_USAGE_FALLBACK_LABEL: &str = "Custom endpoint";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LLMUsageMetadata {
-    pub request_multiplier: usize,
     pub credit_multiplier: Option<f32>,
 }
 
@@ -135,18 +134,6 @@ pub struct RoutingHostConfig {
     pub model_routing_host: LLMModelHost,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LLMContextWindow {
-    #[serde(default)]
-    pub is_configurable: bool,
-    #[serde(default)]
-    pub min: u32,
-    #[serde(default)]
-    pub max: u32,
-    #[serde(default)]
-    pub default_max: u32,
-}
-
 /// Metadata about an LLM.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct LLMInfo {
@@ -161,8 +148,6 @@ pub struct LLMInfo {
     pub spec: Option<LLMSpec>,
     pub provider: LLMProvider,
     pub host_configs: HashMap<LLMModelHost, RoutingHostConfig>,
-    pub discount_percentage: Option<f32>,
-    pub context_window: LLMContextWindow,
 }
 
 impl<'de> Deserialize<'de> for LLMInfo {
@@ -206,10 +191,6 @@ impl<'de> Deserialize<'de> for LLMInfo {
             provider: LLMProvider,
             #[serde(default)]
             host_configs: HostConfigsWire,
-            #[serde(default)]
-            discount_percentage: Option<f32>,
-            #[serde(default)]
-            context_window: LLMContextWindow,
         }
 
         let wire = WireLLMInfo::deserialize(deserializer)?;
@@ -243,8 +224,6 @@ impl<'de> Deserialize<'de> for LLMInfo {
             disable_reason: wire.disable_reason,
             spec: wire.spec,
             host_configs,
-            discount_percentage: wire.discount_percentage,
-            context_window: wire.context_window,
         })
     }
 }
@@ -287,7 +266,6 @@ impl LLMInfo {
             id: llm_name.into(),
             reasoning_level: None,
             usage_metadata: LLMUsageMetadata {
-                request_multiplier: 1,
                 credit_multiplier: None,
             },
             description: None,
@@ -296,8 +274,6 @@ impl LLMInfo {
             spec: None,
             provider: LLMProvider::Unknown,
             host_configs: HashMap::new(),
-            discount_percentage: None,
-            context_window: LLMContextWindow::default(),
         }
     }
 }
@@ -435,7 +411,6 @@ fn builtin_llm(id: &str, display_name: &str, provider: LLMProvider) -> LLMInfo {
         id: id.to_owned().into(),
         reasoning_level: None,
         usage_metadata: LLMUsageMetadata {
-            request_multiplier: 1,
             credit_multiplier: None,
         },
         description: Some(provider.display_name().to_owned()),
@@ -444,8 +419,6 @@ fn builtin_llm(id: &str, display_name: &str, provider: LLMProvider) -> LLMInfo {
         spec: None,
         provider,
         host_configs: HashMap::new(),
-        discount_percentage: None,
-        context_window: LLMContextWindow::default(),
     }
 }
 
@@ -889,12 +862,10 @@ impl LLMPreferences {
                 return (true, false);
             }
             profiles.set_base_model(&profile_id, Some(preferred_llm_id.clone()), ctx);
-            profiles.set_context_window_limit(&profile_id, None, ctx);
             let persisted = profiles
                 .get_profile_by_id(&profile_id, ctx)
                 .is_some_and(|profile| {
                     profile.data().base_model.as_ref() == Some(preferred_llm_id)
-                        && profile.data().context_window_limit.is_none()
                 });
             (persisted, persisted)
         });
@@ -1016,21 +987,12 @@ impl LLMPreferences {
                         .usable_info_for_id(effective_base_model_id, ctx)
                         .or_else(|| self.custom_llm_info_for_id(effective_base_model_id));
                     let effective_base_model_unusable = effective_base_model_usable.is_none();
-                    let effective_base_model_is_configurable = effective_base_model_usable
-                        .is_some_and(|info| info.context_window.is_configurable);
-                    let has_context_window_limit = profile_data.context_window_limit.is_some();
 
                     if preferred_base_model.is_some()
                         && preferred_base_model_is_recognized
                         && effective_base_model_unusable
                     {
                         profiles.set_base_model(&profile_id, None, ctx);
-                    }
-                    if has_context_window_limit
-                        && preferred_base_model_is_recognized
-                        && (effective_base_model_unusable || !effective_base_model_is_configurable)
-                    {
-                        profiles.set_context_window_limit(&profile_id, None, ctx);
                     }
                     if let Some(preferred_llm_id) = &profile.data().coding_model {
                         // Same guard: only clear recognized IDs.
@@ -1154,7 +1116,6 @@ fn provider_llm_info_from(model: &local_inference::ProviderModel) -> LLMInfo {
         id: model.id.clone().into(),
         reasoning_level: None,
         usage_metadata: LLMUsageMetadata {
-            request_multiplier: 1,
             credit_multiplier: None,
         },
         description: Some(model.provider.display_name().to_owned()),
@@ -1163,8 +1124,6 @@ fn provider_llm_info_from(model: &local_inference::ProviderModel) -> LLMInfo {
         spec: None,
         provider: LLMProvider::Unknown,
         host_configs: HashMap::new(),
-        discount_percentage: None,
-        context_window: LLMContextWindow::default(),
     }
 }
 
@@ -1176,7 +1135,6 @@ fn custom_llm_info_from(endpoint: &CustomEndpoint, model: &CustomEndpointModel) 
         id: model.config_key.clone().into(),
         reasoning_level: None,
         usage_metadata: LLMUsageMetadata {
-            request_multiplier: 1,
             credit_multiplier: None,
         },
         description: Some(format!("Custom · {}", endpoint.name)),
@@ -1185,8 +1143,6 @@ fn custom_llm_info_from(endpoint: &CustomEndpoint, model: &CustomEndpointModel) 
         spec: None,
         provider: LLMProvider::Unknown,
         host_configs: HashMap::new(),
-        discount_percentage: None,
-        context_window: LLMContextWindow::default(),
     }
 }
 

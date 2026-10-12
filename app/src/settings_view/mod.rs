@@ -1525,7 +1525,6 @@ impl SettingsView {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            AgentProfilesPageEvent::FocusModal => ctx.focus(&self.search_editor),
             AgentProfilesPageEvent::OpenMCPServerCollection => {
                 ctx.emit(SettingsViewEvent::OpenMCPServerCollection)
             }

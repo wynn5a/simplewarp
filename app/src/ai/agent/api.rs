@@ -26,8 +26,6 @@ use super::{AIAgentInput, MCPContext, MCPServer, RequestMetadata, ServerOutputId
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::{RequestInput, SessionContext};
-use crate::ai::execution_profiles::AIExecutionProfileAppExt;
-use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::llms::LLMId;
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::server::server_api::AIApiError;
@@ -86,7 +84,6 @@ pub struct RequestParams {
     /// The Warp server used to read these from the user's account; the local adapter reads them
     /// from here.
     pub global_rules: Vec<(String, String)>,
-    pub context_window_limit: Option<u32>,
     pub mcp_context: Option<MCPContext>,
     pub planning_enabled: bool,
     should_redact_secrets: bool,
@@ -151,7 +148,6 @@ impl RequestParams {
             cli_agent_model: LLMId::from("test-model"),
             is_memory_enabled: false,
             global_rules: vec![],
-            context_window_limit: None,
             mcp_context: None,
             planning_enabled: false,
             should_redact_secrets: false,
@@ -166,7 +162,7 @@ impl RequestParams {
     }
 
     pub fn new(
-        terminal_view_id: Option<EntityId>,
+        _terminal_view_id: Option<EntityId>,
         session_context: SessionContext,
         request_input: &RequestInput,
         conversation: ConversationData,
@@ -273,24 +269,12 @@ impl RequestParams {
             .and_then(|s| s.parse().ok())
             .unwrap_or_default();
 
-        // Reconcile the persisted override against the active base model's
-        // current `LLMContextWindow` instead of trusting whatever was stored
-        // last. If the active model isn't configurable or has been removed
-        // server-side, drop the override; otherwise clamp it to the model's
-        // current `[min, max]` range. This closes the window between an
-        // in-flight model metadata refresh and the next request.
-        let context_window_limit = AIExecutionProfilesModel::as_ref(app)
-            .active_profile(terminal_view_id, app)
-            .data()
-            .context_window_limit_for_request(app);
-
         Self {
             input: request_input.all_inputs().cloned().collect(),
             conversation_token: conversation.server_conversation_token,
             forked_from_conversation_token: conversation.forked_from_conversation_token,
             ambient_agent_task_id: conversation.ambient_agent_task_id,
             tasks: conversation.tasks,
-            context_window_limit,
             metadata,
             session_context,
             model: request_input.model_id.clone(),

@@ -69,7 +69,6 @@ pub async fn generate_multi_agent_output(
             model_config: Some(api::request::settings::ModelConfig {
                 base: params.model.into(),
                 cli_agent: params.cli_agent_model.into(),
-                base_model_context_window_limit: params.context_window_limit.unwrap_or(0),
                 ..Default::default()
             }),
             rules_enabled: params.is_memory_enabled,

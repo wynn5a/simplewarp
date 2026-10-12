@@ -5,9 +5,7 @@ use warp_core::ui::appearance::Appearance;
 use warp_core::ui::icons::Icon;
 use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
-use warpui::elements::{
-    ConstrainedBox, Container, CornerRadius, Highlight, MouseStateHandle, Radius, Text,
-};
+use warpui::elements::{ConstrainedBox, Container, Highlight, MouseStateHandle, Text};
 use warpui::fonts::{Properties, Style, Weight};
 use warpui::keymap::Keystroke;
 use warpui::platform::{Cursor, OperatingSystem};
@@ -287,7 +285,6 @@ struct ModelSearchItem {
     score: OrderedFloat<f64>,
     manage_api_key_mouse_state: MouseStateHandle,
     reasoning_level: Option<String>,
-    discount_percentage: Option<f32>,
 }
 
 impl ModelSearchItem {
@@ -310,7 +307,6 @@ impl ModelSearchItem {
             score: choice.score,
             manage_api_key_mouse_state: Default::default(),
             reasoning_level: llm.reasoning_level(),
-            discount_percentage: llm.discount_percentage,
         }
     }
 }
@@ -432,26 +428,6 @@ impl SearchItem for ModelSearchItem {
             row = row.with_child(Container::new(disabled_text).with_margin_left(6.).finish());
         }
 
-        if should_show_discount_chip(self.discount_percentage, self.credential_icon.is_some()) {
-            let discount_percentage = self.discount_percentage.unwrap_or(0.);
-            let chip = Container::new(
-                Text::new_inline(
-                    format!("{}% off", discount_percentage.round() as u32),
-                    appearance.ui_font_family(),
-                    font_size,
-                )
-                .with_color(theme.ansi_fg_green())
-                .finish(),
-            )
-            .with_padding_left(4.)
-            .with_padding_right(4.)
-            .with_background(theme.green_overlay_1())
-            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
-            .with_margin_left(6.)
-            .finish();
-            row = row.with_child(chip);
-        }
-
         row.finish()
     }
 
@@ -571,11 +547,4 @@ impl SearchItem for ModelSearchItem {
         }
         label
     }
-}
-
-/// Returns true when a promo discount chip should be shown for a model.
-/// Discounts only apply when the user is billing through Warp credits,
-/// so we suppress the chip when the user is routing through their own API key.
-fn should_show_discount_chip(discount_percentage: Option<f32>, is_using_byok: bool) -> bool {
-    discount_percentage.is_some_and(|p| p > 0.) && !is_using_byok
 }

@@ -11,7 +11,7 @@ use super::{
     WriteToPtyPermission,
 };
 use crate::LaunchMode;
-use crate::ai::llms::{LLMId, LLMPreferences};
+use crate::ai::llms::LLMId;
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::ai::mcp::templatable_manager::TemplatableMCPServerManagerEvent;
 use crate::settings::{AISettings, AISettingsChangedEvent, AgentModeCommandExecutionPredicate};
@@ -430,41 +430,6 @@ impl AIExecutionProfilesModel {
         );
 
         if let Some(_model_id) = &model_id {}
-    }
-
-    pub fn set_context_window_limit(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        limit: Option<u32>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let changed = self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.context_window_limit != limit {
-                    profile.context_window_limit = limit;
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        // Gate on the limit being non-empty. The limit is cleared during
-        // reconciliation, which runs inside an `LLMPreferences` update where the
-        // `LLMPreferences::as_ref` read below would panic.
-        if changed && limit.is_some() {
-            let Some(profile) = self.get_profile_by_id(profile_id, ctx) else {
-                return;
-            };
-            let llm_preferences = LLMPreferences::as_ref(ctx);
-            let _model_info = profile
-                .data()
-                .base_model
-                .as_ref()
-                .and_then(|id| llm_preferences.get_llm_info(id))
-                .unwrap_or_else(|| llm_preferences.get_default_base_model(ctx));
-        }
     }
 
     pub fn set_apply_code_diffs(

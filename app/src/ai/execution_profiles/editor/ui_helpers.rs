@@ -1,63 +1,21 @@
-use thousands::Separable;
 use uuid::Uuid;
 use warpui::elements::{
-    ChildView, ConstrainedBox, Container, CrossAxisAlignment, Dismiss, Flex, MouseStateHandle,
-    ParentElement, Shrinkable, Text,
+    ChildView, ConstrainedBox, Container, Flex, MouseStateHandle, ParentElement, Shrinkable, Text,
 };
 use warpui::fonts::{Properties, Weight};
-use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::ui_components::components::UiComponent;
 use warpui::{AppContext, Element, SingletonEntity, ViewHandle};
 
 use super::{ExecutionProfileEditorView, ExecutionProfileEditorViewAction};
 use crate::ai::execution_profiles::{AIExecutionProfile, ActionPermission};
 use crate::editor::EditorView;
 use crate::settings::AISettings;
+use crate::settings_view::{InputListItem, render_input_list, render_separator};
 use crate::ui_components::icons::Icon;
 use crate::view_components::{
     Dropdown, DropdownItemAction, FilterableDropdown, SubmittableTextInput,
 };
 use crate::{Appearance, TemplatableMCPServerManager};
-
-const CONTEXT_WINDOW_SLIDER_WIDTH: f32 = 220.;
-const CONTEXT_WINDOW_INPUT_BOX_WIDTH: f32 = 120.;
-
-pub(super) fn context_window_snap_values(min: u32, max: u32) -> Vec<f32> {
-    if min >= max {
-        return vec![min as f32];
-    }
-    let range = (max - min) as f64;
-    let step = nice_step(range / 8.0);
-
-    let mut values = vec![min as f32];
-    let mut v = (min as f64 / step).ceil() * step;
-    while v < max as f64 {
-        if v > min as f64 {
-            values.push(v as f32);
-        }
-        v += step;
-    }
-    if values.last().copied() != Some(max as f32) {
-        values.push(max as f32);
-    }
-    values
-}
-
-fn nice_step(raw: f64) -> f64 {
-    let magnitude = 10f64.powf(raw.log10().floor());
-    let normalized = raw / magnitude;
-    let nice = if normalized < 1.5 {
-        1.0
-    } else if normalized < 3.5 {
-        2.5
-    } else if normalized < 7.5 {
-        5.0
-    } else {
-        10.0
-    };
-    nice * magnitude
-}
-
-use crate::settings_view::{InputListItem, render_input_list, render_separator};
 
 pub fn render_header_section(
     appearance: &Appearance,
@@ -232,7 +190,7 @@ fn render_permission_row<T: DropdownItemAction>(
 pub fn render_models_section(
     appearance: &Appearance,
     view: &ExecutionProfileEditorView,
-    app: &AppContext,
+    _app: &AppContext,
 ) -> Box<dyn Element> {
     let mut column = Flex::column()
         .with_child(render_separator(appearance))
@@ -244,10 +202,6 @@ pub fn render_models_section(
             &view.base_model_dropdown,
         ));
 
-    if let Some(row) = render_context_window_row(appearance, view, app) {
-        column.add_child(row);
-    }
-
     column = column.with_child(render_filterable_dropdown_row(
         appearance,
         "Full terminal use model",
@@ -258,144 +212,6 @@ pub fn render_models_section(
     Container::new(column.finish())
         .with_margin_bottom(12.)
         .finish()
-}
-
-/// Renders a `[min — slider — max] [input]` row beneath the base model
-/// dropdown. Returns `None` if the active base model doesn't advertise a
-/// configurable context window or global AI is disabled.
-fn render_context_window_row(
-    appearance: &Appearance,
-    view: &ExecutionProfileEditorView,
-    app: &AppContext,
-) -> Option<Box<dyn Element>> {
-    if !AISettings::as_ref(app).is_any_ai_enabled() {
-        return None;
-    }
-    let cw = view.configurable_context_window(app)?;
-    let min = cw.min;
-    let max = cw.max;
-
-    let label = Text::new(
-        "Context window".to_string(),
-        appearance.ui_font_family(),
-        13.,
-    )
-    .with_color(appearance.theme().active_ui_text_color().into())
-    .finish();
-    let min_label_text = min.separate_with_commas();
-    let max_label_text = max.separate_with_commas();
-    let desc = Text::new(
-        "The base model's working memory — how many tokens of your conversation, code, and documents it can consider at once. Larger windows enable longer conversations and more coherent responses over bigger codebases, at the cost of higher latency and compute usage.".to_string(),
-        appearance.ui_font_family(),
-        11.,
-    )
-    .with_color(
-        appearance
-            .theme()
-            .sub_text_color(appearance.theme().surface_1())
-            .into(),
-    )
-    .finish();
-    let label_desc = Flex::column().with_child(label).with_child(desc).finish();
-
-    let min_label = Text::new(min_label_text.clone(), appearance.ui_font_family(), 11.)
-        .with_color(
-            appearance
-                .theme()
-                .sub_text_color(appearance.theme().surface_1())
-                .into(),
-        )
-        .finish();
-    let max_label = Text::new(max_label_text.clone(), appearance.ui_font_family(), 11.)
-        .with_color(
-            appearance
-                .theme()
-                .sub_text_color(appearance.theme().surface_1())
-                .into(),
-        )
-        .finish();
-
-    let current_value = view
-        .current_context_window_display_value(app)
-        .unwrap_or(cw.default_max)
-        .clamp(min, max);
-    let slider = appearance
-        .ui_builder()
-        .slider(view.context_window_slider_state.clone())
-        .with_range(min as f32..max as f32)
-        .with_snap_values(context_window_snap_values(min, max))
-        .with_default_value(current_value as f32)
-        .with_style(UiComponentStyles {
-            width: Some(CONTEXT_WINDOW_SLIDER_WIDTH),
-            margin: Some(Coords::default().left(8.).right(8.)),
-            ..Default::default()
-        })
-        .on_drag(|ctx, _, val| {
-            ctx.dispatch_typed_action(
-                ExecutionProfileEditorViewAction::ContextWindowSliderDragged {
-                    value: val.round() as u32,
-                },
-            );
-        })
-        .on_change(|ctx, _, val| {
-            ctx.dispatch_typed_action(ExecutionProfileEditorViewAction::SetContextWindowSize {
-                value: val.round() as u32,
-            });
-        })
-        .build()
-        .finish();
-
-    let context_window_editor = view.context_window_editor.clone();
-    let input_box = Dismiss::new(
-        appearance
-            .ui_builder()
-            .text_input(view.context_window_editor.clone())
-            .with_style(UiComponentStyles {
-                width: Some(CONTEXT_WINDOW_INPUT_BOX_WIDTH),
-                padding: Some(Coords {
-                    top: 6.,
-                    bottom: 6.,
-                    left: 10.,
-                    right: 10.,
-                }),
-                margin: Some(Coords::default().left(12.)),
-                background: Some(appearance.theme().surface_2().into()),
-                ..Default::default()
-            })
-            .build()
-            .finish(),
-    )
-    .on_dismiss(move |ctx, app| {
-        let buffer_text = context_window_editor.as_ref(app).buffer_text(app);
-        let cleaned: String = buffer_text
-            .chars()
-            .filter(|c| !c.is_whitespace() && *c != ',')
-            .collect();
-        if let Ok(parsed) = cleaned.parse::<u32>() {
-            ctx.dispatch_typed_action(ExecutionProfileEditorViewAction::SetContextWindowSize {
-                value: parsed,
-            });
-        }
-    })
-    .finish();
-
-    let slider_row = Flex::row()
-        .with_cross_axis_alignment(CrossAxisAlignment::Center)
-        .with_child(min_label)
-        .with_child(Shrinkable::new(1., slider).finish())
-        .with_child(max_label)
-        .with_child(input_box)
-        .finish();
-
-    let column = Flex::column()
-        .with_child(Container::new(label_desc).with_margin_bottom(4.).finish())
-        .with_child(slider_row);
-
-    Some(
-        Container::new(column.finish())
-            .with_margin_bottom(12.)
-            .finish(),
-    )
 }
 
 pub fn render_permissions_section(
