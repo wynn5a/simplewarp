@@ -31,7 +31,6 @@ pub fn static_suggested_query(command: &str) -> Option<PromptSuggestion> {
                 id: Uuid::new_v4().to_string(),
                 label,
                 prompt: query,
-                coding_query_context: None,
                 static_prompt_suggestion_name: Some(pattern.rule.name.to_string()),
                 should_start_new_conversation: false,
             });

@@ -37,8 +37,8 @@ use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
     AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment, AIAgentContext,
     AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus, AIIdentifiers, CancellationOutcome,
-    CancellationReason, EntrypointType, FileContext, FinishedAIAgentOutput,
-    PassiveSuggestionTrigger, RenderableAIError, RequestCost, RequestMetadata, RunningCommand,
+    CancellationReason, EntrypointType, FinishedAIAgentOutput,
+    RenderableAIError, RequestCost, RequestMetadata, RunningCommand,
     StaticQueryType, TransientNetworkErrorKind, UserQueryMode, extract_user_query_mode,
 };
 use crate::ai::ambient_agents::AmbientAgentTaskId;
@@ -49,7 +49,7 @@ use crate::network::NetworkStatus;
 use crate::persistence::ModelEvent;
 use crate::terminal::ShellLaunchData;
 use crate::terminal::model::block::{
-    BlockId, CURSOR_MARKER, formatted_terminal_contents_for_input,
+    CURSOR_MARKER, formatted_terminal_contents_for_input,
 };
 use crate::terminal::model::session::SessionType;
 use crate::terminal::model::session::active_session::ActiveSession;
@@ -1268,96 +1268,6 @@ impl BlocklistAIController {
         });
         self.pending_auto_resume_handles
             .insert(conversation_id, handle);
-    }
-
-    pub fn send_passive_code_diff_request(
-        &mut self,
-        query: String,
-        block_id: &BlockId,
-        file_contexts: Vec<FileContext>,
-        ctx: &mut ModelContext<Self>,
-    ) -> anyhow::Result<(AIConversationId, ResponseStreamId)> {
-        let mut input_context = file_contexts
-            .into_iter()
-            .map(AIAgentContext::File)
-            .collect_vec();
-        if let Some(block_context) = self
-            .context_model
-            .as_ref(ctx)
-            .transform_block_to_context(block_id, false)
-        {
-            input_context.push(block_context);
-        }
-
-        let new_conversation = self.start_new_conversation_for_request(ctx);
-        self.send_request_input(
-            RequestInput::for_task(
-                vec![AIAgentInput::AutoCodeDiffQuery {
-                    query,
-                    context: input_context.into(),
-                }],
-                new_conversation.get_root_task_id().clone(),
-                &self.active_session,
-                new_conversation.id(),
-                self.terminal_surface_id,
-                ctx,
-            ),
-            Some(RequestMetadata {
-                is_autodetected_user_query: false,
-                entrypoint: EntrypointType::PromptSuggestion {
-                    is_static: false,
-                    is_coding: true,
-                },
-                is_auto_resume_after_error: false,
-            }),
-            /*can_attempt_resume_on_error*/ true,
-            /*is_queued_prompt*/ false,
-            ctx,
-        )
-    }
-
-    pub fn send_unit_test_suggestions_request(
-        &mut self,
-        block_output: String,
-        trigger: PassiveSuggestionTrigger,
-        ctx: &mut ModelContext<Self>,
-    ) -> anyhow::Result<(AIConversationId, ResponseStreamId)> {
-        let attachments = vec![AIAgentAttachment::PlainText(block_output.to_string())];
-        let trigger_type = (&trigger).into();
-        let inputs = vec![AIAgentInput::TriggerPassiveSuggestion {
-            context: input_context_for_request(
-                false,
-                self.context_model.as_ref(ctx),
-                self.active_session.as_ref(ctx),
-                None,
-                vec![],
-                ctx,
-            ),
-            attachments,
-            trigger,
-        }];
-
-        let new_conversation = self.start_new_conversation_for_request(ctx);
-        self.send_request_input(
-            RequestInput::for_task(
-                inputs,
-                new_conversation.get_root_task_id().clone(),
-                &self.active_session,
-                new_conversation.id(),
-                self.terminal_surface_id,
-                ctx,
-            ),
-            Some(RequestMetadata {
-                is_autodetected_user_query: false,
-                entrypoint: EntrypointType::TriggerPassiveSuggestion {
-                    trigger: Some(trigger_type),
-                },
-                is_auto_resume_after_error: false,
-            }),
-            /*can_attempt_resume_on_error*/ true,
-            /*is_queued_prompt*/ false,
-            ctx,
-        )
     }
 
     #[cfg(test)]

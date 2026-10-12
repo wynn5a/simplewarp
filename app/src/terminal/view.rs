@@ -166,7 +166,7 @@ use crate::ai::agent::redaction::redact_secrets;
 use crate::ai::agent::{
     AIAgentActionId, AIAgentActionType, AIAgentCitation, AIAgentContext, AIAgentExchangeId,
     AIAgentInput, AIAgentOutputStatus, AIAgentPtyWriteMode, AIAgentTextSection,
-    AgentReviewCommentBatch, CancellationReason, CurrentHead, DiffBase, FileLocations,
+    AgentReviewCommentBatch, CancellationReason, CurrentHead, DiffBase,
     FinishedAIAgentOutput, PassiveSuggestionTrigger, RenderableAIError, ServerOutputId,
     ShellCommandCompletedTrigger,
 };
@@ -185,7 +185,7 @@ use crate::ai::blocklist::block::cli_controller::{
 use crate::ai::blocklist::block::status_bar::BlocklistAIStatusBarEvent;
 use crate::ai::blocklist::block::{AIBlockAction, FinishReason};
 use crate::ai::blocklist::inline_action::code_diff_view::CodeDiffView;
-use crate::ai::blocklist::model::{AIBlockModelImpl, AIBlockOutputStatus};
+use crate::ai::blocklist::model::AIBlockModelImpl;
 use crate::ai::blocklist::summarization_cancel_dialog::SummarizationCancelDialog;
 use crate::ai::blocklist::usage::conversation_usage_view::{
     ConversationUsageInfo, ConversationUsageView, TimingInfo,
@@ -810,9 +810,6 @@ pub struct PromptSuggestion {
     /// The prompt that is used as the input to Agent Mode.
     pub prompt: String,
 
-    /// If this is some, we eagerly pre-fetch the Agent Mode response for this query.
-    pub coding_query_context: Option<Vec<FileLocations>>,
-
     /// If this is a static prompt suggestion, we store the name of the suggestion type here.
     pub static_prompt_suggestion_name: Option<String>,
 
@@ -823,10 +820,6 @@ pub struct PromptSuggestion {
 }
 
 impl PromptSuggestion {
-    pub fn is_coding_query(&self) -> bool {
-        self.coding_query_context.is_some()
-    }
-
     /// Returns specified label for Prompt Suggestion if it exists, otherwise returns the query
     /// (which is considered to be the "default" label).
     pub fn label(&self) -> &String {
@@ -2114,6 +2107,8 @@ pub struct TerminalView {
     hover_near_snackbar_area: bool,
 
     ai_controller: ModelHandle<BlocklistAIController>,
+    /// Held to keep the model alive; it communicates through its event subscription.
+    #[allow(dead_code)]
     legacy_passive_suggestions_model: ModelHandle<LegacyPassiveSuggestionsModel>,
     ai_action_model: ModelHandle<BlocklistAIActionModel>,
     ai_input_model: ModelHandle<BlocklistAIInputModel>,
@@ -2766,14 +2761,7 @@ impl TerminalView {
             )
         });
         let legacy_passive_suggestions_model = ctx.add_model(|ctx| {
-            LegacyPassiveSuggestionsModel::new(
-                active_session.clone(),
-                model.clone(),
-                ai_controller.clone(),
-                &model_events_handle,
-                terminal_view_id,
-                ctx,
-            )
+            LegacyPassiveSuggestionsModel::new(model.clone(), &model_events_handle, ctx)
         });
         ctx.subscribe_to_model(
             &legacy_passive_suggestions_model,
@@ -3917,7 +3905,6 @@ impl TerminalView {
                 self.drain_queued_prompts(*conversation_id, reason, ctx);
             }
 
-            self.update_input_prompt_suggestions_banner_state(ctx);
             ctx.notify();
         }
     }
@@ -4178,9 +4165,6 @@ impl TerminalView {
                     block_id.clone(),
                     ctx,
                 );
-            }
-            LegacyPassiveSuggestionsEvent::PassiveCodeDiffFailed => {
-                self.try_clear_prompt_suggestions_banner_code_state(ctx);
             }
         }
     }
@@ -6545,13 +6529,6 @@ impl TerminalView {
             if let Some(model) = &self.active_init_project_model {
                 model.update(ctx, |m, ctx| m.cancel(ctx));
             }
-        } else if self
-            .legacy_passive_suggestions_model
-            .as_ref(ctx)
-            .is_passive_code_diff_being_generated()
-        {
-            // Handle Ctrl-C for passive code generation blocks ("Generating fix..." state)
-            self.abort_prompt_and_code_suggestions(ctx);
         } else if let Some(active_env_var_block) = self.active_env_var_collection_block(ctx) {
             active_env_var_block.update(ctx, |env_var_block, ctx| {
                 env_var_block.handle_ctrl_c(ctx);
@@ -7541,11 +7518,6 @@ impl TerminalView {
             return false;
         };
 
-        // Return early if the banner is not visible to the user.
-        if banner_state.should_hide {
-            return false;
-        }
-
         let suggestion = &banner_state.prompt_suggestion;
         let prompt = suggestion.prompt.clone();
         let _suggestion_id = suggestion.id.clone();
@@ -7588,19 +7560,6 @@ impl TerminalView {
         true
     }
 
-    /// Try clearing agent mode query banner's passive code generation state.
-    /// Called when a suggested code diff fails and we need to fall back to prompt suggestions.
-    fn try_clear_prompt_suggestions_banner_code_state(&mut self, ctx: &mut ViewContext<Self>) {
-        if let Some(banner) = &mut self.inline_banners_state.prompt_suggestions_banner {
-            banner.should_hide = false;
-            banner.prompt_suggestion.coding_query_context = None;
-            self.input.update(ctx, |input, ctx| {
-                input.maybe_set_prompt_suggestions_banner_state_should_hide(false);
-                input.notify_and_notify_children(ctx);
-            });
-        }
-    }
-
     fn associate_and_promote_block_for_conversation(
         &mut self,
         block_id: BlockId,
@@ -7636,15 +7595,6 @@ impl TerminalView {
                 }
             }
         }
-    }
-
-    fn passive_code_diffs_enabled(ctx: &mut ViewContext<Self>) -> bool {
-        // Prompt suggestions must be enabled since the current implementation of passive code diffs
-        // depends on generating a prompt suggestion.
-        let ai_settings = AISettings::as_ref(ctx);
-        let is_prompt_suggestions_enabled = ai_settings.is_prompt_suggestions_enabled(ctx);
-        let is_setting_enabled = ai_settings.is_code_suggestions_enabled(ctx);
-        is_prompt_suggestions_enabled && is_setting_enabled
     }
 
     fn insert_alias_expansion_banner(
@@ -7995,34 +7945,6 @@ impl TerminalView {
         session_id
             .and_then(|id| self.sessions.as_ref(app).get(id))
             .is_some_and(|session| !session.is_local())
-    }
-
-    // Abort any pending prompt or code suggestions, which may now be irrelevant.
-    fn abort_prompt_and_code_suggestions(&mut self, ctx: &mut ViewContext<Self>) {
-        let pending_stream_ids = self
-            .legacy_passive_suggestions_model
-            .update(ctx, |model, ctx| model.abort_pending_requests(ctx));
-        for stream_id in pending_stream_ids {
-            if let Some(passive_block) =
-                self.rich_content_views
-                    .iter()
-                    .rev()
-                    .find_map(|rich_content| {
-                        let ai_metadata = rich_content.ai_block_metadata()?;
-                        if ai_metadata
-                            .ai_block_handle
-                            .as_ref(ctx)
-                            .response_stream_id()
-                            .is_some_and(|id| id == &stream_id)
-                        {
-                            return Some(ai_metadata.ai_block_handle.clone());
-                        }
-                        None
-                    })
-            {
-                self.cleanup_and_remove_conversation_for_ai_block(&passive_block, ctx);
-            }
-        }
     }
 
     /// Cleans up and removes the conversation associated with the given AI block.
@@ -10492,31 +10414,6 @@ impl TerminalView {
         };
     }
 
-    fn update_input_prompt_suggestions_banner_state(&mut self, ctx: &mut ViewContext<Self>) {
-        for rich_content in &self.rich_content_views {
-            if let Some(ai_metadata) = rich_content.ai_block_metadata() {
-                // If the passive code gen fails, show the prompt suggestion banner as a fallback
-                if ai_metadata
-                    .ai_block_handle
-                    .as_ref(ctx)
-                    .is_passive_conversation()
-                    && matches!(
-                        ai_metadata.ai_block_handle.as_ref(ctx).status(ctx),
-                        AIBlockOutputStatus::Failed { .. }
-                    )
-                {
-                    // Try to update the state of the prompt suggestions banner
-                    self.input.update(ctx, |input, ctx| {
-                        input.maybe_set_prompt_suggestions_banner_state_should_hide(false);
-                        input.notify_and_notify_children(ctx);
-                    });
-
-                    break;
-                }
-            }
-        }
-    }
-
     /// Removes hidden AI blocks for passive requests from the sumtree.
     ///
     /// Hidden AI blocks are only generated when generating passive codegen suggestions after a
@@ -10544,7 +10441,6 @@ impl TerminalView {
                 .remove_rich_content(view_id);
         }
 
-        self.update_input_prompt_suggestions_banner_state(ctx);
         ctx.notify();
     }
 
@@ -10620,11 +10516,6 @@ impl TerminalView {
 
         self.clear_prompt_suggestions(ctx);
 
-        // Don't show banner if is coding query
-        let is_coding_query = suggestion.is_coding_query() && Self::passive_code_diffs_enabled(ctx);
-        let static_prompt_suggestion_name = suggestion.static_prompt_suggestion_name.clone();
-        let _suggestion_id = suggestion.id.clone();
-
         let trigger = {
             let model = self.model.lock();
             let Some(block_context) = block_context_from_terminal_model(&model, &block_id, false)
@@ -10642,7 +10533,6 @@ impl TerminalView {
             prompt_suggestion: suggestion,
             accept_button_mouse_state: Default::default(),
             llm_warning_learn_more_hyperlink: Default::default(),
-            should_hide: is_coding_query,
             trigger: Some(trigger),
             conversation_id: None,
         };
@@ -10653,8 +10543,6 @@ impl TerminalView {
             input.set_prompt_suggestions_banner_state(Some(banner_state), ctx);
             input.notify_and_notify_children(ctx);
         });
-
-        if let Some(_static_name) = static_prompt_suggestion_name {}
 
         ctx.notify();
     }
@@ -13635,7 +13523,6 @@ impl TerminalView {
 
         self.rich_content_views.clear();
 
-        self.update_input_prompt_suggestions_banner_state(ctx);
 
         // Clear screen will remove all blocks except the started block so insert
         // the label mouse state here to make sure this is handled.
@@ -13657,7 +13544,6 @@ impl TerminalView {
             self.set_current_state(TerminalViewState::Normal, ctx);
         }
 
-        self.abort_prompt_and_code_suggestions(ctx);
         self.input.update(ctx, |input, ctx| {
             input
                 .editor()

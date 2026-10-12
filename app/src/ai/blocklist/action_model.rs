@@ -21,7 +21,7 @@ use std::sync::Arc;
 pub(crate) use execute::coerce_integer_args;
 pub use execute::{
     NewConversationDecision, PromptSuggestionExecutor, RequestFileEditsExecutor,
-    ShellCommandExecutor, ShellCommandExecutorEvent, read_local_file_context,
+    ShellCommandExecutor, ShellCommandExecutorEvent,
 };
 use futures::future::{BoxFuture, join_all};
 use itertools::Itertools;

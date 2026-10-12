@@ -26,7 +26,6 @@ pub(crate) mod view_util;
 
 #[allow(unused_imports)]
 pub use action_model::AIActionStatus;
-pub(crate) use action_model::read_local_file_context;
 pub use action_model::{
     BlocklistAIActionEvent, BlocklistAIActionModel, ShellCommandExecutor, ShellCommandExecutorEvent,
 };

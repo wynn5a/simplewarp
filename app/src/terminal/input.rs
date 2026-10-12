@@ -4277,12 +4277,6 @@ impl Input {
         ctx.notify();
     }
 
-    pub fn maybe_set_prompt_suggestions_banner_state_should_hide(&mut self, should_hide: bool) {
-        if let Some(banner_state) = &mut self.prompt_suggestions_banner_state {
-            banner_state.should_hide = should_hide;
-        }
-    }
-
     // Auto-attach the last block for this query.
     fn auto_attach_last_block_for_query(&mut self, ctx: &mut ViewContext<Self>) {
         let last_block_id = {
@@ -11693,11 +11687,7 @@ impl Input {
         input_mode: InputMode,
         is_compact_mode: bool,
     ) -> Option<Box<dyn Element>> {
-        if let Some(prompt_suggestions_banner_state) = &self.prompt_suggestions_banner_state {
-            if prompt_suggestions_banner_state.should_hide {
-                return None;
-            }
-
+        if self.prompt_suggestions_banner_state.is_some() {
             let prompt_suggestions_banner = ChildView::new(&self.prompt_suggestions_view).finish();
 
             Some(self.apply_input_banner_padding(
