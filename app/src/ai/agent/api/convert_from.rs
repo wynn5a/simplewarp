@@ -405,15 +405,6 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
                     Err(error) => Err(error),
                 }
             }
-            api::message::tool_call::Tool::SuggestNewConversation(suggest_new_conversation) => {
-                create_standard_action(suggest_new_conversation.into())
-            }
-            api::message::tool_call::Tool::SuggestPrompt(suggest_prompt) => {
-                match suggest_prompt.try_into() {
-                    Ok(suggest_prompt_action) => create_standard_action(suggest_prompt_action),
-                    Err(_) => Ok(MaybeAIAgentAction::NoClientRepresentation),
-                }
-            }
             api::message::tool_call::Tool::OpenCodeReview(_) => {
                 create_standard_action(AIAgentActionType::OpenCodeReview)
             }
@@ -440,7 +431,9 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
             | api::message::tool_call::Tool::RunAgents(_)
             | api::message::tool_call::Tool::SendMessageToAgent(_)
             | api::message::tool_call::Tool::FetchConversation(_)
-            | api::message::tool_call::Tool::WaitForEvents(_) => {
+            | api::message::tool_call::Tool::WaitForEvents(_)
+            | api::message::tool_call::Tool::SuggestNewConversation(_)
+            | api::message::tool_call::Tool::SuggestPrompt(_) => {
                 Ok(MaybeAIAgentAction::NoClientRepresentation)
             }
             api::message::tool_call::Tool::Subagent(subagent) => {

@@ -116,8 +116,6 @@ pub enum AgentViewEntryOrigin {
     AgentRequestedNewConversation,
     /// Entered agent view via accepting a prompt suggestion.
     AcceptedPromptSuggestion,
-    /// Entered agent view via accepting a unit test suggestion.
-    AcceptedUnitTestSuggestion,
     /// Entered agent view via accepting a passive code diff.
     AcceptedPassiveCodeDiff,
     /// Entered agent view by starting conversation with an inline code review submission.

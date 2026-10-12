@@ -19,10 +19,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 pub(crate) use execute::coerce_integer_args;
-pub use execute::{
-    NewConversationDecision, PromptSuggestionExecutor, RequestFileEditsExecutor,
-    ShellCommandExecutor, ShellCommandExecutorEvent,
-};
+pub use execute::{RequestFileEditsExecutor, ShellCommandExecutor, ShellCommandExecutorEvent};
 use futures::future::{BoxFuture, join_all};
 use itertools::Itertools;
 use parking_lot::FairMutex;
@@ -40,7 +37,6 @@ use crate::ai::agent::{
     AIAgentActionType, AIAgentActionTypeDiscriminants, AIAgentExchange, AIAgentInput,
     CancellationOutcome, CancellationReason, RequestCommandOutputResult,
 };
-use crate::ai::blocklist::action_model::execute::suggest_new_conversation::SuggestNewConversationExecutor;
 use crate::terminal::TerminalModel;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model_events::ModelEventDispatcher;
@@ -300,16 +296,6 @@ impl BlocklistAIActionModel {
         self.executor.as_ref(app).shell_command_executor().clone()
     }
 
-    pub fn suggest_new_conversation_executor(
-        &self,
-        app: &AppContext,
-    ) -> ModelHandle<SuggestNewConversationExecutor> {
-        self.executor
-            .as_ref(app)
-            .suggest_new_conversation_executor()
-            .clone()
-    }
-
     pub fn request_file_edits_executor(
         &self,
         app: &AppContext,
@@ -318,13 +304,6 @@ impl BlocklistAIActionModel {
             .as_ref(app)
             .request_file_edits_executor()
             .clone()
-    }
-
-    pub fn suggest_prompt_executor(
-        &self,
-        app: &AppContext,
-    ) -> ModelHandle<PromptSuggestionExecutor> {
-        self.executor.as_ref(app).suggest_prompt_executor().clone()
     }
 
     fn blocked_action_for_conversation(

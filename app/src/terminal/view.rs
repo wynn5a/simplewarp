@@ -167,7 +167,7 @@ use crate::ai::agent::{
     AIAgentActionId, AIAgentActionType, AIAgentCitation, AIAgentContext, AIAgentExchangeId,
     AIAgentInput, AIAgentOutputStatus, AIAgentPtyWriteMode, AIAgentTextSection,
     AgentReviewCommentBatch, CancellationReason, CurrentHead, DiffBase, FinishedAIAgentOutput,
-    PassiveSuggestionTrigger, RenderableAIError, ServerOutputId, ShellCommandCompletedTrigger,
+    RenderableAIError, ServerOutputId,
 };
 use crate::ai::blocklist::agent_view::{
     AgentViewController, AgentViewControllerEvent, AgentViewConversationSelection,
@@ -207,8 +207,7 @@ use crate::ai::execution_profiles::ExecutionProfileId;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::ai::predict::prompt_suggestions::{
-    has_pending_code_or_unit_test_prompt_suggestion,
-    is_accept_prompt_suggestion_bound_to_cmd_enter,
+    has_pending_passive_code_diff, is_accept_prompt_suggestion_bound_to_cmd_enter,
     is_accept_prompt_suggestion_bound_to_ctrl_enter,
 };
 use crate::ai_assistant::{ASK_AI_ASSISTANT_TEXT, AskAIType};
@@ -7335,26 +7334,11 @@ impl TerminalView {
 
         let suggestion = &banner_state.prompt_suggestion;
         let prompt = suggestion.prompt.clone();
-        let _suggestion_id = suggestion.id.clone();
-        let trigger = banner_state.trigger.clone();
         let should_start_new_conversation = suggestion.should_start_new_conversation;
-        let trigger_block_id = trigger.as_ref().and_then(|t| t.block_id());
-        log::debug!(
-            "[passive-suggestions] accepting prompt suggestion: trigger={}, trigger_block_id={}",
-            if trigger.is_some() { "Some" } else { "None" },
-            if trigger_block_id.is_some() {
-                "Some"
-            } else {
-                "None"
-            },
-        );
-
-        if let Some(PassiveSuggestionTrigger::ShellCommandCompleted(c)) = &banner_state.trigger {
-            let block_id = c.executed_shell_command.id.clone();
-            self.ai_context_model.update(ctx, |context_model, ctx| {
-                context_model.set_pending_context_block_ids(vec![block_id], true, ctx);
-            });
-        }
+        let trigger_block_id = banner_state.trigger_block_id.clone();
+        self.ai_context_model.update(ctx, |context_model, ctx| {
+            context_model.set_pending_context_block_ids(vec![trigger_block_id], true, ctx);
+        });
         // When `should_start_new_conversation` is false and agent view is already
         // active, continue in the existing conversation rather than starting a new one.
         let conversation_id = if !should_start_new_conversation {
@@ -7373,43 +7357,6 @@ impl TerminalView {
         );
 
         true
-    }
-
-    fn associate_and_promote_block_for_conversation(
-        &mut self,
-        block_id: BlockId,
-        conversation_id: AIConversationId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.ai_context_model.update(ctx, |context_model, ctx| {
-            context_model.set_pending_context_block_ids([block_id.clone()], false, ctx);
-        });
-        let associated_blocks = self
-            .model
-            .lock()
-            .block_list_mut()
-            .associate_blocks_with_conversation([&block_id].into_iter(), conversation_id);
-        self.model
-            .lock()
-            .block_list_mut()
-            .promote_blocks_to_attached_from_conversation(conversation_id);
-
-        if let Some(sender) = GlobalResourceHandlesProvider::as_ref(ctx)
-            .get()
-            .model_event_sender
-            .as_ref()
-        {
-            for (block_id, agent_view_visibility) in associated_blocks {
-                if let Err(e) =
-                    sender.send(persistence::ModelEvent::UpdateBlockAgentViewVisibility {
-                        block_id: block_id.to_string(),
-                        agent_view_visibility: agent_view_visibility.into(),
-                    })
-                {
-                    log::warn!("Error sending UpdateBlockAgentViewVisibility event: {e:#}");
-                }
-            }
-        }
     }
 
     fn insert_alias_expansion_banner(
@@ -10315,24 +10262,22 @@ impl TerminalView {
 
         self.clear_prompt_suggestions(ctx);
 
-        let trigger = {
-            let model = self.model.lock();
-            let Some(block_context) = block_context_from_terminal_model(&model, &block_id, false)
-            else {
-                return;
-            };
-            PassiveSuggestionTrigger::ShellCommandCompleted(ShellCommandCompletedTrigger {
-                executed_shell_command: Box::new(block_context),
-                relevant_files: vec![],
-            })
-        };
+        if self
+            .model
+            .lock()
+            .block_list()
+            .block_with_id(&block_id)
+            .is_none()
+        {
+            return;
+        }
 
         let banner_state = PromptSuggestionBannerState {
             banner_id,
             prompt_suggestion: suggestion,
             accept_button_mouse_state: Default::default(),
             llm_warning_learn_more_hyperlink: Default::default(),
-            trigger: Some(trigger),
+            trigger_block_id: block_id,
             conversation_id: None,
         };
 
@@ -14660,17 +14605,8 @@ impl TerminalView {
             }
             AIBlockEvent::ContinuePassiveCodeDiffWithAgent {
                 conversation_id,
-                trigger_block_id,
                 auto_resume,
             } => {
-                if let Some(block_id) = trigger_block_id {
-                    self.associate_and_promote_block_for_conversation(
-                        block_id.clone(),
-                        *conversation_id,
-                        ctx,
-                    );
-                }
-
                 if !self
                     .agent_view_controller
                     .as_ref(ctx)
@@ -20961,7 +20897,7 @@ impl View for TerminalView {
             .inline_banners_state
             .prompt_suggestions_banner
             .is_some()
-            || has_pending_code_or_unit_test_prompt_suggestion(&model_lock, app)
+            || has_pending_passive_code_diff(&model_lock, app)
         {
             context.set.insert(flags::HAS_PENDING_PROMPT_SUGGESTION);
         }

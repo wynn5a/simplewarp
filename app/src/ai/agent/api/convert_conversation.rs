@@ -25,8 +25,8 @@ use crate::ai::agent::{
     GrepResult, ImageContext, InsertReviewCommentsResult, OutputModelInfo, ReadFilesFailedFile,
     ReadFilesResult, ReadMCPResourceResult, ReadShellCommandOutputResult,
     RequestCommandOutputResult, RequestFileEditsResult, ServerOutputId, Shared, ShellCommandError,
-    SuggestNewConversationResult, SuggestPromptResult, TransferShellCommandControlToUserResult,
-    UpdatedFileContext, UserQueryMode, WriteToLongRunningShellCommandResult,
+    TransferShellCommandControlToUserResult, UpdatedFileContext, UserQueryMode,
+    WriteToLongRunningShellCommandResult,
 };
 use crate::ai::block_context::BlockContext;
 use crate::ai::llms::LLMId;
@@ -845,61 +845,6 @@ pub(crate) fn convert_tool_call_result_to_input(
                 context,
             })
         }
-        Some(ToolCallResultType::SuggestNewConversation(result)) => {
-            let conversation_result = match &result.result {
-                Some(api::suggest_new_conversation_result::Result::Accepted(accepted)) => {
-                    SuggestNewConversationResult::Accepted {
-                        message_id: accepted.message_id.clone(),
-                    }
-                }
-                Some(api::suggest_new_conversation_result::Result::Rejected(_)) => {
-                    SuggestNewConversationResult::Rejected
-                }
-                None => SuggestNewConversationResult::Cancelled,
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::SuggestNewConversation(conversation_result),
-                },
-                context,
-            })
-        }
-        Some(ToolCallResultType::SuggestPrompt(result)) => {
-            let prompt_result = match &result.result {
-                Some(api::suggest_prompt_result::Result::Accepted(_)) => {
-                    // Find the accepted query from the original SuggestPrompt tool call
-                    let query = tool_call_map.get(&tool_call_id)
-                        .and_then(|tool_call| {
-                            if let Some(api::message::tool_call::Tool::SuggestPrompt(suggest_prompt)) = &tool_call.tool {
-                                match &suggest_prompt.display_mode {
-                                    Some(api::message::tool_call::suggest_prompt::DisplayMode::InlineQueryBanner(
-                                        inline_query_banner,
-                                    )) => Some(inline_query_banner.query.clone()),
-                                    _ => None,
-                                }
-                            } else {
-                                None
-                            }
-                        })
-                        .unwrap_or_default();
-
-                    SuggestPromptResult::Accepted { query }
-                }
-                _ => SuggestPromptResult::Cancelled,
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::SuggestPrompt(prompt_result),
-                },
-                context,
-            })
-        }
         Some(ToolCallResultType::OpenCodeReview(_)) => Some(AIAgentInput::ActionResult {
             result: AIAgentActionResult {
                 id: tool_call_id.into(),
@@ -1063,7 +1008,9 @@ pub(crate) fn convert_tool_call_result_to_input(
             | ToolCallResultType::FetchConversation(_)
             | ToolCallResultType::SendMessageToAgent(_)
             | ToolCallResultType::RunAgentsResult(_)
-            | ToolCallResultType::WaitForEvents(_),
+            | ToolCallResultType::WaitForEvents(_)
+            | ToolCallResultType::SuggestNewConversation(_)
+            | ToolCallResultType::SuggestPrompt(_),
         ) => None,
     }
 }
@@ -1129,12 +1076,6 @@ fn create_cancelled_result_for_tool_call(
         ToolType::CallMcpTool(_) => {
             AIAgentActionResultType::CallMCPTool(CallMCPToolResult::Cancelled)
         }
-        ToolType::SuggestNewConversation(_) => {
-            AIAgentActionResultType::SuggestNewConversation(SuggestNewConversationResult::Cancelled)
-        }
-        ToolType::SuggestPrompt(_) => {
-            AIAgentActionResultType::SuggestPrompt(SuggestPromptResult::Cancelled)
-        }
         ToolType::OpenCodeReview(_) => AIAgentActionResultType::OpenCodeReview,
         ToolType::InsertReviewComments(_) => {
             AIAgentActionResultType::InsertReviewComments(InsertReviewCommentsResult::Cancelled)
@@ -1168,7 +1109,9 @@ fn create_cancelled_result_for_tool_call(
         | ToolType::FetchConversation(_)
         | ToolType::SendMessageToAgent(_)
         | ToolType::RunAgents(_)
-        | ToolType::WaitForEvents(_) => return None,
+        | ToolType::WaitForEvents(_)
+        | ToolType::SuggestNewConversation(_)
+        | ToolType::SuggestPrompt(_) => return None,
     };
 
     Some(AIAgentInput::ActionResult {

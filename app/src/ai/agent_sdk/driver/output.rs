@@ -12,7 +12,7 @@ pub mod text {
         AIAgentActionType, AIAgentInput, AIAgentOutput, AIAgentOutputMessageType,
         ArtifactCreatedData, CallMCPToolResult, FileGlobResult, FileGlobV2Result, GrepResult,
         ReadFilesResult, ReadMCPResourceResult, RequestCommandOutputResult, RequestFileEditsResult,
-        SuggestNewConversationResult, SuggestPromptResult, WriteToLongRunningShellCommandResult,
+        WriteToLongRunningShellCommandResult,
     };
 
     /// Format an agent input as a human-readable string. For action results, it's assumed that
@@ -34,8 +34,7 @@ pub mod text {
                 Ok(())
             }
             // These input types should not occur in a SDK-run agent.
-            AIAgentInput::ResumeConversation { .. }
-            | AIAgentInput::TriggerPassiveSuggestion { .. } => Ok(()),
+            AIAgentInput::ResumeConversation { .. } => Ok(()),
             AIAgentInput::ActionResult { result, .. } => match &result.result {
                 AIAgentActionResultType::RequestCommandOutput(result) => match result {
                     RequestCommandOutputResult::Completed {
@@ -214,15 +213,6 @@ pub mod text {
                         CallMCPToolResult::Cancelled => writeln!(w, "{CANCELLED_MESSAGE}"),
                     }
                 }
-                AIAgentActionResultType::SuggestNewConversation(result) => match result {
-                    SuggestNewConversationResult::Accepted { .. }
-                    | SuggestNewConversationResult::Rejected => Ok(()),
-                    SuggestNewConversationResult::Cancelled => writeln!(w, "{CANCELLED_MESSAGE}"),
-                },
-                AIAgentActionResultType::SuggestPrompt(result) => match result {
-                    SuggestPromptResult::Accepted { .. } => Ok(()),
-                    SuggestPromptResult::Cancelled => writeln!(w, "{CANCELLED_MESSAGE}"),
-                },
                 AIAgentActionResultType::OpenCodeReview => Ok(()),
                 AIAgentActionResultType::InsertReviewComments(_) => Ok(()),
                 AIAgentActionResultType::InitProject => Ok(()),
@@ -305,8 +295,6 @@ pub mod text {
                     } => {
                         writeln!(w, "MCP tool call {name}({input:#})")?;
                     }
-                    AIAgentActionType::SuggestNewConversation { .. } => (),
-                    AIAgentActionType::SuggestPrompt { .. } => (),
                     AIAgentActionType::OpenCodeReview => (),
                     AIAgentActionType::InsertCodeReviewComments { .. } => (),
                     AIAgentActionType::InitProject => (),
@@ -575,8 +563,7 @@ pub mod json {
                 | AIAgentInput::SummarizeConversation { .. }
                 | AIAgentInput::InvokeSkill { .. } => None,
                 // These input types should not occur in a SDK-run agent.
-                AIAgentInput::ResumeConversation { .. }
-                | AIAgentInput::TriggerPassiveSuggestion { .. } => None,
+                AIAgentInput::ResumeConversation { .. } => None,
                 AIAgentInput::ActionResult { result, .. } => {
                     Self::from_action_result(&result.result)
                 }
@@ -831,9 +818,7 @@ pub mod json {
                         input,
                     })),
                     // Internal or non-CLI tool calls: skip them
-                    AIAgentActionType::SuggestNewConversation { .. }
-                    | AIAgentActionType::SuggestPrompt { .. }
-                    | AIAgentActionType::InitProject
+                    AIAgentActionType::InitProject
                     | AIAgentActionType::OpenCodeReview
                     | AIAgentActionType::InsertCodeReviewComments { .. }
                     | AIAgentActionType::ReadShellCommandOutput { .. }

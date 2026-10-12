@@ -20,8 +20,7 @@ use crate::agent::action_result::{
     AIAgentActionResultType, CallMCPToolResult, FileGlobResult, FileGlobV2Result, GrepResult,
     InsertReviewCommentsResult, ReadFilesResult, ReadMCPResourceResult,
     ReadShellCommandOutputResult, RequestCommandOutputResult, RequestFileEditsResult,
-    SuggestNewConversationResult, SuggestPromptResult, TransferShellCommandControlToUserResult,
-    WriteToLongRunningShellCommandResult,
+    TransferShellCommandControlToUserResult, WriteToLongRunningShellCommandResult,
 };
 use crate::agent::{AIAgentCitation, FileLocations};
 use crate::diff_validation::ParsedDiff;
@@ -102,12 +101,6 @@ pub enum AIAgentActionType {
         input: serde_json::Value,
     },
 
-    SuggestNewConversation {
-        message_id: String,
-    },
-
-    SuggestPrompt(SuggestPromptRequest),
-
     InitProject,
     OpenCodeReview,
 
@@ -175,12 +168,6 @@ impl AIAgentActionType {
             Self::ReadMCPResource { .. } => {
                 AIAgentActionResultType::ReadMCPResource(ReadMCPResourceResult::Cancelled)
             }
-            Self::SuggestNewConversation { .. } => AIAgentActionResultType::SuggestNewConversation(
-                SuggestNewConversationResult::Cancelled,
-            ),
-            Self::SuggestPrompt { .. } => {
-                AIAgentActionResultType::SuggestPrompt(SuggestPromptResult::Cancelled)
-            }
             Self::OpenCodeReview => AIAgentActionResultType::OpenCodeReview,
             Self::InitProject => AIAgentActionResultType::InitProject,
             Self::ReadShellCommandOutput { .. } => AIAgentActionResultType::ReadShellCommandOutput(
@@ -214,8 +201,6 @@ impl AIAgentActionType {
             Self::FileGlob { .. } | Self::FileGlobV2 { .. } => "File glob".to_string(),
             Self::ReadMCPResource { .. } => "Read mcp resource".to_string(),
             Self::CallMCPTool { .. } => "Call mcp tool".to_string(),
-            Self::SuggestNewConversation { .. } => "Suggest new conversation".to_string(),
-            Self::SuggestPrompt { .. } => "Suggest prompt".to_string(),
             Self::InitProject => "Init project".to_string(),
             Self::OpenCodeReview => "Open code review".to_string(),
             Self::ReadShellCommandOutput { .. } => "Read shell command output".to_string(),
@@ -299,12 +284,6 @@ impl Display for AIAgentActionType {
                 input,
             } => {
                 write!(f, "CallMCPTool: {name} with input {input:?}")
-            }
-            AIAgentActionType::SuggestNewConversation { message_id } => {
-                write!(f, "SuggestNewConversation: {message_id}")
-            }
-            AIAgentActionType::SuggestPrompt(request) => {
-                write!(f, "SuggestPrompt: {request:?}")
             }
             AIAgentActionType::InitProject => {
                 write!(f, "InitProject")
@@ -468,19 +447,6 @@ pub struct InsertedCommentLine {
     pub diff_hunk_text: String,
     /// The side of the diff the comment is attached to.
     pub side: Option<CommentSide>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SuggestPromptRequest {
-    UnitTestsSuggestion {
-        query: String,
-        title: String,
-        description: String,
-    },
-    PromptSuggestion {
-        prompt: String,
-        label: Option<String>,
-    },
 }
 
 /// A file-editing request from the agent.

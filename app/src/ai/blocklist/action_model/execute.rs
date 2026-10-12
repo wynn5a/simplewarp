@@ -5,8 +5,6 @@ pub(super) mod read_files;
 pub(super) mod read_mcp_resource;
 pub(super) mod request_file_edits;
 pub(super) mod shell_command;
-pub(super) mod suggest_new_conversation;
-pub(super) mod suggest_prompt;
 
 use std::any::Any;
 use std::path::PathBuf;
@@ -27,9 +25,6 @@ use read_mcp_resource::ReadMCPResourceExecutor;
 pub use request_file_edits::RequestFileEditsExecutor;
 use serde::{Deserialize, Serialize};
 pub use shell_command::{ShellCommandExecutor, ShellCommandExecutorEvent};
-pub use suggest_new_conversation::NewConversationDecision;
-use suggest_new_conversation::SuggestNewConversationExecutor;
-pub use suggest_prompt::PromptSuggestionExecutor;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_files::{FileModel, TextFileReadResult};
 use warp_util::file::FileLoadError;
@@ -201,8 +196,6 @@ pub struct BlocklistAIActionExecutor {
     file_glob_executor: ModelHandle<FileGlobExecutor>,
     read_mcp_resource_executor: ModelHandle<ReadMCPResourceExecutor>,
     call_mcp_tool_executor: ModelHandle<CallMCPToolExecutor>,
-    suggest_new_conversation_executor: ModelHandle<SuggestNewConversationExecutor>,
-    suggest_prompt_executor: ModelHandle<PromptSuggestionExecutor>,
     /// The actions currently executing asynchronously, keyed by action ID.
     /// We track them per action rather than as a single slot so multiple actions from the same
     /// parallel phase can complete independently.
@@ -239,9 +232,6 @@ impl BlocklistAIActionExecutor {
             .add_model(|_| ReadMCPResourceExecutor::new(active_session.clone(), terminal_view_id));
         let call_mcp_tool_executor =
             ctx.add_model(|_| CallMCPToolExecutor::new(active_session.clone(), terminal_view_id));
-        let suggest_new_conversation_executor =
-            ctx.add_model(|_| SuggestNewConversationExecutor::new());
-        let suggest_prompt_executor = ctx.add_model(|_| PromptSuggestionExecutor::new());
         Self {
             shell_command_executor,
             read_files_executor,
@@ -250,8 +240,6 @@ impl BlocklistAIActionExecutor {
             file_glob_executor,
             read_mcp_resource_executor,
             call_mcp_tool_executor,
-            suggest_new_conversation_executor,
-            suggest_prompt_executor,
             async_executing_actions: Default::default(),
         }
     }
@@ -268,16 +256,6 @@ impl BlocklistAIActionExecutor {
 
     pub fn request_file_edits_executor(&self) -> &ModelHandle<RequestFileEditsExecutor> {
         &self.request_file_edits_executor
-    }
-
-    pub fn suggest_new_conversation_executor(
-        &self,
-    ) -> &ModelHandle<SuggestNewConversationExecutor> {
-        &self.suggest_new_conversation_executor
-    }
-
-    pub fn suggest_prompt_executor(&self) -> &ModelHandle<PromptSuggestionExecutor> {
-        &self.suggest_prompt_executor
     }
 
     pub fn action_phase(&self, action: &AIAgentAction, ctx: &AppContext) -> RunningActionPhase {
@@ -341,12 +319,6 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::InsertCodeReviewComments { .. } => {
                 futures::future::ready(()).boxed()
             }
-            AIAgentActionType::SuggestNewConversation { .. } => self
-                .suggest_new_conversation_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::SuggestPrompt { .. } => self
-                .suggest_prompt_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
         }
     }
 
@@ -464,14 +436,6 @@ impl BlocklistAIActionExecutor {
             // the executor is responsible for auto-approving diffs.
             AIAgentActionType::RequestFileEdits { .. } => self
                 .request_file_edits_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
-            AIAgentActionType::SuggestNewConversation { .. } => self
-                .suggest_new_conversation_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
-            AIAgentActionType::SuggestPrompt { .. } => self
-                .suggest_prompt_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
                 .into(),
         };
@@ -652,12 +616,6 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::InitProject => true,
             AIAgentActionType::OpenCodeReview => true,
             AIAgentActionType::InsertCodeReviewComments { .. } => true,
-            AIAgentActionType::SuggestNewConversation { .. } => self
-                .suggest_new_conversation_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::SuggestPrompt { .. } => self
-                .suggest_prompt_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
         }
     }
 }

@@ -7,8 +7,7 @@ use warp_multi_agent_api as api;
 
 use crate::ai::agent::{
     AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment, AIAgentContext, AIAgentInput,
-    DriveObjectPayload, MCPContext, PassiveSuggestionTrigger, RunningCommand, StaticQueryType,
-    UserQueryMode,
+    DriveObjectPayload, MCPContext, RunningCommand, StaticQueryType, UserQueryMode,
 };
 use crate::ai::block_context::BlockContext;
 
@@ -103,24 +102,6 @@ pub(super) fn convert_input(
                     context: Some(convert_context(context.as_ref())),
                     r#type: Some(api::request::input::Type::InitProjectRules(
                         api::request::input::InitProjectRules {},
-                    )),
-                });
-            }
-            AIAgentInput::TriggerPassiveSuggestion {
-                context,
-                attachments,
-                trigger,
-            } => {
-                return Ok(api::request::Input {
-                    context: Some(convert_context(context.as_ref())),
-                    r#type: Some(api::request::input::Type::GeneratePassiveSuggestions(
-                        api::request::input::GeneratePassiveSuggestions {
-                            attachments: attachments
-                                .into_iter()
-                                .map(|attachment| attachment.into())
-                                .collect(),
-                            trigger: Some(trigger.into()),
-                        },
                     )),
                 });
             }
@@ -317,38 +298,6 @@ fn convert_input_to_user_input(
     }
 }
 
-impl From<PassiveSuggestionTrigger> for api::request::input::generate_passive_suggestions::Trigger {
-    fn from(value: PassiveSuggestionTrigger) -> Self {
-        match value {
-            PassiveSuggestionTrigger::FilesChanged => {
-                api::request::input::generate_passive_suggestions::Trigger::FilesChanged(())
-            }
-            PassiveSuggestionTrigger::CommandRun => {
-                api::request::input::generate_passive_suggestions::Trigger::CommandRun(())
-            }
-            PassiveSuggestionTrigger::ShellCommandCompleted(shell_trigger) => {
-                api::request::input::generate_passive_suggestions::Trigger::ShellCommandCompleted(
-                    api::request::input::generate_passive_suggestions::ShellCommandCompleted {
-                        executed_shell_command: Some(
-                            (*shell_trigger.executed_shell_command).into(),
-                        ),
-                        relevant_files: shell_trigger
-                            .relevant_files
-                            .into_iter()
-                            .flat_map(|file| Vec::<api::AnyFileContent>::from(file).into_iter())
-                            .collect(),
-                    },
-                )
-            }
-            PassiveSuggestionTrigger::AgentResponseCompleted { .. } => {
-                api::request::input::generate_passive_suggestions::Trigger::AgentResponseCompleted(
-                    api::request::input::generate_passive_suggestions::AgentResponseCompleted {},
-                )
-            }
-        }
-    }
-}
-
 impl From<UserQueryMode> for warp_multi_agent_api::UserQueryMode {
     fn from(value: UserQueryMode) -> Self {
         match value {
@@ -500,12 +449,6 @@ impl TryFrom<AIAgentActionResult> for api::request::input::user_inputs::user_inp
             }
             AIAgentActionResultType::CallMCPTool(call_mcp_tool_result) => {
                 Some(call_mcp_tool_result.try_into()?)
-            }
-            AIAgentActionResultType::SuggestNewConversation(suggest_new_conversation_result) => {
-                Some(suggest_new_conversation_result.try_into()?)
-            }
-            AIAgentActionResultType::SuggestPrompt(suggest_prompt_result) => {
-                Some(suggest_prompt_result.try_into()?)
             }
             AIAgentActionResultType::OpenCodeReview => Some(
                 warp_multi_agent_api::request::input::tool_call_result::Result::OpenCodeReview(

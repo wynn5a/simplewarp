@@ -9,7 +9,6 @@ use crate::agent::FileLocations;
 use crate::agent::action::{
     AIAgentActionType, AIAgentPtyWriteMode, CommentSide, FileEdit, InsertReviewComment,
     InsertedCommentLine, InsertedCommentLocation, ReadFilesRequest, ShellCommandDelay,
-    SuggestPromptRequest,
 };
 use crate::agent::action_result::{AnyFileContent, FileContext};
 use crate::agent::convert::ToolToAIAgentActionError;
@@ -61,14 +60,6 @@ impl From<api::message::tool_call::write_to_long_running_shell_command::Mode>
                 }
             }
             None => AIAgentPtyWriteMode::Raw,
-        }
-    }
-}
-
-impl From<api::message::tool_call::SuggestNewConversation> for AIAgentActionType {
-    fn from(value: api::message::tool_call::SuggestNewConversation) -> Self {
-        AIAgentActionType::SuggestNewConversation {
-            message_id: value.message_id,
         }
     }
 }
@@ -222,35 +213,6 @@ impl TryFrom<api::message::tool_call::CallMcpTool> for AIAgentActionType {
             name: value.name,
             input,
         })
-    }
-}
-
-impl TryFrom<api::message::tool_call::SuggestPrompt> for AIAgentActionType {
-    type Error = ToolToAIAgentActionError;
-
-    fn try_from(value: api::message::tool_call::SuggestPrompt) -> Result<Self, Self::Error> {
-        let request = match value.display_mode {
-            Some(api::message::tool_call::suggest_prompt::DisplayMode::InlineQueryBanner(
-                inline_query_banner,
-            )) => SuggestPromptRequest::UnitTestsSuggestion {
-                title: inline_query_banner.title,
-                description: inline_query_banner.description,
-                query: inline_query_banner.query,
-            },
-            Some(api::message::tool_call::suggest_prompt::DisplayMode::PromptChip(chip)) => {
-                let label = chip.label.none_if_default();
-                SuggestPromptRequest::PromptSuggestion {
-                    prompt: chip.prompt,
-                    label,
-                }
-            }
-            _ => {
-                return Err(ToolToAIAgentActionError::SuggestPromptError(String::from(
-                    "unsupported display mode",
-                )));
-            }
-        };
-        Ok(AIAgentActionType::SuggestPrompt(request))
     }
 }
 

@@ -28,7 +28,6 @@ use itertools::Itertools;
 use model::AIBlockOutputStatus;
 use parking_lot::{FairMutex, Mutex, RwLock};
 use pathfinder_color::ColorU;
-use pathfinder_geometry::vector::vec2f;
 pub use pending_user_query_block::{PendingUserQueryBlock, PendingUserQueryBlockEvent};
 use repo_metadata::repositories::DetectedRepositories;
 use secret_redaction::*;
@@ -47,14 +46,12 @@ use warpui::assets::asset_cache::AssetCache;
 use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
-    ClippedScrollStateHandle, MainAxisAlignment, MainAxisSize, MouseStateHandle, SecretRange,
-    SelectionBound, SelectionHandle, TableStateHandle, get_rich_content_position_id,
+    ClippedScrollStateHandle, MouseStateHandle, SecretRange, SelectionBound, SelectionHandle,
+    TableStateHandle, get_rich_content_position_id,
 };
 use warpui::image_cache::ImageType;
 use warpui::keymap::FixedBinding;
 use warpui::text::SelectionType;
-use warpui::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlignment};
-use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{
     AppContext, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle, WeakViewHandle, WindowId,
@@ -77,24 +74,16 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResultType, AIAgentActionType, AIAgentAttachment,
     AIAgentCitation, AIAgentContext, AIAgentInput, AIAgentOutput, AIAgentOutputMessageType,
-    AIAgentTextSection, AIIdentifiers, CancellationReason, MessageId, PassiveSuggestionTrigger,
-    ProgrammingLanguage, RequestCommandOutputResult, RequestFileEditsResult, ServerOutputId,
-    SuggestPromptRequest, SuggestPromptResult, SummarizationType,
+    AIAgentTextSection, AIIdentifiers, CancellationReason, MessageId, ProgrammingLanguage,
+    RequestCommandOutputResult, RequestFileEditsResult, ServerOutputId, SummarizationType,
 };
-use crate::ai::blocklist::action_model::NewConversationDecision;
 use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewEntryOrigin};
-use crate::ai::blocklist::block::keyboard_navigable_buttons::{
-    KeyboardNavigableButtonBuilder, KeyboardNavigableButtons,
-};
 use crate::ai::blocklist::context_model::AttachmentType;
 use crate::ai::blocklist::inline_action::code_diff_view;
 use crate::ai::blocklist::inline_action::code_diff_view::convert_file_edits_to_file_diffs;
 use crate::ai::blocklist::inline_action::requested_command::{
     self, RequestedActionViewType, RequestedCommand, RequestedCommandView,
     RequestedCommandViewEvent,
-};
-use crate::ai::blocklist::inline_action::suggested_unit_tests::{
-    SuggestedUnitTestsEvent, SuggestedUnitTestsView,
 };
 use crate::ai::blocklist::permissions::{
     CommandExecutionPermission, CommandExecutionPermissionDeniedReason,
@@ -118,7 +107,6 @@ use crate::settings::{
     InputModeSettings, InputModeSettingsChangedEvent, InputSettings,
 };
 use crate::terminal::find::TerminalFindModel;
-use crate::terminal::model::BlockId;
 use crate::terminal::model::secrets::RichContentSecretTooltipInfo;
 use crate::terminal::model::session::active_session::{ActiveSession, ActiveSessionEvent};
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
@@ -309,9 +297,6 @@ pub(super) struct AIBlockStateHandles {
 
     /// Mouse state handle for the overflow menu button
     overflow_menu_handle: MouseStateHandle,
-
-    menu_accept_button_handle: MouseStateHandle,
-    menu_reject_button_handle: MouseStateHandle,
 
     /// Mouse state handle for the debug ID copy button
     debug_copy_button_handle: MouseStateHandle,
@@ -695,7 +680,6 @@ pub struct AIBlock {
     collapsible_block_states: HashMap<MessageId, CollapsibleElementState>,
 
     /// Map from suggested prompt action ID to its view handle and status.
-    unit_tests_suggestions: HashMap<AIAgentActionId, ViewHandle<SuggestedUnitTestsView>>,
 
     /// Task to auto expand an executed requested command or requested action after it has
     /// been running for a while. This applies to both the [`RequestedCommandView`] and
@@ -746,7 +730,6 @@ pub struct AIBlock {
     /// A user menu presenting an accept and reject choice.
     ///
     /// This UI is used for the new conversation suggestion multi-select.
-    keyboard_navigable_buttons: Option<ViewHandle<KeyboardNavigableButtons>>,
 
     /// The thumbs up/down rating of the AI block response.
     response_rating: OnceCell<AIBlockResponseRating>,
@@ -1081,14 +1064,12 @@ impl AIBlock {
             requested_edits: Default::default(),
             comment_states,
             collapsible_block_states: Default::default(),
-            unit_tests_suggestions: Default::default(),
             secret_redaction_state,
             find_state: FindState::default(),
             find_model,
             is_references_section_open: false,
             active_session,
             autonomy_setting_speedbump: Default::default(),
-            keyboard_navigable_buttons: None,
             response_rating: OnceCell::new(),
             terminal_view_id,
             action_buttons: Default::default(),
@@ -1576,33 +1557,6 @@ impl AIBlock {
                         ctx,
                     );
                 }
-                AIAgentAction {
-                    id: action_id,
-                    action: AIAgentActionType::SuggestNewConversation { .. },
-                    ..
-                } => {
-                    let start_new_conversation_button_text = "Start a new conversation".to_owned();
-                    let continue_current_conversation_button_text =
-                        "Continue current conversation".to_owned();
-
-                    let server_output_id = self.model.server_output_id(ctx);
-                    let accept_action = AIBlockAction::StartNewConversationButtonClicked {
-                        action_id: action_id.clone(),
-                        server_output_id: server_output_id.clone(),
-                    };
-                    let reject_action = AIBlockAction::ContinueCurrentConversationButtonClicked {
-                        action_id: action_id.clone(),
-                        server_output_id: server_output_id.clone(),
-                    };
-
-                    self.set_keyboard_navigable_buttons(
-                        start_new_conversation_button_text,
-                        continue_current_conversation_button_text,
-                        accept_action,
-                        reject_action,
-                        ctx,
-                    );
-                }
                 _ => (),
             }
         }
@@ -1713,106 +1667,6 @@ impl AIBlock {
         }
     }
 
-    fn set_keyboard_navigable_buttons(
-        &mut self,
-        accept_text: String,
-        reject_text: String,
-        accept_action: AIBlockAction,
-        reject_action: AIBlockAction,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let accept_button_handle = self.state_handles.menu_accept_button_handle.clone();
-        let reject_button_handle = self.state_handles.menu_reject_button_handle.clone();
-        let buttons = vec![
-            KeyboardNavigableButtonBuilder::new(
-                move |is_selected, app| {
-                    let appearance = Appearance::handle(app).as_ref(app);
-                    let mut button = appearance
-                        .ui_builder()
-                        .button(ButtonVariant::Secondary, accept_button_handle.clone())
-                        .with_style(UiComponentStyles {
-                            font_size: Some(appearance.monospace_font_size()),
-                            ..UiComponentStyles::default()
-                        })
-                        .with_hovered_styles(UiComponentStyles {
-                            font_size: Some(appearance.monospace_font_size()),
-                            ..UiComponentStyles::default()
-                        });
-                    if is_selected {
-                        let selected_styles = UiComponentStyles {
-                            border_color: Some(appearance.theme().accent().into()),
-                            border_width: Some(1.0),
-                            background: Some(appearance.theme().surface_2().into()),
-                            ..UiComponentStyles::default()
-                        };
-                        button = button.with_style(selected_styles);
-                        button = button.with_text_and_icon_label(TextAndIcon::new(
-                            TextAndIconAlignment::TextFirst,
-                            accept_text.clone(),
-                            Icon::CornerDownLeft.to_warpui_icon(appearance.theme().foreground()),
-                            MainAxisSize::Max,
-                            MainAxisAlignment::SpaceBetween,
-                            vec2f(
-                                appearance.monospace_font_size(),
-                                appearance.monospace_font_size(),
-                            ),
-                        ));
-                    } else {
-                        button = button.with_text_label(accept_text.clone());
-                    }
-                    button
-                },
-                move |ctx: &mut ViewContext<KeyboardNavigableButtons>| {
-                    ctx.dispatch_typed_action(&accept_action);
-                },
-            ),
-            KeyboardNavigableButtonBuilder::new(
-                move |is_selected, app| {
-                    let appearance = Appearance::handle(app).as_ref(app);
-                    let mut button = appearance
-                        .ui_builder()
-                        .button(ButtonVariant::Secondary, reject_button_handle.clone())
-                        .with_style(UiComponentStyles {
-                            font_size: Some(appearance.monospace_font_size()),
-                            ..UiComponentStyles::default()
-                        })
-                        .with_hovered_styles(UiComponentStyles {
-                            font_size: Some(appearance.monospace_font_size()),
-                            ..UiComponentStyles::default()
-                        });
-                    if is_selected {
-                        let selected_styles = UiComponentStyles {
-                            border_color: Some(appearance.theme().accent().into()),
-                            border_width: Some(1.0),
-                            background: Some(appearance.theme().surface_2().into()),
-                            ..UiComponentStyles::default()
-                        };
-                        button = button.with_style(selected_styles);
-                        button = button.with_text_and_icon_label(TextAndIcon::new(
-                            TextAndIconAlignment::TextFirst,
-                            reject_text.clone(),
-                            Icon::CornerDownLeft.to_warpui_icon(appearance.theme().foreground()),
-                            MainAxisSize::Max,
-                            MainAxisAlignment::SpaceBetween,
-                            vec2f(
-                                appearance.monospace_font_size(),
-                                appearance.monospace_font_size(),
-                            ),
-                        ));
-                    } else {
-                        button = button.with_text_label(reject_text.clone());
-                    }
-                    button
-                },
-                move |ctx: &mut ViewContext<KeyboardNavigableButtons>| {
-                    ctx.dispatch_typed_action(&reject_action);
-                },
-            ),
-        ];
-        let menu = ctx.add_typed_action_view(|_| KeyboardNavigableButtons::new(buttons));
-        self.keyboard_navigable_buttons = Some(menu);
-    }
-
     fn handle_complete_output(&mut self, output: &AIAgentOutput, ctx: &mut ViewContext<Self>) {
         for action in output.actions() {
             match action {
@@ -1831,27 +1685,6 @@ impl AIBlock {
                         output.server_output_id.clone(),
                         ctx,
                     );
-                }
-                AIAgentAction {
-                    id,
-                    action:
-                        AIAgentActionType::SuggestPrompt(SuggestPromptRequest::UnitTestsSuggestion {
-                            query,
-                            title,
-                            description,
-                        }),
-                    ..
-                } => {
-                    if !self.model.is_restored() {
-                        self.handle_unit_test_suggestion_complete(
-                            id,
-                            output.server_output_id.as_ref(),
-                            query.clone(),
-                            title.clone(),
-                            description.clone(),
-                            ctx,
-                        );
-                    }
                 }
                 AIAgentAction {
                     id,
@@ -2399,18 +2232,8 @@ impl AIBlock {
                     accepted: auto_resume,
                     ..
                 } => {
-                    let trigger_block_id = me.model.inputs_to_render(ctx).iter().find_map(|i| {
-                        if let Some(PassiveSuggestionTrigger::ShellCommandCompleted(trigger)) =
-                            i.passive_suggestion_trigger()
-                        {
-                            Some(trigger.executed_shell_command.id.clone())
-                        } else {
-                            None
-                        }
-                    });
                     ctx.emit(AIBlockEvent::ContinuePassiveCodeDiffWithAgent {
                         conversation_id: me.client_ids.conversation_id,
-                        trigger_block_id,
                         auto_resume: *auto_resume,
                     });
                     ctx.emit(AIBlockEvent::FocusTerminal);
@@ -2783,184 +2606,6 @@ impl AIBlock {
             RequestedCommandViewEvent::UpdatedExpansionState { .. } => {}
             RequestedCommandViewEvent::OpenActiveAgentProfileEditor => {
                 ctx.emit(AIBlockEvent::OpenActiveAgentProfileEditor);
-            }
-        }
-    }
-
-    pub fn accept_pending_unit_test_suggestion(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        let Some(suggested_prompt) = self.pending_unit_test_suggestion(ctx) else {
-            return false;
-        };
-        self.accept_unit_test_suggestion(suggested_prompt.clone(), ctx)
-    }
-
-    pub fn dismiss_pending_suggested_prompt(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        let Some(suggested_prompt) = self.pending_unit_test_suggestion(ctx) else {
-            return false;
-        };
-        let _identifiers = suggested_prompt.as_ref(ctx).identifiers().clone();
-
-        // Complete the suggest prompt executor with Cancelled so the async action
-        // finishes cleanly (the action auto-executes and is no longer in pending_actions).
-        self.action_model.update(ctx, |action_model, ctx| {
-            let executor = action_model.suggest_prompt_executor(ctx).clone();
-            executor.update(ctx, |executor, _ctx| {
-                executor.complete_suggest_prompt_action(SuggestPromptResult::Cancelled);
-            });
-        });
-
-        // Hide the view so pending_unit_test_suggestion() won't find it again,
-        // preventing a double-dismiss race from emitting DismissedPassiveBlock twice.
-        suggested_prompt.clone().update(ctx, |view, _ctx| {
-            view.set_is_hidden(true);
-        });
-
-        ctx.emit(AIBlockEvent::DismissedPassiveBlock);
-        true
-    }
-
-    fn accept_unit_test_suggestion(
-        &mut self,
-        view: ViewHandle<SuggestedUnitTestsView>,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        let Some(query) = view.as_ref(ctx).query() else {
-            return false;
-        };
-
-        if FeatureFlag::AgentView.is_enabled()
-            && self
-                .agent_view_controller
-                .update(ctx, |controller, ctx| {
-                    controller.try_enter_agent_view(
-                        Some(self.client_ids.conversation_id),
-                        AgentViewEntryOrigin::AcceptedUnitTestSuggestion,
-                        ctx,
-                    )
-                })
-                .is_err()
-        {
-            return false;
-        }
-
-        let action_id = view.as_ref(ctx).action_id().clone();
-
-        self.action_model.update(ctx, |action_model, ctx| {
-            action_model.execute_action(&action_id, self.client_ids.conversation_id, ctx);
-            let executor = action_model.suggest_prompt_executor(ctx).clone();
-            executor.update(ctx, |executor, _ctx| {
-                executor.complete_suggest_prompt_action(SuggestPromptResult::Accepted { query });
-            });
-        });
-        // When accepted, we only want to hide the banner portion of the exchange.
-        view.update(ctx, |view, _ctx| {
-            view.set_is_hidden(true);
-        });
-
-        ctx.notify();
-        true
-    }
-
-    fn handle_unit_test_suggestion_complete(
-        &mut self,
-        action_id: &AIAgentActionId,
-        server_output_id: Option<&ServerOutputId>,
-        query: String,
-        title: String,
-        description: String,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Short-circuit if we've already handled the suggested prompt correspoding to this action
-        // id.
-        if self.unit_tests_suggestions.contains_key(action_id) {
-            return;
-        }
-
-        let identifiers = AIIdentifiers {
-            client_conversation_id: Some(self.client_ids.conversation_id),
-            client_exchange_id: Some(self.client_ids.client_exchange_id),
-            server_output_id: server_output_id.cloned(),
-            server_conversation_id: None,
-            model_id: self.model.model_id(ctx),
-        };
-
-        // Only show the speedbump once, update the setting afterwards.
-        let should_show_speedbump = self
-            .model
-            .request_type(ctx)
-            .is_passive_unit_test_suggestion()
-            && AISettings::as_ref(ctx).show_code_suggestion_speedbump();
-        if should_show_speedbump {
-            AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                if let Err(e) = settings
-                    .show_code_suggestion_speedbump
-                    .set_value(false, ctx)
-                {
-                    report_error!(
-                        e.context("Failed to persist 'Show code suggestion speedbump' setting")
-                    );
-                }
-            });
-        }
-
-        let view = ctx.add_typed_action_view(|ctx| {
-            SuggestedUnitTestsView::new(
-                identifiers.clone(),
-                action_id.clone(),
-                query,
-                title,
-                description,
-                should_show_speedbump,
-                ctx,
-            )
-        });
-
-        let action_id_clone = action_id.clone();
-        ctx.subscribe_to_view(&view, move |me, view, event, ctx| {
-            me.handle_suggested_prompt_view_event(&action_id_clone, event, view, ctx);
-        });
-
-        self.unit_tests_suggestions.insert(action_id.clone(), view);
-        BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-            history.set_exchange_hidden_status(
-                self.terminal_view_id,
-                self.client_ids.conversation_id,
-                self.client_ids.client_exchange_id,
-                false,
-                ctx,
-            );
-        });
-        self.terminal_model
-            .lock()
-            .block_list_mut()
-            .mark_rich_content_dirty(ctx.view_id());
-        ctx.notify();
-    }
-
-    fn handle_suggested_prompt_view_event(
-        &mut self,
-        action_id: &AIAgentActionId,
-        event: &SuggestedUnitTestsEvent,
-        view: ViewHandle<SuggestedUnitTestsView>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Short-circuit if this is no longer a suggested prompt we're tracking.
-        if !self.unit_tests_suggestions.contains_key(action_id) {
-            return;
-        }
-
-        match event {
-            SuggestedUnitTestsEvent::Accept => {
-                self.accept_unit_test_suggestion(view, ctx);
-            }
-            SuggestedUnitTestsEvent::Cancel => {
-                self.dismiss_pending_suggested_prompt(ctx);
-            }
-            SuggestedUnitTestsEvent::Blur => {
-                ctx.emit(AIBlockEvent::FocusTerminal);
-            }
-            SuggestedUnitTestsEvent::OpenSettings => {
-                ctx.emit(AIBlockEvent::OpenSettings);
             }
         }
     }
@@ -3382,23 +3027,11 @@ impl AIBlock {
             return;
         }
 
-        if self
-            .model
-            .request_type(ctx)
-            .is_passive_unit_test_suggestion()
-            && self.pending_unit_test_suggestion(ctx).is_some()
-        {
-            ctx.emit(AIBlockEvent::FocusTerminal);
-            return;
-        }
-
         if self.focus_subview_if_necessary(ctx) {
             return;
         }
 
-        let should_focus_block =
-            !self.requested_action_ids.is_empty() || self.keyboard_navigable_buttons.is_some();
-        if should_focus_block {
+        if !self.requested_action_ids.is_empty() {
             // Otherwise, just focus the block.
             ctx.focus_self();
         } else {
@@ -3430,10 +3063,6 @@ impl AIBlock {
         {
             // If there's a blocking MCP tool call, focus that.
             ctx.focus(&mcp_tool.view);
-            did_focus_subview = true;
-        } else if let Some(keyboard_navigable_buttons) = self.keyboard_navigable_buttons.as_ref() {
-            // If there's buttons to take action on, focus those.
-            ctx.focus(keyboard_navigable_buttons);
             did_focus_subview = true;
         }
         did_focus_subview
@@ -3844,8 +3473,6 @@ impl AIBlock {
             for action in action_model.get_pending_actions() {
                 if let Some(edit) = self.requested_edits.get(&action.id) {
                     edit.view.update(ctx, |view, ctx| view.dismiss(ctx));
-                } else if let Some(suggested_prompt) = self.unit_tests_suggestions.get(&action.id) {
-                    suggested_prompt.update(ctx, |view, ctx| view.hide_keybindings(ctx));
                 }
             }
         });
@@ -3942,15 +3569,6 @@ impl AIBlock {
                 }),
                 _ => None,
             })
-    }
-
-    pub fn pending_unit_test_suggestion(
-        &self,
-        app: &AppContext,
-    ) -> Option<&ViewHandle<SuggestedUnitTestsView>> {
-        self.unit_tests_suggestions
-            .values()
-            .find(|view| !view.as_ref(app).is_hidden())
     }
 
     pub fn saved_position_id(&self) -> String {
@@ -4427,9 +4045,6 @@ pub enum AIBlockEvent {
     /// Emitted when a passive code diff should be injected into an agent context.
     ContinuePassiveCodeDiffWithAgent {
         conversation_id: AIConversationId,
-        /// If the auto code diff was generated as a result of a block trigger,
-        /// this is the ID of that block.
-        trigger_block_id: Option<BlockId>,
         auto_resume: bool,
     },
     FocusTerminal,
@@ -4547,14 +4162,6 @@ pub enum AIBlockAction {
     ToggleReferencesSection,
     ToggleAutoexecuteReadonlyCommandsSpeedbumpCheckbox,
     ToggleAutoreadFilesSpeedbumpCheckbox,
-    StartNewConversationButtonClicked {
-        action_id: AIAgentActionId,
-        server_output_id: Option<ServerOutputId>,
-    },
-    ContinueCurrentConversationButtonClicked {
-        action_id: AIAgentActionId,
-        server_output_id: Option<ServerOutputId>,
-    },
     Rated {
         is_positive: bool,
     },
@@ -4846,38 +4453,6 @@ impl TypedActionView for AIBlock {
                         }
                     });
                 }
-            }
-            AIBlockAction::StartNewConversationButtonClicked {
-                action_id,
-                server_output_id: _,
-            } => {
-                self.action_model.update(ctx, |action_model, ctx| {
-                    action_model.suggest_new_conversation_executor(ctx).update(
-                        ctx,
-                        |executor, _| {
-                            executor.complete_suggest_new_conversation_action(
-                                NewConversationDecision::Accept,
-                            );
-                        },
-                    );
-                    action_model.execute_action(action_id, self.client_ids.conversation_id, ctx);
-                });
-            }
-            AIBlockAction::ContinueCurrentConversationButtonClicked {
-                action_id,
-                server_output_id: _,
-            } => {
-                self.action_model.update(ctx, |action_model, ctx| {
-                    action_model.suggest_new_conversation_executor(ctx).update(
-                        ctx,
-                        |executor, _| {
-                            executor.complete_suggest_new_conversation_action(
-                                NewConversationDecision::Reject,
-                            );
-                        },
-                    );
-                    action_model.execute_action(action_id, self.client_ids.conversation_id, ctx);
-                });
             }
             AIBlockAction::Rated { is_positive } => {
                 let _output_id = self.model.server_output_id(ctx);

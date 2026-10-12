@@ -4230,12 +4230,7 @@ impl EditorView {
                     let block = ai_block.as_ref(ctx);
                     // Ctrl+c should dismiss the passive ai block only if the keybindings for the block are not hidden.
                     block.is_passive_conversation()
-                        && (block.find_undismissed_code_diff(ctx).is_some()
-                            || block.pending_unit_test_suggestion(ctx).is_some_and(
-                                |suggested_prompt| {
-                                    !suggested_prompt.as_ref(ctx).is_keybindings_hidden()
-                                },
-                            ))
+                        && block.find_undismissed_code_diff(ctx).is_some()
                 })
         });
 

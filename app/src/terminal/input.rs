@@ -154,8 +154,7 @@ use crate::ai::predict::next_command_model::{
     is_command_valid, is_next_command_enabled,
 };
 use crate::ai::predict::prompt_suggestions::{
-    has_pending_code_or_unit_test_prompt_suggestion,
-    is_accept_prompt_suggestion_bound_to_ctrl_enter,
+    has_pending_passive_code_diff, is_accept_prompt_suggestion_bound_to_ctrl_enter,
 };
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::appearance::{Appearance, AppearanceEvent};
@@ -2140,7 +2139,7 @@ impl Input {
                         // banner, set a flag so the editor's ctrl-enter binding doesn't match
                         // (allowing the terminal-level binding to handle it).
                         if is_accept_prompt_suggestion_bound_to_ctrl_enter(app)
-                            && (has_pending_code_or_unit_test_prompt_suggestion(
+                            && (has_pending_passive_code_diff(
                                 &terminal_model_for_keymap_context.lock(),
                                 app,
                             ) || has_prompt_suggestion_banner_for_keymap

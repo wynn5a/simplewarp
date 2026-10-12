@@ -216,12 +216,6 @@ where
             .unwrap_or(false)
         {
             AIRequestType::Passive(PassiveRequestType::CodeDiff)
-        } else if let Some(trigger) = self
-            .exchange(app)
-            .ok()
-            .and_then(|exchange| exchange.passive_suggestion_trigger())
-        {
-            AIRequestType::from_passive_trigger(trigger)
         } else {
             AIRequestType::Active
         }

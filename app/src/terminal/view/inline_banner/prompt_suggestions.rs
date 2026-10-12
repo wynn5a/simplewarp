@@ -14,13 +14,13 @@ use warpui::{
     ViewContext, ViewHandle,
 };
 
-use crate::ai::agent::PassiveSuggestionTrigger;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::BlocklistAIInputModel;
 use crate::ai::blocklist::prompt::prompt_alert::{PromptAlertState, PromptAlertView};
 use crate::ai::predict::prompt_suggestions::ACCEPT_PROMPT_SUGGESTION_KEYBINDING;
 use crate::appearance::Appearance;
 use crate::settings::InputSettings;
+use crate::terminal::model::BlockId;
 use crate::terminal::view::passive_suggestions::PromptSuggestionResolution;
 use crate::terminal::view::{InputType, PromptSuggestion, TerminalAction};
 use crate::ui_components::blended_colors;
@@ -38,10 +38,8 @@ pub struct PromptSuggestionBannerState {
     pub prompt_suggestion: PromptSuggestion,
     pub accept_button_mouse_state: MouseStateHandle,
     pub llm_warning_learn_more_hyperlink: HighlightedHyperlink,
-    /// The trigger for this suggestion. `None` when the server indicated the
-    /// trigger is not relevant to the suggestion (and should be omitted from
-    /// the result sent back).
-    pub trigger: Option<PassiveSuggestionTrigger>,
+    /// The block whose completion triggered this suggestion.
+    pub trigger_block_id: BlockId,
 
     /// The conversation that this suggestion should be associated with.
     /// Only populated when a prompt suggestion is generated in the agent view.

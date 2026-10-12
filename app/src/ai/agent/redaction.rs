@@ -5,8 +5,7 @@ use super::super::blocklist::block::secret_redaction::{
 };
 use crate::ai::agent::{
     AIAgentActionResultType, AIAgentAttachment, AIAgentContext, AIAgentInput, AnyFileContent,
-    BlockContext, PassiveSuggestionTrigger, RequestCommandOutputResult,
-    TransferShellCommandControlToUserResult,
+    BlockContext, RequestCommandOutputResult, TransferShellCommandControlToUserResult,
 };
 
 /// Redact all detected secrets in-place within the given string.
@@ -56,23 +55,6 @@ pub(crate) fn redact_inputs(inputs: &mut [AIAgentInput]) {
                     redact_secrets(p);
                 }
                 redact_context(Arc::make_mut(context));
-            }
-            AIAgentInput::TriggerPassiveSuggestion {
-                context,
-                attachments,
-                trigger,
-            } => {
-                redact_context(Arc::make_mut(context));
-                attachments.iter_mut().for_each(redact_attachment);
-                if let PassiveSuggestionTrigger::ShellCommandCompleted(shell_trigger) = trigger {
-                    redact_secrets(&mut shell_trigger.executed_shell_command.command);
-                    redact_secrets(&mut shell_trigger.executed_shell_command.output);
-                    for file in shell_trigger.relevant_files.iter_mut() {
-                        if let AnyFileContent::StringContent(content) = &mut file.content {
-                            redact_secrets(content);
-                        }
-                    }
-                }
             }
             AIAgentInput::CodeReview {
                 context,
@@ -176,8 +158,7 @@ pub(crate) fn redact_inputs(inputs: &mut [AIAgentInput]) {
                     }
 
                     // These are effectively flow control and don't contain secrets
-                    AIAgentActionResultType::SuggestNewConversation { .. }
-                    | AIAgentActionResultType::OpenCodeReview
+                    AIAgentActionResultType::OpenCodeReview
                     | AIAgentActionResultType::InitProject => {}
 
                     // Contains only file path/line number information
@@ -187,8 +168,7 @@ pub(crate) fn redact_inputs(inputs: &mut [AIAgentInput]) {
 
                     // TODO: Redact MCP-related results
                     AIAgentActionResultType::CallMCPTool { .. }
-                    | AIAgentActionResultType::ReadMCPResource { .. }
-                    | AIAgentActionResultType::SuggestPrompt { .. } => {}
+                    | AIAgentActionResultType::ReadMCPResource { .. } => {}
 
                     // TransferShellCommandControlToUser result - similar to WriteToLongRunningShellCommand
                     AIAgentActionResultType::TransferShellCommandControlToUser(result) => {

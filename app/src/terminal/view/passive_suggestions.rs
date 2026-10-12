@@ -27,9 +27,6 @@ impl TerminalView {
         if self.resolve_prompt_suggestion_diff(resolution, ctx) {
             return true;
         }
-        if self.resolve_unit_test_suggestion(resolution, ctx) {
-            return true;
-        }
         if self.resolve_prompt_suggestion(resolution, ctx) {
             return true;
         }
@@ -49,26 +46,5 @@ impl TerminalView {
         ai_block.update(ctx, |ai_block, ctx| {
             ai_block.handle_passive_code_diff_action(action, ctx)
         })
-    }
-
-    fn resolve_unit_test_suggestion(
-        &mut self,
-        resolution: PromptSuggestionResolution,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        let Some(ai_block) = self.last_ai_block() else {
-            return false;
-        };
-
-        let handled = match resolution {
-            PromptSuggestionResolution::Accept => ai_block.update(ctx, |ai_block, ctx| {
-                ai_block.accept_pending_unit_test_suggestion(ctx)
-            }),
-            PromptSuggestionResolution::Reject { .. } => ai_block.update(ctx, |ai_block, ctx| {
-                ai_block.dismiss_pending_suggested_prompt(ctx)
-            }),
-        };
-        ctx.notify();
-        handled
     }
 }

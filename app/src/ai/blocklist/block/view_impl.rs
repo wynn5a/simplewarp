@@ -965,7 +965,6 @@ impl View for AIBlock {
                 requested_commands: &self.requested_commands,
                 requested_mcp_tools: &self.requested_mcp_tools,
                 requested_edits: &self.requested_edits,
-                unit_test_suggestions: &self.unit_tests_suggestions,
                 collapsible_block_states: &self.collapsible_block_states,
                 is_selecting_text: self.state_handles.selection_handle.is_selecting(),
                 is_ai_input_enabled: self
@@ -981,7 +980,6 @@ impl View for AIBlock {
                 ),
                 is_references_section_open: self.is_references_section_open,
                 autonomy_setting_speedbump: &self.autonomy_setting_speedbump,
-                keyboard_navigable_buttons: self.keyboard_navigable_buttons.as_ref(),
                 response_rating: &self.response_rating,
                 review_changes_button: &self.review_changes_button,
                 open_all_comments_button: &self.open_all_comments_button,
@@ -1226,7 +1224,6 @@ impl AIAgentInput {
             | AIAgentInput::AutoCodeDiffQuery { .. }
             | AIAgentInput::ResumeConversation { .. }
             | AIAgentInput::InitProjectRules { .. }
-            | AIAgentInput::TriggerPassiveSuggestion { .. }
             | AIAgentInput::CreateNewProject { .. }
             | AIAgentInput::CloneRepository { .. }
             | AIAgentInput::SummarizeConversation { .. }

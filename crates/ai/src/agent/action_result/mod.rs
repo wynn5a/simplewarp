@@ -45,13 +45,6 @@ pub enum AIAgentActionResultType {
     CallMCPTool(CallMCPToolResult),
 
     /// The output of reading a skill.
-
-    /// The output of suggesting a new conversation.
-    SuggestNewConversation(SuggestNewConversationResult),
-
-    /// The result of suggesting a prompt.
-    SuggestPrompt(SuggestPromptResult),
-
     OpenCodeReview,
 
     InitProject,
@@ -114,8 +107,6 @@ impl Display for AIAgentActionResultType {
             AIAgentActionResultType::FileGlobV2(result) => result.fmt(f),
             AIAgentActionResultType::ReadMCPResource(result) => result.fmt(f),
             AIAgentActionResultType::CallMCPTool(result) => result.fmt(f),
-            AIAgentActionResultType::SuggestNewConversation(result) => result.fmt(f),
-            AIAgentActionResultType::SuggestPrompt(result) => result.fmt(f),
             AIAgentActionResultType::ReadShellCommandOutput(result) => result.fmt(f),
             AIAgentActionResultType::InsertReviewComments(result) => result.fmt(f),
             AIAgentActionResultType::TransferShellCommandControlToUser(result) => result.fmt(f),
@@ -238,30 +229,6 @@ impl Display for WriteToLongRunningShellCommandResult {
             ),
             Self::Cancelled => write!(f, "Writing to long-running shell command cancelled"),
             Self::Error(e) => write!(f, "Write to long-running shell command failed: {e:?}"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub enum SuggestNewConversationResult {
-    Accepted { message_id: String },
-    Rejected,
-    Cancelled,
-}
-
-impl Display for SuggestNewConversationResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Accepted { message_id } => {
-                write!(
-                    f,
-                    "Suggest new conversation accepted for message {message_id}"
-                )
-            }
-            Self::Rejected => {
-                write!(f, "Suggest new conversation rejected for message")
-            }
-            Self::Cancelled => write!(f, "Suggest new conversation cancelled"),
         }
     }
 }
@@ -500,23 +467,6 @@ impl Display for RequestFileEditsResult {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum SuggestPromptResult {
-    Accepted { query: String },
-    Cancelled,
-}
-
-impl Display for SuggestPromptResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SuggestPromptResult::Accepted { query } => {
-                write!(f, "Suggest prompt accepted: {query}")
-            }
-            SuggestPromptResult::Cancelled => write!(f, "Suggest prompt cancelled"),
-        }
-    }
-}
-
 impl AIAgentActionResultType {
     /// A user visible description of what the result contains.
     /// Used to display error messages when the content is too large for
@@ -538,10 +488,6 @@ impl AIAgentActionResultType {
             AIAgentActionResultType::FileGlobV2(_) => "The results of the file glob operation",
             AIAgentActionResultType::CallMCPTool(_) => "The MCP tool call",
             AIAgentActionResultType::ReadMCPResource(_) => "The MCP resource",
-            AIAgentActionResultType::SuggestNewConversation(_) => {
-                "Your decision on whether to start a new conversation"
-            }
-            AIAgentActionResultType::SuggestPrompt(_) => "The suggested prompt",
             AIAgentActionResultType::OpenCodeReview => "Open code review",
             AIAgentActionResultType::InsertReviewComments(_) => "Insert code review comments",
             AIAgentActionResultType::InitProject => "Initialize project",
@@ -562,8 +508,6 @@ impl AIAgentActionResultType {
             | Self::FileGlobV2(FileGlobV2Result::Success { .. })
             | Self::ReadMCPResource(ReadMCPResourceResult::Success { .. })
             | Self::CallMCPTool(CallMCPToolResult::Success { .. })
-            | Self::SuggestNewConversation(SuggestNewConversationResult::Accepted { .. })
-            | Self::SuggestPrompt(SuggestPromptResult::Accepted { .. })
             | Self::ReadShellCommandOutput(
                 ReadShellCommandOutputResult::CommandFinished { .. }
                 | ReadShellCommandOutputResult::LongRunningCommandSnapshot { .. },
@@ -611,8 +555,6 @@ impl AIAgentActionResultType {
             | Self::FileGlobV2(FileGlobV2Result::Cancelled)
             | Self::ReadMCPResource(ReadMCPResourceResult::Cancelled)
             | Self::CallMCPTool(CallMCPToolResult::Cancelled)
-            | Self::SuggestNewConversation(SuggestNewConversationResult::Cancelled)
-            | Self::SuggestPrompt(SuggestPromptResult::Cancelled)
             | Self::ReadShellCommandOutput(ReadShellCommandOutputResult::Cancelled)
             | Self::InsertReviewComments(InsertReviewCommentsResult::Cancelled)
             | Self::TransferShellCommandControlToUser(

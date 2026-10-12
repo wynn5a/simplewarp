@@ -6,9 +6,7 @@ use std::collections::HashMap;
 #[allow(unused_imports)]
 use std::path::{Component, Path};
 use std::rc::Rc;
-use std::sync::Arc;
 
-use ai::agent::action::SuggestPromptRequest;
 use ai::agent::file_locations::group_file_contexts_for_display;
 use indexmap::IndexMap;
 use itertools::Itertools;
@@ -16,7 +14,6 @@ use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_color::ColorU;
 use warp_core::channel::ChannelState;
 use warp_core::ui::theme::color::internal_colors;
-use warp_errors::report_error;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::elements::new_scrollable::SingleAxisConfig;
 use warpui::elements::{
@@ -45,14 +42,14 @@ use super::{
 use crate::FeatureFlag;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::comment::ReviewComment;
-use crate::ai::agent::icons::{self, gray_stop_icon, yellow_stop_icon};
+use crate::ai::agent::icons::{self, gray_stop_icon};
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResult, AIAgentActionResultType,
     AIAgentActionType, AIAgentCitation, AIAgentInput, AIAgentOutputMessage,
     AIAgentOutputMessageType, AIAgentText, AIAgentTextSection, CancellationOutcome, MessageId,
     ReadFilesFailedFile, ReadFilesRequest, ReadFilesResult, RequestCommandOutputResult,
-    SubagentCall, SubagentType, SuggestNewConversationResult, SummarizationType,
+    SubagentCall, SubagentType, SummarizationType,
 };
 use crate::ai::blocklist::action_model::AIActionStatus;
 use crate::ai::blocklist::block::model::{AIBlockModel, AIBlockModelHelper, AIBlockOutputStatus};
@@ -76,8 +73,6 @@ use crate::ai::blocklist::inline_action::requested_action::{
     render_requested_action_row, render_requested_action_row_for_text,
 };
 use crate::ai::blocklist::inline_action::requested_command::RequestedCommand;
-use crate::ai::blocklist::inline_action::suggested_unit_tests::SuggestedUnitTestsView;
-use crate::ai::blocklist::keyboard_navigable_buttons::KeyboardNavigableButtons;
 use crate::ai::blocklist::secret_redaction::SecretRedactionState;
 use crate::ai::blocklist::view_util::should_show_failed_output_debug_footer;
 use crate::ai::blocklist::{AIBlockResponseRating, BlocklistAIActionModel};
@@ -118,15 +113,12 @@ pub(crate) struct Props<'a> {
     pub(super) requested_commands: &'a HashMap<AIAgentActionId, RequestedCommand>,
     pub(super) requested_mcp_tools: &'a HashMap<AIAgentActionId, RequestedCommand>,
     pub(super) requested_edits: &'a IndexMap<AIAgentActionId, RequestedEdit>,
-    pub(super) unit_test_suggestions:
-        &'a HashMap<AIAgentActionId, ViewHandle<SuggestedUnitTestsView>>,
     pub(super) collapsible_block_states: &'a HashMap<MessageId, CollapsibleElementState>,
     pub(crate) is_selecting_text: bool,
     pub(super) is_ai_input_enabled: bool,
     pub(crate) find_context: Option<FindContext<'a>>,
     pub(super) is_references_section_open: bool,
     pub(super) autonomy_setting_speedbump: &'a AutonomySettingSpeedbump,
-    pub(super) keyboard_navigable_buttons: Option<&'a ViewHandle<KeyboardNavigableButtons>>,
     pub(super) response_rating: &'a OnceCell<AIBlockResponseRating>,
     pub(super) review_changes_button: &'a ViewHandle<ActionButton>,
     pub(super) open_all_comments_button: &'a ViewHandle<ActionButton>,
@@ -560,40 +552,10 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                 output_items.add_child(rendered_mcp_tool);
                             }
                         }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::SuggestNewConversation { .. },
-                            id,
-                            ..
-                        }) => {
-                            should_render_footer = false;
-                            if let Some(rendered_conversation) =
-                                render_suggest_new_conversation(id, props, appearance, app)
-                            {
-                                output_items.add_child(rendered_conversation);
-                            }
-                        }
                         AIAgentOutputMessageType::CommentsAddressed { comments } => {
                             for comment in comments {
                                 output_items
                                     .add_child(render_comment_addressed_header(comment, app));
-                            }
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action:
-                                AIAgentActionType::SuggestPrompt(
-                                    SuggestPromptRequest::UnitTestsSuggestion { .. },
-                                ),
-                            id,
-                            ..
-                        }) => {
-                            if let Some(unit_test_suggestion_view) =
-                                props.unit_test_suggestions.get(id)
-                                && !unit_test_suggestion_view.as_ref(app).is_hidden()
-                            {
-                                output_items.add_child(render_unit_test_suggestion(
-                                    unit_test_suggestion_view,
-                                    app,
-                                ));
                             }
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
@@ -1526,113 +1488,6 @@ fn render_requested_edits_output_message(
             }
         }
     }
-}
-
-fn render_unit_test_suggestion(
-    suggested_prompt: &ViewHandle<SuggestedUnitTestsView>,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-
-    Container::new(ChildView::new(suggested_prompt).finish())
-        .with_border(Border::all(1.).with_border_fill(theme.surface_2()))
-        .with_horizontal_padding(INLINE_ACTION_HORIZONTAL_PADDING)
-        .with_background_color(blended_colors::fg_overlay_2(theme).into())
-        .with_vertical_padding(CONTENT_ITEM_VERTICAL_MARGIN)
-        .finish()
-}
-
-fn render_suggest_new_conversation(
-    action_id: &AIAgentActionId,
-    props: Props,
-    appearance: &Appearance,
-    app: &AppContext,
-) -> Option<Box<dyn Element>> {
-    let status = props
-        .action_model
-        .as_ref(app)
-        .get_action_status(action_id)
-        .unwrap_or(AIActionStatus::Finished(Arc::new(AIAgentActionResult {
-            result: AIAgentActionResultType::SuggestNewConversation(
-                SuggestNewConversationResult::Cancelled,
-            ),
-            task_id: TaskId::new("fake-id".to_owned()),
-            id: action_id.clone(),
-        })));
-
-    let theme = appearance.theme();
-    if let AIActionStatus::Finished(result) = status {
-        let AIAgentActionResultType::SuggestNewConversation(result) = &result.result else {
-            report_error!(
-                "Unexpected action result type for suggest new conversation action",
-                extra: { "result_type" => ?result.result }
-            );
-            return None;
-        };
-        let (label, status_icon) = match result {
-            SuggestNewConversationResult::Accepted { .. } => (
-                "New conversation started",
-                inline_action_icons::green_check_icon(appearance).finish(),
-            ),
-            SuggestNewConversationResult::Rejected => (
-                "Continuing current conversation",
-                warpui::elements::Icon::new(
-                    Icon::FlipForward.into(),
-                    internal_colors::neutral_6(theme),
-                )
-                .finish(),
-            ),
-            SuggestNewConversationResult::Cancelled => (
-                "New conversation suggestion cancelled",
-                inline_action_icons::cancelled_icon(appearance).finish(),
-            ),
-        };
-        return Some(
-            render_requested_action_row_for_text(
-                label.into(),
-                appearance.ui_font_family(),
-                Some(status_icon),
-                None,
-                false,
-                false,
-                app,
-            )
-            .with_agent_output_item_spacing(app)
-            .with_background_color(blended_colors::neutral_2(theme))
-            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
-            .finish(),
-        );
-    }
-
-    let mut content = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
-
-    let new_conversation_header_text =
-        "It seems like the topic changed. Would you like to make a new conversation?";
-    let new_conversation_header_element = HeaderConfig::new(new_conversation_header_text, app)
-        .with_icon(yellow_stop_icon(appearance))
-        .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(8.)))
-        .render(app);
-    content.add_child(new_conversation_header_element);
-
-    if let Some(menu) = props.keyboard_navigable_buttons {
-        let keyboard_navigable_buttons_container = Container::new(ChildView::new(menu).finish())
-            .with_horizontal_margin(INLINE_ACTION_HORIZONTAL_PADDING)
-            .with_vertical_margin(16.);
-        content.add_child(keyboard_navigable_buttons_container.finish());
-    }
-
-    let border_color = blended_colors::neutral_4(theme);
-
-    Some(
-        content
-            .finish()
-            .with_content_item_spacing()
-            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
-            .with_background_color(theme.background().into_solid())
-            .with_border(Border::all(1.).with_border_fill(border_color))
-            .finish(),
-    )
 }
 
 /// Creates a FormattedText object with inline code formatting for grep queries

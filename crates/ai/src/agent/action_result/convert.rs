@@ -260,57 +260,6 @@ impl TryFrom<RequestFileEditsResult> for api::request::input::tool_call_result::
     }
 }
 
-impl TryFrom<SuggestNewConversationResult> for api::request::input::tool_call_result::Result {
-    type Error = ConvertToAPITypeError;
-
-    fn try_from(result: SuggestNewConversationResult) -> Result<Self, Self::Error> {
-        match result {
-            SuggestNewConversationResult::Accepted { message_id } => Ok(
-                api::request::input::tool_call_result::Result::SuggestNewConversation(
-                    api::SuggestNewConversationResult {
-                        result: Some(api::suggest_new_conversation_result::Result::Accepted(
-                            api::suggest_new_conversation_result::Accepted { message_id },
-                        )),
-                    },
-                ),
-            ),
-            SuggestNewConversationResult::Rejected => Ok(
-                api::request::input::tool_call_result::Result::SuggestNewConversation(
-                    api::SuggestNewConversationResult {
-                        result: Some(api::suggest_new_conversation_result::Result::Rejected(
-                            api::suggest_new_conversation_result::Rejected {},
-                        )),
-                    },
-                ),
-            ),
-            SuggestNewConversationResult::Cancelled => Err(ConvertToAPITypeError::Ignore),
-        }
-    }
-}
-
-impl TryFrom<SuggestPromptResult> for api::request::input::tool_call_result::Result {
-    type Error = ConvertToAPITypeError;
-
-    fn try_from(result: SuggestPromptResult) -> Result<Self, Self::Error> {
-        match result {
-            SuggestPromptResult::Accepted { .. } => Ok(
-                api::request::input::tool_call_result::Result::SuggestPrompt(
-                    api::SuggestPromptResult {
-                        result: Some(api::suggest_prompt_result::Result::Accepted(())),
-                    },
-                ),
-            ),
-            SuggestPromptResult::Cancelled => Ok(
-                api::request::input::tool_call_result::Result::SuggestPrompt(
-                    api::SuggestPromptResult {
-                        result: Some(api::suggest_prompt_result::Result::Rejected(())),
-                    },
-                ),
-            ),
-        }
-    }
-}
-
 impl TryFrom<GrepResult> for api::request::input::tool_call_result::Result {
     type Error = ConvertToAPITypeError;
 

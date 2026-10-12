@@ -8,16 +8,14 @@ use warpui::{AppContext, ViewContext};
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
-    AIAgentExchangeId, AIAgentInput, AIAgentOutput, CancellationReason, PassiveSuggestionTrigger,
-    PassiveSuggestionTriggerType, RenderableAIError, ServerOutputId, Shared,
+    AIAgentExchangeId, AIAgentInput, AIAgentOutput, CancellationReason, RenderableAIError,
+    ServerOutputId, Shared,
 };
 use crate::ai::llms::LLMId;
 
 #[derive(Debug, Clone, Copy)]
 pub enum PassiveRequestType {
-    UnitTestSuggestion,
     CodeDiff,
-    PassiveSuggestion(PassiveSuggestionTriggerType),
 }
 
 /// The type of request that triggered the AI block.
@@ -29,15 +27,6 @@ pub enum AIRequestType {
 }
 
 impl AIRequestType {
-    pub fn from_passive_trigger(trigger: &PassiveSuggestionTrigger) -> Self {
-        match trigger {
-            PassiveSuggestionTrigger::CommandRun | PassiveSuggestionTrigger::FilesChanged => {
-                AIRequestType::Passive(PassiveRequestType::UnitTestSuggestion)
-            }
-            _ => AIRequestType::Passive(PassiveRequestType::PassiveSuggestion(trigger.into())),
-        }
-    }
-
     pub fn is_active(&self) -> bool {
         matches!(self, AIRequestType::Active)
     }
@@ -48,13 +37,6 @@ impl AIRequestType {
 
     pub fn is_passive_code_diff(&self) -> bool {
         matches!(self, AIRequestType::Passive(PassiveRequestType::CodeDiff))
-    }
-
-    pub fn is_passive_unit_test_suggestion(&self) -> bool {
-        matches!(
-            self,
-            AIRequestType::Passive(PassiveRequestType::UnitTestSuggestion)
-        )
     }
 }
 
@@ -209,9 +191,7 @@ pub mod testing {
     use crate::ai::agent::conversation::AIConversationId;
     use crate::ai::agent::{AIAgentInput, AIAgentOutput, ServerOutputId, Shared};
     use crate::ai::blocklist::AIBlock;
-    use crate::ai::blocklist::model::{
-        AIRequestType, PassiveRequestType, PassiveSuggestionTriggerType,
-    };
+    use crate::ai::blocklist::model::{AIRequestType, PassiveRequestType};
     use crate::ai::llms::LLMId;
 
     /// The output shape a [`FakeAIBlockModel`] reports, mirroring the streaming,
@@ -289,13 +269,6 @@ pub mod testing {
         fn request_type(&self, app: &AppContext) -> AIRequestType {
             let inputs = self.inputs_to_render(app);
             if inputs
-                .iter()
-                .any(|input| input.is_passive_suggestion_trigger())
-            {
-                AIRequestType::Passive(PassiveRequestType::PassiveSuggestion(
-                    PassiveSuggestionTriggerType::ShellCommandCompleted,
-                ))
-            } else if inputs
                 .iter()
                 .any(|input| input.auto_code_diff_query().is_some())
             {

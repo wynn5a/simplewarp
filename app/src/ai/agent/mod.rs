@@ -1249,11 +1249,7 @@ impl AIAgentActionResult {
                 | AIAgentActionResultType::Grep(GrepResult::Cancelled)
                 | AIAgentActionResultType::FileGlob(FileGlobResult::Cancelled)
                 | AIAgentActionResultType::ReadMCPResource(ReadMCPResourceResult::Cancelled)
-                | AIAgentActionResultType::CallMCPTool(CallMCPToolResult::Cancelled)
-                | AIAgentActionResultType::SuggestNewConversation(
-                    SuggestNewConversationResult::Cancelled,
-                )
-                | AIAgentActionResultType::SuggestPrompt(SuggestPromptResult::Cancelled),
+                | AIAgentActionResultType::CallMCPTool(CallMCPToolResult::Cancelled),
         )
     }
 }
@@ -2150,83 +2146,11 @@ pub enum StaticQueryType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(clippy::enum_variant_names)]
 pub enum EntrypointType {
-    PromptSuggestion {
-        is_static: bool,
-        is_coding: bool,
-    },
     InitProjectRules,
-    TriggerPassiveSuggestion {
-        trigger: Option<PassiveSuggestionTriggerType>,
-    },
     UserInitiated,
     AgentInitiated,
-    SharedSession,
     CloneRepository,
     ResumeConversation,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[allow(clippy::enum_variant_names)]
-pub enum PassiveSuggestionTriggerType {
-    /// Used for unit test generation.
-    FilesChanged,
-    /// Used for unit test generation.
-    CommandRun,
-
-    ShellCommandCompleted,
-    AgentResponseCompleted,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct ShellCommandCompletedTrigger {
-    // We heap-allocate this because it's large and bloats the size of the
-    // `ShellCommandCompleted` enum variant relative to other variants.
-    pub executed_shell_command: Box<BlockContext>,
-    pub relevant_files: Vec<FileContext>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[allow(clippy::enum_variant_names)]
-pub enum PassiveSuggestionTrigger {
-    FilesChanged,
-    CommandRun,
-    ShellCommandCompleted(ShellCommandCompletedTrigger),
-    AgentResponseCompleted { exchange_id: AIAgentExchangeId },
-}
-
-impl From<&PassiveSuggestionTrigger> for PassiveSuggestionTriggerType {
-    fn from(value: &PassiveSuggestionTrigger) -> Self {
-        match value {
-            PassiveSuggestionTrigger::FilesChanged => PassiveSuggestionTriggerType::FilesChanged,
-            PassiveSuggestionTrigger::CommandRun => PassiveSuggestionTriggerType::CommandRun,
-            PassiveSuggestionTrigger::ShellCommandCompleted(_) => {
-                PassiveSuggestionTriggerType::ShellCommandCompleted
-            }
-            PassiveSuggestionTrigger::AgentResponseCompleted { .. } => {
-                PassiveSuggestionTriggerType::AgentResponseCompleted
-            }
-        }
-    }
-}
-
-impl PassiveSuggestionTrigger {
-    /// Returns the block ID that triggered this passive suggestion
-    /// iff the trigger type was [Self::ShellCommandCompleted].
-    pub fn block_id(&self) -> Option<BlockId> {
-        match self {
-            Self::ShellCommandCompleted(c) => Some(c.executed_shell_command.id.clone()),
-            _ => None,
-        }
-    }
-
-    /// Returns the exchange ID that triggered this passive suggestion
-    /// iff the trigger type was [Self::AgentResponseCompleted].
-    pub fn exchange_id(&self) -> Option<AIAgentExchangeId> {
-        match self {
-            Self::AgentResponseCompleted { exchange_id } => Some(*exchange_id),
-            _ => None,
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -2299,12 +2223,6 @@ pub enum AIAgentInput {
     InitProjectRules {
         context: Arc<[AIAgentContext]>,
         display_query: Option<String>,
-    },
-
-    TriggerPassiveSuggestion {
-        context: Arc<[AIAgentContext]>,
-        attachments: Vec<AIAgentAttachment>,
-        trigger: PassiveSuggestionTrigger,
     },
 
     CreateNewProject {
@@ -2396,7 +2314,6 @@ impl Display for AIAgentInput {
             Self::ActionResult { result, .. } => write!(f, "ActionResult: {result}"),
             Self::ResumeConversation { .. } => write!(f, "ResumeConversation"),
             Self::InitProjectRules { .. } => write!(f, "InitProjectRules"),
-            Self::TriggerPassiveSuggestion { .. } => write!(f, "TriggerSuggestPrompt"),
             Self::CreateNewProject { .. } => write!(f, "CreateNewProject"),
             Self::CloneRepository { .. } => write!(f, "CloneRepository"),
             Self::CodeReview { .. } => write!(f, "CodeReview"),
@@ -2450,20 +2367,8 @@ impl AIAgentInput {
                     Some(format!("/{}", skill.name))
                 }
             }
-            Self::ActionResult {
-                result:
-                    AIAgentActionResult {
-                        result:
-                            AIAgentActionResultType::SuggestPrompt(SuggestPromptResult::Accepted {
-                                query,
-                            }),
-                        ..
-                    },
-                ..
-            } => Some(query.clone()),
             Self::AutoCodeDiffQuery { .. }
             | Self::ActionResult { .. }
-            | Self::TriggerPassiveSuggestion { .. }
             | Self::ResumeConversation { .. }
             | Self::SummarizeConversation { .. } => None,
         }
@@ -2518,38 +2423,12 @@ impl AIAgentInput {
         Some(query.as_str())
     }
 
-    pub fn passive_suggestion_trigger(&self) -> Option<&PassiveSuggestionTrigger> {
-        match self {
-            AIAgentInput::TriggerPassiveSuggestion { trigger, .. } => Some(trigger),
-            _ => None,
-        }
-    }
-
-    pub fn is_passive_suggestion_trigger(&self) -> bool {
-        matches!(self, AIAgentInput::TriggerPassiveSuggestion { .. })
-    }
-
     pub fn is_user_query(&self) -> bool {
         matches!(self, AIAgentInput::UserQuery { .. })
     }
 
-    pub fn prompt_suggestion_result(&self) -> Option<&String> {
-        if let Some(AIAgentActionResult {
-            result: AIAgentActionResultType::SuggestPrompt(SuggestPromptResult::Accepted { query }),
-            ..
-        }) = self.action_result()
-        {
-            Some(query)
-        } else {
-            None
-        }
-    }
-
     pub fn is_passive_request(&self) -> bool {
-        matches!(
-            self,
-            AIAgentInput::AutoCodeDiffQuery { .. } | AIAgentInput::TriggerPassiveSuggestion { .. }
-        )
+        matches!(self, AIAgentInput::AutoCodeDiffQuery { .. })
     }
 
     pub fn context(&self) -> Option<&[AIAgentContext]> {
@@ -2559,7 +2438,6 @@ impl AIAgentInput {
             | Self::AutoCodeDiffQuery { context, .. }
             | Self::ResumeConversation { context, .. }
             | Self::InitProjectRules { context, .. }
-            | Self::TriggerPassiveSuggestion { context, .. }
             | Self::CreateNewProject { context, .. }
             | Self::CloneRepository { context, .. }
             | Self::CodeReview { context, .. }
@@ -2580,7 +2458,6 @@ impl AIAgentInput {
                     referenced_attachments.values().cloned().collect();
                 Some(res)
             }
-            Self::TriggerPassiveSuggestion { attachments, .. } => Some(attachments.clone()),
             Self::ActionResult { .. }
             | Self::AutoCodeDiffQuery { .. }
             | Self::ResumeConversation { .. }
@@ -2760,12 +2637,6 @@ impl AIAgentExchange {
         self.input
             .iter()
             .any(|input| input.auto_code_diff_query().is_some())
-    }
-
-    pub fn passive_suggestion_trigger(&self) -> Option<&PassiveSuggestionTrigger> {
-        self.input
-            .iter()
-            .find_map(|input| input.passive_suggestion_trigger())
     }
 
     pub fn duration(&self) -> Option<TimeDelta> {

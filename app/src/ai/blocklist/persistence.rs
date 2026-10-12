@@ -74,7 +74,6 @@ impl TryFrom<&AIAgentInput> for PersistedAIInputType {
             AIAgentInput::ActionResult { .. }
             | AIAgentInput::ResumeConversation { .. }
             | AIAgentInput::InitProjectRules { .. }
-            | AIAgentInput::TriggerPassiveSuggestion { .. }
             | AIAgentInput::CreateNewProject { .. }
             | AIAgentInput::CloneRepository { .. }
             | AIAgentInput::CodeReview { .. }
@@ -249,10 +248,6 @@ pub(crate) enum PersistedAIAgentActionType {
         name: String,
         input: serde_json::Value,
     },
-    SuggestNewConversation {
-        message_id: String,
-    },
-    SuggestPrompt,
     OpenCodeReview,
     InitProject,
     /// Computer use is gone. These only let rows that hold one still deserialize (the
@@ -261,6 +256,8 @@ pub(crate) enum PersistedAIAgentActionType {
     RequestComputerUse {},
     AskUserQuestion {},
     FetchConversation {},
+    SuggestNewConversation {},
+    SuggestPrompt,
 
     /// Actions that don't need data persisted (since they're restored from conversation tasks) can be mapped to this.
     NotPersisted,
@@ -324,12 +321,6 @@ impl From<&AIAgentActionType> for PersistedAIAgentActionType {
                 name: name.clone(),
                 uri: uri.clone(),
             },
-            AIAgentActionType::SuggestNewConversation { message_id } => {
-                Self::SuggestNewConversation {
-                    message_id: message_id.clone(),
-                }
-            }
-            AIAgentActionType::SuggestPrompt { .. } => Self::SuggestPrompt,
             AIAgentActionType::OpenCodeReview => Self::OpenCodeReview,
             AIAgentActionType::InsertCodeReviewComments { .. } => Self::NotPersisted,
             AIAgentActionType::InitProject => Self::InitProject,
@@ -413,21 +404,15 @@ impl TryFrom<PersistedAIAgentActionType> for AIAgentActionType {
                 name,
                 uri,
             }),
-            PersistedAIAgentActionType::SuggestNewConversation { message_id } => {
-                Ok(Self::SuggestNewConversation {
-                    message_id: message_id.clone(),
-                })
-            }
-            PersistedAIAgentActionType::SuggestPrompt => {
-                Err(anyhow!("Restoration for suggested prompts is unsupported."))
-            }
             PersistedAIAgentActionType::OpenCodeReview => Ok(Self::OpenCodeReview),
             PersistedAIAgentActionType::InitProject => Ok(Self::InitProject),
             PersistedAIAgentActionType::GetRelevantFiles {}
             | PersistedAIAgentActionType::UseComputer {}
             | PersistedAIAgentActionType::RequestComputerUse {}
             | PersistedAIAgentActionType::AskUserQuestion {}
-            | PersistedAIAgentActionType::FetchConversation {} => {
+            | PersistedAIAgentActionType::FetchConversation {}
+            | PersistedAIAgentActionType::SuggestNewConversation {}
+            | PersistedAIAgentActionType::SuggestPrompt => {
                 Err(anyhow!("That tool is no longer supported."))
             }
             PersistedAIAgentActionType::NotPersisted => Err(anyhow!(
