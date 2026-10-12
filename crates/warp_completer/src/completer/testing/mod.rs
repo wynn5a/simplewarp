@@ -1,7 +1,4 @@
 //! This module contains test-only APIs and utils for testing the completions engine.
-#[cfg(feature = "v2")]
-mod v2;
-
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::path::PathBuf;
@@ -264,9 +261,6 @@ pub struct FakeCompletionContext {
     shell_family: Option<ShellFamily>,
 
     command_registry: CommandRegistry,
-
-    #[cfg(feature = "v2")]
-    js_ctx: v2::FakeJsExecutionContext,
 }
 
 impl FakeCompletionContext {
@@ -285,9 +279,6 @@ impl FakeCompletionContext {
             command_case_sensitivity: TopLevelCommandCaseSensitivity::CaseInsensitive,
             escape_char: EscapeChar::Backslash,
             shell_family: None,
-
-            #[cfg(feature = "v2")]
-            js_ctx: v2::FakeJsExecutionContext {},
         }
     }
 
@@ -368,11 +359,6 @@ impl CompletionContext for FakeCompletionContext {
         self.generator_context
             .as_ref()
             .map(|context| context as &dyn GeneratorContext)
-    }
-
-    #[cfg(feature = "v2")]
-    fn js_context(&self) -> Option<&dyn crate::completer::context::JsExecutionContext> {
-        Some(&self.js_ctx)
     }
 
     fn top_level_commands(&self) -> Box<dyn Iterator<Item = &str> + '_> {

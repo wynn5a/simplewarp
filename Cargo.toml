@@ -29,7 +29,6 @@ ai = { path = "crates/ai" }
 asset_cache = { path = "crates/asset_cache" }
 asset_macro = { path = "crates/asset_macro" }
 command = { path = "crates/command" }
-command-signatures-v2 = { path = "crates/command-signatures-v2" }
 cloud_objects = { path = "crates/cloud_objects" }
 cloud_object_persistence = { path = "crates/cloud_object_persistence" }
 cloud_object_models = { path = "crates/cloud_object_models" }
@@ -71,7 +70,6 @@ warp_errors = { path = "crates/warp_errors" }
 warp_features = { path = "crates/warp_features" }
 warp_files = { path = "crates/warp_files" }
 warp_isolation_platform = { path = "crates/isolation_platform" }
-warp_js = { path = "crates/warp_js" }
 warp_logging = { path = "crates/warp_logging" }
 warp_ripgrep = { path = "crates/warp_ripgrep" }
 warp_search_core = { path = "crates/warp_search_core" }
@@ -300,7 +298,6 @@ memo-map = "0.3.1"
 async-recursion = "1.0.0"
 getset = "0.1.1"
 regex = "1.11.1"
-rquickjs = { version = "0.3.1" }
 dirs = "6.0.0"
 rayon = "1.10.0"
 sha2 = "0.10"

@@ -32,12 +32,10 @@ string-offset.workspace = true
 thiserror.workspace = true
 warp_cli.workspace = true
 warp_core.workspace = true
-warp_js = { workspace = true, optional = true }
 warpui_core.workspace = true
 warp_util.workspace = true
 typed-path.workspace = true
 command = { path = "../command" }
-rquickjs = { workspace = true, optional = true }
 warp-command-signatures = {workspace = true, features = ["embed-signatures"]}
 
 [dev-dependencies]
@@ -47,7 +45,5 @@ warp_completer = { path = ".", features = ["test-util"] }
 command = { path = "../command", features = ["test-util"] }
 
 [features]
-# Enables the completions-on-js implementation of the completion engine.
-v2 = ["dep:warp_js", "dep:rquickjs"]
 # Enables utilities for testing.
-test-util = ["warp_js?/test-util"]
+test-util = []

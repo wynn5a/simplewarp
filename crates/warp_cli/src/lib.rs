@@ -203,14 +203,6 @@ pub enum WorkerCommand {
     #[cfg(unix)]
     TerminalServer(TerminalServerArgs),
 
-    /// Run this process as the plugin host rather than the main app.
-    #[cfg(feature = "plugin_host")]
-    #[clap(long_flag = "plugin-host")]
-    PluginHost {
-        #[clap(flatten)]
-        parent: ParentOpts,
-    },
-
     /// Run a headless ripgrep search worker.
     #[clap(hide = true)]
     RipgrepSearch {

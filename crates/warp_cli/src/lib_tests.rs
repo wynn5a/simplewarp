@@ -8,8 +8,6 @@ fn identifies_worker_subcommands() {
     assert!(is_worker_invocation("ripgrep-search"));
     #[cfg(unix)]
     assert!(is_worker_invocation(&terminal_server_subcommand()));
-    #[cfg(feature = "plugin_host")]
-    assert!(is_worker_invocation("--plugin-host"));
     assert!(!is_worker_invocation("--prompt"));
 }
 

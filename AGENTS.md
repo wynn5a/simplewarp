@@ -15,8 +15,7 @@ build can sign in to (or sign up for) a Warp account. The old `WITH_LOCAL_SERVER
 that pointed the client at a local warp-server instance is gone, along with its env vars.
 
 ### Testing
-- `cargo nextest run --no-fail-fast --workspace --exclude command-signatures-v2` - Run tests with nextest
-- `cargo nextest run -p warp_completer --features v2` - Run completer tests with v2 features
+- `cargo nextest run --no-fail-fast --workspace` - Run tests with nextest
 - `cargo test --doc` - Run doc tests
 - `cargo test` - Run standard tests for individual packages
 

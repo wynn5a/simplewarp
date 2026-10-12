@@ -1,5 +1,5 @@
 //! Contains the implementation of internal suggestion generation logic that's coupled to the
-//! legacy command signature struct (`crate::signatures::CommandSignature`).
+//! command signature struct (`crate::signatures::CommandSignature`).
 use std::collections::HashMap;
 
 use crate::completer::engine::{self, CompletionLocation};

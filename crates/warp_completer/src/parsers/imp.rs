@@ -1,5 +1,5 @@
-//! The "legacy" implementation of internal command parsing logic that depends on the legacy:
-//! command signature struct (`warp_command_signatures::Signature`).
+//! Internal command parsing logic that depends on the command signature struct
+//! (`warp_command_signatures::Signature`).
 use itertools::Itertools;
 use warp_command_signatures::{DynamicCompletionData, IsArgumentOptional, Opt, Signature};
 

@@ -1,4 +1,4 @@
-//! Contains the legacy implementation of flag suggestion generation that depends on the legacy
+//! Contains the implementation of flag suggestion generation that depends on the
 //! command signature struct (`warp_command_signatures::Signature`).
 use itertools::Itertools;
 use warp_command_signatures::{FlagStyle, Signature as SpecSignature};

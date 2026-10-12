@@ -4,9 +4,8 @@
 //! corresponding typed "clients" ([`ServiceCaller`]s) which provide a typed interface to call the
 //! services across process boundaries.
 //!
-//! This is intended to initially be used to support communication between the Warp app and
-//! third-party plugins running in a separate "plugin host" process, but is designed generically to
-//! be extended to other use cases (such as the terminal server).
+//! This is used to support communication between the Warp app and helper processes such as the
+//! terminal server.
 //!
 //! This is implemented on top of the `interprocess` crate, which uses Unix Domain Sockets on Unix
 //! platforms and named pipes on Windows as the underlying transport.

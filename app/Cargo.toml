@@ -68,7 +68,6 @@ cloud_object_models.workspace = true
 cloud_objects.workspace = true
 command = { workspace = true }
 command-corrections.workspace = true
-command-signatures-v2 = { workspace = true, optional = true }
 crc.workspace = true
 content_inspector = "0.2.4"
 concat-idents.workspace = true
@@ -208,7 +207,6 @@ warp_completer.workspace = true
 warp_core.workspace = true
 warp_errors = { workspace = true, features = ["reqwest-errors", "tokio-errors"] }
 warp_editor.workspace = true
-warp_js = { workspace = true, optional = true }
 warp_search_core.workspace = true
 warp_util.workspace = true
 warpui = { workspace = true, features = ["schema_gen", "settings_value"] }
@@ -251,7 +249,6 @@ tokio.workspace = true
 tokio-util.workspace = true
 
 notify-debouncer-full.workspace = true
-rquickjs = { workspace = true, optional = true }
 rustls.workspace = true
 syntect = "5.0"
 sysinfo.workspace = true
@@ -380,11 +377,6 @@ agent_mode_debug = []
 async_find = []
 clear_autosuggestion_on_escape = []
 command_predictor = []
-completions_v2 = [
-    "plugin_host",
-    "warp_completer/v2",
-    "dep:command-signatures-v2",
-]
 default = [
     "use_tantivy_search",
     "agent_mode",
@@ -700,10 +692,6 @@ resize_fix = []
 pluggable_notifications = []
 # This enables `read_files` to support images.
 read_image_files = []
-# This feature enables plugin support in Warp. Note that its typically checked
-# directly, rather than via the `FeatureFlag` enum, because its value is
-# required early in the app lifecycle prior to `FeatureFlag` initialization.
-plugin_host = ["dep:rquickjs", "dep:warp_js", "warp_cli/plugin_host"]
 # Enable this feature to automatically perform CPU profiling via pprof.  The
 # generated profile will be written to profile.pb in the current directory.
 # NOTE: This may slow down program execution.

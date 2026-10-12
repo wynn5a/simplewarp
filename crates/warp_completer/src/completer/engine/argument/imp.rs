@@ -1,4 +1,4 @@
-//! Contains the legacy implementation of argument suggestion generation that depends on the legacy
+//! Contains the implementation of argument suggestion generation that depends on the
 //! command signature struct (`warp_command_signatures::Signature`).
 use std::borrow::Cow;
 use std::collections::HashMap;

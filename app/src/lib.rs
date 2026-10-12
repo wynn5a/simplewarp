@@ -40,8 +40,6 @@ mod notification;
 mod palette;
 mod persistence;
 mod platform;
-#[cfg(feature = "plugin_host")]
-mod plugin;
 mod prefix;
 mod profiling;
 mod projects;
@@ -145,8 +143,6 @@ use interval_timer::IntervalTimer;
 use itertools::Itertools;
 #[cfg(feature = "integration_tests")]
 pub use persistence::testing as sqlite_testing;
-#[cfg(feature = "plugin_host")]
-pub use plugin::{PLUGIN_HOST_FLAG, run_plugin_host};
 use server::server_api::ServerApiProvider;
 use settings::{ExtraMetaKeys, PrivacySettings};
 use terminal::input;
@@ -492,8 +488,6 @@ fn run_worker_command(worker: &warp_cli::WorkerCommand) -> Result<()> {
             crate::terminal::local_tty::server::run_terminal_server(args);
             Ok(())
         }
-        #[cfg(feature = "plugin_host")]
-        warp_cli::WorkerCommand::PluginHost { .. } => crate::run_plugin_host(),
         warp_cli::WorkerCommand::RipgrepSearch {
             parent,
             ignore_case,
@@ -795,10 +789,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
         #[cfg(enable_crash_recovery)]
         ctx.add_singleton_model(move |_ctx| crash_recovery);
 
-        #[cfg(feature = "plugin_host")]
-        ctx.add_singleton_model(move |ctx| {
-            plugin::PluginHost::new(ctx).expect("Could not instantiate PluginHost")
-        });
         let app_state = initialize_app(&launch_mode, timer, startup_toml_parse_error, ctx);
 
         launch(ctx, app_state, launch_mode)

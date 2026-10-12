@@ -331,9 +331,12 @@ Rounds landed on master, each verified with format, `clippy --workspace --all-ta
 
 ### Not done yet
 
-- **R2 tail / R6 (decision):** `warp_js` + `plugin_host` + `command-signatures-v2` cannot be
-  separated from `warp_completer`'s `v2` modules (~3.4k lines) and the `completions_v2` flow in
-  AGENTS.md; all of it is local, so it is a per-feature call, not a remote-service deletion.
+- **R2 tail (done, 2026-10-12):** the `completions_v2` flow was never enabled by any build
+  (not in `simplewarp` or `default`), so it was deleted whole: `warp_js`, `command-signatures-v2`
+  (crate and root TS dir), `app/src/plugin/`, `app/src/completer/js.rs`, `WorkerCommand::PluginHost`,
+  the `plugin_host`/`completions_v2`/`warp_completer/v2` features, `rquickjs`, and every `v2` module
+  in `warp_completer` (`legacy` files were renamed to `imp`). CI/presubmit no longer run the v2 test
+  pass.
 - R3: `JsonObjectType` tombstone variants (optional); `AgentConfigSnapshot` dead fields.
 - R4.1 tail: `PromptSuggestionExecutor`, `SuggestNewConversation` executor,
   `SuggestedUnitTestsView` plumbing, `AIAgentInput::TriggerPassiveSuggestion` /
