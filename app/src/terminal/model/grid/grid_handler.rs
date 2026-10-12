@@ -1831,12 +1831,6 @@ impl GridHandler {
         // new block is started as part of the same PTY read, we'll only end up
         // calling the finish byte processing hook on _that_ block.
         self.on_finish_byte_processing(&ansi::ProcessorInput::new(&[]));
-
-        // If we're using flat storage, push as many rows as possible into
-        // flat storage to minimize memory consumption.
-        if FeatureFlag::MaximizeFlatStorage.is_enabled() {
-            self.resize_storage(1, self.columns());
-        }
     }
 
     /// Returns the total number of rows that _precede_ the row containing the

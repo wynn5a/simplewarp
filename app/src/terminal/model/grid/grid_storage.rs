@@ -130,7 +130,7 @@ impl GridStorage {
         _secret_obfuscation_mode: ObfuscateSecrets,
     ) -> GridStorage {
         GridStorage {
-            raw: Storage::with_capacity(rows, columns, FeatureFlag::SequentialStorage.is_enabled()),
+            raw: Storage::with_capacity(rows, columns),
             max_scroll_limit,
             saved_cursor: Cursor::default(),
             cursor: Cursor::default(),
@@ -158,17 +158,14 @@ impl GridStorage {
     ) -> GridStorage {
         let visible_lines = rows.len();
 
-        // If we're not using sequential storage, we store the rows in reverse
-        // order, so reverse them here.
-        if !self.raw.is_sequential() {
-            rows.reverse();
-        }
+        // Storage holds the rows in reverse order.
+        rows.reverse();
 
         let mut grid = GridStorage {
             cursor: self.cursor.clone(),
             max_cursor_point: self.max_cursor_point,
             saved_cursor: self.saved_cursor.clone(),
-            raw: Storage::with_rows(rows, self.raw.is_sequential(), visible_lines),
+            raw: Storage::with_rows(rows, visible_lines),
             columns: self.columns,
             rows: visible_lines,
             max_scroll_limit: self.max_scroll_limit,
@@ -226,12 +223,9 @@ impl GridStorage {
         self.rows = visible_rows;
         self.columns = columns;
 
-        let is_sequential = self.raw.is_sequential();
-        if !is_sequential {
-            rows.reverse();
-        }
+        rows.reverse();
 
-        self.raw = Storage::with_rows(rows, is_sequential, visible_rows);
+        self.raw = Storage::with_rows(rows, visible_rows);
     }
 
     fn increase_scroll_limit(&mut self, count: usize) {

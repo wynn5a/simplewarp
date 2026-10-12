@@ -37,7 +37,6 @@ async-process = { workspace = true }
 command.workspace = true
 simple_logger.workspace = true
 nix = { workspace = true }
-repo_metadata.workspace = true
 sha2 = { workspace = true }
 tokio = { workspace = true, features = ["process"] }
 

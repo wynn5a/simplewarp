@@ -8,9 +8,6 @@ pub mod install;
 mod manager;
 mod model;
 
-#[path = "server_repo_watcher.rs"]
-mod server_repo_watcher;
-
 pub mod servers;
 mod service;
 pub mod supported_servers;

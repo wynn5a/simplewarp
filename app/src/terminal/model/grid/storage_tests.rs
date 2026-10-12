@@ -7,7 +7,7 @@ const MAX_CACHE_SIZE: usize = 1_000;
 
 #[test]
 fn with_capacity() {
-    let storage = Storage::with_capacity(3, 1, false);
+    let storage = Storage::with_capacity(3, 1);
 
     assert_eq!(storage.inner.len(), 3);
     assert_eq!(storage.len, 3);
@@ -27,7 +27,7 @@ fn testing_grid_to_raw_storage_indexing() {
             }
         }
 
-    let mut storage = Storage::with_capacity(10, 1, false);
+    let mut storage = Storage::with_capacity(10, 1);
     assert_index_mapping!(
         storage,
         (0, 9),
@@ -81,7 +81,7 @@ fn testing_grid_to_raw_storage_indexing() {
 fn testing_visible_row_to_grid_indexing() {
     // visible rows are always the bottom (for grids)
     // Here, we have 10 visible rows and an overall grid of 15 rows.
-    let mut storage = Storage::with_capacity(10, 1, false);
+    let mut storage = Storage::with_capacity(10, 1);
     storage.initialize(5, 1);
     assert_eq!(
         storage.to_grid_index(crate::terminal::model::index::VisibleRow(9)),
@@ -95,7 +95,7 @@ fn testing_visible_row_to_grid_indexing() {
 
 #[test]
 fn indexing() {
-    let mut storage = Storage::with_capacity(3, 1, false);
+    let mut storage = Storage::with_capacity(3, 1);
 
     storage[0] = filled_row('0');
     storage[1] = filled_row('1');
@@ -117,13 +117,13 @@ fn indexing() {
 #[test]
 #[should_panic]
 fn indexing_above_inner_len() {
-    let storage = Storage::with_capacity(1, 1, false);
+    let storage = Storage::with_capacity(1, 1);
     let _ = &storage[2];
 }
 
 #[test]
 fn rotate() {
-    let mut storage = Storage::with_capacity(3, 1, false);
+    let mut storage = Storage::with_capacity(3, 1);
     storage.rotate(2);
     assert_eq!(storage.bottom_row, 2);
     storage.shrink_lines(2);
@@ -153,7 +153,6 @@ fn grow_after_zero() {
         bottom_row: 0,
         visible_lines: 3,
         len: 3,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -166,7 +165,6 @@ fn grow_after_zero() {
         bottom_row: 0,
         visible_lines: 4,
         len: 4,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
     expected
@@ -200,7 +198,6 @@ fn grow_before_zero() {
         bottom_row: 1,
         visible_lines: 3,
         len: 3,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -213,7 +210,6 @@ fn grow_before_zero() {
         bottom_row: 0,
         visible_lines: 4,
         len: 4,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
     expected
@@ -244,7 +240,6 @@ fn shrink_before_zero() {
         bottom_row: 1,
         visible_lines: 3,
         len: 3,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -257,7 +252,6 @@ fn shrink_before_zero() {
         bottom_row: 1,
         visible_lines: 2,
         len: 2,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
     assert_eq!(storage.visible_lines, expected.visible_lines);
@@ -284,7 +278,6 @@ fn shrink_after_zero() {
         bottom_row: 0,
         visible_lines: 3,
         len: 3,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -297,7 +290,6 @@ fn shrink_after_zero() {
         bottom_row: 0,
         visible_lines: 2,
         len: 2,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
     assert_eq!(storage.visible_lines, expected.visible_lines);
@@ -337,7 +329,6 @@ fn shrink_before_and_after_zero() {
         bottom_row: 2,
         visible_lines: 6,
         len: 6,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -357,7 +348,6 @@ fn shrink_before_and_after_zero() {
         bottom_row: 2,
         visible_lines: 2,
         len: 2,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
     assert_eq!(storage.visible_lines, expected.visible_lines);
@@ -394,7 +384,6 @@ fn truncate_columns() {
         bottom_row: 0,
         visible_lines: 5,
         len: 5,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -413,7 +402,6 @@ fn truncate_columns() {
         bottom_row: 0,
         visible_lines: 5,
         len: 5,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
     assert_eq!(storage.visible_lines, expected.visible_lines);
@@ -450,7 +438,6 @@ fn truncate_columns_ignore_hidden_rows() {
         bottom_row: 0,
         visible_lines: 4,
         len: 4,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -469,7 +456,6 @@ fn truncate_columns_ignore_hidden_rows() {
         bottom_row: 0,
         visible_lines: 4,
         len: 4,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
     assert_eq!(storage.visible_lines, expected.visible_lines);
@@ -505,7 +491,6 @@ fn truncate_invisible_lines() {
         bottom_row: 2,
         visible_lines: 1,
         len: 2,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -518,7 +503,6 @@ fn truncate_invisible_lines() {
         bottom_row: 0,
         visible_lines: 1,
         len: 2,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
     assert_eq!(storage.visible_lines, expected.visible_lines);
@@ -544,7 +528,6 @@ fn truncate_invisible_lines_beginning() {
         bottom_row: 2,
         visible_lines: 1,
         len: 2,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -557,7 +540,6 @@ fn truncate_invisible_lines_beginning() {
         bottom_row: 0,
         visible_lines: 1,
         len: 2,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
     assert_eq!(storage.visible_lines, expected.visible_lines);
@@ -579,7 +561,6 @@ fn truncate_to_no_invisible_lines_unrotated_buffer() {
         bottom_row: 0,
         visible_lines: 3,
         len: 3,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -590,7 +571,6 @@ fn truncate_to_no_invisible_lines_unrotated_buffer() {
         bottom_row: 0,
         visible_lines: 1,
         len: 1,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -613,7 +593,6 @@ fn truncate_to_no_invisible_lines_rotated_buffer() {
         bottom_row: 1,
         visible_lines: 3,
         len: 3,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -624,7 +603,6 @@ fn truncate_to_no_invisible_lines_rotated_buffer() {
         bottom_row: 0,
         visible_lines: 1,
         len: 1,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -657,7 +635,6 @@ fn truncate_to_with_invisible_lines_rotated_buffer() {
         visible_lines: 2,
         // The grid has 1 hidden line (`inner` has 5 lines).
         len: 4,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -668,7 +645,6 @@ fn truncate_to_with_invisible_lines_rotated_buffer() {
         bottom_row: 0,
         visible_lines: 2,
         len: 2,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -685,7 +661,6 @@ fn truncate_to_with_larger_target_len() {
         bottom_row: 0,
         visible_lines: 1,
         len: 1,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -696,7 +671,6 @@ fn truncate_to_with_larger_target_len() {
         bottom_row: 0,
         visible_lines: 1,
         len: 1,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
     assert_eq!(storage.visible_lines, expected.visible_lines);
@@ -744,7 +718,6 @@ fn shrink_then_grow() {
         bottom_row: 2,
         visible_lines: 0,
         len: 6,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -764,7 +737,6 @@ fn shrink_then_grow() {
         bottom_row: 2,
         visible_lines: 0,
         len: 3,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
     assert_eq!(storage.inner, shrinking_expected.inner);
@@ -787,7 +759,6 @@ fn shrink_then_grow() {
         bottom_row: 2,
         visible_lines: 0,
         len: 4,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -811,7 +782,6 @@ fn initialize() {
         bottom_row: 2,
         visible_lines: 0,
         len: 6,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -835,7 +805,6 @@ fn initialize() {
         bottom_row: 0,
         visible_lines: 0,
         len: 9,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 
@@ -851,7 +820,6 @@ fn rotate_wrap_zero() {
         bottom_row: 2,
         visible_lines: 0,
         len: 3,
-        is_sequential: false,
         max_cache_size: MAX_CACHE_SIZE,
     };
 

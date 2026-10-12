@@ -5990,7 +5990,6 @@ dependencies = [
  "lsp-types",
  "nix 0.26.4",
  "node_runtime",
- "repo_metadata",
  "serde",
  "serde_json",
  "sha2",

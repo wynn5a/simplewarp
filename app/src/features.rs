@@ -23,10 +23,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
     }
 
     flags.extend([
-        #[cfg(feature = "sequential_storage")]
-        FeatureFlag::SequentialStorage,
-        #[cfg(feature = "in_band_generators_ssh")]
-        FeatureFlag::InBandGeneratorsForSSH,
         #[cfg(feature = "run_generators_with_cmd_exe")]
         FeatureFlag::RunGeneratorsWithCmdExe,
         #[cfg(feature = "ligatures")]
@@ -63,7 +59,10 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::WorkflowAliases,
         #[cfg(feature = "ssh_drag_and_drop")]
         FeatureFlag::SshDragAndDrop,
-        #[cfg(feature = "drag_tabs_to_windows")]
+        #[cfg(all(
+            feature = "drag_tabs_to_windows",
+            any(target_os = "macos", target_os = "windows")
+        ))]
         FeatureFlag::DragTabsToWindows,
         #[cfg(feature = "cycle_next_command_suggestion")]
         FeatureFlag::CycleNextCommandSuggestion,
@@ -231,8 +230,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::AsyncFind,
         #[cfg(feature = "list_skills")]
         FeatureFlag::ListSkills,
-        #[cfg(feature = "lsp_as_a_tool")]
-        FeatureFlag::LSPAsATool,
         #[cfg(feature = "inline_profile_selector")]
         FeatureFlag::InlineProfileSelector,
         #[cfg(feature = "bundled_skills")]
@@ -289,6 +286,22 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ProgramStatusProtocol,
         #[cfg(feature = "terminal_lifecycle_recovery")]
         FeatureFlag::TerminalLifecycleRecovery,
+        #[cfg(feature = "code_review_scroll_preservation")]
+        FeatureFlag::CodeReviewScrollPreservation,
+        #[cfg(feature = "command_corrections_history_rule")]
+        FeatureFlag::CommandCorrectionsHistoryRule,
+        #[cfg(feature = "mcp_json_tree_view")]
+        FeatureFlag::McpJsonTreeView,
+        #[cfg(feature = "box_drawing_glyphs")]
+        FeatureFlag::BoxDrawingGlyphs,
+        #[cfg(feature = "remove_autosuggestion_during_tab_completions")]
+        FeatureFlag::RemoveAutosuggestionDuringTabCompletions,
+        #[cfg(feature = "file_glob_v2_warnings")]
+        FeatureFlag::FileGlobV2Warnings,
+        #[cfg(feature = "remember_fast_forward_state")]
+        FeatureFlag::RememberFastForwardState,
+        #[cfg(feature = "toggle_bootstrap_block")]
+        FeatureFlag::ToggleBootstrapBlock,
     ]);
 
     flags
@@ -308,7 +321,8 @@ mod tests {
 
     // SimpleWarp enables these compile-time flags: each is purely local
     // functionality (mermaid editing, IME marked text, iTerm images, the
-    // local Docker sandbox pane, the Tantivy palette search) with no cloud dependency.
+    // local Docker sandbox pane, the Tantivy palette search, terminal and prompt polish)
+    // with no cloud dependency.
     #[test]
     #[cfg(feature = "simplewarp")]
     fn simplewarp_enables_the_local_feature_set() {
@@ -321,6 +335,25 @@ mod tests {
             FeatureFlag::LocalDockerSandbox,
             FeatureFlag::ProgramStatusProtocol,
             FeatureFlag::UseTantivySearch,
+            FeatureFlag::NldPromptHistoryMatch,
+            FeatureFlag::CycleNextCommandSuggestion,
+            FeatureFlag::PartialNextCommandSuggestions,
+            FeatureFlag::ResizeFix,
+            FeatureFlag::SelectablePrompt,
+            FeatureFlag::AgentViewPromptChip,
+            FeatureFlag::AIContextMenuCommands,
+            FeatureFlag::CommandCorrectionsHistoryRule,
+            FeatureFlag::AlacrittySettingsImport,
+            FeatureFlag::McpJsonTreeView,
+            FeatureFlag::BoxDrawingGlyphs,
+            FeatureFlag::RemoveAutosuggestionDuringTabCompletions,
+            FeatureFlag::FileGlobV2Warnings,
+            FeatureFlag::RememberFastForwardState,
+            FeatureFlag::RestorePromptOnInlineModelSelectorSearch,
+            FeatureFlag::ToggleBootstrapBlock,
+            FeatureFlag::CodeReviewScrollPreservation,
+            FeatureFlag::SshDragAndDrop,
+            FeatureFlag::Projects,
         ] {
             assert!(enabled.contains(&flag), "{flag:?} should be enabled");
         }

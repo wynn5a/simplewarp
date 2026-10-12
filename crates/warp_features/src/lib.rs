@@ -8,12 +8,6 @@ pub use overrides::{get_overrides, set_overrides};
 pub enum FeatureFlag {
     DebugMode,
 
-    /// Does grid storage go forwards or backwards
-    SequentialStorage,
-
-    /// If set, generators are executed in-band in all SSH sessions.
-    InBandGeneratorsForSSH,
-
     /// If set, generators are executed using cmd.exe on Windows.
     RunGeneratorsWithCmdExe,
 
@@ -33,10 +27,6 @@ pub enum FeatureFlag {
     /// will be enabled. When the `History` rule is enabled, the command_corrections
     /// lib will use the user's history as a last-ditch effort to find a reasonable correction.
     CommandCorrectionsHistoryRule,
-
-    /// Used to gate an experiment we're doing on WarpDev ONLY
-    /// to get a sense of PTY throughput over time.
-    RecordPtyThroughput,
 
     /// Warp Agent Mode.
     AgentMode,
@@ -104,9 +94,6 @@ pub enum FeatureFlag {
 
     /// Enables cycling through the next command suggestions with down arrow.
     CycleNextCommandSuggestion,
-
-    /// Maximizes data in flat storage to reduce memory usage.
-    MaximizeFlatStorage,
 
     /// Recognizes the OSC 8 hyperlink escape sequence and makes the
     /// linked text Cmd+click-able.
@@ -357,9 +344,6 @@ pub enum FeatureFlag {
     ///
     /// If disabled, the server will send None as the SkillsContext.
     ListSkills,
-
-    /// When enabled, we expose LSP as a tool to the agent
-    LSPAsATool,
 
     /// Enables loading and returning bundled skills in the SkillManager.
     BundledSkills,
