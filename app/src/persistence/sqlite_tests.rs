@@ -3,6 +3,9 @@ use std::sync::Arc;
 
 use ai::workspace::WorkspaceMetadata;
 use chrono::Utc;
+use cloud_object_models::notebook::persistence::upsert_notebooks;
+use cloud_object_persistence::update_object_metadata;
+use cloud_objects::time::ServerTimestamp;
 use diesel::connection::SimpleConnection;
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
@@ -15,7 +18,7 @@ use crate::app_state::{
     AppState, CodePaneSnapShot, CodePaneTabSnapshot, LeafContents, LeafSnapshot, PaneNodeSnapshot,
     TabGroupSnapshot, TabSnapshot, TerminalPaneSnapshot, WindowSnapshot,
 };
-use crate::cloud_object::Owner;
+use crate::cloud_object::{CloudObject, Owner};
 use crate::code::editor_management::CodeSource;
 use crate::notebooks::{CloudNotebook, CloudNotebookModel};
 use crate::persistence::{BlockCompleted, ModelEvent};
@@ -103,6 +106,42 @@ fn sqlite_writer_reuses_codebase_index_metadata_events() {
     let restored = get_all_codebase_index_metadata(&mut conn).expect("metadata should load");
     assert!(restored.is_empty());
 }
+#[test]
+fn update_object_metadata_persists_trash_state() {
+    let tempdir = tempfile::tempdir().expect("tempdir should be created");
+    let mut conn = setup_database(&tempdir.path().join("warp.sqlite")).expect("database setup");
+    let mut notebook = CloudNotebook::new_local(
+        CloudNotebookModel {
+            title: "Hello".to_string(),
+            data: "World".to_string(),
+            ai_document_id: None,
+            conversation_id: None,
+        },
+        Owner::mock_current_user(),
+        None,
+        ClientId::new(),
+    );
+    upsert_notebooks(&mut conn, vec![notebook.clone()]).expect("notebook should save");
+
+    let trashed_ts = ServerTimestamp::from_unix_timestamp_micros(1_700_000_000_000_000)
+        .expect("timestamp should be valid");
+    notebook.metadata_mut().trashed_ts = Some(trashed_ts);
+    update_object_metadata(
+        &mut conn,
+        notebook.hashed_sqlite_id().to_string(),
+        notebook.metadata().clone(),
+    )
+    .expect("metadata should update");
+
+    let restored = read_sqlite_data(&mut conn).expect("persisted data should load");
+    let restored_notebook = restored
+        .cloud_objects
+        .iter()
+        .find(|object| object.sync_id() == notebook.sync_id())
+        .expect("notebook should be restored");
+    assert_eq!(restored_notebook.metadata().trashed_ts, Some(trashed_ts));
+}
+
 #[test]
 fn test_deduplicate_snapshots() {
     let local_notebook = CloudNotebook::new_local(

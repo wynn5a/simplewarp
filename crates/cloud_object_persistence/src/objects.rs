@@ -139,7 +139,7 @@ pub fn upsert_cloud_object(
 ) -> Result<(), Error> {
     use schema::object_metadata::dsl::{
         client_id, current_editor, folder_id, last_editor_uid, metadata_last_updated_ts,
-        object_metadata, revision_ts, server_id, trashed_ts,
+        object_metadata, revision_ts, trashed_ts,
     };
     use schema::object_permissions::dsl::{
         object_metadata_id, object_permissions, subject_id, subject_type, subject_uid,
@@ -155,13 +155,7 @@ pub fn upsert_cloud_object(
         .map(|r| r.timestamp_micros());
 
     let hashed_sync_id = sync_id.sqlite_uid_hash();
-    // Filter to find metadata row.
-    // The diesel types for `filter`s are dependent on the columns being filtered
-    // so while the `hashed_sync_id` will only match one of `client_id` and `server_id`,
-    // we filter on both here for ergonomics.
-    let metadata_filter = object_metadata
-        .filter(client_id.eq(Some(hashed_sync_id.as_str())))
-        .or_filter(server_id.eq(Some(hashed_sync_id.as_str())));
+    let metadata_filter = object_metadata.filter(client_id.eq(Some(hashed_sync_id.as_str())));
     let metadata: Option<ObjectMetadata> = metadata_filter.first(conn).ok();
 
     match metadata {
@@ -281,13 +275,7 @@ pub fn delete_cloud_object(
     use schema::object_metadata::dsl::*;
 
     let hashed_sync_id = sync_id.sqlite_uid_hash();
-    // Filter to find metadata row.
-    // The diesel types for `filter`s are dependent on the columns being filtered
-    // so while the `hashed_sync_id` will only match one of `client_id` and `server_id`,
-    // we filter on both here for ergonomics.
-    let metadata_filter = object_metadata
-        .filter(client_id.eq(Some(hashed_sync_id.as_str())))
-        .or_filter(server_id.eq(Some(hashed_sync_id.as_str())));
+    let metadata_filter = object_metadata.filter(client_id.eq(Some(hashed_sync_id.as_str())));
 
     let metadata: ObjectMetadata = metadata_filter.first(conn)?;
     let object_id = metadata.shareable_object_id;
@@ -372,8 +360,8 @@ pub fn delete_generic_string_object(
     Ok(())
 }
 
-/// SQLite endpoint for the ObjectMetadataUpdated RTC message that updates the metadata ts and other
-/// metadata like current team_id of the object.
+/// Persists the in-memory metadata (trash state, folder, current editor) of the object whose
+/// sqlite uid hash is `hashed_id`.
 pub fn update_object_metadata(
     conn: &mut SqliteConnection,
     hashed_id: String,
@@ -390,7 +378,7 @@ pub fn update_object_metadata(
         .map(|folder_sync_id| folder_sync_id.sqlite_uid_hash());
 
     conn.transaction::<(), Error, _>(|conn| {
-        diesel::update(object_metadata.filter(server_id.eq(Some(hashed_id.as_str()))))
+        diesel::update(object_metadata.filter(client_id.eq(Some(hashed_id.as_str()))))
             .set((
                 metadata_last_updated_ts.eq(metadata_last_updated_at),
                 trashed_ts.eq(trashed_timestamp),
