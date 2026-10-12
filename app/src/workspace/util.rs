@@ -35,36 +35,6 @@ pub(super) struct WorkspaceMouseStates {
     pub(super) title_bar_search_bar: MouseStateHandle,
 }
 
-#[derive(Debug)]
-pub enum WelcomeTipsViewState {
-    Unavailable,
-    Available { is_popup_open: bool },
-}
-
-impl WelcomeTipsViewState {
-    pub fn toggle_popup(&mut self) {
-        if let WelcomeTipsViewState::Available { is_popup_open, .. } = self {
-            *is_popup_open = !*is_popup_open;
-        }
-    }
-
-    pub fn is_popup_open(&self) -> bool {
-        matches!(
-            self,
-            WelcomeTipsViewState::Available {
-                is_popup_open: true,
-                ..
-            }
-        )
-    }
-
-    pub fn close_popup(&mut self) {
-        if let WelcomeTipsViewState::Available { is_popup_open, .. } = self {
-            *is_popup_open = false;
-        }
-    }
-}
-
 // TODO change this struct to enum (as we can only have 1 of them set to true at a time)
 #[derive(Clone, Copy, Debug, Default)]
 pub struct WorkspaceState {

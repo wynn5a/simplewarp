@@ -190,6 +190,18 @@ pub static FORK: LazyLock<StaticCommand> = LazyLock::new(|| {
     }
 });
 
+pub const NEW_WORKTREE: StaticCommand = StaticCommand {
+    name: "/new-worktree",
+    description: "Create a new git worktree in a new tab",
+    kind: SlashCommandKind::NewWorktree,
+    supported_surfaces: SlashCommandSurfaces::GuiOnly {
+        icon_path: "bundled/svg/git-branch-02.svg",
+    },
+    availability: Availability::LOCAL.union(Availability::TERMINAL_VIEW),
+    auto_enter_ai_mode: false,
+    argument: None,
+};
+
 pub const OPEN_CODE_REVIEW: StaticCommand = StaticCommand {
     name: "/open-code-review",
     description: "Open code review",
@@ -589,6 +601,7 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
     }
 
     commands.push(OPEN_CODE_REVIEW);
+    commands.push(NEW_WORKTREE);
 
     if FeatureFlag::CreateProjectFlow.is_enabled() {
         commands.push(CREATE_NEW_PROJECT.clone());

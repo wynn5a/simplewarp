@@ -47,7 +47,6 @@ use crate::terminal::local_tty::spawner::PtySpawner;
 use crate::terminal::program_status::ProgramStatusModel;
 use crate::terminal::resizable_data::ResizableData;
 use crate::test_util::settings::initialize_settings_for_tests;
-use crate::tips::TipsCompleted;
 use crate::undo_close::UndoCloseStack;
 use crate::warp_managed_paths_watcher::WarpManagedPathsWatcher;
 use crate::workflows::local_workflows::LocalWorkflows;
@@ -141,14 +140,12 @@ impl Default for MockOptions {
 }
 
 fn mock_pane_group(app: &mut App, options: MockOptions) -> ViewHandle<PaneGroup> {
-    let tips_model = app.add_model(|_| TipsCompleted::default());
     let (_, pane_group) =
         app.add_window_with_bounds(WindowStyle::NotStealFocus, options.window_bounds, |ctx| {
             let user_default_shell_changed_banner_dismissal_model_handle =
                 ctx.add_model(|_| BannerState::default());
             let block_lists = Arc::new(HashMap::new());
             PaneGroup::new_with_panes_layout(
-                tips_model,
                 user_default_shell_changed_banner_dismissal_model_handle,
                 options.layout,
                 block_lists,
@@ -1027,7 +1024,6 @@ fn test_focused_pane_is_synchronized_with_application_focus() {
             ],
         });
 
-        let tips_model = app.add_model(|_| TipsCompleted::default());
         let (_, root_view) =
             app.add_window_with_bounds(WindowStyle::NotStealFocus, WindowBounds::Default, |ctx| {
                 let user_default_shell_changed_banner_dismissal_model_handle =
@@ -1035,7 +1031,6 @@ fn test_focused_pane_is_synchronized_with_application_focus() {
                 let block_lists = Arc::new(HashMap::new());
                 let pane_group = ctx.add_typed_action_view(|ctx| {
                     PaneGroup::new_with_panes_layout(
-                        tips_model,
                         user_default_shell_changed_banner_dismissal_model_handle,
                         panes_layout,
                         block_lists,

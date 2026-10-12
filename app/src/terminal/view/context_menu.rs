@@ -5,8 +5,7 @@ use super::{
     ClipboardContent, ContextMenuAction, ContextMenuState, ContextMenuType, EntityId, FeatureFlag,
     ForkAIConversationParams, ForkFromExchange, ForkedConversationDestination, MenuItem,
     MenuItemFields, RichContentLink, ServerConversationToken, ServerOutputId, TerminalAction,
-    TerminalModel, TerminalView, Tip, TipHint, Vector2F, ViewContext, fork_label_for_query,
-    mark_feature_used_and_write_to_user_defaults,
+    TerminalModel, TerminalView, Vector2F, ViewContext, fork_label_for_query,
 };
 
 impl TerminalView {
@@ -406,14 +405,5 @@ impl TerminalView {
         self.context_menu_state = Some(menu_state);
         ctx.focus(&self.context_menu);
         ctx.notify();
-
-        self.tips_completed.update(ctx, |tips, ctx| {
-            mark_feature_used_and_write_to_user_defaults(
-                Tip::Hint(TipHint::BlockAction),
-                tips,
-                ctx,
-            );
-            ctx.notify();
-        });
     }
 }

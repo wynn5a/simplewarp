@@ -240,9 +240,6 @@ use crate::terminal::prompt_render_helper::should_render_ps1_prompt;
 use crate::terminal::universal_developer_input::AtContextMenuDisabledReason;
 use crate::terminal::view::CodeDiffAction;
 use crate::terminal::view::inline_banner::PromptSuggestionsView;
-use crate::tips::{
-    Tip, TipAction, TipHint, TipsCompleted, mark_feature_used_and_write_to_user_defaults,
-};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 use crate::user_config::WarpConfig;
@@ -1363,7 +1360,6 @@ impl CanExecuteCommand {
 pub struct Input {
     model: Arc<FairMutex<TerminalModel>>,
     menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
-    tips_completed: ModelHandle<TipsCompleted>,
     editor: ViewHandle<EditorView>,
     input_suggestions: ViewHandle<InputSuggestions>,
     suggestions_mode_model: ModelHandle<InputSuggestionsModeModel>,
@@ -1814,7 +1810,6 @@ impl Input {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         model: Arc<FairMutex<TerminalModel>>,
-        tips_completed: ModelHandle<TipsCompleted>,
         sessions: ModelHandle<Sessions>,
         size_info: SizeInfo,
         menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
@@ -2786,7 +2781,6 @@ impl Input {
             suggestions_mode_model,
             completions_menu_resizable_width: resizable_state_handle(completions_menu_width),
             completions_menu_resizable_height: resizable_state_handle(completions_menu_height),
-            tips_completed,
             editor,
             model,
             sessions,
@@ -5368,15 +5362,6 @@ impl Input {
             }
             // Reset state for whether the user accepted the intelligent autosuggestion.
             self.was_intelligent_autosuggestion_accepted = false;
-
-            self.tips_completed.update(ctx, |tips, ctx| {
-                mark_feature_used_and_write_to_user_defaults(
-                    Tip::Hint(TipHint::CreateBlock),
-                    tips,
-                    ctx,
-                );
-                ctx.notify();
-            });
 
             if !command.is_empty() {
                 IgnoredSuggestionsModel::handle(ctx).update(ctx, |model, ctx| {
@@ -11855,15 +11840,6 @@ impl Input {
                 editor.set_buffer_text(&updated_text, ctx);
             });
         }
-
-        self.tips_completed.update(ctx, |tips_completed, ctx| {
-            mark_feature_used_and_write_to_user_defaults(
-                Tip::Action(TipAction::AiCommandSearch),
-                tips_completed,
-                ctx,
-            );
-            ctx.notify();
-        });
 
         ctx.emit(Event::ShowCommandSearch(Default::default()));
         ctx.notify();

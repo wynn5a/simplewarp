@@ -12,7 +12,6 @@ use super::terminal_manager::BlockSpacing;
 use super::{ShellLaunchState, TerminalManager, TerminalModel, TerminalView};
 use crate::ai::blocklist::SerializedBlockListItem;
 use crate::context_chips::prompt_type::PromptType;
-use crate::pane_group::TerminalViewResources;
 use crate::terminal::view::ConversationRestorationInNewPaneType;
 
 pub struct MockTerminalManager {
@@ -27,7 +26,6 @@ impl MockTerminalManager {
     #[allow(clippy::too_many_arguments)]
     pub fn create_model(
         shell_state: ShellLaunchState,
-        resources: TerminalViewResources,
         restored_blocks: Option<&Vec<SerializedBlockListItem>>,
         conversation_restoration: Option<ConversationRestorationInNewPaneType>,
         initial_size: Vector2F,
@@ -64,7 +62,6 @@ impl MockTerminalManager {
         let view = ctx.add_typed_action_view(window_id, |ctx| {
             let size_info = cloned_model.lock().block_list().size().to_owned();
             TerminalView::new(
-                resources,
                 wakeups_rx,
                 model_events_dispatcher.clone(),
                 cloned_model,
@@ -155,20 +152,13 @@ mod testing {
             app: &mut App,
             restored_blocks: Option<&[SerializedBlockListItem]>,
         ) -> ViewHandle<TerminalView> {
-            let tips_model = app.add_model(|_| Default::default());
-
             let (window_id, _) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
-                let resources = TerminalViewResources {
-                    tips_completed: tips_model,
-                    model_event_sender: None,
-                };
                 let terminal_init = MockTerminalManager::create_model(
                     ShellLaunchState::ShellSpawned {
                         available_shell: None,
                         display_name: ShellName::blank(),
                         shell_type: ShellType::Zsh,
                     },
-                    resources,
                     restored_blocks.map(|blocks| blocks.to_vec()).as_ref(),
                     None,
                     Vector2F::new(7., 10.5),

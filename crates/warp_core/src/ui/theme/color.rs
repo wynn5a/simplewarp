@@ -33,8 +33,6 @@ pub struct CustomDetails {
     pub button_click_opacity: Opacity,      // bg color overlay on the button
 
     pub keybinding_row_overlay_opacity: Opacity,
-
-    pub welcome_tips_completion_overlay_opacity: Opacity,
 }
 
 const DARKER_DETAILS: CustomDetails = CustomDetails {
@@ -49,8 +47,6 @@ const DARKER_DETAILS: CustomDetails = CustomDetails {
     button_click_opacity: 20,
 
     keybinding_row_overlay_opacity: 40,
-
-    welcome_tips_completion_overlay_opacity: 90,
 };
 
 const LIGHTER_DETAILS: CustomDetails = CustomDetails {
@@ -65,8 +61,6 @@ const LIGHTER_DETAILS: CustomDetails = CustomDetails {
     button_click_opacity: 20,
 
     keybinding_row_overlay_opacity: 40,
-
-    welcome_tips_completion_overlay_opacity: 90,
 };
 
 impl CustomDetails {
@@ -208,12 +202,6 @@ impl WarpTheme {
     pub fn keybinding_row_overlay(&self) -> Fill {
         let details = self.details();
         Fill::black().with_opacity(details.keybinding_row_overlay_opacity)
-    }
-
-    pub fn welcome_tips_completion_overlay(&self) -> Fill {
-        let details = self.details();
-        self.surface_2()
-            .with_opacity(details.welcome_tips_completion_overlay_opacity)
     }
 
     pub fn blurred_background_overlay(&self) -> Fill {

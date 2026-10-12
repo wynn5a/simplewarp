@@ -102,8 +102,8 @@ use super::tab_settings::{
     VerticalTabsDisplayGranularity, WorkspaceDecorationVisibility,
 };
 use super::util::{
-    PaneViewLocator, TabMovement, TerminalSessionFallbackBehavior, WelcomeTipsViewState,
-    WorkspaceMouseStates, WorkspaceState,
+    PaneViewLocator, TabMovement, TerminalSessionFallbackBehavior, WorkspaceMouseStates,
+    WorkspaceState,
 };
 use super::{ActiveSession, TabBarDropTargetData, TabBarLocation, WorkspaceRegistry, util};
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
@@ -217,7 +217,6 @@ use crate::tab_configs::remove_confirmation_dialog::{
     RemoveTabConfigConfirmationDialog, RemoveTabConfigConfirmationEvent,
 };
 use crate::tab_configs::session_config_modal::{SessionConfigModal, SessionConfigModalEvent};
-use crate::tab_configs::telemetry::WorktreeBranchNamingMode;
 use crate::tab_configs::{
     NewWorktreeModal, NewWorktreeModalEvent, TabConfigParamsModal, TabConfigParamsModalEvent,
 };
@@ -260,10 +259,6 @@ use crate::themes::theme::{AnsiColorIdentifier, RespectSystemTheme, ThemeKind};
 use crate::themes::theme_chooser::{ThemeChooser, ThemeChooserEvent, ThemeChooserMode};
 use crate::themes::theme_creator_modal::{ThemeCreatorModal, ThemeCreatorModalEvent};
 use crate::themes::theme_deletion_modal::{ThemeDeletionModal, ThemeDeletionModalEvent};
-use crate::tips::{
-    Tip, TipAction, TipsCompleted, TipsEvent, TipsView,
-    mark_feature_used_and_write_to_user_defaults, skip_tips_and_write_to_user_defaults,
-};
 use crate::ui_components::avatar::{Avatar, AvatarContent};
 use crate::ui_components::buttons::{combo_inner_button, icon_button_with_color};
 use crate::ui_components::icons;
@@ -354,8 +349,6 @@ pub(crate) const VERTICAL_TABS_PANEL_POSITION_ID: &str = "workspace_view:vertica
 
 /// The main content area in a workspace. This is directly below the tab bar.
 const TAB_CONTENT_POSITION_ID: &str = "workspace_view:tab_content";
-
-const WELCOME_TIPS_POSITION_ID: &str = "welcome_tips_pill";
 
 /// Shared position ID for the new-session sidecar overlay. Used for both the
 /// `SavePosition` wrapper and the safe-zone rect lookup.
@@ -651,7 +644,6 @@ pub struct Workspace {
     pane_rename_editor: ViewHandle<EditorView>,
     tab_group_rename_editor: ViewHandle<EditorView>,
     vertical_tabs_search_input: ViewHandle<EditorView>,
-    tips_completed: ModelHandle<TipsCompleted>,
     user_default_shell_unsupported_banner_model_handle: ModelHandle<BannerState>,
     tab_right_click_menu: ViewHandle<Menu<WorkspaceAction>>,
     show_tab_right_click_menu: Option<(usize, TabContextMenuAnchor)>,
@@ -678,8 +670,6 @@ pub struct Workspace {
     previous_theme: Option<ThemeKind>,
     pub(crate) current_workspace_state: WorkspaceState,
     previous_workspace_state: Option<WorkspaceState>,
-    welcome_tips_view_state: WelcomeTipsViewState,
-    welcome_tips_view: ViewHandle<TipsView>,
     model_event_sender: Option<mpsc::SyncSender<ModelEvent>>,
     launch_config_save_modal: ModalViewState<LaunchConfigSaveModal>,
     tab_config_params_modal: ModalViewState<Modal<TabConfigParamsModal>>,
@@ -1151,35 +1141,11 @@ impl Workspace {
         modal
     }
 
-    fn build_welcome_tips(
-        tips_completed: ModelHandle<TipsCompleted>,
-        ctx: &mut ViewContext<Self>,
-    ) -> (ViewHandle<TipsView>, WelcomeTipsViewState) {
-        let welcome_tips_view = ctx.add_typed_action_view(|ctx| {
-            TipsView::new(tips_completed.clone(), WELCOME_TIPS_POSITION_ID.into(), ctx)
-        });
-
-        ctx.subscribe_to_view(&welcome_tips_view, move |me, _, event, ctx| {
-            me.handle_welcome_tips_event(event, ctx);
-        });
-        let show_welcome_tips = !tips_completed.as_ref(ctx).skipped_or_completed;
-        let welcome_tips_view_state = if show_welcome_tips {
-            WelcomeTipsViewState::Available {
-                is_popup_open: false,
-            }
-        } else {
-            WelcomeTipsViewState::Unavailable
-        };
-        (welcome_tips_view, welcome_tips_view_state)
-    }
-
     fn build_settings_views(
         _global_resource_handles: GlobalResourceHandles,
-        tips_completed: ModelHandle<TipsCompleted>,
         ctx: &mut ViewContext<Self>,
     ) -> (ViewHandle<SettingsView>, ViewHandle<ThemeChooser>) {
-        let theme_chooser_view =
-            ctx.add_typed_action_view(|ctx| ThemeChooser::new(ctx, tips_completed));
+        let theme_chooser_view = ctx.add_typed_action_view(ThemeChooser::new);
 
         ctx.subscribe_to_view(&theme_chooser_view, |me, _, event, ctx| {
             me.handle_theme_chooser_event(event, ctx);
@@ -1735,14 +1701,6 @@ impl Workspace {
         });
     }
 
-    fn on_tips_model_changed(
-        &mut self,
-        _: ModelHandle<TipsCompleted>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        ctx.notify();
-    }
-
     pub fn new(
         global_resource_handles: GlobalResourceHandles,
         workspace_setting: NewWorkspaceSource,
@@ -1750,7 +1708,6 @@ impl Workspace {
     ) -> Self {
         let GlobalResourceHandles {
             model_event_sender,
-            tips_completed,
             user_default_shell_unsupported_banner_model_handle,
             settings_file_error,
         } = global_resource_handles.clone();
@@ -1819,10 +1776,8 @@ impl Workspace {
             me.handle_window_state_change(event, ctx);
         });
 
-        let (welcome_tips_view, welcome_tips_view_state) =
-            Self::build_welcome_tips(tips_completed.clone(), ctx);
         let (settings_pane, theme_chooser_view) =
-            Self::build_settings_views(global_resource_handles, tips_completed.clone(), ctx);
+            Self::build_settings_views(global_resource_handles, ctx);
 
         let theme_creator_modal = Self::build_theme_creator_modal(ctx);
 
@@ -1875,8 +1830,6 @@ impl Workspace {
         ctx.subscribe_to_view(&right_panel_view, |me, _, event, ctx| {
             me.handle_right_panel_event(event.clone(), ctx);
         });
-
-        ctx.observe(&tips_completed, Workspace::on_tips_model_changed);
 
         ctx.subscribe_to_model(
             &BlocklistAIHistoryModel::handle(ctx),
@@ -1995,7 +1948,6 @@ impl Workspace {
             pane_rename_editor: Self::pane_rename_editor(ctx),
             tab_group_rename_editor: Self::tab_group_rename_editor(ctx),
             vertical_tabs_search_input: Self::vertical_tabs_search_input(ctx),
-            tips_completed,
             user_default_shell_unsupported_banner_model_handle,
             tab_right_click_menu,
             show_tab_right_click_menu: None,
@@ -2003,8 +1955,6 @@ impl Workspace {
             show_tab_selection_right_click_menu: None,
             new_session_dropdown_menu,
             show_new_session_dropdown_menu: None,
-            welcome_tips_view_state,
-            welcome_tips_view,
             palette,
             ctrl_tab_palette,
             mouse_states: Default::default(),
@@ -5276,13 +5226,6 @@ impl Workspace {
         self.read_from_active_terminal_view(app, |terminal| terminal.id())
     }
 
-    /// Retrieves the entity id of the active current active input. This is needed
-    /// by the Welcome Tip View in order to know where to dispatch the actions
-    /// directly from the tip menu.
-    fn active_input_id(&self, app: &AppContext) -> Option<EntityId> {
-        self.read_from_active_terminal_view(app, |terminal| terminal.input().id())
-    }
-
     /// Gets the ID of the active terminal session, if any.
     pub fn active_session_id(&self, ctx: &ViewContext<Self>) -> Option<SessionId> {
         self.get_pane_group_view(self.active_tab_index)
@@ -5869,18 +5812,6 @@ impl Workspace {
     ) -> Option<ViewHandle<TerminalView>> {
         self.active_tab_pane_group()
             .read(ctx, |pane_group, ctx| pane_group.active_session_view(ctx))
-    }
-
-    pub fn toggle_welcome_tips_visiblity(&mut self, ctx: &mut ViewContext<Self>) {
-        self.welcome_tips_view_state.toggle_popup();
-        if self.welcome_tips_view_state.is_popup_open() {
-            let input_id = self.active_input_id(ctx);
-            self.welcome_tips_view.update(ctx, |tips_view, ctx| {
-                tips_view.set_action_target(ctx.window_id(), input_id, ctx)
-            });
-        }
-        ctx.focus(&self.welcome_tips_view);
-        ctx.notify();
     }
 
     /// Find an active session and pre-fill the input editor the Warp executable with the
@@ -7416,11 +7347,6 @@ impl Workspace {
 
         match toml::from_str::<crate::tab_configs::TabConfig>(&toml_content) {
             Ok(tab_config) => {
-                let _naming_mode = if worktree_branch_name.is_some() {
-                    WorktreeBranchNamingMode::Manual
-                } else {
-                    WorktreeBranchNamingMode::Auto
-                };
                 if let Some(name) = worktree_branch_name {
                     // First open with manual name — bypass the params modal.
                     let mut param_values = HashMap::new();
@@ -7553,23 +7479,6 @@ impl Workspace {
             },
             warpui::platform::FilePickerConfiguration::new().folders_only(),
         );
-    }
-
-    fn handle_welcome_tips_event(&mut self, event: &TipsEvent, ctx: &mut ViewContext<Self>) {
-        match event {
-            TipsEvent::Close => {
-                self.welcome_tips_view_state.close_popup();
-                ctx.notify();
-            }
-            TipsEvent::TipsDismissed => {
-                self.tips_completed.update(ctx, |tips_completed, ctx| {
-                    skip_tips_and_write_to_user_defaults(tips_completed, ctx);
-                    ctx.notify();
-                });
-                self.welcome_tips_view_state = WelcomeTipsViewState::Unavailable;
-                ctx.notify();
-            }
-        }
     }
 
     fn is_input_box_visible(&self, app: &AppContext) -> bool {
@@ -7966,15 +7875,6 @@ impl Workspace {
         self.launch_config_save_modal.view.update(ctx, |view, ctx| {
             view.set_snapshot_source(ctx);
             view.reset_editor(ctx); // placeholder and clear editor
-            ctx.notify();
-        });
-
-        self.tips_completed.update(ctx, |tips_completed, ctx| {
-            mark_feature_used_and_write_to_user_defaults(
-                Tip::Action(TipAction::SaveNewLaunchConfig),
-                tips_completed,
-                ctx,
-            );
             ctx.notify();
         });
 
@@ -8687,7 +8587,6 @@ impl Workspace {
         let is_restoration = matches!(panes_layout, PanesLayout::Snapshot(_));
         let new_pane_group = ctx.add_typed_action_view(|ctx| {
             let mut pane_group = PaneGroup::new_with_panes_layout(
-                self.tips_completed.clone(),
                 self.user_default_shell_unsupported_banner_model_handle
                     .clone(),
                 panes_layout,
@@ -8771,7 +8670,6 @@ impl Workspace {
         let new_pane_group = ctx.add_typed_action_view(|ctx| {
             PaneGroup::new_from_existing_pane(
                 pane,
-                self.tips_completed.clone(),
                 self.user_default_shell_unsupported_banner_model_handle
                     .clone(),
                 self.model_event_sender.clone(),
@@ -9266,7 +9164,6 @@ impl Workspace {
         // Create a new tab with loading pane
         let new_pane_group = ctx.add_typed_action_view(|ctx| {
             PaneGroup::new_for_conversation_transcript_viewer_loading(
-                self.tips_completed.clone(),
                 self.user_default_shell_unsupported_banner_model_handle
                     .clone(),
                 self.model_event_sender.clone(),
@@ -10004,30 +9901,12 @@ impl Workspace {
     }
 
     fn open_command_palette(&mut self, ctx: &mut ViewContext<Self>) {
-        self.tips_completed.update(ctx, |tips_completed, ctx| {
-            mark_feature_used_and_write_to_user_defaults(
-                Tip::Action(TipAction::CommandPalette),
-                tips_completed,
-                ctx,
-            );
-            ctx.notify();
-        });
-
         self.palette.update(ctx, |view, ctx| {
             view.reset(ctx);
         });
     }
 
     fn open_files_palette(&mut self, ctx: &mut ViewContext<Self>) {
-        self.tips_completed.update(ctx, |tips_completed, ctx| {
-            mark_feature_used_and_write_to_user_defaults(
-                Tip::Action(TipAction::CommandPalette),
-                tips_completed,
-                ctx,
-            );
-            ctx.notify();
-        });
-
         self.palette.update(ctx, |view, ctx| {
             view.reset(ctx);
             // Reset mixer with correct file data source before setting filter
@@ -11441,16 +11320,6 @@ impl Workspace {
                     menu_positioning,
                     ctx,
                 );
-            });
-
-            let tip = match query_filter {
-                Some(search::QueryFilter::History) => Tip::Action(TipAction::HistorySearch),
-                _ => Tip::Action(TipAction::CommandSearch),
-            };
-
-            self.tips_completed.update(ctx, |tips_completed, ctx| {
-                mark_feature_used_and_write_to_user_defaults(tip, tips_completed, ctx);
-                ctx.notify();
             });
 
             ctx.notify();
@@ -15716,7 +15585,6 @@ impl TypedActionView for Workspace {
                 position,
             } => self.toggle_vertical_tabs_pane_context_menu(*tab_index, *target, *position, ctx),
             ToggleBlockSnackbar => self.toggle_block_snackbar(ctx),
-            ToggleWelcomeTips => self.toggle_welcome_tips_visiblity(ctx),
             CloseTab(index) => self.close_tab(*index, false, true, ctx),
             CloseActiveTab => self.close_tab(self.active_tab_index, false, true, ctx),
             CloseOtherTabs(index) => self.close_other_tabs(*index, false, ctx),
@@ -17548,10 +17416,6 @@ impl View for Workspace {
                     .finish(),
                 positioning,
             );
-        }
-
-        if self.welcome_tips_view_state.is_popup_open() {
-            stack.add_child(ChildView::new(&self.welcome_tips_view).finish());
         }
 
         if self.current_workspace_state.is_palette_open {

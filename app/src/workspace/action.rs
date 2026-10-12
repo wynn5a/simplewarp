@@ -148,7 +148,6 @@ pub enum WorkspaceAction {
         width: f32,
     },
     TabHoverWidthEnd,
-    ToggleWelcomeTips,
     CloseTab(usize),
     CloseActiveTab,
     CloseOtherTabs(usize),
@@ -706,7 +705,6 @@ impl WorkspaceAction {
             | ToggleVerticalTabsShowPrLink
             | ToggleVerticalTabsShowDiffStats
             | ToggleVerticalTabsShowDetailsOnHover
-            | ToggleWelcomeTips
             | CopyTextToClipboard(_)
             | CopyCurrentPath
             | OpenTabConfigRepoPicker { .. }

@@ -5,7 +5,6 @@ use warpui::{Entity, ModelHandle, SingletonEntity};
 use crate::banner::BannerState;
 use crate::persistence::ModelEvent;
 use crate::settings::SettingsFileError;
-use crate::tips::TipsCompleted;
 
 /// Interfaces that allow us to interact with global resources owned by the main
 /// thread that exist throughout the app including Model handles, channel senders,
@@ -19,9 +18,8 @@ use crate::tips::TipsCompleted;
 ///   to mutate it, ModelHandle#read to borrow it, and ViewContext#observe to
 ///   have a view respond to all updates to the model. A lot of things in the
 ///   app will be Models, but they won't necessarily need to be global in the app.
-///   One example of a global model is the tips-completed state: there will only be
-///   one value throughout the app for whether the user has finished the welcome
-///   tips. One example of a model owned by a view is the terminal sessions model:
+///   One example of a global model is the unsupported-default-shell banner state:
+///   there will only be one value throughout the app. One example of a model owned by a view is the terminal sessions model:
 ///   since this is metadata about particular shell sessions that are in a particular
 ///   pane, they belong to that pane's terminal view.
 ///
@@ -50,7 +48,6 @@ use crate::tips::TipsCompleted;
 #[derive(Clone)]
 pub struct GlobalResourceHandles {
     pub model_event_sender: Option<SyncSender<ModelEvent>>,
-    pub tips_completed: ModelHandle<TipsCompleted>,
     pub user_default_shell_unsupported_banner_model_handle: ModelHandle<BannerState>,
     pub settings_file_error: Option<SettingsFileError>,
 }
@@ -60,11 +57,9 @@ impl GlobalResourceHandles {
     pub fn mock(app: &mut warpui::App) -> Self {
         let user_default_shell_unsupported_banner_model_handle =
             app.add_model(|_| BannerState::default());
-        let tips_completed = app.add_model(|_| TipsCompleted::default());
 
         GlobalResourceHandles {
             model_event_sender: None,
-            tips_completed,
             user_default_shell_unsupported_banner_model_handle,
             settings_file_error: None,
         }

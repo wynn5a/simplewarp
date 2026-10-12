@@ -9,14 +9,12 @@ use super::terminal_manager::{TerminalManager, TerminalSurfaceInit, TerminalSurf
 use crate::ai::blocklist::{InputConfig, SerializedBlockListItem};
 use crate::context_chips::current_prompt::CurrentPrompt;
 use crate::context_chips::prompt_type::PromptType;
-use crate::pane_group::TerminalViewResources;
 use crate::persistence::ModelEvent;
 use crate::terminal::view::ConversationRestorationInNewPaneType;
 use crate::terminal::{TerminalManager as TerminalManagerTrait, TerminalModel, TerminalView};
 
 /// Configuration for constructing the GUI terminal surface.
 pub(crate) struct TerminalViewSurfaceConfig {
-    pub(crate) resources: TerminalViewResources,
     pub(crate) model_event_sender: Option<SyncSender<ModelEvent>>,
     pub(crate) window_id: WindowId,
     pub(crate) initial_input_config: Option<InputConfig>,
@@ -72,7 +70,6 @@ pub(crate) fn create_terminal_view_surface(
         inactive_pty_reads_rx,
     } = surface_init;
     let TerminalViewSurfaceConfig {
-        resources,
         model_event_sender,
         window_id,
         initial_input_config,
@@ -88,7 +85,6 @@ pub(crate) fn create_terminal_view_surface(
     let prompt_type = ctx.add_model(|ctx| PromptType::new_dynamic(current_prompt.clone(), ctx));
     let view = ctx.add_typed_action_view(window_id, |ctx| {
         TerminalView::new(
-            resources,
             wakeups_rx,
             model_events,
             model,

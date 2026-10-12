@@ -8,7 +8,6 @@ use warpui::{ModelHandle, ViewContext, ViewHandle};
 
 use super::TerminalView;
 use crate::banner::BannerState;
-use crate::pane_group::TerminalViewResources;
 use crate::persistence::ModelEvent;
 use crate::terminal::TerminalManager;
 use crate::terminal::available_shells::AvailableShell;
@@ -24,7 +23,6 @@ use crate::terminal::local_tty::{
 pub(crate) const DEFAULT_DOCKER_SANDBOX_BASE_IMAGE: Option<&str> = None;
 
 fn create_docker_sandbox_view(
-    resources: TerminalViewResources,
     initial_size: Vector2F,
     model_event_sender: Option<SyncSender<ModelEvent>>,
     #[allow(dead_code)] sbx_path: PathBuf,
@@ -55,7 +53,6 @@ fn create_docker_sandbox_view(
         |surface_init, ctx| {
             create_terminal_view_surface(
                 TerminalViewSurfaceConfig {
-                    resources,
                     model_event_sender: model_event_sender_for_surface,
                     window_id,
                     initial_input_config: None,
@@ -110,14 +107,9 @@ impl TerminalView {
             return;
         };
 
-        let resources = TerminalViewResources {
-            tips_completed: self.tips_completed.clone(),
-            model_event_sender: self.model_event_sender.clone(),
-        };
         let pane_configuration = self.pane_configuration().clone();
 
         let (terminal_view, terminal_manager) = create_docker_sandbox_view(
-            resources,
             self.size_info().pane_size_px(),
             self.model_event_sender.clone(),
             sbx_path,

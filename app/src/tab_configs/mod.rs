@@ -8,7 +8,6 @@ pub mod session_config;
 pub mod session_config_modal;
 pub mod session_config_rendering;
 pub mod tab_config;
-pub mod telemetry;
 
 pub use new_worktree_modal::{NewWorktreeModal, NewWorktreeModalEvent};
 pub use params_modal::{TabConfigParamsModal, TabConfigParamsModalEvent};

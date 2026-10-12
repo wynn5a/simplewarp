@@ -9,8 +9,7 @@ cfg_if::cfg_if! {
         use parking_lot::FairMutex;
         use warpui::{ViewContext};
 
-        use crate::tips::TipsCompleted;
-        use crate::{ai::blocklist::SerializedBlockListItem, pane_group::TerminalViewResources};
+        use crate::ai::blocklist::SerializedBlockListItem;
         use crate::terminal::model::session::Sessions;
         use crate::terminal::model_events::ModelEventDispatcher;
         use crate::terminal::view::WARP_PROMPT_HEIGHT_LINES;
@@ -26,7 +25,6 @@ use super::TerminalView;
 impl TerminalView {
     #[cfg(test)]
     pub fn new_for_test(
-        tips_model: ModelHandle<TipsCompleted>,
         restored_blocks: Option<&[SerializedBlockListItem]>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
@@ -67,11 +65,6 @@ impl TerminalView {
             warp_prompt_height_lines: WARP_PROMPT_HEIGHT_LINES,
         };
 
-        let terminal_view_resources = TerminalViewResources {
-            tips_completed: tips_model,
-            model_event_sender: None,
-        };
-
         let model = Arc::new(FairMutex::new(TerminalModel::new_for_test(
             sizes,
             colors,
@@ -91,7 +84,6 @@ impl TerminalView {
             ctx.add_model(|ctx| PromptType::new_dynamic_from_sessions(sessions.clone(), ctx));
 
         Self::new(
-            terminal_view_resources,
             wakeups_rx,
             model_events,
             model,

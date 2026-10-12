@@ -712,6 +712,9 @@ impl Input {
                     entrypoint: CodeReviewPaneEntrypoint::SlashCommand,
                 });
             }
+            SlashCommandKind::NewWorktree => {
+                ctx.dispatch_typed_action(&WorkspaceAction::OpenNewWorktreeModal);
+            }
             SlashCommandKind::OpenMcpServers => {
                 ctx.dispatch_typed_action(&TerminalAction::OpenViewMCPPane);
             }

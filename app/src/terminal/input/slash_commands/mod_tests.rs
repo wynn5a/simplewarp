@@ -41,6 +41,7 @@ fn commands_have_typed_identities_and_explicit_surface_support() {
             SlashCommandKind::ExportToClipboard,
         ),
         (&*commands::EXPORT_TO_FILE, SlashCommandKind::ExportToFile),
+        (&commands::NEW_WORKTREE, SlashCommandKind::NewWorktree),
     ] {
         assert_eq!(
             command.kind, expected,

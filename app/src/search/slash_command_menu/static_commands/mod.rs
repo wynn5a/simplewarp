@@ -56,6 +56,7 @@ pub enum SlashCommandKind {
     SetTabColor,
     Fork,
     OpenCodeReview,
+    NewWorktree,
     Init,
     OpenProjectRules,
     OpenMcpServers,

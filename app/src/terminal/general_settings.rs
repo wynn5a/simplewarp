@@ -1,10 +1,7 @@
-use std::collections::HashSet;
-
 use warp_core::settings::SupportedPlatforms;
 use warp_core::settings::macros::define_settings_group;
 
 use crate::banner::BannerState;
-use crate::tips::Tip;
 
 define_settings_group!(GeneralSettings, settings: [
     show_warning_before_quitting: ShowWarningBeforeQuitting {
@@ -69,20 +66,6 @@ define_settings_group!(GeneralSettings, settings: [
         private: false,
         toml_path: "general.link_tooltip",
         description: "Whether to show a tooltip when hovering over links.",
-    },
-    welcome_tips_features_used: WelcomeTipsFeaturesUsed {
-        type: HashSet<Tip>,
-        default: HashSet::new(),
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    },
-    welcome_tips_skipped_or_completed: WelcomeTipsCompleted {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
     },
     user_default_shell_unsupported_banner_state: UserDefaultShellUnsupportedBannerState {
         type: BannerState,
