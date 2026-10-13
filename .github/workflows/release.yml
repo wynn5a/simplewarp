@@ -107,6 +107,10 @@ jobs:
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
       - name: Build
         shell: bash
+        env:
+          CARGO_BIN_NAME: stable
+          WARP_APP_NAME: SimpleWarp
+          GIT_RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: cargo build --release --no-default-features --features simplewarp --bin simplewarp
       - name: Package
         shell: pwsh
