@@ -7,41 +7,29 @@
 # This deliberately does NOT use script/bundle: that pipeline builds the
 # `warp-oss` bin with its own bundle id, dock tile plugin and dmg.
 #
-# Usage: script/bundle_simplewarp [--debug] [--universal]
+# Usage: script/bundle_simplewarp [--debug]
 
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 PROFILE=release
 CARGO_ARGS=(--release)
-UNIVERSAL=0
 for arg in "$@"; do
   case "$arg" in
     --debug)
       PROFILE=debug
       CARGO_ARGS=()
       ;;
-    --universal) UNIVERSAL=1 ;;
     *)
       echo "Unknown option: $arg" >&2
-      echo "Usage: $0 [--debug] [--universal]" >&2
+      echo "Usage: $0 [--debug]" >&2
       exit 1
       ;;
   esac
 done
 VERSION="${SIMPLEWARP_VERSION:-0.1.0}"
 
-if [[ "$UNIVERSAL" == 1 ]]; then
-  rustup target add aarch64-apple-darwin x86_64-apple-darwin
-  for target in aarch64-apple-darwin x86_64-apple-darwin; do
-    cargo build "${CARGO_ARGS[@]}" --target "$target" --no-default-features --features simplewarp --bin simplewarp
-  done
-  lipo -create -output "target/$PROFILE/simplewarp" \
-    "target/aarch64-apple-darwin/$PROFILE/simplewarp" \
-    "target/x86_64-apple-darwin/$PROFILE/simplewarp"
-else
-  cargo build "${CARGO_ARGS[@]}" --no-default-features --features simplewarp --bin simplewarp
-fi
+cargo build "${CARGO_ARGS[@]}" --no-default-features --features simplewarp --bin simplewarp
 
 APP="target/$PROFILE/SimpleWarp.app"
 rm -rf "$APP"

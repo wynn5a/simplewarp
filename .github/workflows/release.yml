@@ -28,7 +28,7 @@ env:
 
 jobs:
   macos:
-    name: Build macOS (universal)
+    name: Build macOS (aarch64)
     runs-on: macos-26
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -47,16 +47,16 @@ jobs:
         shell: bash
         env:
           SIMPLEWARP_VERSION: ${{ steps.version.outputs.version }}
-        run: script/bundle_simplewarp --universal
+        run: script/bundle_simplewarp
       - name: Zip app bundle
         shell: bash
         run: |
           ditto -c -k --sequesterRsrc --keepParent target/release/SimpleWarp.app \
-            "SimpleWarp-${{ steps.version.outputs.version }}-macos-universal.zip"
+            "SimpleWarp-${{ steps.version.outputs.version }}-macos-aarch64.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: SimpleWarp-*-macos-universal.zip
+          path: SimpleWarp-*-macos-aarch64.zip
           if-no-files-found: error
 
   linux:
