@@ -1,0 +1,155 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.1.0); required when dispatching from a branch'
+        required: false
+        type: string
+      dry_run:
+        description: 'Build artifacts only, do not create a release'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  macos:
+    name: Build macOS (universal)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: ./.github/actions/prepare_environment
+        with:
+          target_os: macos
+          is_self_hosted: 'false'
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+      - name: Build SimpleWarp.app
+        shell: bash
+        env:
+          SIMPLEWARP_VERSION: ${{ steps.version.outputs.version }}
+        run: script/bundle_simplewarp --universal
+      - name: Zip app bundle
+        shell: bash
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent target/release/SimpleWarp.app \
+            "SimpleWarp-${{ steps.version.outputs.version }}-macos-universal.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: SimpleWarp-*-macos-universal.zip
+          if-no-files-found: error
+
+  linux:
+    name: Build Linux (x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: ./.github/actions/prepare_environment
+        with:
+          target_os: linux
+          is_self_hosted: 'false'
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+      - name: Build
+        shell: bash
+        run: cargo build --release --no-default-features --features simplewarp --bin simplewarp
+      - name: Package
+        shell: bash
+        run: |
+          strip target/release/simplewarp
+          tar -czf "SimpleWarp-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz" -C target/release simplewarp
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: SimpleWarp-*-linux-x86_64.tar.gz
+          if-no-files-found: error
+
+  windows:
+    name: Build Windows (x86_64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: ./.github/actions/prepare_environment
+        with:
+          target_os: windows
+          is_self_hosted: 'false'
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+      - name: Build
+        shell: bash
+        run: cargo build --release --no-default-features --features simplewarp --bin simplewarp
+      - name: Package
+        shell: pwsh
+        run: |
+          $v = "${{ steps.version.outputs.version }}"
+          Compress-Archive -Path target/release/simplewarp.exe -DestinationPath "SimpleWarp-$v-windows-x86_64.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: SimpleWarp-*-windows-x86_64.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: [macos, linux, windows]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      DRY_RUN: ${{ github.event.inputs.dry_run == 'true' }}
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: List artifacts
+        shell: bash
+        run: ls -la dist/
+      - name: Validate tag
+        if: env.DRY_RUN != 'true'
+        shell: bash
+        run: |
+          if [[ "$TAG" != v* ]]; then
+            echo "::error::Refusing to release: '$TAG' is not a v-prefixed tag. Pass the 'tag' input or push a tag."
+            exit 1
+          fi
+      - name: Create or update release
+        if: env.DRY_RUN != 'true'
+        shell: bash
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --title "SimpleWarp $TAG" --generate-notes
+          fi

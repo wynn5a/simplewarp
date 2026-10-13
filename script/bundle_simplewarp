@@ -7,19 +7,41 @@
 # This deliberately does NOT use script/bundle: that pipeline builds the
 # `warp-oss` bin with its own bundle id, dock tile plugin and dmg.
 #
-# Usage: script/bundle_simplewarp [--debug]
+# Usage: script/bundle_simplewarp [--debug] [--universal]
 
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 PROFILE=release
 CARGO_ARGS=(--release)
-if [[ "${1:-}" == "--debug" ]]; then
-  PROFILE=debug
-  CARGO_ARGS=()
-fi
+UNIVERSAL=0
+for arg in "$@"; do
+  case "$arg" in
+    --debug)
+      PROFILE=debug
+      CARGO_ARGS=()
+      ;;
+    --universal) UNIVERSAL=1 ;;
+    *)
+      echo "Unknown option: $arg" >&2
+      echo "Usage: $0 [--debug] [--universal]" >&2
+      exit 1
+      ;;
+  esac
+done
+VERSION="${SIMPLEWARP_VERSION:-0.1.0}"
 
-cargo build "${CARGO_ARGS[@]}" --no-default-features --features simplewarp --bin simplewarp
+if [[ "$UNIVERSAL" == 1 ]]; then
+  rustup target add aarch64-apple-darwin x86_64-apple-darwin
+  for target in aarch64-apple-darwin x86_64-apple-darwin; do
+    cargo build "${CARGO_ARGS[@]}" --target "$target" --no-default-features --features simplewarp --bin simplewarp
+  done
+  lipo -create -output "target/$PROFILE/simplewarp" \
+    "target/aarch64-apple-darwin/$PROFILE/simplewarp" \
+    "target/x86_64-apple-darwin/$PROFILE/simplewarp"
+else
+  cargo build "${CARGO_ARGS[@]}" --no-default-features --features simplewarp --bin simplewarp
+fi
 
 APP="target/$PROFILE/SimpleWarp.app"
 rm -rf "$APP"
@@ -28,7 +50,7 @@ cp "target/$PROFILE/simplewarp" "$APP/Contents/MacOS/simplewarp"
 
 # Keep in sync with the embedded Info.plist in app/src/bin/simplewarp.rs, plus
 # the CFBundleIconFile/CFBundleIconName keys script/compile_icon needs.
-cat > "$APP/Contents/Info.plist" <<'EOF'
+cat > "$APP/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -48,7 +70,7 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
 <key>CFBundlePackageType</key>
 <string>APPL</string>
 <key>CFBundleShortVersionString</key>
-<string>0.1.0</string>
+<string>${VERSION}</string>
 <key>LSApplicationCategoryType</key>
 <string>public.app-category.developer-tools</string>
 <key>NSHighResolutionCapable</key>
