@@ -52,11 +52,6 @@ pub async fn generate_multi_agent_output(
         redaction::redact_inputs(&mut params.input);
     }
 
-    let api_keys = api_keys_with_warp_credit_fallback_setting(
-        params.api_keys,
-        params.allow_use_of_warp_credits,
-    );
-
     let mut input = convert_input(params.input)?;
     add_global_rules(&mut input, &params.global_rules);
 
@@ -75,37 +70,25 @@ pub async fn generate_multi_agent_output(
             // Warp Drive context fell with the drive surface; the wire field
             // belongs to the external API contract and can never be enabled.
             warp_drive_context_enabled: false,
-            web_context_retrieval_enabled: true,
             supports_parallel_tool_calls: true,
-            use_anthropic_text_editor_tools: false,
-            planning_enabled: params.planning_enabled,
             supports_create_files: true,
             supported_tools: supported_tools.into_iter().map(Into::into).collect(),
             supports_long_running_commands: true,
             should_preserve_file_content_in_history: true,
-            supports_todos_ui: false,
             supports_linked_code_blocks: FeatureFlag::LinkedCodeBlocks.is_enabled(),
-            supports_started_child_task_message: true,
-            supports_suggest_prompt: true,
             supports_read_image_files: FeatureFlag::ReadImageFiles.is_enabled(),
             supports_reasoning_message: true,
-            api_keys,
+            api_keys: params.api_keys,
             autonomy_level: params.autonomy_level.into(),
             isolation_level: params.isolation_level.into(),
-            web_search_enabled: false,
             supported_cli_agent_tools: supported_cli_agent_tools
                 .into_iter()
                 .map(Into::into)
                 .collect(),
             supports_v4a_file_diffs: FeatureFlag::V4AFileDiffs.is_enabled(),
-            supports_summarization_via_message_replacement: false,
             supports_bundled_skills: FeatureFlag::BundledSkills.is_enabled(),
-            supports_research_agent: params.research_agent_enabled,
-            supports_orchestration_v2: false,
-            supports_orchestration_runners: false,
-            supports_background_computer_use: false,
             custom_model_providers: params.custom_model_providers,
-            custom_model_routers: None,
+            ..Default::default()
         }),
         metadata: Some(api::request::Metadata {
             logging: logging_metadata,
@@ -210,41 +193,15 @@ fn convert_local_inference_error(error: local_inference::Error) -> Arc<AIApiErro
     Arc::new(error)
 }
 
-fn api_keys_with_warp_credit_fallback_setting(
-    api_keys: Option<api::request::settings::ApiKeys>,
-    allow_use_of_warp_credits: bool,
-) -> Option<api::request::settings::ApiKeys> {
-    match api_keys {
-        Some(mut api_keys) => {
-            api_keys.allow_use_of_warp_credits = allow_use_of_warp_credits;
-            Some(api_keys)
-        }
-        None if allow_use_of_warp_credits => Some(api::request::settings::ApiKeys {
-            allow_use_of_warp_credits: true,
-            ..Default::default()
-        }),
-        None => None,
-    }
-}
-
 fn get_supported_tools(params: &RequestParams) -> Vec<api::ToolType> {
     let mut supported_tools = vec![
         api::ToolType::Grep,
-        api::ToolType::FileGlob,
         api::ToolType::FileGlobV2,
         api::ToolType::ReadMcpResource,
         api::ToolType::CallMcpTool,
-        api::ToolType::InitProject,
-        api::ToolType::OpenCodeReview,
         api::ToolType::RunShellCommand,
-        api::ToolType::SuggestNewConversation,
-        api::ToolType::Subagent,
         api::ToolType::WriteToLongRunningShellCommand,
         api::ToolType::ReadShellCommandOutput,
-        api::ToolType::ReadDocuments,
-        api::ToolType::CreateDocuments,
-        api::ToolType::EditDocuments,
-        api::ToolType::SuggestPrompt,
     ];
 
     match params.session_context.session_type() {
@@ -253,8 +210,6 @@ fn get_supported_tools(params: &RequestParams) -> Vec<api::ToolType> {
         }
         Some(SessionType::WarpifiedRemote) => {}
     }
-
-    supported_tools.push(api::ToolType::InsertReviewComments);
 
     supported_tools
 }

@@ -19,7 +19,6 @@ use mcp::TemplatableMCPServerInfo;
 use serde::Serialize;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_core::features::FeatureFlag;
-use warp_core::user_preferences::GetUserPreferences;
 use warpui::{AppContext, EntityId, SingletonEntity as _};
 
 use super::{AIAgentInput, MCPContext, MCPServer, RequestMetadata, ServerOutputId};
@@ -85,7 +84,6 @@ pub struct RequestParams {
     /// from here.
     pub global_rules: Vec<(String, String)>,
     pub mcp_context: Option<MCPContext>,
-    pub planning_enabled: bool,
     should_redact_secrets: bool,
 
     /// User-provided API keys for AI providers (BYO API Key).
@@ -93,10 +91,8 @@ pub struct RequestParams {
     /// User-provided custom model providers (BYOK endpoints).
     pub custom_model_providers:
         Option<warp_multi_agent_api::request::settings::CustomModelProviders>,
-    pub allow_use_of_warp_credits: bool,
     pub autonomy_level: warp_multi_agent_api::AutonomyLevel,
     pub isolation_level: warp_multi_agent_api::IsolationLevel,
-    pub research_agent_enabled: bool,
     pub supported_tools_override: Option<Vec<warp_multi_agent_api::ToolType>>,
 }
 
@@ -149,14 +145,11 @@ impl RequestParams {
             is_memory_enabled: false,
             global_rules: vec![],
             mcp_context: None,
-            planning_enabled: false,
             should_redact_secrets: false,
             api_keys: None,
             custom_model_providers: None,
-            allow_use_of_warp_credits: false,
             autonomy_level: Default::default(),
             isolation_level: Default::default(),
-            research_agent_enabled: false,
             supported_tools_override: None,
         }
     }
@@ -261,14 +254,6 @@ impl RequestParams {
             warp_multi_agent_api::IsolationLevel::None
         };
 
-        let research_agent_enabled = app
-            .private_user_preferences()
-            .read_value("ResearchAgentEnabled")
-            .ok()
-            .flatten()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or_default();
-
         Self {
             input: request_input.all_inputs().cloned().collect(),
             conversation_token: conversation.server_conversation_token,
@@ -283,16 +268,11 @@ impl RequestParams {
             is_memory_enabled,
             global_rules,
             mcp_context,
-            planning_enabled: true,
             should_redact_secrets,
             api_keys,
             custom_model_providers,
-            // Warp credits belong to a Warp account; this fork has none, so credit
-            // fallback can never turn on.
-            allow_use_of_warp_credits: false,
             autonomy_level,
             isolation_level,
-            research_agent_enabled,
             supported_tools_override: request_input.supported_tools_override.clone(),
         }
     }
