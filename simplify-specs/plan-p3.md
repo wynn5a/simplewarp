@@ -352,5 +352,6 @@ Rounds landed on master, each verified with format, `clippy --workspace --all-ta
 - R4.8 and R4.10: done (see §10).
 - `mcp_context` Phase 3b and the constant-false flags: done (see the two rows above). The LSP crate
   still carries the unused `did_change_watched_files` / `WatchedFilesRegistry` path that only the
-  deleted repo watcher fed; it can go with a later LSP pass. No live app launch or integration
-  suite was run for the newly enabled flags; the unit suites pass.
+  deleted repo watcher fed; it can go with a later LSP pass. The newly enabled flags, MCP, `/new-worktree`
+  and vim-mode Ctrl+C were tried by hand in a live `simplewarp` build on 2026-10-13 and worked; the
+  integration suite has not been run.
