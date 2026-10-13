@@ -21,7 +21,7 @@ use crate::config::{LanguageId, lsp_uri_to_path};
 use crate::supported_servers::LSPServerType;
 use crate::types::{
     DefinitionLocation, DocumentVersion, HoverResult, Location, ReferenceLocation,
-    TextDocumentContentChangeEvent, TextEdit, WatchedFileChangeEvent,
+    TextDocumentContentChangeEvent, TextEdit,
 };
 use crate::{
     LspServerConfig, LspServerLogLevel, LspService, LspServiceInitializationResult,
@@ -478,11 +478,6 @@ impl LspServerModel {
                 .did_change(&path, version.as_i32(), deltas)
                 .await
         })
-    }
-
-    pub fn did_change_watched_files(&self, events: Vec<WatchedFileChangeEvent>) -> Result<()> {
-        let service = self.service()?;
-        service.workspace_watched_files_changed(events)
     }
 
     pub fn goto_definition(

@@ -5,10 +5,10 @@ use std::sync::Arc;
 use anyhow::Result;
 use command::r#async::Command;
 use lsp_types::{
-    ClientCapabilities, ClientInfo, DidChangeWatchedFilesClientCapabilities, GotoCapability,
-    HoverClientCapabilities, InitializeParams, MarkupKind, PublishDiagnosticsClientCapabilities,
-    TextDocumentClientCapabilities, TextDocumentSyncClientCapabilities, Uri,
-    WindowClientCapabilities, WorkDoneProgressParams, WorkspaceClientCapabilities, WorkspaceFolder,
+    ClientCapabilities, ClientInfo, GotoCapability, HoverClientCapabilities, InitializeParams,
+    MarkupKind, PublishDiagnosticsClientCapabilities, TextDocumentClientCapabilities,
+    TextDocumentSyncClientCapabilities, Uri, WindowClientCapabilities, WorkDoneProgressParams,
+    WorkspaceClientCapabilities, WorkspaceFolder,
 };
 
 use crate::supported_servers::LSPServerType;
@@ -270,10 +270,6 @@ fn path_to_workspace_folder(path: &Path) -> Result<WorkspaceFolder> {
 fn default_client_capabilities() -> ClientCapabilities {
     ClientCapabilities {
         workspace: Some(WorkspaceClientCapabilities {
-            did_change_watched_files: Option::from(DidChangeWatchedFilesClientCapabilities {
-                dynamic_registration: Some(true),
-                relative_pattern_support: Some(true),
-            }),
             ..Default::default()
         }),
         window: Some(WindowClientCapabilities {

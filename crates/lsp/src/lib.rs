@@ -66,8 +66,6 @@ pub async fn spawn_lsp_service(
     executor: Arc<Background>,
     logger: Option<SimpleLogger>,
 ) -> Result<LspServiceInitializationResult> {
-    let workspace_root = config.initial_workspace().to_path_buf();
-
     let resolved = match config.command_and_params().await {
         Ok(resolved) => resolved,
         Err(e) => {
@@ -99,7 +97,7 @@ pub async fn spawn_lsp_service(
     );
 
     let (notify_tx, notify_rx) = async_channel::unbounded::<ServerNotificationEvent>();
-    let mut service = LspService::new(jsonrpc_service, notify_tx, workspace_root, logger.clone())?;
+    let mut service = LspService::new(jsonrpc_service, notify_tx, logger.clone())?;
 
     if let Err(e) = service.initialize(resolved.params).await {
         if let Some(ref logger) = logger {

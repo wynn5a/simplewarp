@@ -14,7 +14,6 @@ async-trait = { workspace = true }
 chrono = { workspace = true }
 env_logger = { workspace = true }
 futures = { workspace = true }
-globset = { workspace = true }
 itertools.workspace = true
 jsonrpc.workspace = true
 log = { workspace = true }

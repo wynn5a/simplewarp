@@ -204,26 +204,6 @@ fn test_to_relative_path() {
 }
 
 #[test]
-fn test_normalize_relative_path_for_glob() {
-    use std::path::Path;
-
-    assert_eq!(
-        normalize_relative_path_for_glob(Path::new("app/src/main.rs")),
-        "app/src/main.rs"
-    );
-    assert_eq!(
-        normalize_relative_path_for_glob(Path::new("./app/src/main.rs")),
-        "app/src/main.rs"
-    );
-    assert_eq!(
-        normalize_relative_path_for_glob(Path::new("../app/src/main.rs")),
-        "app/src/main.rs"
-    );
-    assert_eq!(normalize_relative_path_for_glob(Path::new("..")), "");
-    assert_eq!(normalize_relative_path_for_glob(Path::new("")), "");
-}
-
-#[test]
 fn test_posix_escape() {
     let shell_family = ShellFamily::Posix;
     assert_eq!(

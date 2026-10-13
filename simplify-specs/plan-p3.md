@@ -350,8 +350,8 @@ Rounds landed on master, each verified with format, `clippy --workspace --all-ta
 - R3: `JsonObjectType` tombstone variants (`CloudEnvironment`/`ScheduledAmbientAgent`/
   `CloudAgentConfig`) deliberately kept so old object-metadata rows still parse.
 - R4.8 and R4.10: done (see §10).
-- `mcp_context` Phase 3b and the constant-false flags: done (see the two rows above). The LSP crate
-  still carries the unused `did_change_watched_files` / `WatchedFilesRegistry` path that only the
-  deleted repo watcher fed; it can go with a later LSP pass. The newly enabled flags, MCP, `/new-worktree`
+- `mcp_context` Phase 3b and the constant-false flags: done (see the two rows above). The LSP
+  `did_change_watched_files` / `WatchedFilesRegistry` path went too (the client no longer advertises
+  `didChangeWatchedFiles`, `globset` and `warp_util::path::normalize_relative_path_for_glob` are gone). The newly enabled flags, MCP, `/new-worktree`
   and vim-mode Ctrl+C were tried by hand in a live `simplewarp` build on 2026-10-13 and worked; the
   integration suite has not been run.

@@ -688,30 +688,6 @@ pub fn to_relative_path(is_wsl: bool, absolute_path: &Path, cwd: &Path) -> Optio
     })
 }
 
-/// Converts a workspace-relative path into a normalized string for matching against glob patterns.
-///
-/// This joins path components with forward slashes (`/`) so the resulting string is comparable
-/// across platforms (especially Windows).
-///
-/// Note: This drops any non-normal components (e.g. `.` and `..`).
-pub fn normalize_relative_path_for_glob(path: &Path) -> String {
-    let mut normalized = String::new();
-
-    for component in path.components() {
-        let std::path::Component::Normal(component) = component else {
-            continue;
-        };
-
-        if !normalized.is_empty() {
-            normalized.push('/');
-        }
-
-        normalized.push_str(&component.to_string_lossy());
-    }
-
-    normalized
-}
-
 /// Finds the common prefix path between some number of paths.
 /// Returns `Some(PathBuf)` containing the common prefix, otherwise `None`.
 ///

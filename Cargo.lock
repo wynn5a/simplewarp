@@ -5981,7 +5981,6 @@ dependencies = [
  "command",
  "env_logger",
  "futures",
- "globset",
  "http_client",
  "instant",
  "itertools 0.14.0",

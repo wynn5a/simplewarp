@@ -3,18 +3,15 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
-use globset::{Glob, GlobMatcher};
 use jsonrpc::{JsonRpcService, RequestId, ServerNotificationEvent};
 use lsp_types::notification::{self, Notification};
 use lsp_types::request::{self, Request};
 use lsp_types::{
-    CancelParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
-    DidChangeWatchedFilesRegistrationOptions, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentFormattingParams, FileChangeType, FileSystemWatcher,
-    FormattingOptions, GlobPattern, GotoDefinitionParams, GotoDefinitionResponse, HoverParams,
-    InitializeParams, InitializedParams, NumberOrString, OneOf, Position, ReferenceParams,
-    RegistrationParams, RelativePattern, TextDocumentIdentifier, TextDocumentItem,
-    TextDocumentPositionParams, UnregistrationParams, VersionedTextDocumentIdentifier, WatchKind,
+    CancelParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DocumentFormattingParams, FormattingOptions, GotoDefinitionParams,
+    GotoDefinitionResponse, HoverParams, InitializeParams, InitializedParams, NumberOrString,
+    Position, ReferenceParams, TextDocumentIdentifier, TextDocumentItem,
+    TextDocumentPositionParams, VersionedTextDocumentIdentifier,
 };
 use serde_json::Value;
 use simple_logger::SimpleLogger;
@@ -22,10 +19,9 @@ use warp_errors::report_error;
 use warp_util::on_cancel::OnCancelFutureExt;
 
 use crate::LspServerLogLevel;
-use crate::config::{LanguageId, lsp_uri_to_path, path_to_lsp_uri};
+use crate::config::{LanguageId, path_to_lsp_uri};
 use crate::types::{
-    HoverResult, LspDefinitionLocation, ReferenceLocation, TextDocumentContentChangeEvent,
-    TextEdit, WatchedFileChangeEvent,
+    HoverResult, LspDefinitionLocation, ReferenceLocation, TextDocumentContentChangeEvent, TextEdit,
 };
 
 /// Tracks the sync state for an open document.
@@ -40,90 +36,8 @@ pub struct LspService {
     jsonrpc_service: JsonRpcService,
     server_capabilities: Option<lsp_types::ServerCapabilities>,
     open_documents: Arc<Mutex<HashMap<PathBuf, DocumentSyncState>>>,
-    watched_files_registry: Arc<Mutex<WatchedFilesRegistry>>,
     notify_tx: async_channel::Sender<ServerNotificationEvent>,
     logger: Option<SimpleLogger>,
-}
-
-struct LspServerRequestHandler {
-    watched_files_registry: Arc<Mutex<WatchedFilesRegistry>>,
-}
-
-impl LspServerRequestHandler {
-    fn handle_request(&self, method: &str, params: Value, id: RequestId) -> Result<()> {
-        match method {
-            "client/registerCapability" => {
-                let params = match serde_json::from_value::<RegistrationParams>(params) {
-                    Ok(params) => params,
-                    Err(e) => {
-                        log::warn!(
-                            "Failed to parse client/registerCapability params (id: {id:?}): {e}"
-                        );
-                        return Ok(());
-                    }
-                };
-
-                for registration in params.registrations {
-                    if registration.method != notification::DidChangeWatchedFiles::METHOD {
-                        continue;
-                    }
-
-                    let Some(register_options) = registration.register_options else {
-                        log::debug!(
-                            "Ignoring didChangeWatchedFiles registration without options (id: {})",
-                            registration.id
-                        );
-                        continue;
-                    };
-
-                    let options = match serde_json::from_value::<
-                        DidChangeWatchedFilesRegistrationOptions,
-                    >(register_options)
-                    {
-                        Ok(options) => options,
-                        Err(e) => {
-                            log::warn!(
-                                "Failed to parse didChangeWatchedFiles registration options (id: {}): {e}",
-                                registration.id
-                            );
-                            continue;
-                        }
-                    };
-
-                    let mut registry = self
-                        .watched_files_registry
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner());
-                    registry.register(registration.id, options);
-                }
-            }
-            "client/unregisterCapability" => {
-                let params = match serde_json::from_value::<UnregistrationParams>(params) {
-                    Ok(params) => params,
-                    Err(e) => {
-                        log::warn!(
-                            "Failed to parse client/unregisterCapability params (id: {id:?}): {e}"
-                        );
-                        return Ok(());
-                    }
-                };
-
-                let mut registry = self
-                    .watched_files_registry
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner());
-
-                for unregistration in params.unregisterations {
-                    if unregistration.method == notification::DidChangeWatchedFiles::METHOD {
-                        registry.unregister(&unregistration.id);
-                    }
-                }
-            }
-            _ => {}
-        }
-
-        Ok(())
-    }
 }
 
 impl LspService {
@@ -131,26 +45,12 @@ impl LspService {
     pub(crate) fn new(
         jsonrpc_service: JsonRpcService,
         notify_tx: async_channel::Sender<ServerNotificationEvent>,
-        workspace_root: PathBuf,
         logger: Option<SimpleLogger>,
     ) -> Result<Self> {
-        let watched_files_registry =
-            Arc::new(Mutex::new(WatchedFilesRegistry::new(workspace_root)));
-
-        let server_request_handler = Arc::new(LspServerRequestHandler {
-            watched_files_registry: watched_files_registry.clone(),
-        });
-
-        let server_request_handler_for_closure = server_request_handler.clone();
-        jsonrpc_service.set_server_request_handler(move |method, params, id| {
-            server_request_handler_for_closure.handle_request(&method, params, id)
-        });
-
         let service = Self {
             jsonrpc_service,
             server_capabilities: None,
             open_documents: Arc::new(Mutex::new(HashMap::new())),
-            watched_files_registry,
             notify_tx,
             logger,
         };
@@ -220,47 +120,6 @@ impl LspService {
         }
     }
 
-    pub fn workspace_watched_files_changed(
-        &self,
-        events: Vec<WatchedFileChangeEvent>,
-    ) -> Result<()> {
-        if events.is_empty() {
-            return Ok(());
-        }
-
-        let watched_files_registry = self
-            .watched_files_registry
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire lock on watched files registry"))?;
-
-        // If the server hasn't registered any watchers yet, don't send notifications.
-        if watched_files_registry.is_empty() {
-            return Ok(());
-        }
-
-        let mut changes = Vec::new();
-        for event in events {
-            if !watched_files_registry.matches(&event) {
-                continue;
-            }
-
-            match event.into_lsp() {
-                Ok(event) => changes.push(event),
-                Err(e) => log::warn!("Failed to convert file event: {e}"),
-            }
-        }
-
-        drop(watched_files_registry);
-
-        if changes.is_empty() {
-            return Ok(());
-        }
-
-        self.send_notification::<notification::DidChangeWatchedFiles>(DidChangeWatchedFilesParams {
-            changes,
-        })
-    }
-
     async fn send_request_internal(&self, method: String, params: Value) -> Result<Value> {
         let request_id = self.jsonrpc_service.next_id();
 
@@ -301,142 +160,6 @@ impl LspService {
         {
             report_error!(e.context("Failed to send cancel notification"));
         }
-    }
-}
-
-struct WatchedFilesRegistry {
-    workspace_root: PathBuf,
-    registrations: HashMap<String, Vec<GlobFileMatcher>>,
-}
-
-impl WatchedFilesRegistry {
-    fn new(workspace_root: PathBuf) -> Self {
-        Self {
-            workspace_root,
-            registrations: HashMap::new(),
-        }
-    }
-
-    fn is_empty(&self) -> bool {
-        self.registrations.is_empty()
-    }
-
-    fn register(
-        &mut self,
-        registration_id: String,
-        options: DidChangeWatchedFilesRegistrationOptions,
-    ) {
-        let watchers = options
-            .watchers
-            .into_iter()
-            .filter_map(|watcher| self.compile_watcher(watcher))
-            .collect();
-
-        self.registrations.insert(registration_id, watchers);
-    }
-
-    fn unregister(&mut self, registration_id: &str) {
-        self.registrations.remove(registration_id);
-    }
-
-    fn matches(&self, event: &WatchedFileChangeEvent) -> bool {
-        let Ok(path_relative) = event.path.strip_prefix(&self.workspace_root) else {
-            return false;
-        };
-
-        let path_relative = warp_util::path::normalize_relative_path_for_glob(path_relative);
-
-        self.registrations
-            .values()
-            .flatten()
-            .any(|watcher| watcher.matches(&path_relative, event.typ))
-    }
-
-    fn compile_watcher(&self, watcher: FileSystemWatcher) -> Option<GlobFileMatcher> {
-        let FileSystemWatcher { glob_pattern, kind } = watcher;
-
-        let pattern = self.pattern_for_glob_pattern(glob_pattern)?;
-
-        let matcher = match Glob::new(&pattern) {
-            Ok(glob) => {
-                let matcher: GlobMatcher = glob.compile_matcher();
-                matcher
-            }
-            Err(e) => {
-                log::warn!("Failed to compile watched-files glob pattern {pattern:?}: {e}");
-                return None;
-            }
-        };
-
-        Some(GlobFileMatcher { matcher, kind })
-    }
-
-    fn pattern_for_glob_pattern(&self, glob_pattern: GlobPattern) -> Option<String> {
-        match glob_pattern {
-            GlobPattern::String(pattern) => Some(pattern),
-            GlobPattern::Relative(relative_pattern) => {
-                self.pattern_for_relative_pattern(relative_pattern)
-            }
-        }
-    }
-
-    fn pattern_for_relative_pattern(&self, relative_pattern: RelativePattern) -> Option<String> {
-        let RelativePattern { base_uri, pattern } = relative_pattern;
-
-        let base_path = match base_uri {
-            OneOf::Left(folder) => folder.uri,
-            OneOf::Right(uri) => uri,
-        };
-
-        let base_path = match lsp_uri_to_path(&base_path) {
-            Ok(path) => path,
-            Err(e) => {
-                let base_uri = base_path.as_str();
-                log::warn!("Failed to resolve relativePattern baseUri {base_uri}: {e}");
-                return None;
-            }
-        };
-
-        let Ok(base_relative) = base_path.strip_prefix(&self.workspace_root) else {
-            return None;
-        };
-
-        // Normalize to forward slashes so glob patterns and event paths are comparable across platforms (esp. Windows).
-        let prefix = warp_util::path::normalize_relative_path_for_glob(base_relative);
-
-        if prefix.is_empty() {
-            Some(pattern)
-        } else {
-            Some(format!("{prefix}/{pattern}"))
-        }
-    }
-}
-
-#[derive(Debug)]
-struct GlobFileMatcher {
-    matcher: GlobMatcher,
-    kind: Option<WatchKind>,
-}
-
-impl GlobFileMatcher {
-    fn matches(&self, path_relative: &str, change_type: FileChangeType) -> bool {
-        if let Some(kind) = self.kind
-            && let Some(required) = watch_kind_for_change_type(change_type)
-            && !kind.contains(required)
-        {
-            return false;
-        }
-
-        self.matcher.is_match(path_relative)
-    }
-}
-
-fn watch_kind_for_change_type(change_type: FileChangeType) -> Option<WatchKind> {
-    match change_type {
-        FileChangeType::CREATED => Some(WatchKind::Create),
-        FileChangeType::CHANGED => Some(WatchKind::Change),
-        FileChangeType::DELETED => Some(WatchKind::Delete),
-        _ => None,
     }
 }
 

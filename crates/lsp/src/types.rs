@@ -1,11 +1,10 @@
 use std::path::PathBuf;
 
 use lsp_types::{
-    FileChangeType, FileEvent, Location as LspLocation, LocationLink, Position as LspPosition,
-    Range as LspRange,
+    Location as LspLocation, LocationLink, Position as LspPosition, Range as LspRange,
 };
 
-use crate::config::{lsp_uri_to_path, path_to_lsp_uri};
+use crate::config::lsp_uri_to_path;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileLocation {
@@ -259,22 +258,5 @@ fn marked_string_to_string(marked: lsp_types::MarkedString) -> String {
         lsp_types::MarkedString::LanguageString(ls) => {
             format!("```{}\n{}\n```", ls.language, ls.value)
         }
-    }
-}
-
-/// A file change event that can be forwarded to the language server using
-/// `workspace/didChangeWatchedFiles`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WatchedFileChangeEvent {
-    pub path: PathBuf,
-    pub typ: FileChangeType,
-}
-
-impl WatchedFileChangeEvent {
-    pub fn into_lsp(self) -> anyhow::Result<FileEvent> {
-        Ok(FileEvent {
-            uri: path_to_lsp_uri(&self.path)?,
-            typ: self.typ,
-        })
     }
 }
