@@ -2139,23 +2139,6 @@ fn test_vertical_tabs_panel_visibility_restores_from_window_snapshot() {
 }
 
 #[test]
-fn test_open_vertical_tabs_panel_is_idempotent() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-        let workspace = mock_workspace(&mut app);
-
-        workspace.update(&mut app, |workspace, ctx| {
-            workspace.vertical_tabs_panel_open = false;
-            workspace.handle_action(&WorkspaceAction::OpenVerticalTabsPanel, ctx);
-            assert!(workspace.vertical_tabs_panel_open);
-
-            workspace.handle_action(&WorkspaceAction::OpenVerticalTabsPanel, ctx);
-            assert!(workspace.vertical_tabs_panel_open);
-        });
-    });
-}
-
-#[test]
 fn test_vertical_tabs_panel_restored_open_when_show_in_restored_windows_enabled() {
     let _vertical_tabs_guard = FeatureFlag::VerticalTabs.override_enabled(true);
 

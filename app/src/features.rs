@@ -184,8 +184,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::InlineCodeReview,
         #[cfg(feature = "summarize_conversation_command")]
         FeatureFlag::SummarizationConversationCommand,
-        #[cfg(feature = "mcp_grouped_server_context")]
-        FeatureFlag::MCPGroupedServerContext,
         #[cfg(feature = "fork_from_command")]
         FeatureFlag::ForkFromCommand,
         #[cfg(feature = "global_search")]

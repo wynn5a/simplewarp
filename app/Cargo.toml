@@ -439,7 +439,6 @@ default = [
     "inline_code_review",
     "code_review_find",
     "async_find",
-    "mcp_grouped_server_context",
     "fork_from_command",
     "v4a_file_diffs",
     "classic_completions",
@@ -561,7 +560,6 @@ simplewarp = [
     "inline_code_review",
     "code_review_find",
     "async_find",
-    "mcp_grouped_server_context",
     "fork_from_command",
     "v4a_file_diffs",
     "classic_completions",
@@ -808,7 +806,6 @@ code_review_find = []
 auto_open_code_review_pane = []
 inline_code_review = []
 summarize_conversation_command = []
-mcp_grouped_server_context = []
 fork_from_command = []
 global_search = []
 revert_to_checkpoints = []

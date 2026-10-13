@@ -18,7 +18,6 @@ pub use r#impl::generate_multi_agent_output;
 use mcp::TemplatableMCPServerInfo;
 use serde::Serialize;
 use warp_core::execution_mode::AppExecutionMode;
-use warp_core::features::FeatureFlag;
 use warpui::{AppContext, EntityId, SingletonEntity as _};
 
 use super::{AIAgentInput, MCPContext, MCPServer, RequestMetadata, ServerOutputId};
@@ -170,71 +169,49 @@ impl RequestParams {
             vec![]
         };
 
-        // Build MCP context - either grouped by server or flat lists based on feature flag
-        let mcp_context = if FeatureFlag::MCPGroupedServerContext.is_enabled() {
-            // Group MCP tools and resources by server
-            let templatable_manager = TemplatableMCPServerManager::as_ref(app);
+        // Group MCP tools and resources by server.
+        let templatable_manager = TemplatableMCPServerManager::as_ref(app);
 
-            let mut active_servers: Vec<&TemplatableMCPServerInfo> = templatable_manager
-                .get_active_templatable_servers()
-                .values()
-                .copied()
-                .collect();
+        let mut active_servers: Vec<&TemplatableMCPServerInfo> = templatable_manager
+            .get_active_templatable_servers()
+            .values()
+            .copied()
+            .collect();
 
-            // If file-based MCP servers are enabled, add active servers in scope of
-            // the user's current working directory
-            if let Some(cwd) = session_context.current_working_directory() {
-                active_servers.extend(
-                    templatable_manager
-                        .get_active_file_based_servers(Path::new(cwd), app)
-                        .values(),
-                );
-            }
-
-            // Include any ephemeral MCP servers started via the CLI.
+        // If file-based MCP servers are enabled, add active servers in scope of
+        // the user's current working directory
+        if let Some(cwd) = session_context.current_working_directory() {
             active_servers.extend(
                 templatable_manager
-                    .get_active_cli_spawned_servers()
+                    .get_active_file_based_servers(Path::new(cwd), app)
                     .values(),
             );
+        }
 
-            let servers: Vec<MCPServer> = active_servers
-                .into_iter()
-                .map(|server| MCPServer {
-                    name: server.name().to_string(),
-                    description: server.description().unwrap_or_default().to_string(),
-                    id: server.installation_id().to_string(),
-                    resources: server.resources().to_vec(),
-                    tools: server.tools().to_vec(),
-                })
-                .collect();
+        // Include any ephemeral MCP servers started via the CLI.
+        active_servers.extend(
+            templatable_manager
+                .get_active_cli_spawned_servers()
+                .values(),
+        );
 
-            if servers.is_empty() {
-                None
-            } else {
-                #[allow(deprecated)]
-                Some(MCPContext {
-                    resources: vec![],
-                    tools: vec![],
-                    servers,
-                })
-            }
-        } else {
-            // Flat lists of resources and tools
-            let templatable_mcp_manager = TemplatableMCPServerManager::as_ref(app);
-            let resources = templatable_mcp_manager
-                .resources()
-                .cloned()
-                .collect::<Vec<_>>();
-            let tools = templatable_mcp_manager.tools().cloned().collect::<Vec<_>>();
-
-            #[allow(deprecated)]
-            (!resources.is_empty() || !tools.is_empty()).then_some(MCPContext {
-                resources,
-                tools,
-                servers: vec![],
+        let servers: Vec<MCPServer> = active_servers
+            .into_iter()
+            .map(|server| MCPServer {
+                name: server.name().to_string(),
+                description: server.description().unwrap_or_default().to_string(),
+                id: server.installation_id().to_string(),
+                resources: server.resources().to_vec(),
+                tools: server.tools().to_vec(),
             })
-        };
+            .collect();
+
+        #[allow(deprecated)]
+        let mcp_context = (!servers.is_empty()).then(|| MCPContext {
+            resources: vec![],
+            tools: vec![],
+            servers,
+        });
 
         let should_redact_secrets = get_secret_obfuscation_mode(app).should_redact_secret();
 

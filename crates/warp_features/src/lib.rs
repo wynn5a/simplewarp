@@ -267,9 +267,6 @@ pub enum FeatureFlag {
     /// Enables the /compact slash command.
     SummarizationConversationCommand,
 
-    /// Groups MCP tools and resources by their originating server when sending context to the AI backend.
-    MCPGroupedServerContext,
-
     /// Enables rendering Mermaid diagrams in markdown notebooks.
     MarkdownMermaid,
     /// Enables editable Mermaid diagrams to behave atomically in notebook and plan editors.

@@ -16022,11 +16022,6 @@ impl TypedActionView for Workspace {
             ToggleVerticalTabsPanel => {
                 self.toggle_vertical_tabs_panel(ctx);
             }
-            OpenVerticalTabsPanel => {
-                if !self.vertical_tabs_panel_open {
-                    self.toggle_vertical_tabs_panel(ctx);
-                }
-            }
             ToggleVerticalTabsSettingsPopup => {
                 if FeatureFlag::VerticalTabs.is_enabled()
                     && *TabSettings::as_ref(ctx).use_vertical_tabs
