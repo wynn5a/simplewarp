@@ -129,6 +129,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
       DRY_RUN: ${{ github.event.inputs.dry_run == 'true' }}
     steps:
