@@ -4,6 +4,15 @@ on:
   push:
     tags:
       - 'v*'
+    # Builds on master only warm the Rust cache: caches saved from a tag ref are not
+    # reusable by other tags, but every ref can restore the ones saved from master.
+    branches:
+      - master
+    paths:
+      - Cargo.lock
+      - rust-toolchain.toml
+      - .github/workflows/release.yml
+      - .github/actions/prepare_environment/action.yml
   workflow_dispatch:
     inputs:
       tag:
@@ -131,7 +140,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
-      DRY_RUN: ${{ github.event.inputs.dry_run == 'true' }}
+      DRY_RUN: ${{ github.event.inputs.dry_run == 'true' || (github.ref_type != 'tag' && github.event.inputs.tag == '') }}
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
