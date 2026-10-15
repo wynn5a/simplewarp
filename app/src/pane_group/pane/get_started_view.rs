@@ -172,7 +172,7 @@ impl GetStartedView {
             hide_homepage: true,
         });
         update_active_terminal(ctx, |terminal, ctx| {
-            terminal.agent_clone_repository(url, ctx);
+            terminal.clone_repository(&url, ctx);
         });
 
         self.close(ctx);

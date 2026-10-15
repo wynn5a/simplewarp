@@ -135,6 +135,7 @@ integration_tests! {
     test_cut_paste_from_input_context_menu,
     test_inline_model_selector_restores_prompt_on_dismissal,
     test_inline_model_selector_restores_prompt_on_model_selection,
+    test_clone_slash_command_clones_and_enters_the_repository,
     test_inline_model_selector_restores_prompt_on_chip_toggle_close,
     test_paste_and_type_characters_before_bootstrap,
     #[ignore = "Flaking on CI - KC looking into 3/31/26"]

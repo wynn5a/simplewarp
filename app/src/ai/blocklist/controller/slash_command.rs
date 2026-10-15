@@ -11,8 +11,8 @@ use super::{
 use crate::BlocklistAIHistoryModel;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
-    AIAgentContext, AIAgentInput, CancellationReason, CloneRepositoryURL, EntrypointType,
-    InvokeSkillUserQuery, RequestMetadata,
+    AIAgentContext, AIAgentInput, CancellationReason, EntrypointType, InvokeSkillUserQuery,
+    RequestMetadata,
 };
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::context_model::{
@@ -25,9 +25,6 @@ use crate::terminal::input::slash_commands::SlashCommandTrigger;
 pub enum SlashCommandRequest {
     CreateNewProject {
         query: String,
-    },
-    CloneRepository {
-        url: String,
     },
     InitProjectRules,
     Summarize {
@@ -233,12 +230,6 @@ impl SlashCommandRequest {
             SlashCommandRequest::CreateNewProject { query } => {
                 vec![AIAgentInput::CreateNewProject { query, context }]
             }
-            SlashCommandRequest::CloneRepository { url } => {
-                vec![AIAgentInput::CloneRepository {
-                    clone_repo_url: CloneRepositoryURL::new(url),
-                    context,
-                }]
-            }
             SlashCommandRequest::InitProjectRules => vec![AIAgentInput::InitProjectRules {
                 context,
                 display_query: Some("/init".to_string()),
@@ -274,7 +265,6 @@ impl SlashCommandRequest {
 
     fn entrypoint(&self) -> EntrypointType {
         match self {
-            SlashCommandRequest::CloneRepository { .. } => EntrypointType::CloneRepository,
             SlashCommandRequest::InitProjectRules => EntrypointType::InitProjectRules,
             SlashCommandRequest::CreateNewProject { .. }
             | SlashCommandRequest::Summarize { .. }

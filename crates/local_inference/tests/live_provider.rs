@@ -406,3 +406,36 @@ async fn the_model_can_see_the_earlier_question() {
         reply.text
     );
 }
+
+/// `/create-new-project` sends no user message, only a `CreateNewProject` input. The model must
+/// act on it: start building with a tool, or ask the one question the prompt allows.
+#[tokio::test]
+#[ignore = "sends a real request to a provider"]
+async fn a_create_new_project_input_gets_acted_on() {
+    let endpoint = endpoint_or_skip!();
+    let mut request = request(&endpoint, vec![]);
+    request.input = Some(api::request::Input {
+        r#type: Some(api::request::input::Type::CreateNewProject(
+            api::request::input::CreateNewProject {
+                query: "a command-line Python script that prints the current date in ISO format"
+                    .to_string(),
+            },
+        )),
+        ..Default::default()
+    });
+
+    let reply = run(&request).await;
+    println!("text: {}", reply.text);
+    println!("tool calls: {:?}", reply.tool_calls);
+    println!("finish: {:?}", reply.finish);
+
+    assert!(
+        !reply.tool_calls.is_empty() || reply.text.contains('?'),
+        "the model neither started work nor asked a question; text was {:?}",
+        reply.text
+    );
+    assert!(
+        reply.committed_transaction,
+        "the reply must commit its transaction"
+    );
+}

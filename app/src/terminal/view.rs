@@ -233,6 +233,7 @@ use crate::code_review::diff_state::{DiffMode, DiffStateModel, GitDeltaPreferenc
 use crate::code_review::git_repo_model::{GitRepoModels, GitRepoStatusModel, GitStatusMetadata};
 use crate::code_review::github_repo_model::GitHubRepoModel;
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
+use crate::coding_entrypoints::clone_repo::clone_command;
 use crate::context_chips::ContextChipKind;
 use crate::context_chips::prompt::{Prompt, PromptSelection};
 use crate::context_chips::prompt_type::PromptType;
@@ -9538,10 +9539,11 @@ impl TerminalView {
         });
     }
 
-    pub fn agent_clone_repository(&mut self, url: String, ctx: &mut ViewContext<Self>) {
-        self.input.update(ctx, |input, ctx| {
-            input.initiate_clone_repository(url, ctx);
-        });
+    /// Clones `url` into the working directory and enters the clone, once the session can run
+    /// commands.
+    pub fn clone_repository(&mut self, url: &str, ctx: &mut ViewContext<Self>) {
+        let command = clone_command(url, self.shell_family(ctx));
+        self.execute_command_or_set_pending(&command, ctx);
     }
 
     pub fn maybe_set_pending_repo_init_path(&mut self, path: PathBuf) {
@@ -15260,6 +15262,9 @@ impl TerminalView {
                     );
                 }
             },
+            InputEvent::CloneRepository { url } => {
+                self.clone_repository(url, ctx);
+            }
             InputEvent::CreateDockerSandbox => {
                 if !FeatureFlag::LocalDockerSandbox.is_enabled() {
                     log::warn!("Local docker sandbox feature flag is disabled");

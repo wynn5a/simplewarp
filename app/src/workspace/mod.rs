@@ -114,7 +114,7 @@ pub fn init(app: &mut AppContext) {
             .with_context_predicate(id!("Workspace")),
         ]);
         app.register_fixed_bindings([FixedBinding::empty(
-            "[Debug] View first-time user experience",
+            "Get started: create, open, or clone a project",
             WorkspaceAction::AddGetStartedTab,
             id!("Workspace"),
         )]);

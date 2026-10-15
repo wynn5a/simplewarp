@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use command::blocking::Command;
 use warp::features::FeatureFlag;
 use warp::integration_testing::clipboard::write_to_clipboard;
 use warp::integration_testing::input::{
@@ -12,7 +13,8 @@ use warp::integration_testing::terminal::util::{
     ExpectedExitStatus, current_shell_starter_and_version,
 };
 use warp::integration_testing::terminal::{
-    execute_command_for_single_terminal_in_tab, wait_until_bootstrapped_single_pane_for_tab,
+    assert_command_executed_for_single_terminal_in_tab, execute_command_for_single_terminal_in_tab,
+    wait_until_bootstrapped_single_pane_for_tab,
 };
 use warp::integration_testing::view_getters::{
     single_input_view_for_tab, single_terminal_view_for_tab,
@@ -280,4 +282,38 @@ pub fn test_git_prompt_chips() -> Builder {
                     })
             }),
         )
+}
+
+/// `/clone <url>` runs `git clone` itself, without the agent, and leaves the shell in the clone.
+pub fn test_clone_slash_command_clones_and_enters_the_repository() -> Builder {
+    new_builder()
+        .with_setup(|utils| {
+            let origin = utils.test_dir().join("origin");
+            std::fs::create_dir(&origin).expect("must be able to create dirs for test");
+            let status = Command::new("git")
+                .args(["init", "--quiet", "--bare", "repo.git"])
+                .current_dir(&origin)
+                .status()
+                .expect("git must be installed for this test");
+            assert!(status.success(), "git init --bare failed");
+        })
+        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
+        .with_step(
+            new_step_with_default_assertions("Run /clone")
+                .with_typed_characters(&["/clone origin/repo.git"])
+                .with_keystrokes(&["enter"])
+                .add_named_assertion(
+                    "The clone ran as a shell command",
+                    assert_command_executed_for_single_terminal_in_tab(
+                        0,
+                        "git clone -- origin/repo.git && cd repo".into(),
+                    ),
+                ),
+        )
+        .with_step(execute_command_for_single_terminal_in_tab(
+            0,
+            "basename \"$PWD\" && git rev-parse --is-inside-work-tree".into(),
+            ExpectedExitStatus::Success,
+            "repo\ntrue",
+        ))
 }

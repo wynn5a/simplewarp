@@ -46,6 +46,18 @@ pub const CREATE_DOCKER_SANDBOX: StaticCommand = StaticCommand {
     argument: None,
 };
 
+pub static CLONE: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
+    name: "/clone",
+    description: "Clone a git repository into the current directory and enter it",
+    kind: SlashCommandKind::Clone,
+    supported_surfaces: SlashCommandSurfaces::GuiOnly {
+        icon_path: "bundled/svg/copy-07.svg",
+    },
+    availability: Availability::LOCAL.union(Availability::TERMINAL_VIEW),
+    auto_enter_ai_mode: false,
+    argument: Some(Argument::required().with_hint_text("<repository url>")),
+});
+
 pub static CREATE_NEW_PROJECT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     name: "/create-new-project",
     description: "Walk through creating a new coding project",
@@ -589,6 +601,7 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
 
     commands.push(OPEN_CODE_REVIEW);
     commands.push(NEW_WORKTREE);
+    commands.push(CLONE.clone());
 
     if FeatureFlag::CreateProjectFlow.is_enabled() {
         commands.push(CREATE_NEW_PROJECT.clone());

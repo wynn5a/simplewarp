@@ -472,6 +472,18 @@ impl Input {
                     origin: AgentViewEntryOrigin::SlashCommand { trigger },
                 });
             }
+            SlashCommandKind::Clone => {
+                let Some(url) = argument
+                    .map(|args| args.trim())
+                    .filter(|url| !url.is_empty())
+                else {
+                    show_error_toast("Please give a repository URL after /clone".to_owned(), ctx);
+                    return true;
+                };
+                ctx.emit(Event::CloneRepository {
+                    url: url.to_owned(),
+                });
+            }
             SlashCommandKind::CreateDockerSandbox => {
                 ctx.emit(Event::CreateDockerSandbox);
             }

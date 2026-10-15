@@ -142,7 +142,7 @@ use crate::ai::blocklist::{
     BlocklistAIInputEvent, BlocklistAIInputModel, DIFF_HUNK_ATTACHMENT_REGEX,
     DRIVE_OBJECT_ATTACHMENT_REGEX, InputConfig, InputType, InputTypeAutoDetectionSource,
     QueuedQuery, QueuedQueryEvent, QueuedQueryId, QueuedQueryModel, QueuedQueryOrigin,
-    SlashCommandRequest, ai_indicator_height, render_ai_agent_mode_icon, render_ai_follow_up_icon,
+    ai_indicator_height, render_ai_agent_mode_icon, render_ai_follow_up_icon,
 };
 use crate::ai::conversation_export::export_conversation_markdown;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
@@ -851,6 +851,9 @@ pub enum Event {
         origin: AgentViewEntryOrigin,
     },
     CreateDockerSandbox,
+    CloneRepository {
+        url: String,
+    },
     ScrollToExchange {
         exchange_id: AIAgentExchangeId,
     },
@@ -10227,20 +10230,6 @@ impl Input {
         }
         self.ai_controller.update(ctx, move |controller, ctx| {
             controller.send_create_new_project_request(ai_query, ctx)
-        });
-    }
-
-    pub(crate) fn initiate_clone_repository(&mut self, url: String, ctx: &mut ViewContext<Self>) {
-        if FeatureFlag::AgentView.is_enabled()
-            && !self.agent_view_controller.as_ref(ctx).is_active()
-        {
-            self.agent_view_controller.update(ctx, |controller, ctx| {
-                let _ =
-                    controller.try_enter_agent_view(None, AgentViewEntryOrigin::ProjectEntry, ctx);
-            });
-        }
-        self.ai_controller.update(ctx, move |controller, ctx| {
-            controller.send_slash_command_request(SlashCommandRequest::CloneRepository { url }, ctx)
         });
     }
 

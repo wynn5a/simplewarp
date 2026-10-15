@@ -1,3 +1,4 @@
+pub mod clone_repo;
 pub mod clone_repo_view;
 pub mod create_project_view;
 pub mod glowing_editor;

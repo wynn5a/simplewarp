@@ -44,6 +44,7 @@ bitflags! {
 pub enum SlashCommandKind {
     Agent,
     AddMcp,
+    Clone,
     CreateDockerSandbox,
     CreateNewProject,
     EditSkill,
