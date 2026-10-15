@@ -137,10 +137,10 @@ pub fn test_inline_model_selector_restores_prompt_on_model_selection() -> Builde
         .with_step(open_inline_model_selector_from_chip())
         .with_step(
             new_step_with_default_assertions("Type model search")
-                .with_typed_characters(&["auto"])
+                .with_typed_characters(&["gpt"])
                 .add_named_assertion(
                     "Model search text is in the input",
-                    input_contains_string(0, "auto".to_owned()),
+                    input_contains_string(0, "gpt".to_owned()),
                 ),
         )
         .with_step(

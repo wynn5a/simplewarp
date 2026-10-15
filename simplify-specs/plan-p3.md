@@ -354,5 +354,12 @@ Rounds landed on master, each verified with format, `clippy --workspace --all-ta
 - `mcp_context` Phase 3b and the constant-false flags: done (see the two rows above). The LSP
   `did_change_watched_files` / `WatchedFilesRegistry` path went too (the client no longer advertises
   `didChangeWatchedFiles`, `globset` and `warp_util::path::normalize_relative_path_for_glob` are gone). The newly enabled flags, MCP, `/new-worktree`
-  and vim-mode Ctrl+C were tried by hand in a live `simplewarp` build on 2026-10-13 and worked; the
-  integration suite has not been run.
+  and vim-mode Ctrl+C were tried by hand in a live `simplewarp` build on 2026-10-13 and worked.
+- **Integration suite (2026-10-15):** `cargo nextest run -p integration` was 236/245 with 9 stale
+  tests, none a product regression: the model-selector test searched the removed `auto` model (now
+  `gpt`); the two rich-input entries outlived their bodies (rich input went in 4bo); six settings-nav
+  tests assumed the old Account default page (4ge made the first Agents subpage the default, so the
+  Agents umbrella starts expanded, and `CodeIndexing` is no longer in the nav). After the fixes:
+  243/243, 59 skipped.
+- **CI:** `.github/workflows/ci.yml` runs only on pull requests and uses Warp's
+  `namespace-profile-*` runners, so it never runs on this fork (pushes go straight to master).

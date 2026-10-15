@@ -307,7 +307,7 @@ is a product decision. Every item below needs a user decision before it becomes 
 | ~~P13~~ | §4 MCP gallery, autoinstall deeplink, FigmaDetection + figma skills, WellKnownMcpIds | delete | **Done (2026-10-08)** except the Figma detection/skills, which work from a user-added server and stay. |
 | ~~P14~~ | §4 web-font fallback, zero-reference flags | delete | **Done (2026-10-08).** |
 | ~~P15~~ | §5 stale copy/links, `--skill` in help | fix | **Done** (see §5). |
-| P16 | §8 plan.md corrections | edit | Fold in with the next round. |
+| ~~P16~~ | §8 plan.md corrections | edit | **Done (2026-10-15).** |
 
 ## 9. Local-only cleanup round (2026-10-08)
 

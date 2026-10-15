@@ -35,15 +35,15 @@ No cloud, no login, no subscription, no Warp Drive.
 | 1 — `simplewarp` binary: starts offline, straight to a terminal, 0 startup errors, no outbound connections | DONE |
 | 2 — Hide the cloud UI (login, billing, Drive, sharing) | DONE for every surface checked; cloud mode / ambient agents / remote-server UI checked only by deletion since |
 | 3 — Local AI adapter, verified by a real conversation in the app | DONE |
-| 3b — Built-in model list, MCP tool support | Model list DONE (2026-09-29); MCP tool support OPEN |
+| 3b — Built-in model list, MCP tool support | DONE: model list 2026-09-29; MCP tools and resources 2026-10-12 (`58923a77d`, see plan-p3 §10) |
 | 4 — Delete the dead cloud code and the TUI | DONE through 4id: the 4hp remote-only queue (R1–R7) and its follow-ups are done; what remains under Next is product decisions |
 
 Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15) and, since 4id
 (2026-09-29), EditableMarkdownMermaid, ImeMarkedText, ITermImages, LocalDockerSandbox and
 local computer use — all pinned by `features::tests`. The enable-candidate list is empty.
-With `local_computer_use` on, the `RequestComputerUse`/`UseComputer` tools are advertised
-when the computer-use setting and platform allow; real-model verification of a computer-use
-run is still TODO (needs a live session).
+`local_computer_use` is compiled in, but the local adapter does not offer the
+`RequestComputerUse`/`UseComputer` tools (`get_supported_tools` in `app/src/ai/agent/api/impl.rs`),
+so the model cannot start a computer-use run yet; offering them is a feature round (plan-p2 P5).
 
 ## Phase 4 progress
 
@@ -100,8 +100,8 @@ deleted (4hx).
 Outstanding product decisions — ALL RESOLVED (2026-09-29 user rulings, rounds 4ia–4id):
 orchestration vertical **deleted** (4ia); provider 429 → `QuotaLimit` **mapped** (4ib); Oz
 branding → SimpleWarp **rebranded** (4ic); enable-candidates **all enabled** (4id); Claude
-notification plugin **keeps** its one-time GitHub fetch (no change). Nothing left under Next
-except the open Phase 3b (built-in model list + MCP tool support).
+notification plugin **keeps** its one-time GitHub fetch (no change). Nothing left under Next;
+Phase 3b is done too (MCP tool support landed in plan-p3 §10).
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
 `CloudAgent` / `ScheduledAmbientAgent` shapes, `crates/isolation_platform` (local detection) and
@@ -1357,7 +1357,7 @@ Known non-targets (do not queue without a new user decision): persisted shapes (
 PersonalCloud, `autosync_plans_to_warp_drive`,
 `AIAgentCitation::WarpDriveObject`, `OpenWorkflowModalWithCloudWorkflow` action name,
 `Icon::Warp`, the app_state WarpDrive tombstone), the
-enable-candidate flags above, and the `AgentHarness` flag (live by design).
+enable-candidate flags above, and the `AgentHarness` flag (enabled in the simplewarp set).
 
 ## Risks
 
