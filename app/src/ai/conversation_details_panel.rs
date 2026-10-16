@@ -31,6 +31,7 @@ use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::harness_display;
 use crate::appearance::Appearance;
 use crate::notebooks::NotebookId;
+use crate::persistence::model::ConversationTokenUsage;
 use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
@@ -104,6 +105,8 @@ pub struct ConversationDetailsData {
     skill_spec: Option<SkillSpec>,
     /// Execution harness for this conversation/task.
     harness: Option<Harness>,
+    /// Tokens the AI provider reported, when it reported any.
+    token_usage: Option<ConversationTokenUsage>,
 }
 
 impl ConversationDetailsData {
@@ -145,6 +148,8 @@ impl ConversationDetailsData {
             source_prompt: conversation.initial_query(),
             skill_spec: None,
             harness: Some(Harness::Oz),
+            token_usage: Some(conversation.token_usage())
+                .filter(|usage| *usage != ConversationTokenUsage::default()),
         }
     }
 }
@@ -189,6 +194,27 @@ pub struct ConversationDetailsPanel {
     /// Selection state for cmd+C copy.
     selection_handle: SelectionHandle,
     selected_text: Arc<RwLock<Option<String>>>,
+}
+
+/// Formats usage as e.g. `12.3k in (8.0k cached) · 1.1k out`.
+fn format_token_usage(usage: ConversationTokenUsage) -> String {
+    let input = format_token_count(usage.input);
+    let output = format_token_count(usage.output);
+    if usage.cached_input == 0 {
+        format!("{input} in · {output} out")
+    } else {
+        let cached = format_token_count(usage.cached_input);
+        format!("{input} in ({cached} cached) · {output} out")
+    }
+}
+
+fn format_token_count(count: u64) -> String {
+    match count {
+        0..1_000 => count.to_string(),
+        // 999,950 and up would round to "1000.0k".
+        1_000..999_950 => format!("{:.1}k", count as f64 / 1_000.0),
+        _ => format!("{:.1}M", count as f64 / 1_000_000.0),
+    }
 }
 
 fn trimmed_initial_query(source_prompt: &Option<String>) -> Option<&str> {
@@ -745,6 +771,18 @@ impl View for ConversationDetailsPanel {
                 Container::new(self.render_simple_field("Run time", &formatted, appearance))
                     .with_margin_bottom(FIELD_SPACING)
                     .finish(),
+            );
+        }
+
+        if let Some(token_usage) = self.data.token_usage {
+            content.add_child(
+                Container::new(self.render_simple_field(
+                    "Tokens",
+                    &format_token_usage(token_usage),
+                    appearance,
+                ))
+                .with_margin_bottom(FIELD_SPACING)
+                .finish(),
             );
         }
 

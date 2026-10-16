@@ -261,6 +261,7 @@ fn agent_conversation_data_roundtrips_optimistic_root_marker() {
         artifacts_json: None,
         root_task_is_optimistic: Some(true),
         autoexecute_override: None,
+        token_usage: None,
     };
     let json = serde_json::to_string(&data).expect("serialize");
     let roundtripped: AgentConversationData = serde_json::from_str(&json).expect("deserialize");

@@ -146,6 +146,36 @@ fn done_does_not_end_the_reply_a_second_time() {
 }
 
 #[test]
+fn the_body_asks_for_usage_in_the_stream() {
+    let body = build_body(&target(), "be helpful", &[], &[]);
+    assert_eq!(body["stream_options"]["include_usage"], true);
+}
+
+#[test]
+fn the_usage_chunk_is_read_even_without_choices() {
+    assert_eq!(
+        parse_event(
+            r#"{"choices":[],"usage":{"prompt_tokens":812,"completion_tokens":40,
+                "prompt_tokens_details":{"cached_tokens":512}}}"#
+        ),
+        vec![Delta::Usage(TokenUsage {
+            input: 812,
+            output: 40,
+            cache_read: 512,
+            cache_write: 0,
+        })]
+    );
+}
+
+#[test]
+fn a_null_usage_is_ignored() {
+    assert_eq!(
+        parse_event(r#"{"choices":[{"delta":{"content":"hi"}}],"usage":null}"#),
+        vec![Delta::Text("hi".to_string())]
+    );
+}
+
+#[test]
 fn reasoning_from_a_compatible_server_is_read() {
     assert_eq!(
         parse_event(r#"{"choices":[{"delta":{"reasoning":"thinking"}}]}"#),

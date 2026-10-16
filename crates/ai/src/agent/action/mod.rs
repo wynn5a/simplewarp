@@ -16,13 +16,13 @@ use uuid::Uuid;
 pub use warp_multi_agent_api::LifecycleEventType;
 use warp_terminal::model::BlockId;
 
+use crate::agent::FileLocations;
 use crate::agent::action_result::{
     AIAgentActionResultType, CallMCPToolResult, FileGlobResult, FileGlobV2Result, GrepResult,
     InsertReviewCommentsResult, ReadFilesResult, ReadMCPResourceResult,
     ReadShellCommandOutputResult, RequestCommandOutputResult, RequestFileEditsResult,
     TransferShellCommandControlToUserResult, WriteToLongRunningShellCommandResult,
 };
-use crate::agent::{AIAgentCitation, FileLocations};
 use crate::diff_validation::ParsedDiff;
 
 #[derive(Debug, Clone, Eq, PartialEq, EnumDiscriminants)]
@@ -49,9 +49,6 @@ pub enum AIAgentActionType {
 
         /// The AI's rationale for requesting a command.
         rationale: Option<String>,
-
-        /// The citations for the command.
-        citations: Vec<AIAgentCitation>,
     },
 
     WriteToLongRunningShellCommand {

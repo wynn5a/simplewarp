@@ -1,7 +1,6 @@
 //! Conversions from MAA API types to application types.
 use std::time::Duration;
 
-use ai::agent::UnknownCitationTypeError;
 use ai::agent::convert::ToolToAIAgentActionError;
 use warp_core::channel::ChannelState;
 use warp_multi_agent_api as api;
@@ -10,9 +9,8 @@ use crate::ai::agent::comment::CodeReview;
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::util::parse_markdown_into_text_and_code_sections;
 use crate::ai::agent::{
-    AIAgentAction, AIAgentActionType, AIAgentAttachment, AIAgentCitation, AIAgentOutputMessage,
-    AIAgentText, ArtifactCreatedData, MessageId, SubagentCall, SubagentType, SummarizationType,
-    UserQueryMode,
+    AIAgentAction, AIAgentActionType, AIAgentAttachment, AIAgentOutputMessage, AIAgentText,
+    ArtifactCreatedData, MessageId, SubagentCall, SubagentType, SummarizationType, UserQueryMode,
 };
 use crate::ai::artifact_download::sanitized_basename;
 
@@ -58,8 +56,6 @@ pub enum MessageToAIAgentOutputMessageError {
     MissingMessage,
     #[error("Error converting tool to action: {0:?}")]
     ToolError(#[from] ToolToAIAgentActionError),
-    #[error("Error converting citation: {0:?}")]
-    CitationError(#[from] UnknownCitationTypeError),
 }
 
 /// Successful result when trying to convert an [`api::message::ToolCall`] to an [`AIAgentAction`].
@@ -105,16 +101,9 @@ impl ConvertAPIMessageToClientOutputMessage for api::Message {
             return Ok(MaybeAIAgentOutputMessage::NoClientRepresentation);
         };
 
-        let citations = self
-            .citations
-            .iter()
-            .filter_map(|citation| AIAgentCitation::try_from((*citation).clone()).ok())
-            .collect::<Vec<AIAgentCitation>>();
-
         match message {
             api::message::Message::AgentOutput(output) => Ok(MaybeAIAgentOutputMessage::Message(
-                AIAgentOutputMessage::text(MessageId::new(self.id), output.into())
-                    .with_citations(citations),
+                AIAgentOutputMessage::text(MessageId::new(self.id), output.into()),
             )),
             api::message::Message::AgentReasoning(reasoning) => {
                 let duration = reasoning
@@ -130,12 +119,10 @@ impl ConvertAPIMessageToClientOutputMessage for api::Message {
             }
             api::message::Message::ToolCall(tool_call) => match tool_call.to_action(params)? {
                 MaybeAIAgentAction::Action(action) => Ok(MaybeAIAgentOutputMessage::Message(
-                    AIAgentOutputMessage::action(MessageId::new(self.id), action)
-                        .with_citations(citations),
+                    AIAgentOutputMessage::action(MessageId::new(self.id), action),
                 )),
                 MaybeAIAgentAction::Subagent(subagent) => Ok(MaybeAIAgentOutputMessage::Message(
-                    AIAgentOutputMessage::subagent(MessageId::new(self.id), subagent)
-                        .with_citations(citations),
+                    AIAgentOutputMessage::subagent(MessageId::new(self.id), subagent),
                 )),
                 MaybeAIAgentAction::NoClientRepresentation => {
                     Ok(MaybeAIAgentOutputMessage::NoClientRepresentation)
@@ -219,8 +206,7 @@ impl ConvertAPIMessageToClientOutputMessage for api::Message {
                                     AIAgentOutputMessage::comments_addressed(
                                         MessageId::new(self.id),
                                         addressed_comments,
-                                    )
-                                    .with_citations(citations),
+                                    ),
                                 ))
                             } else {
                                 Ok(MaybeAIAgentOutputMessage::NoClientRepresentation)
@@ -257,8 +243,7 @@ impl ConvertAPIMessageToClientOutputMessage for api::Message {
                                     url: pr.url,
                                     branch: pr.branch,
                                 },
-                            )
-                            .with_citations(citations),
+                            ),
                         )),
                         Some(
                             api::message::artifact_event::artifact_created::Artifact::Screenshot(
@@ -276,8 +261,7 @@ impl ConvertAPIMessageToClientOutputMessage for api::Message {
                                         Some(screenshot.description)
                                     },
                                 },
-                            )
-                            .with_citations(citations),
+                            ),
                         )),
                         Some(api::message::artifact_event::artifact_created::Artifact::File(
                             file,
@@ -297,8 +281,7 @@ impl ConvertAPIMessageToClientOutputMessage for api::Message {
                                     },
                                     size_bytes: file.size_bytes,
                                 },
-                            )
-                            .with_citations(citations),
+                            ),
                         )),
                         None => Ok(MaybeAIAgentOutputMessage::NoClientRepresentation),
                     }

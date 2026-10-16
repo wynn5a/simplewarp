@@ -49,11 +49,6 @@ pub fn model_leading_icon(llm: &LLMInfo, flags: ModelIconFlags) -> Icon {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct LLMUsageMetadata {
-    pub credit_multiplier: Option<f32>,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DisableReason {
     AdminDisabled,
@@ -139,7 +134,6 @@ pub struct LLMInfo {
     pub base_model_name: String,
     pub id: LLMId,
     pub reasoning_level: Option<String>,
-    pub usage_metadata: LLMUsageMetadata,
     pub description: Option<String>,
     pub disable_reason: Option<DisableReason>,
     pub vision_supported: bool,
@@ -177,7 +171,6 @@ impl<'de> Deserialize<'de> for LLMInfo {
             id: LLMId,
             #[serde(default)]
             reasoning_level: Option<String>,
-            usage_metadata: LLMUsageMetadata,
             #[serde(default)]
             description: Option<String>,
             #[serde(default)]
@@ -217,7 +210,6 @@ impl<'de> Deserialize<'de> for LLMInfo {
             display_name: wire.display_name,
             id: wire.id,
             reasoning_level: wire.reasoning_level,
-            usage_metadata: wire.usage_metadata,
             description: wire.description,
             disable_reason: wire.disable_reason,
             spec: wire.spec,
@@ -263,9 +255,6 @@ impl LLMInfo {
             base_model_name: llm_name.to_string(),
             id: llm_name.into(),
             reasoning_level: None,
-            usage_metadata: LLMUsageMetadata {
-                credit_multiplier: None,
-            },
             description: None,
             disable_reason: None,
             vision_supported: false, // Default to false for tests
@@ -408,9 +397,6 @@ fn builtin_llm(id: &str, display_name: &str, provider: LLMProvider) -> LLMInfo {
         base_model_name: id.to_owned(),
         id: id.to_owned().into(),
         reasoning_level: None,
-        usage_metadata: LLMUsageMetadata {
-            credit_multiplier: None,
-        },
         description: Some(provider.display_name().to_owned()),
         disable_reason: None,
         vision_supported: true,
@@ -1103,9 +1089,6 @@ fn provider_llm_info_from(model: &local_inference::ProviderModel) -> LLMInfo {
         base_model_name: model.display_name.clone(),
         id: model.id.clone().into(),
         reasoning_level: None,
-        usage_metadata: LLMUsageMetadata {
-            credit_multiplier: None,
-        },
         description: Some(model.provider.display_name().to_owned()),
         disable_reason: None,
         vision_supported: true,
@@ -1122,9 +1105,6 @@ fn custom_llm_info_from(endpoint: &CustomEndpoint, model: &CustomEndpointModel) 
         base_model_name: label,
         id: model.config_key.clone().into(),
         reasoning_level: None,
-        usage_metadata: LLMUsageMetadata {
-            credit_multiplier: None,
-        },
         description: Some(format!("Custom · {}", endpoint.name)),
         disable_reason: None,
         vision_supported: true,

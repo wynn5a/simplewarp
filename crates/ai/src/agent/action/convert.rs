@@ -26,11 +26,6 @@ impl From<api::message::tool_call::RunShellCommand> for AIAgentActionType {
                     should_wait,
                 )| should_wait,
             ),
-            citations: value
-                .citations
-                .iter()
-                .filter_map(|citation| citation.clone().try_into().ok())
-                .collect(),
         }
     }
 }

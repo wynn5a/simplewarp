@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::cmp::{Ordering, PartialEq};
-use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -33,8 +32,7 @@ use super::inline_action_icons::{self, icon_size};
 use crate::ai::agent::conversation::ConversationStatus;
 use crate::ai::agent::{
     AIAgentActionId, AIAgentActionResult, AIAgentActionResultType, AIAgentActionType,
-    AIAgentCitation, AIAgentOutputMessageType, CallMCPToolResult, RequestCommandOutputResult,
-    icons,
+    AIAgentOutputMessageType, CallMCPToolResult, RequestCommandOutputResult, icons,
 };
 use crate::ai::blocklist::action_model::AIActionStatus;
 use crate::ai::blocklist::block::cli_controller::{
@@ -43,7 +41,7 @@ use crate::ai::blocklist::block::cli_controller::{
 use crate::ai::blocklist::block::view_impl::output::action_icon;
 use crate::ai::blocklist::block::view_impl::{
     CONTENT_HORIZONTAL_PADDING, CONTENT_ITEM_VERTICAL_MARGIN,
-    render_autonomy_checkbox_setting_speedbump_footer, render_citation, render_citation_chips,
+    render_autonomy_checkbox_setting_speedbump_footer,
 };
 use crate::ai::blocklist::block::{AIBlockAction, AutonomySettingSpeedbump};
 use crate::ai::blocklist::inline_action::inline_action_header::{
@@ -335,13 +333,6 @@ pub struct RequestedCommandView {
     header_mouse_state: MouseStateHandle,
     is_editing: bool,
 
-    // A requested command can either be copied directly off of one citation (such as a Warp Drive
-    // object), derived from one or more citations, or be unrelated to any citations.
-    // A given citation should only appear once per block.
-    copied_from_citation: Option<AIAgentCitation>,
-    derived_from_citations: Vec<AIAgentCitation>,
-    citation_state_handles: HashMap<AIAgentCitation, MouseStateHandle>,
-
     autoexecute_readonly_commands_speedbump_checkbox_handle: MouseStateHandle,
     manage_autonomy_settings_link_handle: MouseStateHandle,
 
@@ -608,9 +599,6 @@ impl RequestedCommandView {
             autonomy_setting_speedbump,
             is_header_expanded: false,
             header_mouse_state: Default::default(),
-            copied_from_citation: None,
-            derived_from_citations: Default::default(),
-            citation_state_handles: Default::default(),
             autoexecute_readonly_commands_speedbump_checkbox_handle: Default::default(),
             manage_autonomy_settings_link_handle,
             block_model,
@@ -774,85 +762,13 @@ impl RequestedCommandView {
         self.is_header_expanded
     }
 
-    /// We use the requested command footer to show citations.
     fn maybe_render_footer(&self, app: &AppContext) -> Option<Box<dyn Element>> {
-        let appearance = Appearance::as_ref(app);
-        let theme = appearance.theme();
-
-        let citations_padding = 4.;
-        let citations_font_size = appearance.monospace_font_size() - 2.;
-        let citations_footer_props = if self.derived_from_citations.is_empty()
-            || self.block_model.status(app).is_streaming()
-        {
-            // Don't render the footer if there aren't even any citations.
-            None
-        } else if let Some(copied_citation) = &self.copied_from_citation {
-            // If there's exactly one citation that the requested command was copied from,
-            // we only show that citation.
-            let Some(mouse_state_handle) =
-                self.citation_state_handles.get(copied_citation).cloned()
-            else {
-                log::warn!(
-                    "Tried to retrieve mouse state handle for citation, but no mouse state handle exists."
-                );
-                return None;
-            };
-            render_citation(
-                copied_citation,
-                mouse_state_handle,
-                citations_font_size,
-                citations_padding,
-                app,
-            )
-            .map(|citation| ("Copied from", citation))
-        } else {
-            // Otherwise, we render all the citations (if any) and mention that the command was derived from them.
-            render_citation_chips(
-                &self.derived_from_citations,
-                &self.citation_state_handles,
-                citations_font_size,
-                citations_padding,
-                app,
-            )
-            .map(|citations| ("Derived from", citations))
-        };
-
-        let citations_footer = citations_footer_props.map(|(prefix, suffix)| {
-            Container::new(
-                Flex::row()
-                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_main_axis_size(MainAxisSize::Max)
-                    .with_child(
-                        Text::new(
-                            format!("{prefix} "),
-                            appearance.ui_font_family(),
-                            appearance.monospace_font_size() - 1.,
-                        )
-                        .with_color(blended_colors::text_sub(theme, theme.surface_1()))
-                        .with_selectable(false)
-                        .finish(),
-                    )
-                    .with_child(suffix)
-                    .finish(),
-            )
-            .with_horizontal_padding(INLINE_ACTION_HORIZONTAL_PADDING)
-            .with_vertical_padding(4.)
-            .with_background(theme.surface_1())
-            .with_corner_radius(CornerRadius::with_bottom(Radius::Pixels(7.)))
-            .finish()
-        });
-
-        match (citations_footer, &self.autonomy_setting_speedbump) {
-            // If there's a citation footer, prefer showing that instead of the speedbump.
-            (Some(citations_footer), _) => Some(citations_footer),
-            (
-                _,
-                AutonomySettingSpeedbump::ShouldShowForAutoexecutingReadonlyCommands {
-                    action_id: show_for_action_id,
-                    checked,
-                    shown,
-                },
-            ) if show_for_action_id == &self.action_id => {
+        match &self.autonomy_setting_speedbump {
+            AutonomySettingSpeedbump::ShouldShowForAutoexecutingReadonlyCommands {
+                action_id: show_for_action_id,
+                checked,
+                shown,
+            } if show_for_action_id == &self.action_id => {
                 *shown.lock() = true;
                 Some(render_autonomy_checkbox_setting_speedbump_footer(
                     "Always allow the Warp Agent to execute read-only commands (relies on model)",
@@ -864,13 +780,10 @@ impl RequestedCommandView {
                     app,
                 ))
             }
-            (
-                _,
-                AutonomySettingSpeedbump::ShouldShowForProfileCommandAutoexecution {
-                    action_id: show_for_action_id,
-                    shown,
-                },
-            ) if show_for_action_id == &self.action_id => {
+            AutonomySettingSpeedbump::ShouldShowForProfileCommandAutoexecution {
+                action_id: show_for_action_id,
+                shown,
+            } if show_for_action_id == &self.action_id => {
                 *shown.lock() = true;
                 Some(Self::render_profile_autoexecution_info_footer(
                     self.manage_autonomy_settings_link_handle.clone(),
@@ -992,26 +905,6 @@ impl RequestedCommandView {
 
     pub fn command_text(&self) -> &str {
         &self.command_text
-    }
-
-    pub fn copied_from_citation(&self) -> Option<&AIAgentCitation> {
-        self.copied_from_citation.as_ref()
-    }
-
-    pub fn update_copied_from_citation(&mut self, citation: &AIAgentCitation) {
-        self.citation_state_handles
-            .entry(citation.clone())
-            .or_default();
-        self.copied_from_citation = Some(citation.clone());
-    }
-
-    pub fn update_derived_from_citations(&mut self, citations: &[AIAgentCitation]) {
-        for citation in citations {
-            self.citation_state_handles
-                .entry(citation.clone())
-                .or_default();
-        }
-        self.derived_from_citations = citations.to_vec();
     }
 
     pub fn set_autonomy_setting_speedbump(
@@ -1632,13 +1525,10 @@ impl View for RequestedCommandView {
             && self.action_type.is_mcp_tool()
             && !self.command_text.is_empty();
 
-        let has_citations_footer =
-            !self.derived_from_citations.is_empty() && !self.block_model.status(app).is_streaming();
         let header_element = self.render_header(
             !should_render_editor
                 && !should_render_mcp_content
-                && !is_rendered_above_expanded_command_block
-                && !has_citations_footer,
+                && !is_rendered_above_expanded_command_block,
             app,
         );
 

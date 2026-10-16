@@ -1198,11 +1198,6 @@ fn create_exchange_from_messages(
             .filter_map(|message_id| message_map.get(message_id.as_str()).copied()),
     );
 
-    // Collect all citations from the output messages.
-    let mut citations = Vec::new();
-    for output in outputs {
-        citations.extend(output.citations.clone());
-    }
     let model_used = message_ids
         .iter()
         .filter_map(|message_id| message_map.get(message_id.as_str()))
@@ -1216,7 +1211,6 @@ fn create_exchange_from_messages(
     // Create AIAgentOutput from the output messages
     let ai_output = AIAgentOutput {
         messages: outputs.to_vec(),
-        citations,
         server_output_id: server_output_id.map(|id| ServerOutputId::new(id.to_owned())),
         model_info: model_used.map(|model| OutputModelInfo {
             model_id: model.model_id.clone().into(),

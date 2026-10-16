@@ -10,6 +10,7 @@
 //! data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1",
 //!        "function":{"name":"grep","arguments":"{\"queries\""}}]}}]}
 //! data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}
+//! data: {"choices":[],"usage":{"prompt_tokens":812,"completion_tokens":40}}
 //! data: [DONE]
 //! ```
 
@@ -17,7 +18,7 @@ use serde_json::{Value, json};
 
 use crate::config::ProviderTarget;
 use crate::convert::Turn;
-use crate::provider::{Delta, StopReason};
+use crate::provider::{Delta, StopReason, TokenUsage};
 use crate::tools::ToolSchema;
 
 pub fn headers(target: &ProviderTarget) -> Vec<(&'static str, String)> {
@@ -52,6 +53,7 @@ pub fn build_body(
     let mut body = json!({
         "model": target.model,
         "stream": true,
+        "stream_options": { "include_usage": true },
         "messages": messages,
     });
     if !tools.is_empty() {
@@ -129,14 +131,20 @@ pub fn parse_event(data: &str) -> Vec<Delta> {
     let Ok(value) = serde_json::from_str::<Value>(data) else {
         return Vec::new();
     };
+
+    let mut deltas = Vec::new();
+    // The usage chunk comes last and usually has no choices, but some servers attach `usage` to
+    // the chunk that carries the `finish_reason`.
+    if let Some(usage) = usage(&value["usage"]) {
+        deltas.push(Delta::Usage(usage));
+    }
+
     let Some(choice) = value["choices"]
         .as_array()
         .and_then(|choices| choices.first())
     else {
-        return Vec::new();
+        return deltas;
     };
-
-    let mut deltas = Vec::new();
     let delta = &choice["delta"];
 
     if let Some(text) = delta["content"].as_str()
@@ -183,6 +191,19 @@ pub fn parse_event(data: &str) -> Vec<Delta> {
     }
 
     deltas
+}
+
+fn usage(usage: &Value) -> Option<TokenUsage> {
+    if !usage.is_object() {
+        return None;
+    }
+    let count = |value: &Value| value.as_u64().unwrap_or(0) as u32;
+    Some(TokenUsage {
+        input: count(&usage["prompt_tokens"]),
+        output: count(&usage["completion_tokens"]),
+        cache_read: count(&usage["prompt_tokens_details"]["cached_tokens"]),
+        cache_write: 0,
+    })
 }
 
 fn stop_reason(reason: &str) -> StopReason {

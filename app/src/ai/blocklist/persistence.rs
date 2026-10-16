@@ -339,7 +339,6 @@ impl TryFrom<PersistedAIAgentActionType> for AIAgentActionType {
                     uses_pager: None,
                     // TODO(zachbai): Support restoring this value from persisted type.
                     wait_until_completion: false,
-                    citations: vec![],
                 })
             }
             PersistedAIAgentActionType::WriteToLongRunningShellCommand {

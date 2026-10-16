@@ -65,7 +65,6 @@ use super::inline_action::code_diff_view::{
     CodeDiffState, CodeDiffView, CodeDiffViewAction, CodeDiffViewEvent,
 };
 use super::inline_action::requested_action::{CTRL_C_KEYSTROKE, ENTER_KEYSTROKE};
-use super::inline_action::requested_command_attribution::is_command_copied_from_document;
 use super::{
     BlocklistAIActionModel, BlocklistAIController, BlocklistAIHistoryEvent,
     BlocklistAIHistoryModel, BlocklistAIPermissions, ResponseStreamId,
@@ -73,9 +72,9 @@ use super::{
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResultType, AIAgentActionType, AIAgentAttachment,
-    AIAgentCitation, AIAgentContext, AIAgentInput, AIAgentOutput, AIAgentOutputMessageType,
-    AIAgentTextSection, AIIdentifiers, CancellationReason, MessageId, ProgrammingLanguage,
-    RequestCommandOutputResult, RequestFileEditsResult, ServerOutputId, SummarizationType,
+    AIAgentContext, AIAgentInput, AIAgentOutput, AIAgentOutputMessageType, AIAgentTextSection,
+    AIIdentifiers, CancellationReason, MessageId, ProgrammingLanguage, RequestCommandOutputResult,
+    RequestFileEditsResult, ServerOutputId, SummarizationType,
 };
 use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::ai::blocklist::context_model::AttachmentType;
@@ -277,14 +276,6 @@ pub(super) struct AIBlockStateHandles {
 
     /// Mouse state handle for the fork conversation button
     fork_conversation_handle: MouseStateHandle,
-
-    /// Mouse state handle for the usage button
-
-    /// Mouse state handles per citation.
-    /// A given citation should only appear once per block.
-    footer_citation_chip_handles: HashMap<AIAgentCitation, MouseStateHandle>,
-
-    references_section_collapsible_handle: MouseStateHandle,
 
     autoread_files_speedbump_checkbox_handle: MouseStateHandle,
     manage_autonomy_settings_link_handle: MouseStateHandle,
@@ -710,9 +701,6 @@ pub struct AIBlock {
 
     secret_redaction_state: SecretRedactionState,
 
-    /// Whether or not the references section at the bottom of the block is toggled open.
-    is_references_section_open: bool,
-
     /// A speedbump, or notice, about an autonomy setting.
     ///
     /// Assumes we only have 1 action per AI block.
@@ -1058,7 +1046,6 @@ impl AIBlock {
             secret_redaction_state,
             find_state: FindState::default(),
             find_model,
-            is_references_section_open: false,
             active_session,
             autonomy_setting_speedbump: Default::default(),
             response_rating: OnceCell::new(),
@@ -1494,13 +1481,10 @@ impl AIBlock {
             match action {
                 AIAgentAction {
                     id: action_id,
-                    action:
-                        AIAgentActionType::RequestCommandOutput {
-                            command, citations, ..
-                        },
+                    action: AIAgentActionType::RequestCommandOutput { command, .. },
                     ..
                 } => {
-                    self.handle_requested_command_stream_update(action_id, command, citations, ctx);
+                    self.handle_requested_command_stream_update(action_id, command, ctx);
                 }
                 AIAgentAction {
                     id: action_id,
@@ -1566,38 +1550,6 @@ impl AIBlock {
             .for_each(|(index, (code, language, source))| {
                 self.handle_code_section_stream_update(index, code, language, source, ctx);
             });
-
-        // Register the mouse state handles for citations.
-        for citation in &output.citations {
-            self.state_handles
-                .footer_citation_chip_handles
-                .entry(citation.clone())
-                .or_default();
-        }
-        // Also register handles for memory citations derived from fetched_memories,
-        // which are synthesized at render time and never go through output.citations.
-        // Only register for the first exchange since that's the only one that shows them.
-        if let Some(conversation) = self.model.conversation(ctx) {
-            let is_first_exchange = conversation
-                .first_exchange()
-                .map(|e| Some(e.id) == self.model.exchange_id(ctx))
-                .unwrap_or(false);
-            if is_first_exchange {
-                for memory in conversation.fetched_memories() {
-                    if memory.memory_store_id.is_empty() || memory.memory_id.is_empty() {
-                        continue;
-                    }
-                    self.state_handles
-                        .footer_citation_chip_handles
-                        .entry(AIAgentCitation::AgentMemory {
-                            memory_store_id: memory.memory_store_id.clone(),
-                            memory_id: memory.memory_id.clone(),
-                            content: memory.content.clone(),
-                        })
-                        .or_default();
-                }
-            }
-        }
 
         // Register element state for reasoning messages and track summarization timing.
         for message in &output.messages {
@@ -1825,18 +1777,6 @@ impl AIBlock {
                     )
                 }
                 _ => (),
-            }
-
-            for citation in &output.citations {
-                if is_command_copied_from_document(command, citation, shell_type, ctx)
-                    && let Some(requested_command) =
-                        self.requested_commands.get(requested_command_action_id)
-                {
-                    requested_command.view.update(ctx, |view, ctx| {
-                        view.update_copied_from_citation(citation);
-                        ctx.notify();
-                    });
-                }
             }
         }
 
@@ -2265,14 +2205,12 @@ impl AIBlock {
         &mut self,
         action_id: &AIAgentActionId,
         command: &str,
-        citations: &[AIAgentCitation],
         ctx: &mut ViewContext<Self>,
     ) {
         match self.requested_commands.get_mut(action_id) {
             Some(requested_command) => {
                 requested_command.view.update(ctx, |view, ctx| {
                     view.apply_streamed_update(command, ctx);
-                    view.update_derived_from_citations(citations);
                     ctx.notify();
                 });
             }
@@ -2293,7 +2231,6 @@ impl AIBlock {
                         ctx,
                     );
                     view.apply_streamed_update(command, ctx);
-                    view.update_derived_from_citations(citations);
                     view
                 });
                 let action_id_clone = action_id.clone();
@@ -3325,17 +3262,6 @@ impl AIBlock {
         }
     }
 
-    /// Returns the document that the requested command was copied from, if any.
-    pub fn requested_command_copied_from_doc(
-        &self,
-        action_id: &AIAgentActionId,
-        ctx: &ViewContext<TerminalView>,
-    ) -> Option<AIAgentCitation> {
-        let requested_command = self.requested_commands.get(action_id)?;
-        let requested_command_view = requested_command.view.as_ref(ctx);
-        requested_command_view.copied_from_citation().cloned()
-    }
-
     fn pending_requested_edit(&self, app: &AppContext) -> Option<&RequestedEdit> {
         self.action_model
             .as_ref(app)
@@ -3866,7 +3792,6 @@ pub enum AIBlockEvent {
     DismissLinkTooltip,
     ShowSecretTooltip(RichContentSecretTooltipInfo),
     DismissSecretTooltip,
-    OpenCitation(AIAgentCitation),
     OpenAIFactCollection {
         /// If set, open the fact collection to the specific rule.
         sync_id: Option<SyncId>,
@@ -3980,9 +3905,7 @@ pub enum AIBlockAction {
         secret_range: SecretRange,
         location: TextLocation,
     },
-    OpenCitation(AIAgentCitation),
     OpenAIFactCollection,
-    ToggleReferencesSection,
     ToggleAutoexecuteReadonlyCommandsSpeedbumpCheckbox,
     ToggleAutoreadFilesSpeedbumpCheckbox,
     Rated {
@@ -4217,14 +4140,8 @@ impl TypedActionView for AIBlock {
             } => {
                 self.show_secret_tooltip(location, secret_range, ctx);
             }
-            AIBlockAction::OpenCitation(citation) => {
-                ctx.emit(AIBlockEvent::OpenCitation(citation.clone()));
-            }
             AIBlockAction::OpenAIFactCollection => {
                 ctx.emit(AIBlockEvent::OpenAIFactCollection { sync_id: None });
-            }
-            AIBlockAction::ToggleReferencesSection => {
-                self.is_references_section_open = !self.is_references_section_open;
             }
             AIBlockAction::CommentExpanded { id } => {
                 let Some(comment) = self.comment_states.get_mut(id) else {

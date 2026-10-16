@@ -27,7 +27,7 @@ mod input;
 pub mod output;
 pub mod query;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use common::get_highlight_ranges_for_find_matches;
 use itertools::Itertools;
@@ -41,12 +41,11 @@ use warp_core::ui::color::contrast::{
 };
 use warp_core::ui::theme::{Fill, WarpTheme};
 use warpui::elements::{
-    Align, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty, Expanded,
-    Flex, FormattedTextElement, Highlight, HighlightedRange, Hoverable, MainAxisAlignment,
-    MainAxisSize, MouseStateHandle, ParentElement, Radius, SavePosition, SelectableArea, Text,
+    Align, Border, ConstrainedBox, Container, CrossAxisAlignment, Empty, Expanded, Flex,
+    FormattedTextElement, Highlight, HighlightedRange, MainAxisSize, MouseStateHandle,
+    ParentElement, SavePosition, SelectableArea, Text,
 };
 use warpui::fonts::Properties;
-use warpui::platform::Cursor;
 use warpui::text_layout::TextStyle;
 use warpui::ui_components::components::UiComponent;
 use warpui::{AppContext, Element, SingletonEntity, View, ViewContext};
@@ -56,7 +55,7 @@ use super::{
     AIBlock, AIBlockAction, DISPATCHED_REQUESTED_EDIT_KEYMAP_CONTEXT, HAS_PENDING_ACTION,
     RICH_CONTENT_SECRET_FIRST_CHAR_POSITION_ID, TextLocation, attachment_names,
 };
-use crate::ai::agent::{AIAgentCitation, AIAgentInput};
+use crate::ai::agent::AIAgentInput;
 use crate::ai::blocklist::block::DetectedLinksState;
 use crate::ai::blocklist::block::view_impl::comments::address_comment_chips;
 use crate::ai::blocklist::block::view_impl::header::{
@@ -66,8 +65,6 @@ use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
 use crate::ai::blocklist::inline_action::inline_action_icons::icon_size;
 use crate::ai::blocklist::model::AIBlockModelHelper;
 use crate::appearance::Appearance;
-use crate::cloud_object::DriveObjectType;
-use crate::cloud_object::model::persistence::CloudModel;
 use crate::settings::{AISettings, InputModeSettings, InputSettings};
 use crate::settings_view::SettingsSection;
 use crate::terminal::block_list_element::BlockListMenuSource;
@@ -78,9 +75,7 @@ use crate::terminal::model::rich_content::RichContentType;
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::terminal::view::TerminalAction;
 use crate::ui_components::blended_colors;
-use crate::ui_components::icons::Icon;
 use crate::util::link_detection::DetectedLinkType;
-use crate::util::truncation::truncate_from_end;
 use crate::workspace::WorkspaceAction;
 
 /// Helper function to create gray strikethrough highlight for secrets
@@ -589,139 +584,6 @@ pub(crate) fn add_highlights_to_rich_text(
     formatted_text_element
 }
 
-/// Renders a row of citations.
-///
-/// TODO: All AIBlock footer-related rendering logic should probably be put into its own View.
-/// This function is needed both above (i.e. `block.rs`) and below (i.e. `output.rs`), and as such
-/// cannot reside in `output.rs` because we don't want to make `mod output` public.
-pub fn render_citation_chips(
-    citations: &[AIAgentCitation],
-    citation_state_handles: &HashMap<AIAgentCitation, MouseStateHandle>,
-    font_size: f32,
-    padding: f32,
-    app: &AppContext,
-) -> Option<Box<dyn Element>> {
-    let renderable_citations = citations
-        .iter()
-        .filter_map(|citation| {
-            citation_state_handles
-                .get(citation)
-                .and_then(|mouse_handle| {
-                    render_citation(citation, mouse_handle.clone(), font_size, padding, app)
-                })
-        })
-        .collect_vec();
-
-    if renderable_citations.is_empty() {
-        return None;
-    }
-
-    Some(
-        Flex::row()
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_children(
-                renderable_citations
-                    .into_iter()
-                    .map(|citation| Container::new(citation).with_margin_right(8.).finish()),
-            )
-            .finish(),
-    )
-}
-
-/// Renders a single citations chip.
-///
-/// TODO: All AIBlock footer-related rendering logic should probably be put into its own View.
-/// This function is needed both above (i.e. `block.rs`) and below (i.e. `output.rs`), and as such
-/// cannot reside in `output.rs` because we don't want to make `mod output` public.
-pub fn render_citation(
-    citation: &AIAgentCitation,
-    mouse_state_handle: MouseStateHandle,
-    font_size: f32,
-    padding: f32,
-    app: &AppContext,
-) -> Option<Box<dyn Element>> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-
-    let (icon, name) = match citation {
-        AIAgentCitation::WarpDriveObject { uid } => {
-            let object = CloudModel::as_ref(app).get_by_uid(uid)?;
-            let object_type = DriveObjectType::for_cloud_object(object)?;
-            let icon = Icon::from(object_type)
-                .to_warpui_icon(theme.active_ui_text_color())
-                .finish();
-            let name = object.display_name();
-            let name = if name.is_empty() {
-                String::from("Untitled")
-            } else {
-                name
-            };
-            (Some(icon), name)
-        }
-        AIAgentCitation::WarpDocumentation { .. } => {
-            let icon = Icon::Warp.to_warpui_icon(theme.foreground()).finish();
-            let name = String::from("Warp Docs");
-            (Some(icon), name)
-        }
-        AIAgentCitation::WebPage { url } => {
-            let icon = Icon::LinkExternal
-                .to_warpui_icon(theme.foreground())
-                .finish();
-            let name = url.clone();
-            (Some(icon), name)
-        }
-        AIAgentCitation::AgentMemory { content, .. } => {
-            let icon = Icon::Cognition.to_warpui_icon(theme.foreground()).finish();
-            let name = if content.is_empty() {
-                String::from("Memory")
-            } else {
-                content.clone()
-            };
-            (Some(icon), name)
-        }
-    };
-
-    // Shorten the name to 30 chars.
-    let shortened_name = truncate_from_end(&name, 30);
-
-    let mut row = Flex::row()
-        .with_main_axis_alignment(MainAxisAlignment::Center)
-        .with_cross_axis_alignment(CrossAxisAlignment::Center);
-    if let Some(icon) = icon {
-        row.add_child(
-            Container::new(
-                ConstrainedBox::new(icon)
-                    .with_width(font_size)
-                    .with_height(font_size)
-                    .finish(),
-            )
-            .with_margin_right(4.)
-            .finish(),
-        );
-    }
-    row.add_child(
-        Text::new_inline(shortened_name, appearance.ui_font_family(), font_size)
-            .with_color(theme.active_ui_text_color().into())
-            .with_selectable(false)
-            .finish(),
-    );
-
-    let chip = Container::new(row.finish())
-        .with_uniform_padding(padding)
-        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
-        .with_background(blended_colors::neutral_3(theme))
-        .finish();
-    let citation_clone = citation.clone();
-    Some(
-        Hoverable::new(mouse_state_handle, |_| chip)
-            .on_click(move |ctx, _, _| {
-                ctx.dispatch_typed_action(AIBlockAction::OpenCitation(citation_clone.clone()));
-            })
-            .with_cursor(Cursor::PointingHand)
-            .finish(),
-    )
-}
-
 /// TODO: All AIBlock footer-related rendering logic should probably be put into its own View.
 /// This function is needed both above (i.e. `block.rs`) and below (i.e. `output.rs`), and as such
 /// cannot reside in `output.rs` because we don't want to make `mod output` public.
@@ -976,7 +838,6 @@ impl View for AIBlock {
                         state: &self.find_state,
                     },
                 ),
-                is_references_section_open: self.is_references_section_open,
                 autonomy_setting_speedbump: &self.autonomy_setting_speedbump,
                 response_rating: &self.response_rating,
                 review_changes_button: &self.review_changes_button,

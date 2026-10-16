@@ -361,9 +361,6 @@ fn server_llm(id: &str, disable_reason: Option<DisableReason>) -> LLMInfo {
         base_model_name: id.to_string(),
         id: id.into(),
         reasoning_level: None,
-        usage_metadata: LLMUsageMetadata {
-            credit_multiplier: None,
-        },
         description: None,
         disable_reason,
         vision_supported: false,
@@ -566,9 +563,6 @@ fn agent_llm(id: &str, display_name: &str) -> LLMInfo {
         base_model_name: display_name.to_owned(),
         id: id.into(),
         reasoning_level: None,
-        usage_metadata: LLMUsageMetadata {
-            credit_multiplier: None,
-        },
         description: None,
         disable_reason: None,
         vision_supported: false,

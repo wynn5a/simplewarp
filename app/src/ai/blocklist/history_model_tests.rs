@@ -158,6 +158,7 @@ fn test_initialize_historical_conversations_uses_root_task_description_title() {
                     artifacts_json: None,
                     root_task_is_optimistic: None,
                     autoexecute_override: None,
+                    token_usage: None,
                 })
                 .expect("conversation data should serialize"),
                 last_modified_at: now,
@@ -1341,6 +1342,7 @@ fn test_find_by_token_after_insert_forked_conversation_from_tasks() {
             artifacts_json: None,
             root_task_is_optimistic: None,
             autoexecute_override: None,
+            token_usage: None,
         };
         let tasks = vec![warp_multi_agent_api::Task {
             id: "root-task".to_string(),
@@ -1546,6 +1548,7 @@ fn test_fork_then_bind_handoff_token_resolves_to_forked_conversation() {
                 artifacts_json: None,
                 root_task_is_optimistic: None,
                 autoexecute_override: None,
+                token_usage: None,
             }),
         )
         .expect("restored source conversation should build");
@@ -1625,6 +1628,7 @@ fn test_fork_then_bind_handoff_token_persists_to_restored_conversation() {
                 artifacts_json: None,
                 root_task_is_optimistic: None,
                 autoexecute_override: None,
+                token_usage: None,
             }),
         )
         .expect("restored source conversation should build");
@@ -1729,6 +1733,7 @@ fn test_fork_then_bind_handoff_token_updates_cached_metadata_and_emits_refresh_e
                 artifacts_json: None,
                 root_task_is_optimistic: None,
                 autoexecute_override: None,
+                token_usage: None,
             }),
         )
         .expect("restored source conversation should build");
@@ -1849,6 +1854,7 @@ fn test_fork_conversation_preserves_task_ids_when_requested() {
                 artifacts_json: None,
                 root_task_is_optimistic: None,
                 autoexecute_override: None,
+                token_usage: None,
             }),
         )
         .expect("restored source conversation should build");
@@ -1991,6 +1997,7 @@ fn test_fork_conversation_title_override_replaces_prefix() {
                 artifacts_json: None,
                 root_task_is_optimistic: None,
                 autoexecute_override: None,
+                token_usage: None,
             }),
         )
         .expect("restored source conversation should build");
@@ -2664,6 +2671,7 @@ fn straddle_rewind_followup_requests_are_clean_and_durable() {
                 artifacts_json: None,
                 root_task_is_optimistic: None,
                 autoexecute_override: None,
+                token_usage: None,
             }),
         )
         .expect("conversation should build");

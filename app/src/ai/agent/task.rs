@@ -886,8 +886,6 @@ impl AIAgentExchange {
                 .to_client_output_message(conversion_params)?
             {
                 MaybeAIAgentOutputMessage::Message(m) => {
-                    // Extract citations from the message and add to the output citations
-                    output.extend_citations(m.citations.clone());
                     // Upsert behavior: update the message if it exists, otherwise add it to the end of the list.
                     if let Some(message_idx) = message_idx {
                         output.messages[message_idx] = m;

@@ -18,8 +18,8 @@ use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::elements::new_scrollable::SingleAxisConfig;
 use warpui::elements::{
     Align, Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-    Expanded, Fill, Flex, FormattedTextElement, Hoverable, MainAxisAlignment, NewScrollable,
-    ParentElement, Radius, Shrinkable, Text,
+    Expanded, Fill, Flex, FormattedTextElement, Hoverable, NewScrollable, ParentElement, Radius,
+    Shrinkable, Text,
 };
 use warpui::keymap::Keystroke;
 use warpui::platform::{Cursor, OperatingSystem};
@@ -37,7 +37,6 @@ use super::imported_comments::render_imported_comments;
 use super::{
     CONTENT_HORIZONTAL_PADDING, CONTENT_ITEM_VERTICAL_MARGIN, WithContentItemSpacing,
     add_highlights_to_rich_text, render_autonomy_checkbox_setting_speedbump_footer,
-    render_citation_chips,
 };
 use crate::FeatureFlag;
 use crate::ai::agent::api::ServerConversationToken;
@@ -46,10 +45,9 @@ use crate::ai::agent::icons::{self, gray_stop_icon};
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResult, AIAgentActionResultType,
-    AIAgentActionType, AIAgentCitation, AIAgentInput, AIAgentOutputMessage,
-    AIAgentOutputMessageType, AIAgentText, AIAgentTextSection, CancellationOutcome, MessageId,
-    ReadFilesFailedFile, ReadFilesRequest, ReadFilesResult, RequestCommandOutputResult,
-    SubagentCall, SubagentType, SummarizationType,
+    AIAgentActionType, AIAgentInput, AIAgentOutputMessage, AIAgentOutputMessageType, AIAgentText,
+    AIAgentTextSection, CancellationOutcome, MessageId, ReadFilesFailedFile, ReadFilesRequest,
+    ReadFilesResult, RequestCommandOutputResult, SubagentCall, SubagentType, SummarizationType,
 };
 use crate::ai::blocklist::action_model::AIActionStatus;
 use crate::ai::blocklist::block::model::{AIBlockModel, AIBlockModelHelper, AIBlockOutputStatus};
@@ -114,7 +112,6 @@ pub(crate) struct Props<'a> {
     pub(crate) is_selecting_text: bool,
     pub(super) is_ai_input_enabled: bool,
     pub(crate) find_context: Option<FindContext<'a>>,
-    pub(super) is_references_section_open: bool,
     pub(super) autonomy_setting_speedbump: &'a AutonomySettingSpeedbump,
     pub(super) response_rating: &'a OnceCell<AIBlockResponseRating>,
     pub(super) review_changes_button: &'a ViewHandle<ActionButton>,
@@ -168,13 +165,8 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
         | AIBlockOutputStatus::Failed { .. } => {
             if let Some(output) = status.output_to_render() {
                 let output = output.get();
-                let is_complete = matches!(status, AIBlockOutputStatus::Complete { .. });
                 let is_output_for_static_prompt_suggestions =
                     props.model.contains_static_prompt_suggestion_input(app);
-
-                // We only want to render the references section, thumbs up/down ratings, and suggestions
-                // when the entire response is complete to avoid intermediate states.
-                let mut should_render_references_section = is_complete;
 
                 let mut should_render_footer =
                     props.model.is_latest_visible_exchange_in_root_task(app)
@@ -296,10 +288,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             id,
                             ..
                         }) => {
-                            // Since we're rendering a requested command, it will
-                            // render the citations so don't render them again.
-                            should_render_references_section = false;
-
                             let is_action_done = props
                                 .action_model
                                 .as_ref(app)
@@ -504,10 +492,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             id,
                             ..
                         }) => {
-                            // Since we're rendering an MCP tool call, it will
-                            // render the citations so don't render them again.
-                            should_render_references_section = false;
-
                             let is_action_done = props
                                 .action_model
                                 .as_ref(app)
@@ -731,35 +715,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                     };
                     if let AIAgentOutputMessageType::Action(..) = output_message.message {
                         action_index += 1;
-                    }
-                }
-
-                if should_render_references_section {
-                    let exchange_id = props.model.exchange_id(app);
-                    let memory_citations: Vec<AIAgentCitation> = props
-                        .model
-                        .conversation(app)
-                        .filter(|conv| {
-                            // Only show memory citations on the first exchange.
-                            conv.first_exchange().map(|e| Some(e.id)) == Some(exchange_id)
-                        })
-                        .into_iter()
-                        .flat_map(|conv| conv.fetched_memories())
-                        .filter(|m| !m.memory_store_id.is_empty() && !m.memory_id.is_empty())
-                        .map(|m| AIAgentCitation::AgentMemory {
-                            memory_store_id: m.memory_store_id.clone(),
-                            memory_id: m.memory_id.clone(),
-                            content: m.content.clone(),
-                        })
-                        .collect();
-                    let all_citations: Vec<AIAgentCitation> = output
-                        .citations
-                        .iter()
-                        .cloned()
-                        .chain(memory_citations)
-                        .collect();
-                    if let Some(references) = render_references_footer(&all_citations, props, app) {
-                        output_items.add_child(references);
                     }
                 }
 
@@ -1809,76 +1764,6 @@ fn render_read_mcp_resource(
     }
 
     renderable_action.render(app).finish()
-}
-
-/// Renders the collapsible references footer
-/// if there are any citations.
-fn render_references_footer(
-    citations: &[AIAgentCitation],
-    props: Props,
-    app: &AppContext,
-) -> Option<Box<dyn Element>> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-    let title_row_color = theme.nonactive_ui_text_color();
-
-    let citations_row = render_citation_chips(
-        citations,
-        &props.state_handles.footer_citation_chip_handles,
-        appearance.monospace_font_size() - 2.,
-        8.,
-        app,
-    )?;
-
-    let title = Text::new_inline(
-        "References",
-        appearance.ui_font_family(),
-        appearance.monospace_font_size(),
-    )
-    .with_color(title_row_color.into())
-    .with_selectable(false);
-    let chevron = if props.is_references_section_open {
-        Icon::ChevronDown
-    } else {
-        Icon::ChevronRight
-    };
-    let title_row = Flex::row()
-        .with_main_axis_alignment(MainAxisAlignment::Center)
-        .with_child(
-            Container::new(title.finish())
-                .with_margin_right(6.)
-                .finish(),
-        )
-        .with_child(
-            ConstrainedBox::new(chevron.to_warpui_icon(title_row_color).finish())
-                .with_height(icon_size(app) - 2.)
-                .with_width(icon_size(app) - 2.)
-                .finish(),
-        );
-
-    let mut column = Flex::column();
-    column.add_child(
-        Hoverable::new(
-            props
-                .state_handles
-                .references_section_collapsible_handle
-                .clone(),
-            |_| {
-                Container::new(title_row.finish())
-                    .with_margin_bottom(8.)
-                    .finish()
-            },
-        )
-        .on_click(|ctx, _, _| ctx.dispatch_typed_action(AIBlockAction::ToggleReferencesSection))
-        .with_cursor(Cursor::PointingHand)
-        .finish(),
-    );
-
-    if props.is_references_section_open {
-        column.add_child(citations_row);
-    }
-
-    Some(column.finish().with_agent_output_item_spacing(app).finish())
 }
 
 fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Element>> {

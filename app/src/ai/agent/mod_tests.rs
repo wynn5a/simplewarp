@@ -339,7 +339,6 @@ fn format_for_copy_preserves_visual_markdown_sections() {
                     },
                 ],
             }),
-            citations: Vec::new(),
         }],
         ..Default::default()
     };

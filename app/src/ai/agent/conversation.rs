@@ -50,7 +50,9 @@ use crate::ai::blocklist::{
 };
 use crate::ai::skills::SkillDescriptor;
 use crate::persistence::ModelEvent;
-use crate::persistence::model::{AgentConversationData, PersistedAutoexecuteMode};
+use crate::persistence::model::{
+    AgentConversationData, ConversationTokenUsage, PersistedAutoexecuteMode,
+};
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::model::block::{
     AgentInteractionMetadata, AgentViewVisibility, BlockId, SerializedAIMetadata, SerializedBlock,
@@ -151,6 +153,8 @@ pub struct AIConversation {
     /// Artifacts created during this conversation (plans, PRs, etc.).
     artifacts: Vec<Artifact>,
 
+    token_usage: ConversationTokenUsage,
+
     /// Whether the AIConversation is being used as a vehicle for a CLI conversation, that
     /// doesn't have a full internal representation but uses an AIConversationId to render
     /// in the agent view.
@@ -178,6 +182,7 @@ impl AIConversation {
             reverted_action_ids: Default::default(),
             fallback_display_title: None,
             artifacts: Vec::new(),
+            token_usage: Default::default(),
         }
     }
 
@@ -299,6 +304,7 @@ impl AIConversation {
             reverted_action_ids,
             artifacts,
             autoexecute_override,
+            token_usage,
         ) = if let Some(data) = conversation_data {
             let server_conversation_token = data
                 .server_conversation_token
@@ -337,6 +343,7 @@ impl AIConversation {
                 reverted_action_ids,
                 artifacts,
                 autoexecute_override,
+                data.token_usage.unwrap_or_default(),
             )
         } else {
             (
@@ -345,6 +352,7 @@ impl AIConversation {
                 HashSet::new(),
                 Vec::new(),
                 AIConversationAutoexecuteMode::default(),
+                ConversationTokenUsage::default(),
             )
         };
 
@@ -367,6 +375,7 @@ impl AIConversation {
             optimistic_cli_subagent_subtask_id: None,
             fallback_display_title: None,
             artifacts,
+            token_usage,
         })
     }
 
@@ -595,28 +604,6 @@ impl AIConversation {
     /// the messages were created and added to the conversation.
     pub fn all_linearized_messages(&self) -> Vec<&api::Message> {
         self.task_store.all_linearized_messages()
-    }
-
-    /// Returns the memories the server fetched for this conversation, in the order they first
-    /// appeared across messages (server-side rank order within each message). Re-fetched
-    /// memories are deduped by `(memory_store_id, memory_id)`: the first appearance keeps its
-    /// position while the entry's content/source are updated to the latest occurrence.
-    pub fn fetched_memories(&self) -> Vec<api::message::FetchedMemory> {
-        let mut memories: Vec<api::message::FetchedMemory> = Vec::new();
-        let mut index_by_id: HashMap<(String, String), usize> = HashMap::new();
-        for message in self.task_store.all_linearized_messages() {
-            for memory in &message.fetched_memories {
-                let key = (memory.memory_store_id.clone(), memory.memory_id.clone());
-                match index_by_id.get(&key) {
-                    Some(index) => memories[*index] = memory.clone(),
-                    None => {
-                        index_by_id.insert(key, memories.len());
-                        memories.push(memory.clone());
-                    }
-                }
-            }
-        }
-        memories
     }
 
     /// Returns all the tasks in this conversation.
@@ -2032,6 +2019,19 @@ impl AIConversation {
         }
     }
 
+    pub fn token_usage(&self) -> ConversationTokenUsage {
+        self.token_usage
+    }
+
+    /// Adds the usage that one response stream reported.
+    pub fn add_token_usage(&mut self, usage: &[api::response_event::stream_finished::TokenUsage]) {
+        for model_usage in usage {
+            self.token_usage.input += u64::from(model_usage.total_input);
+            self.token_usage.cached_input += u64::from(model_usage.input_cache_read);
+            self.token_usage.output += u64::from(model_usage.output);
+        }
+    }
+
     pub(crate) fn write_updated_conversation_state(
         &mut self,
         ctx: &mut ModelContext<BlocklistAIHistoryModel>,
@@ -2101,6 +2101,8 @@ impl AIConversation {
                 // (returns `None`) and `new_restored_synthesizing_on_empty`.
                 root_task_is_optimistic: None,
                 autoexecute_override: Some(self.autoexecute_override.into()),
+                token_usage: (self.token_usage != ConversationTokenUsage::default())
+                    .then_some(self.token_usage),
             }),
         };
         ctx.spawn(
@@ -2880,7 +2882,6 @@ impl AIAgentExchange {
                 } else {
                     *output = Some(Shared::new(AIAgentOutput {
                         messages: vec![],
-                        citations: vec![],
                         server_output_id: Some(server_output_id),
                         model_info: None,
                     }));

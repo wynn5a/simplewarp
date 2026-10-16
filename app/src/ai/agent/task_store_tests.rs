@@ -56,9 +56,7 @@ fn create_exchange_with_subagent_call(subtask_id: &TaskId) -> AIAgentExchange {
                 task_id: subtask_id.to_string(),
                 subagent_type: crate::ai::agent::SubagentType::Unknown,
             }),
-            citations: vec![],
         }],
-        citations: vec![],
         server_output_id: None,
         model_info: None,
     };

@@ -164,10 +164,10 @@ use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId, ConversationStatus};
 use crate::ai::agent::redaction::redact_secrets;
 use crate::ai::agent::{
-    AIAgentActionId, AIAgentActionType, AIAgentCitation, AIAgentContext, AIAgentExchangeId,
-    AIAgentInput, AIAgentOutputStatus, AIAgentPtyWriteMode, AIAgentTextSection,
-    AgentReviewCommentBatch, CancellationReason, CurrentHead, DiffBase, FinishedAIAgentOutput,
-    RenderableAIError, ServerOutputId,
+    AIAgentActionId, AIAgentActionType, AIAgentContext, AIAgentExchangeId, AIAgentInput,
+    AIAgentOutputStatus, AIAgentPtyWriteMode, AIAgentTextSection, AgentReviewCommentBatch,
+    CancellationReason, CurrentHead, DiffBase, FinishedAIAgentOutput, RenderableAIError,
+    ServerOutputId,
 };
 use crate::ai::blocklist::agent_view::{
     AgentViewController, AgentViewControllerEvent, AgentViewConversationSelection,
@@ -216,7 +216,6 @@ use crate::banner::{
     DismissalType,
 };
 use crate::cloud_object::model::actions::ObjectActionType;
-use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{
     CloudObject, CloudObjectTypeAndId, GenericStringObjectFormat, JsonObjectType,
 };
@@ -2844,7 +2843,7 @@ impl TerminalView {
         ctx.subscribe_to_model(&ai_controller, |me, handle, event, ctx| {
             me.handle_ai_controller_event(handle, event, ctx);
             // Refresh the conversation details panel when agent output completes
-            // (may include new artifacts, run time, credits).
+            // (may include new artifacts, run time, token usage).
             if matches!(
                 event,
                 BlocklistAIControllerEvent::FinishedReceivingOutput { .. }
@@ -5408,21 +5407,6 @@ impl TerminalView {
                     );
                     return;
                 };
-                let associated_workflow = self
-                    .active_ai_block(ctx)
-                    .and_then(|ai_block| {
-                        ai_block
-                            .as_ref(ctx)
-                            .requested_command_copied_from_doc(action_id, ctx)
-                    })
-                    .and_then(|citation| {
-                        if let AIAgentCitation::WarpDriveObject { uid } = citation {
-                            CloudModel::as_ref(ctx).get_workflow_by_uid(&uid)
-                        } else {
-                            None
-                        }
-                    });
-
                 let shell_family = self.sessions.read(ctx, |sessions, _| {
                     sessions
                         .get(session_id)
@@ -5462,10 +5446,8 @@ impl TerminalView {
                     session_id,
                     source,
                     should_add_command_to_history: true,
-                    workflow_id: associated_workflow.map(|workflow| workflow.sync_id()),
-                    workflow_command: associated_workflow
-                        .and_then(|workflow| workflow.model().data.command())
-                        .map(str::to_string),
+                    workflow_id: None,
+                    workflow_command: None,
                 }));
 
                 if let Some(active_ai_block) = self.active_ai_block(ctx) {
@@ -14450,19 +14432,6 @@ impl TerminalView {
                     .mark_rich_content_dirty(block.id());
                 ctx.notify();
             }
-            AIBlockEvent::OpenCitation(citation) => match citation {
-                AIAgentCitation::WarpDriveObject { uid } => {
-                    ctx.emit(Event::OpenWarpDriveObjectInPane(uid.clone()));
-                }
-                AIAgentCitation::WarpDocumentation { path } => {
-                    ctx.open_url(&format!("https://docs.warp.dev/{path}"));
-                }
-                AIAgentCitation::WebPage { url } => {
-                    ctx.open_url(url);
-                }
-                // Agent memories were a remote store this build has no access to.
-                AIAgentCitation::AgentMemory { .. } => {}
-            },
             AIBlockEvent::OpenAIFactCollection { sync_id } => {
                 ctx.emit(Event::OpenAIFactCollection { sync_id: *sync_id });
             }

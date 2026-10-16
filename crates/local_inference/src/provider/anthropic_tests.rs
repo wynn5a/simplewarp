@@ -144,6 +144,39 @@ fn the_stop_reason_comes_from_message_delta() {
 }
 
 #[test]
+fn usage_comes_from_message_start_and_message_delta() {
+    let start = parse_event(
+        "message_start",
+        r#"{"message":{"usage":{"input_tokens":20,"cache_read_input_tokens":800,
+            "cache_creation_input_tokens":100,"output_tokens":1}}}"#,
+    );
+    assert_eq!(
+        start,
+        vec![Delta::Usage(TokenUsage {
+            input: 920,
+            output: 1,
+            cache_read: 800,
+            cache_write: 100,
+        })]
+    );
+
+    let delta = parse_event(
+        "message_delta",
+        r#"{"delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":57}}"#,
+    );
+    assert_eq!(
+        delta,
+        vec![
+            Delta::Usage(TokenUsage {
+                output: 57,
+                ..Default::default()
+            }),
+            Delta::Stop(StopReason::EndTurn),
+        ]
+    );
+}
+
+#[test]
 fn message_stop_does_not_end_the_reply_a_second_time() {
     assert!(parse_event("message_stop", "{}").is_empty());
 }

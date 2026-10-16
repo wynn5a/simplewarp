@@ -28,8 +28,37 @@ pub enum Delta {
     },
     /// The next piece of a tool call's JSON arguments, for the call at `index`.
     ToolCallArguments { index: usize, fragment: String },
+    /// Token counts for the reply. A provider may report them across several events.
+    Usage(TokenUsage),
     /// The reply is over.
     Stop(StopReason),
+}
+
+/// Token counts that a provider reported for one reply.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TokenUsage {
+    /// All input tokens, cached ones included.
+    pub input: u32,
+    pub output: u32,
+    pub cache_read: u32,
+    pub cache_write: u32,
+}
+
+impl TokenUsage {
+    /// Folds in a later report. Providers repeat or complete earlier counts in later events, and
+    /// leave out (or zero) a count they are not reporting there, so a zero keeps the earlier value.
+    pub fn merge(&mut self, later: TokenUsage) {
+        for (field, later) in [
+            (&mut self.input, later.input),
+            (&mut self.output, later.output),
+            (&mut self.cache_read, later.cache_read),
+            (&mut self.cache_write, later.cache_write),
+        ] {
+            if later != 0 {
+                *field = later;
+            }
+        }
+    }
 }
 
 /// Why the model stopped.

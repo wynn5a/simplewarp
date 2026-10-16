@@ -7,7 +7,7 @@ use super::{
     AIConversation, AIConversationAutoexecuteMode, AIConversationId, ConversationStatus,
     RestoreConversationError,
 };
-use crate::persistence::model::AgentConversationData;
+use crate::persistence::model::{AgentConversationData, ConversationTokenUsage};
 
 fn restored_conversation(conversation_data: Option<AgentConversationData>) -> AIConversation {
     AIConversation::new_restored(
@@ -454,114 +454,47 @@ fn restored_conversation_does_not_re_enter_waiting_for_events() {
     assert_eq!(conversation.status(), &ConversationStatus::Success);
 }
 
-fn fetched_memory(
-    memory_id: &str,
-    content: &str,
-    memory_store_id: &str,
-    source: Option<api::message::fetched_memory::Source>,
-) -> api::message::FetchedMemory {
-    api::message::FetchedMemory {
-        memory_id: memory_id.to_string(),
-        content: content.to_string(),
-        memory_store_id: memory_store_id.to_string(),
-        source,
-    }
-}
-
-fn conversation_source(conversation_id: &str) -> Option<api::message::fetched_memory::Source> {
-    Some(api::message::fetched_memory::Source::Conversation(
-        api::message::fetched_memory::Conversation {
-            conversation_id: conversation_id.to_string(),
-        },
-    ))
-}
-
-fn restored_conversation_with_memories_per_query(
-    memories_per_query: Vec<Vec<api::message::FetchedMemory>>,
-) -> AIConversation {
-    let messages = memories_per_query
-        .into_iter()
-        .enumerate()
-        .flat_map(|(index, memories)| {
-            let request_id = format!("request-{index}");
-            let query = api::Message {
-                fetched_memories: memories,
-                ..user_query_message(&format!("user-{index}"), &request_id, "query")
-            };
-            [
-                query,
-                agent_output_message(&format!("agent-{index}"), &request_id),
-            ]
-        })
-        .collect();
-
-    AIConversation::new_restored(
-        AIConversationId::new(),
-        vec![api::Task {
-            id: "root-task".to_string(),
-            messages,
+#[test]
+fn token_usage_adds_up_across_streams_and_models() {
+    let mut conversation = restored_conversation(None);
+    let usage = |model_id: &str, total_input, input_cache_read, output| {
+        api::response_event::stream_finished::TokenUsage {
+            model_id: model_id.to_string(),
+            total_input,
+            input_cache_read,
+            output,
             ..Default::default()
-        }],
-        None,
-    )
-    .unwrap()
-}
+        }
+    };
 
-#[test]
-fn fetched_memories_is_empty_when_no_message_has_memories() {
-    let conversation = restored_conversation_with_memories_per_query(vec![vec![]]);
+    conversation.add_token_usage(&[usage("gpt-5", 1_000, 200, 50)]);
+    conversation.add_token_usage(&[usage("gpt-5", 1_500, 1_000, 70), usage("glm", 10, 0, 5)]);
 
-    assert_eq!(conversation.fetched_memories(), vec![]);
-}
-
-#[test]
-fn fetched_memories_preserves_order_across_and_within_messages() {
-    let conversation = restored_conversation_with_memories_per_query(vec![
-        vec![
-            fetched_memory("m1", "first", "store-1", None),
-            fetched_memory("m2", "second", "store-1", None),
-        ],
-        vec![fetched_memory("m3", "third", "store-2", None)],
-    ]);
-
-    let ids: Vec<String> = conversation
-        .fetched_memories()
-        .into_iter()
-        .map(|memory| memory.memory_id)
-        .collect();
-    assert_eq!(ids, vec!["m1", "m2", "m3"]);
-}
-
-#[test]
-fn fetched_memories_dedupes_keeping_first_position_and_latest_data() {
-    let conversation = restored_conversation_with_memories_per_query(vec![
-        vec![
-            fetched_memory("m1", "old content", "store-1", None),
-            fetched_memory("m2", "other", "store-1", None),
-        ],
-        vec![
-            fetched_memory(
-                "m1",
-                "new content",
-                "store-1",
-                conversation_source("conversation-1"),
-            ),
-            fetched_memory("m1", "same memory id different store", "store-2", None),
-        ],
-    ]);
-
-    let memories = conversation.fetched_memories();
     assert_eq!(
-        memories,
-        vec![
-            fetched_memory(
-                "m1",
-                "new content",
-                "store-1",
-                conversation_source("conversation-1"),
-            ),
-            fetched_memory("m2", "other", "store-1", None),
-            fetched_memory("m1", "same memory id different store", "store-2", None),
-        ]
+        conversation.token_usage(),
+        ConversationTokenUsage {
+            input: 2_510,
+            cached_input: 1_200,
+            output: 125,
+        }
+    );
+}
+
+#[test]
+fn restored_conversation_keeps_persisted_token_usage() {
+    let conversation_data: AgentConversationData = serde_json::from_str(
+        r#"{"server_conversation_token":null,"token_usage":{"input":9,"cached_input":4,"output":3}}"#,
+    )
+    .unwrap();
+
+    let conversation = restored_conversation(Some(conversation_data));
+
+    assert_eq!(
+        conversation.token_usage(),
+        ConversationTokenUsage {
+            input: 9,
+            cached_input: 4,
+            output: 3,
+        }
     );
 }

@@ -15,7 +15,7 @@ use serde_json::{Value, json};
 
 use crate::config::ProviderTarget;
 use crate::convert::Turn;
-use crate::provider::{Delta, StopReason};
+use crate::provider::{Delta, StopReason, TokenUsage};
 use crate::tools::ToolSchema;
 
 /// The API version that this crate is written against.
@@ -151,14 +151,48 @@ pub fn parse_event(event_name: &str, data: &str) -> Vec<Delta> {
                 _ => Vec::new(),
             }
         }
-        "message_delta" => match value["delta"]["stop_reason"].as_str() {
-            Some(reason) => vec![Delta::Stop(stop_reason(reason))],
-            None => Vec::new(),
-        },
+        "message_start" => usage(&value["message"]["usage"])
+            .map(Delta::Usage)
+            .into_iter()
+            .collect(),
+        "message_delta" => {
+            // `message_delta` carries the final output count; the input counts came with
+            // `message_start`.
+            let mut deltas: Vec<Delta> = usage(&value["usage"])
+                .map(Delta::Usage)
+                .into_iter()
+                .collect();
+            if let Some(reason) = value["delta"]["stop_reason"].as_str() {
+                deltas.push(Delta::Stop(stop_reason(reason)));
+            }
+            deltas
+        }
         // `message_stop` closes the stream, but `message_delta` already carried the reason.
         // Emitting a second stop here would end the reply twice.
         _ => Vec::new(),
     }
+}
+
+/// Anthropic counts cached input apart from `input_tokens`, so the total adds them back.
+fn usage(usage: &Value) -> Option<TokenUsage> {
+    if !usage.is_object() {
+        return None;
+    }
+    let count = |key: &str| usage[key].as_u64().unwrap_or(0) as u32;
+    let cache_read = count("cache_read_input_tokens");
+    let cache_write = count("cache_creation_input_tokens");
+    let uncached_input = count("input_tokens");
+    let input = if uncached_input == 0 {
+        0
+    } else {
+        uncached_input + cache_read + cache_write
+    };
+    Some(TokenUsage {
+        input,
+        output: count("output_tokens"),
+        cache_read,
+        cache_write,
+    })
 }
 
 fn index_of(value: &Value) -> Option<usize> {

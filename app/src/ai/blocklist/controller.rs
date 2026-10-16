@@ -1897,6 +1897,14 @@ impl BlocklistAIController {
         ctx: &mut ModelContext<Self>,
     ) {
         let history_model = BlocklistAIHistoryModel::handle(ctx);
+        // Added before the completion below, which persists the conversation.
+        if !finished_event.token_usage.is_empty() {
+            history_model.update(ctx, |history_model, _| {
+                if let Some(conversation) = history_model.conversation_mut(&conversation_id) {
+                    conversation.add_token_usage(&finished_event.token_usage);
+                }
+            });
+        }
         match finished_event.reason {
             Some(warp_multi_agent_api::response_event::stream_finished::Reason::Done(_)) | None => {
                 history_model.update(ctx, |history_model, ctx| {

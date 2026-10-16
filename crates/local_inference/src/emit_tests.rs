@@ -272,6 +272,61 @@ fn a_tool_use_stop_is_a_normal_finish() {
     );
 }
 
+fn finished_of(events: &[api::ResponseEvent]) -> &api::response_event::StreamFinished {
+    let Some(api::response_event::Type::Finished(finished)) =
+        &events.last().expect("an event").r#type
+    else {
+        panic!("expected a Finished event");
+    };
+    finished
+}
+
+#[test]
+fn the_finish_reports_the_merged_token_usage_for_the_requested_model() {
+    let mut request = request_with_task("task-1");
+    request.settings = Some(api::request::Settings {
+        model_config: Some(api::request::settings::ModelConfig {
+            base: "claude-sonnet-4-5".to_string(),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+    let mut emitter = Emitter::new(&request);
+    let _ = emitter.start();
+    let _ = emitter.on_delta(Delta::Usage(TokenUsage {
+        input: 920,
+        output: 1,
+        cache_read: 800,
+        cache_write: 100,
+    }));
+    let _ = emitter.on_delta(Delta::Usage(TokenUsage {
+        output: 57,
+        ..Default::default()
+    }));
+    let events = emitter.finish(StopReason::EndTurn);
+
+    assert_eq!(
+        finished_of(&events).token_usage,
+        vec![api::response_event::stream_finished::TokenUsage {
+            model_id: "claude-sonnet-4-5".to_string(),
+            total_input: 920,
+            output: 57,
+            input_cache_read: 800,
+            input_cache_write: 100,
+            ..Default::default()
+        }]
+    );
+}
+
+#[test]
+fn a_reply_without_usage_reports_none() {
+    let mut emitter = Emitter::new(&request_with_task("task-1"));
+    let _ = emitter.start();
+    let events = emitter.finish(StopReason::EndTurn);
+
+    assert!(finished_of(&events).token_usage.is_empty());
+}
+
 #[test]
 fn hitting_the_token_limit_is_reported_as_such() {
     let mut emitter = Emitter::new(&request_with_task("task-1"));

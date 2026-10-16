@@ -15,7 +15,6 @@ fn create_test_action(id: AIAgentActionId) -> AIAgentAction {
             rationale: None,
             uses_pager: None,
             wait_until_completion: true,
-            citations: vec![],
         },
         requires_result: false,
     }

@@ -1040,6 +1040,18 @@ pub struct AgentConversationData {
     pub root_task_is_optimistic: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub autoexecute_override: Option<PersistedAutoexecuteMode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_usage: Option<ConversationTokenUsage>,
+}
+
+/// Tokens the AI provider reported for a conversation, summed over its requests.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConversationTokenUsage {
+    /// All input tokens, cached ones included.
+    pub input: u64,
+    /// The part of `input` that the provider read from its prompt cache.
+    pub cached_input: u64,
+    pub output: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

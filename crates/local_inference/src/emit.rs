@@ -26,7 +26,7 @@ use warp_multi_agent_api as api;
 use warp_multi_agent_api::client_action::Action;
 
 use crate::mcp::McpCatalog;
-use crate::provider::{Delta, StopReason};
+use crate::provider::{Delta, StopReason, TokenUsage};
 use crate::{inputs, tools};
 
 /// Builds the response events for one reply.
@@ -58,6 +58,9 @@ pub struct Emitter {
     pending_tools: BTreeMap<usize, PendingTool>,
     /// The MCP tools this reply may call.
     mcp: McpCatalog,
+    /// The model that the request names, reported with the token usage.
+    model_id: String,
+    usage: TokenUsage,
 }
 
 struct PendingTool {
@@ -102,6 +105,13 @@ impl Emitter {
             started_at: chrono::Utc::now(),
             pending_tools: BTreeMap::new(),
             mcp: McpCatalog::from_request(request),
+            model_id: request
+                .settings
+                .as_ref()
+                .and_then(|settings| settings.model_config.as_ref())
+                .map(|config| config.base.clone())
+                .unwrap_or_default(),
+            usage: TokenUsage::default(),
         }
     }
 
@@ -186,6 +196,10 @@ impl Emitter {
             // The caller ends the reply with `finish`, so that a stop from the provider and a
             // stream that simply closes take the same path.
             Delta::Stop(_) => Vec::new(),
+            Delta::Usage(usage) => {
+                self.usage.merge(usage);
+                Vec::new()
+            }
         };
 
         if actions.is_empty() {
@@ -193,6 +207,20 @@ impl Emitter {
         } else {
             vec![actions_event(actions)]
         }
+    }
+
+    /// The usage the provider reported, if it reported any.
+    fn token_usage(&self) -> Option<api::response_event::stream_finished::TokenUsage> {
+        (self.usage != TokenUsage::default()).then(|| {
+            api::response_event::stream_finished::TokenUsage {
+                model_id: self.model_id.clone(),
+                total_input: self.usage.input,
+                output: self.usage.output,
+                input_cache_read: self.usage.cache_read,
+                input_cache_write: self.usage.cache_write,
+                ..Default::default()
+            }
+        })
     }
 
     /// The events that close the reply: the tool calls, then the commit and the finish.
@@ -256,6 +284,7 @@ impl Emitter {
             event(api::response_event::Type::Finished(
                 api::response_event::StreamFinished {
                     reason: Some(finish_reason(reason)),
+                    token_usage: self.token_usage().into_iter().collect(),
                     ..Default::default()
                 },
             )),

@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use persistence::model::AgentConversationData;
+use persistence::model::{AgentConversationData, ConversationTokenUsage};
 use warp_multi_agent_api as api;
 use warpui::{App, EntityId, SingletonEntity};
 
-use super::{ConversationDetailsData, PanelMode};
+use super::{ConversationDetailsData, PanelMode, format_token_count, format_token_usage};
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
 
@@ -95,6 +95,7 @@ fn test_from_conversation_populates_local_conversation_fields() {
                 artifacts_json: None,
                 autoexecute_override: None,
                 root_task_is_optimistic: None,
+                token_usage: None,
             },
         );
 
@@ -120,4 +121,53 @@ fn test_from_conversation_populates_local_conversation_fields() {
             assert_eq!(data.source_prompt.as_deref(), Some("test query"));
         });
     });
+}
+
+#[test]
+fn test_from_conversation_carries_restored_token_usage() {
+    let usage = ConversationTokenUsage {
+        input: 12_345,
+        cached_input: 8_000,
+        output: 1_100,
+    };
+    let conversation = create_restored_conversation(
+        AIConversationId::new(),
+        "root-task",
+        "/tmp",
+        AgentConversationData {
+            server_conversation_token: None,
+            reverted_action_ids: None,
+            forked_from_server_conversation_token: None,
+            artifacts_json: None,
+            autoexecute_override: None,
+            root_task_is_optimistic: None,
+            token_usage: Some(usage),
+        },
+    );
+
+    let data = ConversationDetailsData::from_conversation(&conversation);
+
+    assert_eq!(data.token_usage, Some(usage));
+}
+
+#[test]
+fn test_token_usage_formatting() {
+    assert_eq!(
+        format_token_usage(ConversationTokenUsage {
+            input: 12_345,
+            cached_input: 8_000,
+            output: 1_100,
+        }),
+        "12.3k in (8.0k cached) · 1.1k out"
+    );
+    assert_eq!(
+        format_token_usage(ConversationTokenUsage {
+            input: 999,
+            cached_input: 0,
+            output: 2_500_000,
+        }),
+        "999 in · 2.5M out"
+    );
+    assert_eq!(format_token_count(999_949), "999.9k");
+    assert_eq!(format_token_count(999_950), "1.0M");
 }

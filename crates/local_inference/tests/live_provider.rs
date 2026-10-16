@@ -161,6 +161,7 @@ struct Reply {
     /// Every tool call, as `(name, arguments summary)`.
     tool_calls: Vec<(String, String)>,
     finish: Option<String>,
+    token_usage: Vec<api::response_event::stream_finished::TokenUsage>,
 }
 
 /// Runs one request to the end and gathers what came back.
@@ -181,6 +182,7 @@ async fn run(request: &api::Request) -> Reply {
             }
             api::response_event::Type::Finished(finished) => {
                 reply.finish = Some(format!("{:?}", finished.reason));
+                reply.token_usage = finished.token_usage;
             }
         }
     }
@@ -249,6 +251,7 @@ async fn a_plain_question_streams_text_back() {
     println!("text: {}", reply.text);
     println!("reasoning length: {}", reply.reasoning.len());
     println!("finish: {:?}", reply.finish);
+    println!("token usage: {:?}", reply.token_usage);
 
     assert!(reply.saw_init, "the reply must open with Init");
     assert!(reply.began_transaction, "the reply must open a transaction");
@@ -263,6 +266,14 @@ async fn a_plain_question_streams_text_back() {
         reply.tool_calls
     );
     assert_eq!(reply.finish.as_deref(), Some("Some(Done(Done))"));
+    let [usage] = reply.token_usage.as_slice() else {
+        panic!("expected one usage entry, got {:?}", reply.token_usage);
+    };
+    assert_eq!(usage.model_id, endpoint.model);
+    assert!(
+        usage.total_input > 0 && usage.output > 0,
+        "the provider reported no tokens: {usage:?}"
+    );
 }
 
 /// The model must be able to call a tool, and the call must map onto the proto that the client
