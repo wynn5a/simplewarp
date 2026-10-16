@@ -122,3 +122,99 @@ fn a_write_can_ask_for_block_mode() {
         tool_call::write_to_long_running_shell_command::mode::Mode::Block(_)
     ));
 }
+
+#[test]
+fn a_transfer_carries_its_reason() {
+    let call = to_proto(
+        "call-1",
+        "transfer_control_to_user",
+        &json!({ "reason": "Enter your sudo password" }),
+    )
+    .expect("a known tool");
+
+    let tool_call::Tool::TransferShellCommandControlToUser(transfer) = call.tool.unwrap() else {
+        panic!("expected a transfer_control_to_user call");
+    };
+    assert_eq!(transfer.reason, "Enter your sudo password");
+}
+
+fn github_comment() -> Value {
+    json!({
+        "id": 1001,
+        "author": "reviewer",
+        "body": "Handle the error here.",
+        "updated_at": "2026-10-01T12:00:00Z",
+        "html_url": "https://github.com/o/r/pull/1#discussion_r1001",
+        "path": "src/main.rs",
+        "diff_hunk": "@@ -1,3 +1,4 @@\n fn main() {\n+    run();\n }",
+        "start_line": 2,
+        "line": 3,
+        "side": "LEFT",
+    })
+}
+
+#[test]
+fn review_comments_keep_their_location() {
+    let call = to_proto(
+        "call-1",
+        "insert_review_comments",
+        &json!({
+            "repo_path": "/repo",
+            "base_branch": "main",
+            "comments": [github_comment()],
+        }),
+    )
+    .expect("a known tool");
+
+    let tool_call::Tool::InsertReviewComments(insert) = call.tool.unwrap() else {
+        panic!("expected an insert_review_comments call");
+    };
+    assert_eq!(insert.repo_path, "/repo");
+    assert_eq!(insert.base_branch, "main");
+    let comment = &insert.comments[0];
+    assert_eq!(comment.comment_id, "1001");
+    assert_eq!(comment.author, "reviewer");
+    let location = comment.location.as_ref().expect("a file comment");
+    assert_eq!(location.file_path, "src/main.rs");
+    let line = location.line.as_ref().expect("a line comment");
+    assert_eq!(
+        line.range,
+        Some(api::FileContentLineRange { start: 2, end: 3 })
+    );
+    assert_eq!(line.side(), insert_review_comments::CommentSide::Old);
+}
+
+#[test]
+fn a_comment_without_a_path_is_a_general_comment() {
+    let call = to_proto(
+        "call-1",
+        "insert_review_comments",
+        &json!({
+            "repo_path": "/repo",
+            "comments": [{
+                "id": "c1",
+                "author": "reviewer",
+                "body": "Looks good overall.",
+                "updated_at": "2026-10-01T12:00:00Z",
+                "in_reply_to_id": "c0",
+            }],
+        }),
+    )
+    .expect("a known tool");
+
+    let tool_call::Tool::InsertReviewComments(insert) = call.tool.unwrap() else {
+        panic!("expected an insert_review_comments call");
+    };
+    assert!(insert.comments[0].location.is_none());
+    assert_eq!(insert.comments[0].parent_comment_id, "c0");
+}
+
+#[test]
+fn review_comments_with_no_usable_comment_are_dropped() {
+    let call = to_proto(
+        "call-1",
+        "insert_review_comments",
+        &json!({ "repo_path": "/repo", "comments": [{ "body": "no id" }] }),
+    );
+    assert!(call.is_none());
+}

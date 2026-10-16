@@ -92,6 +92,13 @@ AgentViewBlockContext, AIContextMenu*, ListSkills, BundledSkills, MCPGroupedServ
 
 ### 1c. Only 7 tools are offered
 
+**Done (P5/P6, 2026-10-16):** everything below is either offered or deleted. The adapter now
+offers 9 built-in tools plus MCP: the 7 below, `transfer_control_to_user`
+(`TransferShellCommandControlToUser`) and `insert_review_comments` (`InsertReviewComments`). Web
+search/fetch, SearchCodebase, AskUserQuestion, ReadSkill, documents, SuggestPrompt and computer use
+were deleted in earlier rounds; `OpenCodeReview` and `InitProject` (server-orchestration helpers)
+were deleted in P5. Saved calls and results of deleted tools restore as nothing.
+
 `crates/local_inference/src/tools.rs:14` `SUPPORTED` + `wire_name` (`:34`): run_shell_command,
 read_files, apply_file_diffs, grep, file_glob, read_shell_command_output,
 write_to_long_running_shell_command. Everything else the client advertises is filtered out.
@@ -298,8 +305,8 @@ is a product decision. Every item below needs a user decision before it becomes 
 | P2 | **Slices 1–2 done (see §1a, §1b).** §1a/§1b core inputs: `SummarizeConversation`, `InvokeSkill`, `InitProjectRules`, `ResumeConversation`, `CodeReview`, `QueryWithCannedResponse`, attached context + rules | implement in `local_inference` / hide | Implement — they are local work the server merely orchestrated; highest user value. |
 | ~~P3~~ | §1a passive requests: `TriggerPassiveSuggestion`, `AutoCodeDiffQuery` | stop sending | **Done (2026-10-08).** `AISettings::is_code_suggestions_enabled` is now constant `false`, which stops both senders in `passive_suggestions/legacy.rs` and the view-side "hide the banner while a diff is generated" path; the "Suggested Code Banners" settings section and its palette toggle are removed. The stored setting key stays so old configs load. Turn it back on together with P2. |
 | ~~P4~~ | §1a `CreateEnvironment`, `CreateNewProject`, `CloneRepository` | implement / hide | **Done (2026-10-15).** `CreateEnvironment` was deleted in P3 (`c8dbec2dc`). `CreateNewProject` stays agent-driven (`/create-new-project`, Get Started button); checked live against GLM-5.3-FLASH (`live_provider::a_create_new_project_input_gets_acted_on`: the model starts with a shell call). Clone no longer goes through the agent: the new `/clone <url>` slash command and the Get Started "Clone repository" button run `git clone -- <url> && cd <dir>` in the terminal (`coding_entrypoints/clone_repo.rs`; PowerShell gets `; if ($?) { cd … }`), so cloning needs no AI key. `SlashCommandRequest::CloneRepository` is gone; `AIAgentInput::CloneRepository` and its prompt stay for saved conversations. The Get Started page has a normal palette entry ("Get started: create, open, or clone a project") instead of the debug one. Integration test `test_clone_slash_command_clones_and_enters_the_repository`. |
-| P5 | §1c tools: MCP tool calls, computer use, AskUserQuestion, ReadSkill, SearchCodebase, InsertReviewComments, documents | implement / hide UI | MCP is Phase 3b; others per feature. |
-| P6 | §1c web search / web fetch | hide UI / implement web fetch locally | Web search needs a hosted search API → hide; web fetch can be local (would be new provider-external traffic — decide). |
+| ~~P5~~ | §1c tools: MCP tool calls, computer use, AskUserQuestion, ReadSkill, SearchCodebase, InsertReviewComments, documents | implement / hide UI | **Done (2026-10-16).** MCP came with Phase 3b; computer use, AskUserQuestion, ReadSkill, SearchCodebase and documents were deleted in earlier rounds. Implemented (user decision): `transfer_control_to_user` hands a running command to the user (password, one-time code); a local agent command has no CLI subagent, so `take_over_for_user` now also accepts an agent-requested command with no control state yet, and handing control back no longer sends a second resume (the transfer result resumes the agent). `insert_review_comments` takes GitHub-shaped PR comments the model fetched with `gh api` and shows them through the existing PRCommentsV2 import path (local sessions only). The `TransferControlTool` flag and `get_supported_cli_agent_tools` are gone (the adapter never read `supported_cli_agent_tools`). Deleted (user decision): the `OpenCodeReview` and `InitProject` actions, their results and executor events; persisted rows holding one are tombstones. Live-checked against GLM-5.3-FLASH (`live_provider::a_password_prompt_is_handed_to_the_user`, `fetched_review_comments_are_inserted`). |
+| ~~P6~~ | §1c web search / web fetch | hide UI / implement web fetch locally | **Done** (no round needed): the web search/fetch actions, UI and profile toggle were already deleted; only proto compat arms remain so saved conversations load. Implementing web fetch locally stays a possible feature. |
 | ~~P7~~ | §1d credits/usage, SuggestedRules, WarpDocumentation citation | derive usage from provider response / hide | **Done (2026-10-16).** Credits UI and SuggestedRules were already gone (`9fd56adca`, §1e). Citations deleted whole (user decision): `AIAgentCitation`, the References footer and its toggle, the requested-command "Copied from / Derived from" footer and `requested_command_attribution`, `OpenCitation`, the Warp Drive workflow attribution on AI-run commands, the memory chips and `AIConversation::fetched_memories`; the proto `citations` / `fetched_memories` fields stay and are ignored on restore. The model menu's credit-multiplier label and `LLMUsageMetadata` are gone (the model list is never persisted; old JSON still parses). Token usage is new (user decision): both provider parsers read usage (Anthropic `message_start`/`message_delta`; OpenAI asks for `stream_options.include_usage`), the emitter fills `StreamFinished.token_usage`, `AIConversation` sums it, `AgentConversationData.token_usage` persists it (forks start at zero), and the conversation details panel shows "Tokens: 12.3k in (8.0k cached) · 1.1k out". Live-checked against GLM-5.3-FLASH (`live_provider::a_plain_question_streams_text_back` asserts the usage entry); the Anthropic path is unit-tested only. |
 | P8 | §1e custom model routers, AI commit/PR toggle, Codex modal, legacy AI panel, remote codebase search stub | delete / hide / implement | **Done (2026-10-08).** Routers, commit/PR toggle, Codex modal, legacy AI panel and remote search stub are deleted. |
 | ~~P9~~ | §2a `gh` polling | keep / make on-demand / setting | **Done (2026-10-08).** Only a visible PR chip subscribes; the agent-context trigger is gone. |
@@ -441,9 +448,8 @@ Verification: workspace nextest 6328 / 6338 after the todo round (6329 / 6339 af
 failing 10 are `integration::integration` GUI tests that time out the same way without these
 changes (one of them flips between runs).
 
-**Not done**, because each is tied to something still live: `InsertReviewComments` (the
-`code_review/comments` import path and its flag), `TransferShellCommandControlToUser` (the
-long-running-command controls in `shell_command.rs`/`cli_controller.rs`), `SuggestPrompt` (passive
-suggestions).
+**Not done**, because each is tied to something still live: `SuggestPrompt` (passive
+suggestions). `InsertReviewComments` and `TransferShellCommandControlToUser` are now offered by the
+local adapter (P5).
 MCP tool calls stay
 (Phase 3b). Dogfood-only skills under `resources/channel-gated-skills` still mention computer use.

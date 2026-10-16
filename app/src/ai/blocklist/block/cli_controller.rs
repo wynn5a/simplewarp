@@ -459,8 +459,9 @@ impl CLISubagentController {
             });
         }
 
-        // Trigger an auto-resume of the conversation when handing control to the agent.
-        if let Some(conversation_id) = conversation_id {
+        // Trigger an auto-resume of the conversation when handing control to the agent. After a
+        // transfer the agent is still waiting on its transfer call, whose result resumes it.
+        if !was_transfer_from_agent && let Some(conversation_id) = conversation_id {
             let resume_context = {
                 let terminal_model = self.terminal_model.lock();
                 block_context_from_terminal_model(&terminal_model, &block_id, false)

@@ -2738,9 +2738,6 @@ impl AIBlock {
                         ctx.notify();
                     }
                 }
-
-                BlocklistAIActionEvent::InitProject(_)
-                | BlocklistAIActionEvent::ToggleCodeReview(_) => {}
             }
         });
     }

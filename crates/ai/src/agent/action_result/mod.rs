@@ -44,11 +44,6 @@ pub enum AIAgentActionResultType {
     /// The output of calling an MCP tool.
     CallMCPTool(CallMCPToolResult),
 
-    /// The output of reading a skill.
-    OpenCodeReview,
-
-    InitProject,
-
     /// The output of reading shell command output.
     ReadShellCommandOutput(ReadShellCommandOutputResult),
 
@@ -110,9 +105,6 @@ impl Display for AIAgentActionResultType {
             AIAgentActionResultType::ReadShellCommandOutput(result) => result.fmt(f),
             AIAgentActionResultType::InsertReviewComments(result) => result.fmt(f),
             AIAgentActionResultType::TransferShellCommandControlToUser(result) => result.fmt(f),
-            AIAgentActionResultType::OpenCodeReview | AIAgentActionResultType::InitProject => {
-                Ok(())
-            }
         }
     }
 }
@@ -488,9 +480,7 @@ impl AIAgentActionResultType {
             AIAgentActionResultType::FileGlobV2(_) => "The results of the file glob operation",
             AIAgentActionResultType::CallMCPTool(_) => "The MCP tool call",
             AIAgentActionResultType::ReadMCPResource(_) => "The MCP resource",
-            AIAgentActionResultType::OpenCodeReview => "Open code review",
             AIAgentActionResultType::InsertReviewComments(_) => "Insert code review comments",
-            AIAgentActionResultType::InitProject => "Initialize project",
             AIAgentActionResultType::ReadShellCommandOutput(_) => "The shell command output",
             AIAgentActionResultType::TransferShellCommandControlToUser(_) => {
                 "The result of transferring shell command control to user"
@@ -513,7 +503,6 @@ impl AIAgentActionResultType {
                 | ReadShellCommandOutputResult::LongRunningCommandSnapshot { .. },
             )
             | Self::InsertReviewComments(InsertReviewCommentsResult::Success { .. })
-            | Self::OpenCodeReview
             | Self::TransferShellCommandControlToUser(
                 TransferShellCommandControlToUserResult::Snapshot { .. }
                 | TransferShellCommandControlToUserResult::CommandFinished { .. },

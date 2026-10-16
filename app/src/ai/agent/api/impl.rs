@@ -19,7 +19,6 @@ pub async fn generate_multi_agent_output(
         .supported_tools_override
         .take()
         .unwrap_or_else(|| get_supported_tools(&params));
-    let supported_cli_agent_tools = get_supported_cli_agent_tools(&params);
     let mut logging_metadata = HashMap::new();
     if let Some(metadata) = params.metadata {
         logging_metadata.insert(
@@ -81,10 +80,6 @@ pub async fn generate_multi_agent_output(
             api_keys: params.api_keys,
             autonomy_level: params.autonomy_level.into(),
             isolation_level: params.isolation_level.into(),
-            supported_cli_agent_tools: supported_cli_agent_tools
-                .into_iter()
-                .map(Into::into)
-                .collect(),
             supports_v4a_file_diffs: FeatureFlag::V4AFileDiffs.is_enabled(),
             supports_bundled_skills: FeatureFlag::BundledSkills.is_enabled(),
             custom_model_providers: params.custom_model_providers,
@@ -202,39 +197,21 @@ fn get_supported_tools(params: &RequestParams) -> Vec<api::ToolType> {
         api::ToolType::RunShellCommand,
         api::ToolType::WriteToLongRunningShellCommand,
         api::ToolType::ReadShellCommandOutput,
+        api::ToolType::TransferShellCommandControlToUser,
     ];
 
     match params.session_context.session_type() {
         None | Some(SessionType::Local) => {
-            supported_tools.extend(&[api::ToolType::ReadFiles, api::ToolType::ApplyFileDiffs]);
+            supported_tools.extend(&[
+                api::ToolType::ReadFiles,
+                api::ToolType::ApplyFileDiffs,
+                api::ToolType::InsertReviewComments,
+            ]);
         }
         Some(SessionType::WarpifiedRemote) => {}
     }
 
     supported_tools
-}
-
-fn get_supported_cli_agent_tools(params: &RequestParams) -> Vec<api::ToolType> {
-    let mut supported_cli_agent_tools = vec![
-        api::ToolType::WriteToLongRunningShellCommand,
-        api::ToolType::ReadShellCommandOutput,
-        api::ToolType::Grep,
-        api::ToolType::FileGlob,
-        api::ToolType::FileGlobV2,
-    ];
-
-    if FeatureFlag::TransferControlTool.is_enabled() {
-        supported_cli_agent_tools.push(api::ToolType::TransferShellCommandControlToUser);
-    }
-
-    match params.session_context.session_type() {
-        None | Some(SessionType::Local) => {
-            supported_cli_agent_tools.push(api::ToolType::ReadFiles);
-        }
-        Some(SessionType::WarpifiedRemote) => {}
-    }
-
-    supported_cli_agent_tools
 }
 
 #[cfg(test)]

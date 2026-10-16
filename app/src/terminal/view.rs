@@ -195,7 +195,7 @@ use crate::ai::blocklist::{
     InputTypeAutoDetectionSource, LegacyPassiveSuggestionsEvent, LegacyPassiveSuggestionsModel,
     PRE_REWIND_PREFIX, PendingAttachment, PendingQueryState, QueuedQuery, QueuedQueryId,
     QueuedQueryModel, QueuedQueryOrigin, ShellCommandExecutor, ShellCommandExecutorEvent,
-    SlashCommandRequest, ai_brand_color, block_context_from_terminal_model,
+    ai_brand_color, block_context_from_terminal_model,
     get_ai_block_overflow_menu_element_position_id, get_attached_blocks_chip_element_position_id,
     is_lrc_auto_queue_active,
 };
@@ -5282,27 +5282,6 @@ impl TerminalView {
                         }
                     }
                 }
-            }
-            BlocklistAIActionEvent::InitProject(_) => {
-                self.on_next_conversation_finished(|me, _reason, ctx| {
-                    if me.pwd().is_some() {
-                        me.ai_controller.update(ctx, |controller, ctx| {
-                            controller.send_slash_command_request(
-                                SlashCommandRequest::InitProjectRules,
-                                ctx,
-                            );
-                        });
-                    }
-                });
-            }
-            BlocklistAIActionEvent::ToggleCodeReview(_) => {
-                self.toggle_code_review_pane(
-                    GitDeltaPreference::Always,
-                    CodeReviewPaneEntrypoint::InvokedByAgent,
-                    None,  // cli_agent
-                    false, /* focus_new_pane */
-                    ctx,
-                );
             }
             BlocklistAIActionEvent::InsertCodeReviewComments {
                 action_id: _,

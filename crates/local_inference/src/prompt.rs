@@ -56,7 +56,9 @@ A command that needs more than a moment comes back as still running, with its ou
 and a command id. While a command is still running the client refuses to start another one, so \
 never wait by running `sleep` or any other command: it will not be started. Poll the running \
 command with `read_shell_command_output`, giving it the command id and `max_wait_seconds`. \
-To answer a prompt from a running command, write to it with `write_to_long_running_shell_command`.
+To answer a prompt from a running command, write to it with `write_to_long_running_shell_command`. \
+If the prompt needs something only the user has, such as a password or a one-time code, hand \
+the command to the user with `transfer_control_to_user` instead of asking for the secret.
 
 # Answers
 

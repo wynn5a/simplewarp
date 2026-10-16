@@ -388,12 +388,6 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
                     Err(error) => Err(error),
                 }
             }
-            api::message::tool_call::Tool::OpenCodeReview(_) => {
-                create_standard_action(AIAgentActionType::OpenCodeReview)
-            }
-            api::message::tool_call::Tool::InitProject(_) => {
-                create_standard_action(AIAgentActionType::InitProject)
-            }
             api::message::tool_call::Tool::ReadShellCommandOutput(read_shell_command_output) => {
                 create_standard_action(read_shell_command_output.into())
             }
@@ -416,7 +410,9 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
             | api::message::tool_call::Tool::FetchConversation(_)
             | api::message::tool_call::Tool::WaitForEvents(_)
             | api::message::tool_call::Tool::SuggestNewConversation(_)
-            | api::message::tool_call::Tool::SuggestPrompt(_) => {
+            | api::message::tool_call::Tool::SuggestPrompt(_)
+            | api::message::tool_call::Tool::OpenCodeReview(_)
+            | api::message::tool_call::Tool::InitProject(_) => {
                 Ok(MaybeAIAgentAction::NoClientRepresentation)
             }
             api::message::tool_call::Tool::Subagent(subagent) => {

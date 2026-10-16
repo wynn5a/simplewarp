@@ -39,11 +39,9 @@ No cloud, no login, no subscription, no Warp Drive.
 | 4 — Delete the dead cloud code and the TUI | DONE through 4id: the 4hp remote-only queue (R1–R7) and its follow-ups are done; what remains under Next is product decisions |
 
 Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15) and, since 4id
-(2026-09-29), EditableMarkdownMermaid, ImeMarkedText, ITermImages, LocalDockerSandbox and
-local computer use — all pinned by `features::tests`. The enable-candidate list is empty.
-`local_computer_use` is compiled in, but the local adapter does not offer the
-`RequestComputerUse`/`UseComputer` tools (`get_supported_tools` in `app/src/ai/agent/api/impl.rs`),
-so the model cannot start a computer-use run yet; offering them is a feature round (plan-p2 P5).
+(2026-09-29), EditableMarkdownMermaid, ImeMarkedText, ITermImages and LocalDockerSandbox — all
+pinned by `features::tests`. The enable-candidate list is empty. Local computer use, enabled in
+4id, was later deleted with the rest of computer use (plan-p2 §1c).
 
 ## Phase 4 progress
 

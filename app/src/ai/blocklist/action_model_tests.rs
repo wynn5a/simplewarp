@@ -2,14 +2,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::*;
-use crate::ai::agent::AIAgentActionResultType;
 use crate::ai::agent::task::TaskId;
+use crate::ai::agent::{AIAgentActionResultType, ReadShellCommandOutputResult};
 
 fn make_action_result(id: &str) -> Arc<AIAgentActionResult> {
     Arc::new(AIAgentActionResult {
         id: AIAgentActionId::from(id.to_owned()),
         task_id: TaskId::new("task".to_owned()),
-        result: AIAgentActionResultType::InitProject,
+        result: AIAgentActionResultType::ReadShellCommandOutput(
+            ReadShellCommandOutputResult::Cancelled,
+        ),
     })
 }
 

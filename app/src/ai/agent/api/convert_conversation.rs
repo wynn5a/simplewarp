@@ -861,22 +861,6 @@ pub(crate) fn convert_tool_call_result_to_input(
                 context,
             })
         }
-        Some(ToolCallResultType::OpenCodeReview(_)) => Some(AIAgentInput::ActionResult {
-            result: AIAgentActionResult {
-                id: tool_call_id.into(),
-                task_id: task_id.clone(),
-                result: AIAgentActionResultType::OpenCodeReview,
-            },
-            context,
-        }),
-        Some(ToolCallResultType::InitProject(_)) => Some(AIAgentInput::ActionResult {
-            result: AIAgentActionResult {
-                id: tool_call_id.into(),
-                task_id: task_id.clone(),
-                result: AIAgentActionResultType::InitProject,
-            },
-            context,
-        }),
         Some(ToolCallResultType::ReadShellCommandOutput(result)) => {
             let read_result = match &result.result {
                 Some(api::read_shell_command_output_result::Result::CommandFinished(finished)) => {
@@ -1026,7 +1010,9 @@ pub(crate) fn convert_tool_call_result_to_input(
             | ToolCallResultType::RunAgentsResult(_)
             | ToolCallResultType::WaitForEvents(_)
             | ToolCallResultType::SuggestNewConversation(_)
-            | ToolCallResultType::SuggestPrompt(_),
+            | ToolCallResultType::SuggestPrompt(_)
+            | ToolCallResultType::OpenCodeReview(_)
+            | ToolCallResultType::InitProject(_),
         ) => None,
     }
 }
@@ -1092,11 +1078,9 @@ fn create_cancelled_result_for_tool_call(
         ToolType::CallMcpTool(_) => {
             AIAgentActionResultType::CallMCPTool(CallMCPToolResult::Cancelled)
         }
-        ToolType::OpenCodeReview(_) => AIAgentActionResultType::OpenCodeReview,
         ToolType::InsertReviewComments(_) => {
             AIAgentActionResultType::InsertReviewComments(InsertReviewCommentsResult::Cancelled)
         }
-        ToolType::InitProject(_) => AIAgentActionResultType::InitProject,
         ToolType::ReadShellCommandOutput(_) => {
             AIAgentActionResultType::ReadShellCommandOutput(ReadShellCommandOutputResult::Cancelled)
         }
@@ -1127,7 +1111,9 @@ fn create_cancelled_result_for_tool_call(
         | ToolType::RunAgents(_)
         | ToolType::WaitForEvents(_)
         | ToolType::SuggestNewConversation(_)
-        | ToolType::SuggestPrompt(_) => return None,
+        | ToolType::SuggestPrompt(_)
+        | ToolType::OpenCodeReview(_)
+        | ToolType::InitProject(_) => return None,
     };
 
     Some(AIAgentInput::ActionResult {

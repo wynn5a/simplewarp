@@ -212,9 +212,7 @@ pub mod text {
                         CallMCPToolResult::Cancelled => writeln!(w, "{CANCELLED_MESSAGE}"),
                     }
                 }
-                AIAgentActionResultType::OpenCodeReview => Ok(()),
                 AIAgentActionResultType::InsertReviewComments(_) => Ok(()),
-                AIAgentActionResultType::InitProject => Ok(()),
                 AIAgentActionResultType::ReadShellCommandOutput { .. } => Ok(()),
                 AIAgentActionResultType::TransferShellCommandControlToUser { .. } => Ok(()),
             },
@@ -294,9 +292,7 @@ pub mod text {
                     } => {
                         writeln!(w, "MCP tool call {name}({input:#})")?;
                     }
-                    AIAgentActionType::OpenCodeReview => (),
                     AIAgentActionType::InsertCodeReviewComments { .. } => (),
-                    AIAgentActionType::InitProject => (),
                     AIAgentActionType::ReadShellCommandOutput { .. }
                     | AIAgentActionType::TransferShellCommandControlToUser { .. } => (),
                 },
@@ -816,9 +812,7 @@ pub mod json {
                         input,
                     })),
                     // Internal or non-CLI tool calls: skip them
-                    AIAgentActionType::InitProject
-                    | AIAgentActionType::OpenCodeReview
-                    | AIAgentActionType::InsertCodeReviewComments { .. }
+                    AIAgentActionType::InsertCodeReviewComments { .. }
                     | AIAgentActionType::ReadShellCommandOutput { .. }
                     | AIAgentActionType::TransferShellCommandControlToUser { .. } => None,
                 },

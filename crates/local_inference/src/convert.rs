@@ -495,6 +495,25 @@ pub fn tool_use_from_proto(call: &message::ToolCall) -> Option<ToolUse> {
         tool_call::Tool::ReadMcpResource(read) => {
             (mcp::READ_RESOURCE_TOOL, json!({ "uri": read.uri }))
         }
+        tool_call::Tool::TransferShellCommandControlToUser(transfer) => (
+            "transfer_control_to_user",
+            json!({ "reason": transfer.reason }),
+        ),
+        tool_call::Tool::InsertReviewComments(insert) => {
+            let comments = insert
+                .comments
+                .iter()
+                .map(review_comment_to_json)
+                .collect::<Vec<_>>();
+            (
+                "insert_review_comments",
+                json!({
+                    "repo_path": insert.repo_path,
+                    "base_branch": insert.base_branch,
+                    "comments": comments,
+                }),
+            )
+        }
         // A tool that this crate never offers cannot appear in a local conversation, but a
         // history from a cloud conversation may hold one. Leaving it out keeps the turn list
         // valid; the matching result is rendered as plain text below.
@@ -506,6 +525,36 @@ pub fn tool_use_from_proto(call: &message::ToolCall) -> Option<ToolUse> {
         name: name.to_string(),
         arguments,
     })
+}
+
+fn review_comment_to_json(comment: &tool_call::insert_review_comments::Comment) -> Value {
+    let mut entry = json!({
+        "id": comment.comment_id,
+        "author": comment.author,
+        "body": comment.comment_body,
+        "updated_at": comment.last_modified_timestamp,
+    });
+    if !comment.parent_comment_id.is_empty() {
+        entry["in_reply_to_id"] = json!(comment.parent_comment_id);
+    }
+    if !comment.html_url.is_empty() {
+        entry["html_url"] = json!(comment.html_url);
+    }
+    if let Some(location) = comment.location.as_ref() {
+        entry["path"] = json!(location.file_path);
+        if let Some(line) = location.line.as_ref() {
+            entry["diff_hunk"] = json!(line.diff_hunk);
+            if let Some(range) = line.range.as_ref() {
+                entry["start_line"] = json!(range.start);
+                entry["line"] = json!(range.end);
+            }
+            entry["side"] = json!(match line.side() {
+                tool_call::insert_review_comments::CommentSide::New => "RIGHT",
+                tool_call::insert_review_comments::CommentSide::Old => "LEFT",
+            });
+        }
+    }
+    entry
 }
 
 /// The part of a tool result that this crate knows how to show the model.
@@ -521,6 +570,8 @@ enum Payload<'a> {
     FileGlob(&'a api::FileGlobV2Result),
     ShellPoll(&'a api::ReadShellCommandOutputResult),
     ShellWrite(&'a api::WriteToLongRunningShellCommandResult),
+    Transfer(&'a api::TransferShellCommandControlToUserResult),
+    InsertReviewComments(&'a api::InsertReviewCommentsResult),
     CallMcp(&'a api::CallMcpToolResult),
     ReadMcp(&'a api::ReadMcpResourceResult),
     Cancelled,
@@ -539,6 +590,10 @@ pub fn render_result(result: &message::ToolCallResult) -> ToolResult {
         Some(ProtoResult::FileGlobV2(glob)) => Payload::FileGlob(glob),
         Some(ProtoResult::ReadShellCommandOutput(poll)) => Payload::ShellPoll(poll),
         Some(ProtoResult::WriteToLongRunningShellCommand(write)) => Payload::ShellWrite(write),
+        Some(ProtoResult::TransferShellCommandControlToUser(transfer)) => {
+            Payload::Transfer(transfer)
+        }
+        Some(ProtoResult::InsertReviewComments(insert)) => Payload::InsertReviewComments(insert),
         Some(ProtoResult::CallMcpTool(call)) => Payload::CallMcp(call),
         Some(ProtoResult::ReadMcpResource(read)) => Payload::ReadMcp(read),
         Some(ProtoResult::Cancel(_)) => Payload::Cancelled,
@@ -559,6 +614,10 @@ pub fn render_input_result(result: &api::request::input::ToolCallResult) -> Tool
         Some(InputResult::FileGlobV2(glob)) => Payload::FileGlob(glob),
         Some(InputResult::ReadShellCommandOutput(poll)) => Payload::ShellPoll(poll),
         Some(InputResult::WriteToLongRunningShellCommand(write)) => Payload::ShellWrite(write),
+        Some(InputResult::TransferShellCommandControlToUser(transfer)) => {
+            Payload::Transfer(transfer)
+        }
+        Some(InputResult::InsertReviewComments(insert)) => Payload::InsertReviewComments(insert),
         Some(InputResult::CallMcpTool(call)) => Payload::CallMcp(call),
         Some(InputResult::ReadMcpResource(read)) => Payload::ReadMcp(read),
         _ => Payload::Unsupported,
@@ -575,6 +634,8 @@ fn finish(tool_call_id: &str, payload: Payload<'_>) -> ToolResult {
         Payload::FileGlob(glob) => render_file_glob(glob),
         Payload::ShellPoll(poll) => render_shell_poll(poll),
         Payload::ShellWrite(write) => render_shell_write(write),
+        Payload::Transfer(transfer) => render_transfer(transfer),
+        Payload::InsertReviewComments(insert) => render_insert_review_comments(insert),
         Payload::CallMcp(call) => render_call_mcp(call),
         Payload::ReadMcp(read) => render_read_mcp(read),
         Payload::Cancelled => ("The user cancelled this tool call.".to_string(), true),
@@ -649,6 +710,42 @@ fn render_shell_write(write: &api::WriteToLongRunningShellCommandResult) -> (Str
             "The write failed: no running command with that id.".to_string(),
             true,
         ),
+    }
+}
+
+/// Renders the state of a command after the user had control of it.
+fn render_transfer(transfer: &api::TransferShellCommandControlToUserResult) -> (String, bool) {
+    use api::transfer_shell_command_control_to_user_result::Result as TransferResult;
+
+    match transfer.result.as_ref() {
+        Some(TransferResult::CommandFinished(finished)) => render_finished(finished),
+        Some(TransferResult::LongRunningCommandSnapshot(snapshot)) => (
+            format!(
+                "The user handed control back. {}",
+                render_snapshot(snapshot)
+            ),
+            false,
+        ),
+        Some(TransferResult::Error(_)) | None => (
+            "No command is running, so there was nothing to hand to the user.".to_string(),
+            true,
+        ),
+    }
+}
+
+fn render_insert_review_comments(insert: &api::InsertReviewCommentsResult) -> (String, bool) {
+    use api::insert_review_comments_result::Result as InsertResult;
+
+    match insert.result.as_ref() {
+        Some(InsertResult::Success(_)) => (
+            format!(
+                "The comments are shown in the code review panel for {}.",
+                insert.repo_path
+            ),
+            false,
+        ),
+        Some(InsertResult::Error(error)) => (error.message.clone(), true),
+        None => ("The comments were not inserted.".to_string(), true),
     }
 }
 

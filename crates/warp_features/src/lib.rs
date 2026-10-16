@@ -378,10 +378,6 @@ pub enum FeatureFlag {
     /// Extends queued prompts to shell commands, summarization, and follow-up draining.
     QueuedPromptsV2,
 
-    /// Enables an agent tool for the CLI subagent to explicitly transfer command control to the
-    /// user.
-    TransferControlTool,
-
     /// Enables Kitty keyboard protocol support (CSI u encoding, progressive enhancement).
     KittyKeyboardProtocol,
 

@@ -964,3 +964,77 @@ fn a_resource_read_shows_text_and_names_binary() {
     );
     assert!(!is_error);
 }
+
+#[test]
+fn a_transfer_result_says_the_user_handed_control_back() {
+    let rendered = render_input_result(&input_result(
+        api::request::input::tool_call_result::Result::TransferShellCommandControlToUser(
+            api::TransferShellCommandControlToUserResult {
+                result: Some(
+                    api::transfer_shell_command_control_to_user_result::Result::LongRunningCommandSnapshot(
+                        snapshot_result("block-9", "logged in"),
+                    ),
+                ),
+            },
+        ),
+    ));
+
+    assert!(!rendered.is_error);
+    assert!(
+        rendered.content.contains("handed control back"),
+        "{}",
+        rendered.content
+    );
+    assert!(rendered.content.contains("block-9"));
+    assert!(rendered.content.contains("logged in"));
+}
+
+#[test]
+fn an_inserted_review_comments_result_names_the_repo() {
+    let rendered = render_result(&history_result(
+        tool_call_result::Result::InsertReviewComments(api::InsertReviewCommentsResult {
+            repo_path: "/repo".to_string(),
+            result: Some(api::insert_review_comments_result::Result::Success(
+                Default::default(),
+            )),
+        }),
+    ));
+
+    assert!(!rendered.is_error);
+    assert!(rendered.content.contains("/repo"), "{}", rendered.content);
+}
+
+#[test]
+fn transfer_and_review_comment_calls_replay_through_the_model_arguments() {
+    for arguments in [
+        json!({ "reason": "Enter your password" }),
+        json!({
+            "repo_path": "/repo",
+            "base_branch": "main",
+            "comments": [{
+                "id": "c1",
+                "author": "reviewer",
+                "body": "Rename this.",
+                "updated_at": "2026-10-01T12:00:00Z",
+                "path": "src/lib.rs",
+                "diff_hunk": "@@ -1 +1 @@",
+                "start_line": 4,
+                "line": 4,
+                "side": "RIGHT",
+            }],
+        }),
+    ] {
+        let name = if arguments.get("reason").is_some() {
+            "transfer_control_to_user"
+        } else {
+            "insert_review_comments"
+        };
+        let call = crate::tools::to_proto("call-1", name, &arguments).expect("a known tool");
+        let replayed = tool_use_from_proto(&call).expect("a replayable tool");
+        assert_eq!(replayed.name, name);
+        assert_eq!(
+            crate::tools::to_proto("call-1", &replayed.name, &replayed.arguments),
+            Some(call)
+        );
+    }
+}

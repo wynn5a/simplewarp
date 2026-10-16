@@ -98,9 +98,6 @@ pub enum AIAgentActionType {
         input: serde_json::Value,
     },
 
-    InitProject,
-    OpenCodeReview,
-
     ReadShellCommandOutput {
         block_id: BlockId,
         delay: Option<ShellCommandDelay>,
@@ -165,8 +162,6 @@ impl AIAgentActionType {
             Self::ReadMCPResource { .. } => {
                 AIAgentActionResultType::ReadMCPResource(ReadMCPResourceResult::Cancelled)
             }
-            Self::OpenCodeReview => AIAgentActionResultType::OpenCodeReview,
-            Self::InitProject => AIAgentActionResultType::InitProject,
             Self::ReadShellCommandOutput { .. } => AIAgentActionResultType::ReadShellCommandOutput(
                 ReadShellCommandOutputResult::Cancelled,
             ),
@@ -198,8 +193,6 @@ impl AIAgentActionType {
             Self::FileGlob { .. } | Self::FileGlobV2 { .. } => "File glob".to_string(),
             Self::ReadMCPResource { .. } => "Read mcp resource".to_string(),
             Self::CallMCPTool { .. } => "Call mcp tool".to_string(),
-            Self::InitProject => "Init project".to_string(),
-            Self::OpenCodeReview => "Open code review".to_string(),
             Self::ReadShellCommandOutput { .. } => "Read shell command output".to_string(),
             Self::InsertCodeReviewComments { comments, .. } => {
                 format!("Insert {} code review comments", comments.len())
@@ -281,12 +274,6 @@ impl Display for AIAgentActionType {
                 input,
             } => {
                 write!(f, "CallMCPTool: {name} with input {input:?}")
-            }
-            AIAgentActionType::InitProject => {
-                write!(f, "InitProject")
-            }
-            AIAgentActionType::OpenCodeReview => {
-                write!(f, "OpenCodeReview")
             }
             AIAgentActionType::ReadShellCommandOutput { delay, block_id } => {
                 let delay = match delay {

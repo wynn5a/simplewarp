@@ -243,16 +243,16 @@ pub(crate) enum PersistedAIAgentActionType {
         name: String,
         input: serde_json::Value,
     },
-    OpenCodeReview,
-    InitProject,
-    /// Computer use is gone. These only let rows that hold one still deserialize (the
-    /// payload is ignored); they never restore.
+    /// These tools are gone. These only let rows that hold one still deserialize (the payload
+    /// is ignored); they never restore.
     UseComputer {},
     RequestComputerUse {},
     AskUserQuestion {},
     FetchConversation {},
     SuggestNewConversation {},
     SuggestPrompt,
+    OpenCodeReview,
+    InitProject,
 
     /// Actions that don't need data persisted (since they're restored from conversation tasks) can be mapped to this.
     NotPersisted,
@@ -316,9 +316,7 @@ impl From<&AIAgentActionType> for PersistedAIAgentActionType {
                 name: name.clone(),
                 uri: uri.clone(),
             },
-            AIAgentActionType::OpenCodeReview => Self::OpenCodeReview,
             AIAgentActionType::InsertCodeReviewComments { .. } => Self::NotPersisted,
-            AIAgentActionType::InitProject => Self::InitProject,
             AIAgentActionType::ReadShellCommandOutput { .. }
             | AIAgentActionType::TransferShellCommandControlToUser { .. } => Self::NotPersisted,
         }
@@ -398,15 +396,15 @@ impl TryFrom<PersistedAIAgentActionType> for AIAgentActionType {
                 name,
                 uri,
             }),
-            PersistedAIAgentActionType::OpenCodeReview => Ok(Self::OpenCodeReview),
-            PersistedAIAgentActionType::InitProject => Ok(Self::InitProject),
             PersistedAIAgentActionType::GetRelevantFiles {}
             | PersistedAIAgentActionType::UseComputer {}
             | PersistedAIAgentActionType::RequestComputerUse {}
             | PersistedAIAgentActionType::AskUserQuestion {}
             | PersistedAIAgentActionType::FetchConversation {}
             | PersistedAIAgentActionType::SuggestNewConversation {}
-            | PersistedAIAgentActionType::SuggestPrompt => {
+            | PersistedAIAgentActionType::SuggestPrompt
+            | PersistedAIAgentActionType::OpenCodeReview
+            | PersistedAIAgentActionType::InitProject => {
                 Err(anyhow!("That tool is no longer supported."))
             }
             PersistedAIAgentActionType::NotPersisted => Err(anyhow!(

@@ -442,19 +442,9 @@ impl TryFrom<AIAgentActionResult> for api::request::input::user_inputs::user_inp
             AIAgentActionResultType::CallMCPTool(call_mcp_tool_result) => {
                 Some(call_mcp_tool_result.try_into()?)
             }
-            AIAgentActionResultType::OpenCodeReview => Some(
-                warp_multi_agent_api::request::input::tool_call_result::Result::OpenCodeReview(
-                    warp_multi_agent_api::OpenCodeReviewResult {},
-                ),
-            ),
             AIAgentActionResultType::InsertReviewComments(insert_review_comments_result) => {
                 Some(insert_review_comments_result.try_into()?)
             }
-            AIAgentActionResultType::InitProject => Some(
-                warp_multi_agent_api::request::input::tool_call_result::Result::InitProject(
-                    warp_multi_agent_api::InitProjectResult {},
-                ),
-            ),
             AIAgentActionResultType::ReadShellCommandOutput(read_shell_command_output_result) => {
                 Some(read_shell_command_output_result.try_into()?)
             }

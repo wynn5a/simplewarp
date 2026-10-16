@@ -160,6 +160,8 @@ struct Reply {
     reasoning: String,
     /// Every tool call, as `(name, arguments summary)`.
     tool_calls: Vec<(String, String)>,
+    /// Every tool call as the client received it.
+    raw_tool_calls: Vec<api::message::ToolCall>,
     finish: Option<String>,
     token_usage: Vec<api::response_event::stream_finished::TokenUsage>,
 }
@@ -216,6 +218,7 @@ fn collect_message(reply: &mut Reply, message: api::Message) {
             reply.reasoning.push_str(&reasoning.reasoning)
         }
         Some(api::message::Message::ToolCall(call)) => {
+            reply.raw_tool_calls.push(call.clone());
             let (name, summary) = match call.tool {
                 Some(tool_call::Tool::RunShellCommand(shell)) => {
                     ("run_shell_command".to_string(), shell.command)
@@ -227,6 +230,13 @@ fn collect_message(reply: &mut Reply, message: api::Message) {
                 Some(tool_call::Tool::FileGlobV2(glob)) => {
                     ("file_glob".to_string(), format!("{:?}", glob.patterns))
                 }
+                Some(tool_call::Tool::TransferShellCommandControlToUser(transfer)) => {
+                    ("transfer_control_to_user".to_string(), transfer.reason)
+                }
+                Some(tool_call::Tool::InsertReviewComments(insert)) => (
+                    "insert_review_comments".to_string(),
+                    format!("{:?}", insert.comments),
+                ),
                 other => ("other".to_string(), format!("{other:?}")),
             };
             reply.tool_calls.push((name, summary));
@@ -449,4 +459,110 @@ async fn a_create_new_project_input_gets_acted_on() {
         reply.committed_transaction,
         "the reply must commit its transaction"
     );
+}
+
+/// A command that stops at a password prompt must go to the user, not to a guessed password.
+#[tokio::test]
+#[ignore = "sends a real request to a provider"]
+async fn a_password_prompt_is_handed_to_the_user() {
+    let endpoint = endpoint_or_skip!();
+    let request = request(
+        &endpoint,
+        vec![
+            user_message("Update the package lists with `sudo apt-get update`."),
+            message(api::message::Message::ToolCall(api::message::ToolCall {
+                tool_call_id: "call-1".to_string(),
+                tool: Some(tool_call::Tool::RunShellCommand(
+                    tool_call::RunShellCommand {
+                        command: "sudo apt-get update".to_string(),
+                        ..Default::default()
+                    },
+                )),
+            })),
+            message(api::message::Message::ToolCallResult(
+                api::message::ToolCallResult {
+                    tool_call_id: "call-1".to_string(),
+                    result: Some(tool_call_result::Result::RunShellCommand(
+                        api::RunShellCommandResult {
+                            result: Some(
+                                api::run_shell_command_result::Result::LongRunningCommandSnapshot(
+                                    api::LongRunningShellCommandSnapshot {
+                                        command_id: "block-7".to_string(),
+                                        output: "[sudo] password for dev: ".to_string(),
+                                        ..Default::default()
+                                    },
+                                ),
+                            ),
+                            ..Default::default()
+                        },
+                    )),
+                    ..Default::default()
+                },
+            )),
+        ],
+    );
+
+    let reply = run(&request).await;
+    println!("text: {}", reply.text);
+    println!("tool calls: {:?}", reply.tool_calls);
+
+    assert!(
+        reply
+            .tool_calls
+            .iter()
+            .any(|(name, _)| name == "transfer_control_to_user"),
+        "the model did not hand the prompt to the user: {:?} / {:?}",
+        reply.tool_calls,
+        reply.text
+    );
+}
+
+/// Fetched pull request comments must come back as an insert into the review panel. The model may
+/// look around first, so its shell calls are answered for a few turns.
+#[tokio::test]
+#[ignore = "sends a real request to a provider"]
+async fn fetched_review_comments_are_inserted() {
+    let endpoint = endpoint_or_skip!();
+    let comments = r#"[{"id":1001,"user":{"login":"reviewer"},"body":"Handle the error here.","updated_at":"2026-10-01T12:00:00Z","html_url":"https://github.com/o/r/pull/7#discussion_r1001","path":"src/main.rs","diff_hunk":"@@ -1,3 +1,4 @@\n fn main() {\n+    run();\n }","line":2,"side":"RIGHT"}]"#;
+    let mut messages = vec![
+        user_message(
+            "Show the review comments of pull request 7 in my code review panel. The \
+             repository is at /work/r and the pull request merges into main.",
+        ),
+        shell_call("call-0", "gh api repos/o/r/pulls/7/comments"),
+        shell_result("call-0", comments),
+    ];
+
+    for _ in 0..3 {
+        let reply = run(&request(&endpoint, messages.clone())).await;
+        println!("text: {}", reply.text);
+        println!("tool calls: {:?}", reply.tool_calls);
+
+        if let Some((_, inserted)) = reply
+            .tool_calls
+            .iter()
+            .find(|(name, _)| name == "insert_review_comments")
+        {
+            assert!(inserted.contains("1001"), "{inserted}");
+            assert!(inserted.contains("src/main.rs"), "{inserted}");
+            return;
+        }
+
+        let shell_calls = reply
+            .raw_tool_calls
+            .into_iter()
+            .filter(|call| matches!(call.tool, Some(tool_call::Tool::RunShellCommand(_))))
+            .collect::<Vec<_>>();
+        assert!(
+            !shell_calls.is_empty(),
+            "the model stopped without inserting the comments: {:?}",
+            reply.text
+        );
+        for call in shell_calls {
+            let id = call.tool_call_id.clone();
+            messages.push(message(api::message::Message::ToolCall(call)));
+            messages.push(shell_result(&id, "git@github.com:o/r.git\nmain\n"));
+        }
+    }
+    panic!("the model did not insert the comments within three turns");
 }

@@ -424,16 +424,20 @@ impl InteractionMode {
     ) -> Result<(), UpdateInteractionModeError> {
         let Self::Agent(AgentInteractionMetadata {
             long_running_control_state,
+            requested_command_action_id,
             ..
         }) = self
         else {
             return Err(UpdateInteractionModeError::InvalidTakeOver);
         };
 
-        if !long_running_control_state
-            .as_ref()
-            .is_some_and(|state| state.is_agent_in_control())
-        {
+        // A command the local agent started has no control state until something hands it over,
+        // because no CLI subagent ever formally takes control of it.
+        let is_agent_in_control = match long_running_control_state {
+            Some(state) => state.is_agent_in_control(),
+            None => requested_command_action_id.is_some(),
+        };
+        if !is_agent_in_control {
             return Err(UpdateInteractionModeError::InvalidTakeOver);
         }
 
@@ -626,3 +630,7 @@ pub fn formatted_terminal_contents_for_input(
         )
     )
 }
+
+#[cfg(test)]
+#[path = "interaction_mode_tests.rs"]
+mod tests;
