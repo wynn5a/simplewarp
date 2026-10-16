@@ -655,9 +655,6 @@ grab_the_baton_editing = []
 # For the most part, including GUI code in headless builds is fine; the main use case is
 # for things that pull in external dependencies.
 gui = []
-nld_classifier_v1 = ["input_classifier/nld_classifier_v1"]
-nld_classifier_v2 = ["input_classifier/nld_classifier_v2"]
-nld_classifier_v3 = ["input_classifier/nld_classifier_v3"]
 nld_heuristic_v1 = ["input_classifier/nld_heuristic_v1"]
 nld_heuristic_v2 = ["input_classifier/nld_heuristic_v2"]
 nld_prompt_history_match = []

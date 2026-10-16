@@ -66,25 +66,8 @@ fn get_binary_confidence_color(is_correct: bool, is_low_confidence: bool) -> Str
         "\x1b[31m".to_string() // Red for incorrect
     }
 }
-#[cfg(feature = "onnx")]
-use input_classifier::{OnnxClassifier, OnnxModel};
 use warp_completer::ParsedTokensSnapshot;
 use warp_completer::util::parse_current_commands_and_tokens;
-#[cfg(feature = "onnx")]
-fn default_onnx_model() -> Option<OnnxModel> {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "nld_classifier_v1")] {
-            Some(OnnxModel::BertTinyV1)
-        } else if #[cfg(feature = "nld_classifier_v2")] {
-            Some(OnnxModel::BertTinyV2)
-        } else if #[cfg(feature = "nld_classifier_v3")] {
-            Some(OnnxModel::BertTinyV3)
-        } else {
-            None
-        }
-    }
-}
-
 #[derive(Parser)]
 struct InputSource {
     /// Input string to classify (use --file to read from file instead)
@@ -105,15 +88,6 @@ enum ConfidenceMode {
 #[command(name = "evaluate")]
 #[command(about = "Test input classifier implementations")]
 struct Args {
-    /// Use heuristic classifier
-    #[arg(long)]
-    heuristic: bool,
-
-    /// Use ONNX classifier
-    #[cfg(feature = "onnx")]
-    #[arg(long)]
-    onnx: bool,
-
     #[command(subcommand)]
     command: Command,
 }
@@ -137,44 +111,8 @@ enum Command {
 }
 
 /// Create classifiers based on CLI flags
-fn create_classifiers(args: &Args) -> Vec<(&'static str, Box<dyn InputClassifier>)> {
-    let mut classifiers: Vec<(&'static str, Box<dyn InputClassifier>)> = Vec::new();
-
-    // Default to all available classifiers if none specified
-    let onnx_specified = {
-        #[cfg(feature = "onnx")]
-        {
-            args.onnx
-        }
-        #[cfg(not(feature = "onnx"))]
-        {
-            false
-        }
-    };
-
-    let use_all = !args.heuristic && !onnx_specified;
-
-    if args.heuristic || use_all {
-        classifiers.push(("heuristic", Box::new(HeuristicClassifier)));
-    }
-
-    #[cfg(feature = "onnx")]
-    if args.onnx || use_all {
-        let Some(model) = default_onnx_model() else {
-            eprintln!("Warning: No ONNX model feature is enabled for the ONNX classifier");
-            return classifiers;
-        };
-        match OnnxClassifier::new(model) {
-            Ok(classifier) => {
-                classifiers.push(("onnx", Box::new(classifier)));
-            }
-            Err(e) => {
-                eprintln!("Warning: Failed to initialize ONNX classifier: {e}");
-            }
-        }
-    }
-
-    classifiers
+fn create_classifiers() -> Vec<(&'static str, Box<dyn InputClassifier>)> {
+    vec![("heuristic", Box::new(HeuristicClassifier))]
 }
 
 /// Resolve input from either direct string or file
@@ -345,7 +283,7 @@ async fn handle_verify(
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    let classifiers = create_classifiers(&args);
+    let classifiers = create_classifiers();
     if classifiers.is_empty() {
         eprintln!("Error: No classifiers available or selected");
         process::exit(1);

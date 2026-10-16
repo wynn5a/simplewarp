@@ -1,7 +1,5 @@
 mod heuristic_classifier;
 mod input_type;
-#[cfg(feature = "onnx")]
-mod onnx;
 mod parser;
 pub mod test_utils;
 pub mod util;
@@ -9,19 +7,13 @@ pub mod util;
 use async_trait::async_trait;
 pub use heuristic_classifier::HeuristicClassifier;
 pub use input_type::InputType;
-#[cfg(feature = "onnx")]
-pub use onnx::{Model as OnnxModel, OnnxClassifier};
 use serde::{Deserialize, Serialize};
 
 /// Sources produced by the input classifier pipeline.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InputClassifierDecisionSource {
-    // Classification result coming from Onnx classifier
-    InputClassifier,
-    // Classification result coming from fall back heuristic classifier when onnx classifier panicked
+    // Classification result coming from the heuristic classifier
     InputClassifierFallbackHeuristic,
-    // Classification result coming from current input type when onnx classifier failed
-    InputClassifierFallbackCurrentInput,
     // Input match with ONE_OFF_NATURAL_LANGUAGE_WORDS
     NaturalLanguageOneOffAllowlist,
     // Input match with ONE_OFF_SHELL_COMMAND_KEYWORDS
