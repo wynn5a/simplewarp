@@ -46,7 +46,6 @@ pub struct WorkspaceState {
     pub is_tab_being_dragged: bool,
     pub is_launch_config_save_modal_open: bool,
     pub is_command_search_open: bool,
-    pub is_agent_management_popup_open: bool,
     pub is_prompt_editor_open: bool,
     pub is_agent_toolbar_editor_open: bool,
     pub is_header_toolbar_editor_open: bool,
@@ -79,7 +78,6 @@ impl WorkspaceState {
             || self.is_prompt_editor_open
             || self.is_agent_toolbar_editor_open
             || self.is_header_toolbar_editor_open
-            || self.is_agent_management_popup_open
             || self.is_tab_config_params_modal_open
             || self.is_session_config_modal_open
             || self.is_new_worktree_modal_open

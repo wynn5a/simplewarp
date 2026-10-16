@@ -17597,12 +17597,10 @@ impl View for Workspace {
             self.global_toast_positioning(),
         );
 
-        if !self.current_workspace_state.is_agent_management_popup_open {
-            stack.add_positioned_overlay_child(
-                ChildView::new(&self.agent_toast_stack).finish(),
-                self.agent_toast_positioning(),
-            );
-        }
+        stack.add_positioned_overlay_child(
+            ChildView::new(&self.agent_toast_stack).finish(),
+            self.agent_toast_positioning(),
+        );
 
         if let Some(input_position_id) = input_position_id
             && FeatureFlag::AvatarInTabBar.is_enabled()
