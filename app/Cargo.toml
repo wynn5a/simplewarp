@@ -373,10 +373,8 @@ ai_resume_button = []
 figma_detection = []
 bundled_skills = []
 agent_mode = []
-agent_mode_debug = []
 async_find = []
 clear_autosuggestion_on_escape = []
-command_predictor = []
 default = [
     "use_tantivy_search",
     "agent_mode",
@@ -645,16 +643,8 @@ dynamic_workflow_enums = []
 editable_markdown_mermaid = []
 drag_tabs_to_windows = []
 interactive_conversation_management_view = []
-ssh_enable_host_denylist_in_settings = []
 extern_plist = []
 full_screen_zen_mode = []
-grab_the_baton_editing = []
-# This feature is enabled in graphical builds of Warp, and groups together other features
-# that are not needed in headless builds. Because Cargo features are additive, the default
-# feature set is for a minimal build of Warp, and we add on GUI-specific features here.
-# For the most part, including GUI code in headless builds is fine; the main use case is
-# for things that pull in external dependencies.
-gui = []
 nld_heuristic_v1 = ["input_classifier/nld_heuristic_v1"]
 nld_heuristic_v2 = ["input_classifier/nld_heuristic_v2"]
 nld_prompt_history_match = []
@@ -681,7 +671,6 @@ jemalloc_with_profiling = ["jemalloc", "tikv-jemallocator/profiling"]
 jemalloc_auto_heap_profiling = ["jemalloc_with_profiling"]
 jemalloc_pprof = ["jemalloc_with_profiling", "dep:jemalloc_pprof"]
 run_generators_with_cmd_exe = []
-inline_ssh_banner = []
 kitty_images = []
 kitty_keyboard_protocol = []
 ligatures = []
@@ -693,7 +682,6 @@ markdown_tables = []
 markdown_mermaid = []
 mcp_server = []
 mcp_oauth = []
-notebook_parameter = []
 # Remote-backed tty that connects to a PTY-like interface via a server.
 # Fix for cursor reflow bug during window resize, from Alacritty resizing logic.
 resize_fix = []
@@ -704,7 +692,6 @@ read_image_files = []
 # generated profile will be written to profile.pb in the current directory.
 # NOTE: This may slow down program execution.
 pprof_cpu_profiling = ["dep:pprof"]
-quake_mode = []
 recording_mode = []
 
 # This feature should only be enabled when building a release bundle with
@@ -713,22 +700,18 @@ recording_mode = []
 release_bundle = ["rust-embed/debug-embed", "warp_core/release_bundle"]
 render_agent_mode_output_markdown = []
 render_continuous_block_selections_with_single_border = []
-rich_history = []
 richtext_multiselect = []
 selectable_prompt = []
 settings_file = []
 # This feature should only be enabled when building a self-contained binary with the bundle script.
 standalone = ["warp_assets/standalone", "warp_core/standalone"]
-system_theme = []
 tab_close_button_on_left = []
-team_features_override = []
 test-util = [
     "http_client/test-util",
     "warp_core/test-util",
     "ai/test-util",
     "cloud_objects/test-util",
 ]
-team_workflows = ["team_features_override"]
 terminal_lifecycle_recovery = []
 code_review_scroll_preservation = []
 command_corrections_history_rule = []
@@ -758,7 +741,6 @@ minimalist_ui = []
 external_agent_mode_context = []
 avatar_in_tab_bar = []
 ssh_drag_and_drop = []
-permanent_autosuggestion_hint = []
 cycle_next_command_suggestion = []
 ime_marked_text = []
 partial_next_command_suggestions = []
@@ -766,14 +748,12 @@ iterm_images = []
 validate_autosuggestions = []
 command_correction_key = []
 use_tantivy_search = []
-agent_management_popup = []
 ai_context_menu = []
 at_menu_outside_of_ai_mode = []
 agent_decides_command_execution = []
 fast_forward_autoexecute_button = []
 code_find_replace = []
 command_palette_file_search = []
-conversation_filter = []
 ai_context_menu_commands = []
 ai_context_menu_code = []
 expand_edit_to_pane = []

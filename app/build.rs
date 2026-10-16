@@ -156,10 +156,6 @@ fn add_features(target_os: &str) {
     if target_os != "windows" {
         println!("cargo:rustc-cfg=feature=\"iterm_images\"");
     }
-
-    if env::var("PROFILE").ok().is_some_and(|val| val == "debug") {
-        println!("cargo:rustc-cfg=feature=\"agent_mode_debug\"");
-    }
 }
 
 /// Copies the DLLs needed to run Warp on Windows.
