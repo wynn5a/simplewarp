@@ -1,15 +1,7 @@
 use clap::Parser;
 
 use super::*;
-use crate::agent::{AgentCommand, Harness, OutputFormat};
-
-#[test]
-fn identifies_worker_subcommands() {
-    assert!(is_worker_invocation("ripgrep-search"));
-    #[cfg(unix)]
-    assert!(is_worker_invocation(&terminal_server_subcommand()));
-    assert!(!is_worker_invocation("--prompt"));
-}
+use crate::agent::{AgentCommand, OutputFormat};
 
 #[test]
 fn agent_run_accepts_model() {
@@ -233,41 +225,4 @@ fn agent_run_rejects_prompt_and_saved_prompt() {
         "sp-1",
     ]);
     assert!(result.is_err());
-}
-
-#[test]
-fn harness_parse_orchestration_harness_accepts_aliases() {
-    assert_eq!(
-        Harness::parse_orchestration_harness("claude-code"),
-        Some(Harness::Claude)
-    );
-    assert_eq!(
-        Harness::parse_orchestration_harness("open_code"),
-        Some(Harness::OpenCode)
-    );
-}
-
-#[test]
-fn harness_parse_local_child_harness_rejects_oz() {
-    assert_eq!(Harness::parse_local_child_harness("oz"), None);
-    assert_eq!(
-        Harness::parse_local_child_harness("opencode"),
-        Some(Harness::OpenCode)
-    );
-}
-
-#[test]
-fn harness_parse_orchestration_harness_accepts_codex() {
-    assert_eq!(
-        Harness::parse_orchestration_harness("codex"),
-        Some(Harness::Codex)
-    );
-}
-
-#[test]
-fn harness_parse_local_child_harness_accepts_codex() {
-    assert_eq!(
-        Harness::parse_local_child_harness("codex"),
-        Some(Harness::Codex)
-    );
 }

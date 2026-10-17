@@ -129,18 +129,6 @@ impl ValueEnum for Harness {
 }
 
 impl Harness {
-    pub fn parse_orchestration_harness(value: &str) -> Option<Self> {
-        let normalized = value.trim().to_ascii_lowercase().replace('_', "-");
-        <Self as ValueEnum>::from_str(&normalized, true).ok()
-    }
-
-    pub fn parse_local_child_harness(value: &str) -> Option<Self> {
-        match Self::parse_orchestration_harness(value) {
-            Some(harness @ (Self::Claude | Self::OpenCode | Self::Codex)) => Some(harness),
-            Some(Self::Oz) | Some(Self::Gemini) | Some(Self::Unknown) | None => None,
-        }
-    }
-
     /// Whether this harness is surfaced to users in CLI `--help` for agent runs.
     /// Only the harnesses that are generally available are shown; gemini and
     /// opencode aren't available yet, so they're hidden from help. Update this

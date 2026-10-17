@@ -4,8 +4,6 @@ mod clipped;
 mod clipped_scrollable;
 mod constrained_box;
 mod container;
-#[cfg(debug_assertions)]
-mod debug;
 mod dismiss;
 mod drag;
 pub mod drag_resize;
@@ -46,8 +44,6 @@ pub use clipped::*;
 pub use clipped_scrollable::*;
 pub use constrained_box::*;
 pub use container::*;
-#[cfg(debug_assertions)]
-pub use debug::*;
 pub use dismiss::*;
 pub use drag::*;
 pub use drag_resize::*;

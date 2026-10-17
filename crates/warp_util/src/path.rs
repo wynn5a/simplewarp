@@ -688,41 +688,6 @@ pub fn to_relative_path(is_wsl: bool, absolute_path: &Path, cwd: &Path) -> Optio
     })
 }
 
-/// Finds the common prefix path between some number of paths.
-/// Returns `Some(PathBuf)` containing the common prefix, otherwise `None`.
-///
-/// # Examples
-/// ```
-/// use std::path::Path;
-/// use warp_util::path::common_path;
-///
-/// let paths = [Path::new("/foo/bar/baz"), Path::new("/foo/bar/quux"), Path::new("/foo/bar/quuux")];
-/// assert_eq!(common_path(paths), Some(Path::new("/foo/bar").to_path_buf()));
-/// ```
-pub fn common_path<P>(paths: impl IntoIterator<Item = P>) -> Option<PathBuf>
-where
-    P: AsRef<Path>,
-{
-    let paths: Vec<_> = paths.into_iter().collect();
-
-    let mut common = paths.first()?.as_ref().to_path_buf();
-    for p in paths.iter().skip(1) {
-        common = common
-            .components()
-            .zip(p.as_ref().components())
-            .take_while(|(l, r)| l == r)
-            .map(|(l, _)| l.as_os_str())
-            .collect::<PathBuf>();
-
-        // Returns None if the common path is empty between any two paths
-        if common.as_os_str().is_empty() {
-            return None;
-        }
-    }
-
-    Some(common)
-}
-
 /// Converts a Windows-native path to a POSIX-style path, prepending `drive_prefix` to the
 /// lowercased drive letter. Paths without a drive letter are returned with backslashes replaced
 /// by forward slashes.

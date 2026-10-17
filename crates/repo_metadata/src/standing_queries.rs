@@ -215,15 +215,6 @@ impl StandingQueryResults {
         self.apply_delta(&delta);
         delta
     }
-
-    pub fn as_snapshot_delta(&self) -> StandingQueryResultsDelta {
-        StandingQueryResultsDelta {
-            upserted_project_skills: self.project_skills.iter().cloned().collect(),
-            removed_project_skills: Vec::new(),
-            upserted_project_rules: self.project_rules.iter().cloned().collect(),
-            removed_project_rules: Vec::new(),
-        }
-    }
 }
 
 /// Changes to standing query results for one repository.

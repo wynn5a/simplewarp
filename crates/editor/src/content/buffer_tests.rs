@@ -1342,7 +1342,6 @@ fn test_multi_delta_stale_replaced_range() {
                 delta0.replaced_range,
                 CharOffset::from(5)..CharOffset::from(7)
             );
-            assert_eq!(delta0.resolved_length(), CharOffset::from(4));
 
             // Delta 1 replaced "AA" at offset 1..3 with "X" (1 char).
             let delta1 = &delta.precise_deltas[1];
@@ -1350,7 +1349,6 @@ fn test_multi_delta_stale_replaced_range() {
                 delta1.replaced_range,
                 CharOffset::from(1)..CharOffset::from(3)
             );
-            assert_eq!(delta1.resolved_length(), CharOffset::from(1));
 
             // BUG: The stale replaced_range for delta 0 points to the wrong location
             // in the final buffer.
@@ -1362,8 +1360,9 @@ fn test_multi_delta_stale_replaced_range() {
             //   Final buffer "XBBDDDDEE":
             //     offset 4: D, 5: D, 6: D, 7: D, 8: E, 9: E
             //   text_in_range(5..9) = "DDDE" -- WRONG, should be "DDDD"
-            let stale_range =
-                delta0.replaced_range.start..delta0.replaced_range.start + delta0.resolved_length();
+            let stale_range = delta0.replaced_range.start
+                ..delta0.replaced_range.start
+                    + (delta0.resolved_range.end - delta0.resolved_range.start);
             let stale_text = buffer.text_in_range(stale_range).into_string();
             assert_eq!(
                 stale_text, "DDDE",
@@ -1384,7 +1383,7 @@ fn test_multi_delta_stale_replaced_range() {
             );
 
             // Delta 1 is the last action applied, so its resolved_range matches
-            // the simple computation (replaced_range.start + resolved_length).
+            // the simple computation (replaced_range.start + resolved width).
             assert_eq!(
                 delta1.resolved_range,
                 CharOffset::from(1)..CharOffset::from(2)

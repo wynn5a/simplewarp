@@ -18,7 +18,6 @@ use crate::protocol::Request;
 #[derive(Debug)]
 pub enum InitializationError {
     Io(std::io::Error),
-    UnsupportedPlatform,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -70,10 +69,6 @@ pub struct Client {
     /// responsible for actually writing requests to the socket.
     outbound_message_tx: async_channel::Sender<OutboundRequest>,
 
-    /// A receiver for a single-message bounded channel that emits an event when the server
-    /// connection is dropped.
-    disconnect_rx: async_channel::Receiver<()>,
-
     /// A reference to the background executor so that we don't drop it while waiting on tasks
     /// that use it to run to completion. Otherwise, it can hang when all references are dropped.
     _background_executor: Arc<Background>,
@@ -88,13 +83,10 @@ impl Client {
         background_executor: Arc<Background>,
     ) -> Result<Self> {
         let (reader, writer) = connect_client(connection_address).await?;
-        let (disconnect_tx, disconnect_rx) = async_channel::bounded(1);
         let (pending_request_info_tx, pending_request_info_rx) = async_channel::unbounded();
-        let disconnect_tx_clone = disconnect_tx.clone();
         background_executor
             .spawn(async move {
                 Self::handle_incoming_responses(reader, pending_request_info_rx).await;
-                let _ = disconnect_tx_clone.try_send(());
             })
             .detach();
 
@@ -107,19 +99,13 @@ impl Client {
                     pending_request_info_tx,
                 )
                 .await;
-                let _ = disconnect_tx.try_send(());
             })
             .detach();
 
         Ok(Self {
             outbound_message_tx,
-            disconnect_rx,
             _background_executor: background_executor,
         })
-    }
-
-    pub async fn wait_for_disconnect(&self) {
-        let _ = self.disconnect_rx.recv().await;
     }
 
     /// Schedules the given message to be written to the underlying transport.

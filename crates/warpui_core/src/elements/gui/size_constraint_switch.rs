@@ -20,10 +20,6 @@ pub enum SizeConstraintCondition {
     /// contained f32.
     WidthLessThan(f32),
 
-    /// A condition in which the [`SizeConstraint`] is valid if its max height is less than the
-    /// contained f32.
-    HeightLessThan(f32),
-
     /// A condition in which the [`SizeConstraint`] is valid if its max width and height are _both_
     /// less than width and height in the contained [`Size`].
     SizeSmallerThan(Size),
@@ -33,7 +29,6 @@ impl SizeConstraintCondition {
     fn is_valid_size_constraint(&self, constraint: &SizeConstraint) -> bool {
         match self {
             SizeConstraintCondition::WidthLessThan(max_width) => constraint.max.x() < *max_width,
-            SizeConstraintCondition::HeightLessThan(max_height) => constraint.max.y() < *max_height,
             SizeConstraintCondition::SizeSmallerThan(Size {
                 width: max_width,
                 height: max_height,

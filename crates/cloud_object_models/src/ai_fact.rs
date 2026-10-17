@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use cloud_objects::cloud_object::{GenericCloudObject, GenericStringModel, JsonObjectType};
 use cloud_objects::ids::GenericStringObjectId;
 use serde::{Deserialize, Serialize};
@@ -19,18 +17,6 @@ pub enum AIFact {
 /// - The corresponding objects stored in the cloud, if the suggestion was accepted.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SuggestedLoggingId(String);
-
-impl Display for SuggestedLoggingId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl From<String> for SuggestedLoggingId {
-    fn from(value: String) -> Self {
-        Self(value)
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AIMemory {

@@ -128,11 +128,6 @@ pub enum Error {
     #[error("Windows CryptProtect API error")]
     WindowsAPIError(#[from] windows::core::Error),
 
-    /// The provided secure storage directory path was not valid.
-    #[cfg(windows)]
-    #[error("Invalid secure storage location")]
-    InvalidLocation,
-
     /// Catch-all for unclassifiable errors.
     #[error("unknown error")]
     Unknown(#[from] anyhow::Error),

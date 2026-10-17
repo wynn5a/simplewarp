@@ -4,8 +4,6 @@ use itertools::Itertools;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
-use crate::cloud_object::ObjectIdType;
-
 /// Convert ID enums into and from a hashed UUID.
 pub trait HashableId: Sized + Send + Sync {
     fn to_hash(&self) -> String;
@@ -194,14 +192,6 @@ impl ServerId {
 
     pub fn uid(&self) -> ObjectUid {
         (*self).into()
-    }
-
-    /// We need this API for backwards compatibility with local sqlite data.
-    /// In sqlite, objects are stored in object typy, uid pairs of the format
-    /// {sqlite-prefix}-{uid}. For example, for a workflow this would be
-    /// "Workflow-{uid}".
-    pub fn sqlite_type_and_uid_hash(&self, object_id_type: ObjectIdType) -> HashedSqliteId {
-        format!("{}-{}", object_id_type.sqlite_prefix(), self)
     }
 }
 

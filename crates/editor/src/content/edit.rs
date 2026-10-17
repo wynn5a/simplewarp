@@ -7,7 +7,6 @@ use std::path::{Path, PathBuf};
 use anyhow::{Result, anyhow};
 use itertools::Itertools;
 use markdown_parser::{Hyperlink, TableAlignment};
-use num_traits::SaturatingSub;
 use rangemap::RangeSet;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use string_offset::{ByteOffset, CharOffset};
@@ -152,15 +151,6 @@ pub struct PreciseDelta {
     /// For multi-delta edits, this is resolved via anchors after all edits are applied,
     /// ensuring it correctly reflects any shifts caused by subsequent edits.
     pub resolved_range: Range<CharOffset>,
-}
-
-impl PreciseDelta {
-    /// The length of the resolved content range in the final buffer.
-    pub fn resolved_length(&self) -> CharOffset {
-        self.resolved_range
-            .end
-            .saturating_sub(&self.resolved_range.start)
-    }
 }
 
 /// Delta after an edit operation recording the old range of rows that got replaced

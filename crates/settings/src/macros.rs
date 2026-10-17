@@ -748,19 +748,11 @@ macro_rules! generate_settings_event_fn {
                     let serialized_default_value =
                         serde_json::to_string(&$setting::default_value())
                             .expect("default should serialize");
-                    let file_serialized_default_value = {
-                        use $crate::_settings_value::SettingsValue as _;
-                        let file_value = $setting::default_value().to_file_value();
-                        serde_json::to_string(&file_value)
-                            .expect("default file value should serialize")
-                    };
                     manager.register_setting(
                         $setting::storage_key(),
                         serialized_default_value,
-                        file_serialized_default_value,
                         $setting::hierarchy(),
                         $setting::toml_key(),
-                        $setting::max_table_depth(),
                         $setting::is_private(),
                         move |value, ctx| {
                             use $crate::_settings_value::SettingsValue as _;

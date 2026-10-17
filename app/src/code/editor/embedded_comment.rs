@@ -177,10 +177,6 @@ impl RenderableBlock for RenderableEmbeddedCommentSpace {
         // No interactivity: events are handled by the editor rendered by EditorWrapper
         false
     }
-
-    fn is_embedded_comment(&self) -> bool {
-        true
-    }
 }
 
 /// The embedded item transformation for comments.

@@ -345,11 +345,6 @@ impl Repository {
             .any(|subscription| subscription.mode == RepositoryWatchMode::GitRepository)
     }
 
-    /// Returns the current watcher count.
-    pub fn watcher_count(&self) -> usize {
-        self.subscribers.len()
-    }
-
     /// Starts watching this repository with the given subscriber.
     ///
     /// If this is the first subscriber, the repository root will be added to the

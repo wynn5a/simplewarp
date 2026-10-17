@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::{fmt, io};
 
 use serde::{Deserialize, Serialize};
-use typed_path::{PathType, TypedPath, TypedPathBuf};
+use typed_path::{TypedPath, TypedPathBuf};
 
 /// Error returned when a path cannot be converted into a [`StandardizedPath`].
 #[derive(Debug, thiserror::Error)]
@@ -36,18 +36,6 @@ impl StandardizedPath {
     /// Returns an error if the path is not absolute.
     pub fn try_new(path: &str) -> Result<Self, InvalidPathError> {
         let typed = TypedPathBuf::from(path);
-        let normalized = typed.normalize();
-        if !normalized.is_absolute() {
-            return Err(InvalidPathError::NotAbsolute(path.to_owned()));
-        }
-        Ok(Self(normalized))
-    }
-
-    /// Create with an explicit path type (Unix or Windows).
-    /// Returns an error if the path is not absolute.
-    pub fn try_with_encoding(path: &str, path_type: PathType) -> Result<Self, InvalidPathError> {
-        let typed = TypedPathBuf::new(path_type);
-        let typed = typed.join(path);
         let normalized = typed.normalize();
         if !normalized.is_absolute() {
             return Err(InvalidPathError::NotAbsolute(path.to_owned()));

@@ -160,30 +160,6 @@ fn renders_element_with_max_width_condition() {
 }
 
 #[test]
-fn renders_element_with_max_height_condition() {
-    App::test((), |mut app| async move {
-        let app = &mut app;
-        let (window_id, test_view) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
-            TestRootView::new(
-                *PARENT_SIZE_FOR_DEFAULT_CHILD,
-                SizeConstraintCondition::HeightLessThan(CONDIITIONAL_CHILD_THRESHOLD),
-                ctx,
-            )
-        });
-        test_view.update(app, |_, ctx| {
-            ctx.notify();
-        });
-        assert_rendered_rect_with_size(app, window_id, *DEFAULT_CHILD_SIZE);
-
-        test_view.update(app, |test_view, ctx| {
-            test_view.parent_size = *PARENT_SIZE_FOR_CONDITIONAL_CHILD;
-            ctx.notify();
-        });
-        assert_rendered_rect_with_size(app, window_id, *CONDITIONAL_CHILD_SIZE);
-    })
-}
-
-#[test]
 fn renders_element_with_max_size_condition() {
     App::test((), |mut app| async move {
         let app = &mut app;

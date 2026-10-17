@@ -24,16 +24,10 @@ struct SettingReloadEntry {
 #[derive(Debug)]
 struct SettingsInfo {
     serialized_default_value: String,
-    /// The default value serialized using the `SettingsValue` trait
-    /// for the settings file.
-    file_serialized_default_value: String,
     hierarchy: Option<&'static str>,
     /// The key used in the TOML settings file (last segment of `toml_path`).
     /// For settings without a `toml_path`, this equals the storage key.
     toml_key: &'static str,
-    /// The maximum number of TOML section-table levels to use when rendering
-    /// this setting's value in the settings file. `None` means unlimited.
-    max_table_depth: Option<u32>,
     /// Whether this setting is private (not shown in the user-visible settings file).
     is_private: bool,
 }
@@ -64,10 +58,8 @@ impl SettingsManager {
         &mut self,
         storage_key: &str,
         serialized_default_value: String,
-        file_serialized_default_value: String,
         hierarchy: Option<&'static str>,
         toml_key: &'static str,
-        max_table_depth: Option<u32>,
         is_private: bool,
         update_fn: impl FnMut(String, &mut AppContext) -> Result<()> + 'static,
         load_fn: impl FnMut(String, bool, &mut AppContext) -> Result<()> + 'static,
@@ -83,10 +75,8 @@ impl SettingsManager {
             storage_key.to_owned(),
             SettingsInfo {
                 serialized_default_value,
-                file_serialized_default_value,
                 hierarchy,
                 toml_key,
-                max_table_depth,
                 is_private,
             },
         );
@@ -236,25 +226,6 @@ impl SettingsManager {
                 None
             })
             .collect()
-    }
-
-    /// Returns all registered settings with their toml key, serialized
-    /// default value (in file format), hierarchy path, and max table depth,
-    /// for use when writing the user-visible settings file.
-    pub fn default_values_for_settings_file(
-        &self,
-    ) -> impl Iterator<Item = (&str, &str, Option<&'static str>, Option<u32>)> + '_ {
-        self.settings
-            .iter()
-            .filter(|(_, info)| !info.is_private)
-            .map(|(_, info)| {
-                (
-                    info.toml_key,
-                    info.file_serialized_default_value.as_str(),
-                    info.hierarchy,
-                    info.max_table_depth,
-                )
-            })
     }
 }
 

@@ -7,9 +7,6 @@ pub const CLI_AGENT_NOTIFICATION_SENTINEL: &str = "warp://cli-agent";
 /// Schema version emitted by the current CLI-agent notification protocol.
 pub const CLI_AGENT_PROTOCOL_VERSION: u32 = 1;
 
-/// Environment variable that advertises the host's CLI-agent protocol version.
-pub const WARP_CLI_AGENT_PROTOCOL_VERSION_ENV: &str = "WARP_CLI_AGENT_PROTOCOL_VERSION";
-
 /// Environment variable that identifies the hosting Warp client version.
 pub const WARP_CLIENT_VERSION_ENV: &str = "WARP_CLIENT_VERSION";
 

@@ -13,11 +13,6 @@ lazy_static! {
     static ref CHANNEL_STATE: Mutex<ChannelState> = Mutex::new(ChannelState::init());
 }
 
-#[cfg(feature = "test-util")]
-lazy_static! {
-    static ref APP_VERSION: Mutex<Option<&'static str>> = Mutex::new(None);
-}
-
 #[derive(Debug)]
 pub struct ChannelState {
     channel: Channel,
@@ -132,32 +127,8 @@ impl ChannelState {
         CHANNEL_STATE.lock().channel
     }
 
-    #[cfg(feature = "test-util")]
-    pub fn app_version() -> Option<&'static str> {
-        let version = APP_VERSION.lock();
-
-        version.or_else(|| option_env!("GIT_RELEASE_TAG"))
-    }
-
-    #[cfg(feature = "test-util")]
-    pub fn set_app_version(version: Option<&'static str>) {
-        *APP_VERSION.lock() = version;
-    }
-
-    #[cfg(not(feature = "test-util"))]
     pub fn app_version() -> Option<&'static str> {
         option_env!("GIT_RELEASE_TAG")
-    }
-
-    /// Returns the MCP OAuth provider config matching the given client ID, if any.
-    pub fn mcp_oauth_provider_by_client_id(client_id: &str) -> Option<McpOAuthProviderConfig> {
-        CHANNEL_STATE
-            .lock()
-            .config
-            .mcp_static_config
-            .as_ref()
-            .and_then(|c| c.providers.iter().find(|p| p.client_id == client_id))
-            .cloned()
     }
 
     /// Returns the MCP OAuth provider config matching the given issuer URL, if any.

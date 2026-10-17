@@ -85,8 +85,6 @@ pub enum ParseErrorReason {
 /// signature of a command.
 #[derive(Debug, Eq, PartialEq, Clone, Ord, Hash, PartialOrd)]
 pub enum ArgumentError {
-    /// The command specified a mandatory flag, but it was missing.
-    MissingMandatoryFlag(String),
     /// The command specified a mandatory positional argument, but it was missing.
     MissingMandatoryPositional {
         name: Option<String>,
@@ -104,6 +102,4 @@ pub enum ArgumentError {
     UnexpectedArgument(Spanned<String>),
     /// An flag was found, but the command does not recognize it.
     UnexpectedFlag(Spanned<String>),
-    /// A recognized flag had an invalid value.
-    InvalidValueForFlag(Spanned<String>),
 }

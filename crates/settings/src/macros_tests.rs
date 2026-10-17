@@ -887,36 +887,3 @@ fn test_new_from_storage_reads_from_private_backend_when_flag_disabled() {
         });
     });
 }
-
-// ---------------------------------------------------------------------------
-// SettingsManager private/public routing tests
-// ---------------------------------------------------------------------------
-
-#[test]
-fn test_manager_default_values_for_settings_file_excludes_private() {
-    warpui_core::App::test((), |mut app| async move {
-        app.update(init_and_register_preferences);
-        app.add_singleton_model(|_| SettingsManager::default());
-        TestSettings::register(&mut app);
-
-        app.read(|ctx| {
-            let manager = SettingsManager::as_ref(ctx);
-            let keys: Vec<&str> = manager
-                .default_values_for_settings_file()
-                .map(|(key, _, _, _)| key)
-                .collect();
-            assert!(
-                keys.contains(&"simple_setting"),
-                "public setting should appear in settings file defaults"
-            );
-            assert!(
-                keys.contains(&"hierarchy_flag"),
-                "public hierarchy setting should appear in settings file defaults"
-            );
-            assert!(
-                !keys.contains(&"KeyIsOverridden"),
-                "private setting should not appear in settings file defaults"
-            );
-        });
-    });
-}

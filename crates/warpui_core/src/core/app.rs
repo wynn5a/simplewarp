@@ -4546,14 +4546,6 @@ impl AppContext {
         )
     }
 
-    /// Returns all view IDs registered in the given window.
-    pub fn view_ids_for_window(&self, window_id: WindowId) -> Vec<EntityId> {
-        self.windows
-            .get(&window_id)
-            .map(|window| window.views.keys().copied().collect())
-            .unwrap_or_default()
-    }
-
     /// Renders the given GUI view to its `Box<dyn Element>`, tracking any
     /// `Tracked` reads as rendering dependencies.
     pub fn render_view(&self, window_id: WindowId, view_id: EntityId) -> Result<Box<dyn Element>> {

@@ -19,15 +19,6 @@ impl ContentVersion {
         self.0 as i32
     }
 
-    /// Reconstructs a `ContentVersion` from a raw value received over the wire.
-    ///
-    /// This bypasses the global atomic counter and should only be used at
-    /// protocol deserialization boundaries (e.g. converting a `u64` from a
-    /// proto message back into a `ContentVersion`).
-    pub fn from_raw(val: usize) -> Self {
-        ContentVersion(val)
-    }
-
     /// Returns the underlying value as a `u64` for wire serialization.
     pub fn as_u64(&self) -> u64 {
         self.0 as u64

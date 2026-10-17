@@ -301,11 +301,6 @@ impl Default for GetContentsArgs {
 }
 
 impl GetContentsArgs {
-    pub fn include_ignored(mut self) -> Self {
-        self.include_ignored = true;
-        self
-    }
-
     pub fn exclude_folders(mut self) -> Self {
         self.include_folders = false;
         self

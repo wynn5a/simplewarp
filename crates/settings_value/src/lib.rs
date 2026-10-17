@@ -12,7 +12,7 @@
 //! using serde directly — this trait is only consulted when writing to or
 //! reading from the settings file.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::hash::Hash;
 use std::path::PathBuf;
 
@@ -89,21 +89,6 @@ pub trait SettingsValue: Serialize + DeserializeOwned {
 }
 
 // ---------------------------------------------------------------------------
-// Convenience macro for external types
-// ---------------------------------------------------------------------------
-
-/// Implements `SettingsValue` as a serde passthrough for types outside this
-/// crate.  The listed types should have appropriate `#[serde(rename_all = …)]`
-/// attributes on their definitions to ensure the desired serialization format
-/// in the settings file.
-#[macro_export]
-macro_rules! impl_snake_case {
-    ($($ty:ty),* $(,)?) => {
-        $(impl $crate::SettingsValue for $ty {})*
-    };
-}
-
-// ---------------------------------------------------------------------------
 // Primitive impls (serde passthrough)
 // ---------------------------------------------------------------------------
 
@@ -159,19 +144,6 @@ impl<T: SettingsValue> SettingsValue for Option<T> {
         } else {
             Some(Some(T::from_file_value(value)?))
         }
-    }
-}
-
-impl<T> SettingsValue for HashSet<T>
-where
-    T: SettingsValue + Eq + Hash,
-{
-    fn to_file_value(&self) -> Value {
-        Value::Array(self.iter().map(T::to_file_value).collect())
-    }
-
-    fn from_file_value(value: &Value) -> Option<Self> {
-        value.as_array()?.iter().map(T::from_file_value).collect()
     }
 }
 

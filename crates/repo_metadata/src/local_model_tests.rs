@@ -1213,37 +1213,6 @@ fn test_get_repo_contents_include_ignored() {
                 assert!(!paths.contains(&test_repo.join("node_modules")));
                 assert!(!paths.contains(&test_repo.join("debug.log")));
             });
-
-            // Test with include_ignored = true (should include everything)
-            model_handle.read(&app, |model, _ctx| {
-                let args = GetContentsArgs::default().include_ignored();
-                let contents = model
-                    .get_repo_contents(
-                        &StandardizedPath::from_local_canonicalized(&test_repo).unwrap(),
-                        args,
-                    )
-                    .unwrap()
-                    .contents;
-
-                let paths: Vec<PathBuf> = contents
-                    .iter()
-                    .map(|c| match c {
-                        crate::RepoContent::File(f) => f.path.to_local_path_lossy(),
-                        crate::RepoContent::Directory(d) => d.path.to_local_path_lossy(),
-                    })
-                    .collect();
-
-                // Should include everything
-                assert!(paths.contains(&test_repo.join("src")));
-                assert!(paths.contains(&test_repo.join("target")));
-                assert!(paths.contains(&test_repo.join("target/debug")));
-                assert!(paths.contains(&test_repo.join("node_modules")));
-                assert!(paths.contains(&test_repo.join("src/main.rs")));
-                assert!(paths.contains(&test_repo.join("README.md")));
-                assert!(paths.contains(&test_repo.join("debug.log")));
-                assert!(paths.contains(&test_repo.join("target/debug/binary")));
-                assert!(paths.contains(&test_repo.join("node_modules/package.json")));
-            });
         });
     });
 }

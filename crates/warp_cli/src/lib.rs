@@ -39,17 +39,6 @@ pub struct ParentOpts {
     pub handle: Option<process_handle::ProcessHandle>,
 }
 
-/// Returns whether an argument requests one of Warp's hidden worker modes.
-pub fn is_worker_invocation(arg: &str) -> bool {
-    let command = WorkerCommand::augment_subcommands(clap::Command::new("worker"));
-    command.find_subcommand(arg).is_some()
-        || arg.strip_prefix("--").is_some_and(|long_flag| {
-            command
-                .get_subcommands()
-                .any(|subcommand| subcommand.get_long_flag() == Some(long_flag))
-        })
-}
-
 /// Global options that apply to all CLI commands.
 #[derive(Debug, Default, Clone, clap::Args)]
 pub struct GlobalOptions {

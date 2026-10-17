@@ -146,7 +146,6 @@ pub enum SupportedPlatforms {
     MAC,
     LINUX,
     WINDOWS,
-    WEB,
     OR(Box<SupportedPlatforms>, Box<SupportedPlatforms>),
 }
 
@@ -231,7 +230,6 @@ impl SupportedPlatforms {
             SupportedPlatforms::WINDOWS => {
                 cfg!(target_os = "windows")
             }
-            SupportedPlatforms::WEB => false,
             SupportedPlatforms::OR(first, second) => {
                 first.matches_current_platform() || second.matches_current_platform()
             }

@@ -7,20 +7,11 @@ use std::io;
 use std::path::Path;
 use std::process::{Child, CommandArgs, CommandEnvs, ExitStatus, Output, Stdio};
 
-#[cfg(windows)]
-use anyhow::Context as _;
-#[cfg(windows)]
-use warp_errors::report_error;
-#[cfg(windows)]
-use {super::windows::JobObject, std::os::windows::io::AsRawHandle};
-
 /// Wrapper around a [`std::process::Command`] that ensures any new Command is set with the windows
 /// `CREATE_NO_WINDOW` flag to avoid a console window temporarily popping up.
 #[derive(Debug)]
 pub struct Command {
     pub(super) inner: std::process::Command,
-    #[cfg(windows)]
-    kill_on_parent_process_close: bool,
     stdin_is_default: bool,
     stdout_is_default: bool,
     stderr_is_default: bool,
@@ -86,8 +77,6 @@ impl Command {
         }
         Self {
             inner,
-            #[cfg(windows)]
-            kill_on_parent_process_close: false,
             stdin_is_default: true,
             stdout_is_default: true,
             stderr_is_default: true,
@@ -507,23 +496,7 @@ impl Command {
             self.inner.stderr(Stdio::null());
         }
 
-        let child = self.inner.spawn();
-
-        #[cfg(windows)]
-        if self.kill_on_parent_process_close
-            && let Ok(child) = child.as_ref()
-        {
-            let proc_handle = child.as_raw_handle() as isize;
-            if let Err(e) = JobObject::new()
-                .assign_process(proc_handle)
-                .create()
-                .context("Failed to create job object for command")
-            {
-                report_error!(e, extra: { "program" => ?self.inner.get_program() });
-            }
-        }
-
-        child
+        self.inner.spawn()
     }
 
     /// Executes the command as a child process, waiting for it to finish and
@@ -740,14 +713,6 @@ impl Command {
         unsafe {
             std::os::unix::process::CommandExt::pre_exec(&mut self.inner, f);
         }
-        self
-    }
-
-    /// Configures the spawned child process to be killed when the parent
-    /// process is closed.
-    #[cfg(windows)]
-    pub fn kill_on_parent_process_close(&mut self) -> &mut Self {
-        self.kill_on_parent_process_close = true;
         self
     }
 }

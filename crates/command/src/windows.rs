@@ -39,16 +39,11 @@ impl From<win32job::JobError> for JobObjectError {
 /// with processes. Processes associated with a job will be killed when the handle
 /// to the job is dropped at the end of the program's lifecycle.
 ///
-/// NOTE: We've encountered issues with assigning some processes to jobs that
-/// already contain other processes (i.e. `pwsh.exe`), so we only want to
-/// assign a single process to a job.
-///
 /// For more information on Job Objects, see:
 /// https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects
 #[derive(Debug, Default)]
 pub struct JobObject {
     assign_current_process: bool,
-    assign_process: Option<isize>,
     kill_children_on_close: bool,
 }
 
@@ -61,13 +56,6 @@ impl JobObject {
     /// that children of the current process are associated with the job.
     pub fn assign_current_process(mut self) -> Self {
         self.assign_current_process = true;
-        self
-    }
-
-    /// Assigns a process to the Job Object. This process will be killed when the
-    /// current process is closed.
-    pub fn assign_process(mut self, process: isize) -> Self {
-        self.assign_process = Some(process);
         self
     }
 
@@ -94,9 +82,6 @@ impl JobObject {
 
         if self.assign_current_process {
             job.assign_current_process()?;
-        }
-        if let Some(process) = self.assign_process {
-            job.assign_process(process)?;
         }
 
         Box::leak(Box::new(job));

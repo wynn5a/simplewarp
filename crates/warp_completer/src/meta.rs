@@ -201,44 +201,6 @@ impl<T> HasSpan for Spanned<T> {
     }
 }
 
-pub trait IntoSpanned {
-    type Output: HasFallibleSpan;
-
-    fn into_spanned(self, span: impl Into<Span>) -> Self::Output;
-}
-
-impl<T: HasFallibleSpan> IntoSpanned for T {
-    type Output = T;
-    fn into_spanned(self, _span: impl Into<Span>) -> Self::Output {
-        self
-    }
-}
-
-pub trait HasFallibleSpan {
-    fn maybe_span(&self) -> Option<Span>;
-}
-
-impl HasFallibleSpan for bool {
-    fn maybe_span(&self) -> Option<Span> {
-        None
-    }
-}
-
-impl HasFallibleSpan for () {
-    fn maybe_span(&self) -> Option<Span> {
-        None
-    }
-}
-
-impl<T> HasFallibleSpan for T
-where
-    T: HasSpan,
-{
-    fn maybe_span(&self) -> Option<Span> {
-        Some(HasSpan::span(self))
-    }
-}
-
 #[cfg(test)]
 #[path = "meta_tests.rs"]
 mod tests;

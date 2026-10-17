@@ -244,11 +244,6 @@ impl Argument {
         self
     }
 
-    pub fn with_default(mut self, default: impl Into<String>) -> Self {
-        self.default_value = Some(default.into());
-        self
-    }
-
     pub fn name(&self) -> &str {
         &self.name
     }

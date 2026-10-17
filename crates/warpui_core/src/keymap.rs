@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -350,19 +349,6 @@ impl settings_value::SettingsValue for Keystroke {
 
     fn from_file_value(value: &serde_json::Value) -> Option<Self> {
         value.as_str().and_then(|s| Keystroke::parse(s).ok())
-    }
-}
-
-pub trait ActionArg {
-    fn boxed_clone(&self) -> Box<dyn Any>;
-}
-
-impl<T> ActionArg for T
-where
-    T: 'static + Any + Clone,
-{
-    fn boxed_clone(&self) -> Box<dyn Any> {
-        Box::new(self.clone())
     }
 }
 

@@ -54,7 +54,6 @@ impl Clone for Box<dyn AnyServiceImpl> {
 #[derive(Debug)]
 pub enum InitializationError {
     Io(std::io::Error),
-    UnsupportedPlatform,
 }
 
 #[derive(thiserror::Error, Debug)]

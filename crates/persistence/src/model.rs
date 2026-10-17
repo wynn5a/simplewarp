@@ -11,10 +11,10 @@ use super::schema::{
     active_mcp_servers, agent_conversations, agent_tasks, ai_memory_panes, ambient_agent_panes,
     app, blocks, code_pane_tabs, code_panes, code_review_panes, commands, env_var_collection_panes,
     folders, generic_string_objects, ignored_suggestions, mcp_environment_variables,
-    mcp_server_installations, mcp_server_panes, notebook_panes, notebooks, object_actions,
-    object_metadata, object_permissions, pane_branches, pane_leaves, pane_nodes, panels,
-    project_rules, projects, settings_panes, tab_groups, tabs, terminal_panes, windows,
-    workflow_panes, workflows, workspace_language_server, workspace_metadata,
+    mcp_server_installations, notebook_panes, notebooks, object_actions, object_metadata,
+    object_permissions, pane_branches, pane_leaves, pane_nodes, panels, project_rules, projects,
+    settings_panes, tab_groups, tabs, terminal_panes, windows, workflow_panes, workflows,
+    workspace_language_server, workspace_metadata,
 };
 
 #[derive(Insertable)]
@@ -581,12 +581,6 @@ pub struct NewSettingsPane {
 #[derive(Insertable)]
 #[diesel(table_name = ai_memory_panes)]
 pub struct NewAIFactPane {
-    pub id: i32,
-}
-
-#[derive(Insertable)]
-#[diesel(table_name = mcp_server_panes)]
-pub struct NewMCPServerPane {
     pub id: i32,
 }
 

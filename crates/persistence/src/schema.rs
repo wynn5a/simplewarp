@@ -107,13 +107,6 @@ diesel::table! {
 }
 
 diesel::table! {
-    cloud_objects_refreshes (id) {
-        id -> Integer,
-        time_of_next_refresh -> Timestamp,
-    }
-}
-
-diesel::table! {
     code_pane_tabs (id) {
         id -> Integer,
         code_pane_id -> Integer,
@@ -155,12 +148,6 @@ diesel::table! {
         cloud_workflow_id -> Nullable<Text>,
         workflow_command -> Nullable<Text>,
         is_agent_executed -> Nullable<Bool>,
-    }
-}
-
-diesel::table! {
-    current_user_information (email) {
-        email -> Text,
     }
 }
 
@@ -342,12 +329,6 @@ diesel::table! {
 }
 
 diesel::table! {
-    server_experiments (experiment) {
-        experiment -> Text,
-    }
-}
-
-diesel::table! {
     settings_panes (id) {
         id -> Integer,
         kind -> Text,
@@ -378,33 +359,6 @@ diesel::table! {
 }
 
 diesel::table! {
-    team_members (id) {
-        id -> Integer,
-        team_id -> Integer,
-        user_uid -> Text,
-        email -> Text,
-        role -> Text,
-    }
-}
-
-diesel::table! {
-    team_settings (id) {
-        id -> Integer,
-        team_id -> Integer,
-        settings_json -> Text,
-    }
-}
-
-diesel::table! {
-    teams (id) {
-        id -> Integer,
-        name -> Text,
-        server_uid -> Text,
-        billing_metadata_json -> Nullable<Text>,
-    }
-}
-
-diesel::table! {
     terminal_panes (id) {
         id -> Integer,
         kind -> Text,
@@ -417,22 +371,6 @@ diesel::table! {
         active_profile_id -> Nullable<Text>,
         conversation_ids -> Nullable<Text>,
         active_conversation_id -> Nullable<Text>,
-    }
-}
-
-diesel::table! {
-    user_profiles (firebase_uid) {
-        firebase_uid -> Text,
-        photo_url -> Text,
-        email -> Text,
-        display_name -> Nullable<Text>,
-    }
-}
-
-diesel::table! {
-    users (id) {
-        id -> Integer,
-        firebase_uid -> Text,
     }
 }
 
@@ -492,14 +430,6 @@ diesel::table! {
 }
 
 diesel::table! {
-    workspace_teams (id) {
-        id -> Integer,
-        workspace_server_uid -> Text,
-        team_server_uid -> Text,
-    }
-}
-
-diesel::table! {
     workspaces (id) {
         id -> Integer,
         name -> Text,
@@ -519,8 +449,6 @@ diesel::joinable!(panels -> tabs (tab_id));
 diesel::joinable!(tab_groups -> windows (window_id));
 diesel::joinable!(tabs -> tab_groups (tab_group_id));
 diesel::joinable!(tabs -> windows (window_id));
-diesel::joinable!(team_members -> teams (team_id));
-diesel::joinable!(team_settings -> teams (team_id));
 diesel::joinable!(workspace_language_server -> workspace_metadata (workspace_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
@@ -536,5 +464,4 @@ diesel::allow_tables_to_appear_in_same_query!(
 );
 diesel::allow_tables_to_appear_in_same_query!(code_pane_tabs, code_panes,);
 diesel::allow_tables_to_appear_in_same_query!(object_metadata, object_permissions,);
-diesel::allow_tables_to_appear_in_same_query!(team_members, team_settings, teams,);
 diesel::allow_tables_to_appear_in_same_query!(workspace_language_server, workspace_metadata,);
