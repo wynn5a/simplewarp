@@ -214,14 +214,6 @@ where
         self.items.len()
     }
 
-    #[expect(dead_code)]
-    pub fn reset_selection(&mut self, ctx: &mut ViewContext<Self>) {
-        self.dropdown.update(ctx, |dropdown, ctx| {
-            dropdown.reset_selection(ctx);
-            ctx.notify();
-        });
-    }
-
     /// Select the item with the given name. If no such item exists, this clears the selection.
     pub fn set_selected_by_name(
         &mut self,

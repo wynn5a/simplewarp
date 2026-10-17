@@ -22,10 +22,6 @@ type TextAssertion = Box<dyn Fn(&str) -> bool + 'static>;
 type ActionAssertion = Box<dyn Fn(&AIAgentActionType) -> bool + 'static>;
 type ActionResultAssertion = Box<dyn Fn(&AIAgentActionResultType) -> bool + 'static>;
 
-/// The maximum duration of an individual exchange before we assume it's stalled.
-#[allow(unused)]
-const MAX_EXCHANGE_DURATION: chrono::Duration = chrono::Duration::minutes(18);
-
 pub fn assert_exchange_succeeds(exchange_index: usize) -> AssertionCallback {
     Box::new(move |app, window_id| {
         let terminal_view = terminal_view(app, window_id, 0, 0);

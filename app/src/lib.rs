@@ -282,14 +282,6 @@ impl LaunchMode {
         }
     }
 
-    /// Add an URL to open. Only supported for [`LaunchMode::App`]
-    #[allow(dead_code)]
-    fn add_url(&mut self, url: Url) {
-        if let LaunchMode::App { args, .. } = self {
-            args.urls.push(url);
-        }
-    }
-
     fn execution_mode(&self) -> ExecutionMode {
         match self {
             LaunchMode::App { .. } => ExecutionMode::App,

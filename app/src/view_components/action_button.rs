@@ -329,12 +329,6 @@ impl ActionButton {
         ctx.notify();
     }
 
-    #[allow(dead_code)]
-    pub fn with_callout(mut self, callout: Callout) -> Self {
-        self.callout = Some(callout);
-        self
-    }
-
     pub fn on_click<F>(mut self, handler: F) -> Self
     where
         F: 'static + Fn(&mut EventContext),

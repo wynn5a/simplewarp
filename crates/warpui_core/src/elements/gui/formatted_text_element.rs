@@ -324,7 +324,6 @@ impl FormattedTextElement {
         self
     }
 
-    #[allow(dead_code)]
     pub fn with_alignment(mut self, alignment: TextAlignment) -> Self {
         self.alignment = alignment;
         self
@@ -1338,12 +1337,6 @@ enum LaidOutTextFrame {
 }
 
 impl LaidOutTextFrame {
-    /// Returns if a frame has a certain position inside of it.
-    #[allow(dead_code)]
-    fn contains(&self, position: Vector2F) -> bool {
-        self.get_frame_bounds().contains_point(position)
-    }
-
     fn get_frame_bounds(&self) -> &RectF {
         match self {
             LaidOutTextFrame::Text { frame_bounds, .. }

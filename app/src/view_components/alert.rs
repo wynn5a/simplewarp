@@ -18,7 +18,6 @@ const ALERT_ICON_SIZE: f32 = 16.;
 
 const DEFAULT_MAIN_AXIS_SIZE: MainAxisSize = MainAxisSize::Min;
 
-const SUCCESS_ICON_PATH: &str = "bundled/svg/check-skinny.svg";
 const ERROR_ICON_PATH: &str = "bundled/svg/alert-circle.svg";
 
 /// Represents the type of alert. Controls color and icon in order to communicate success, error, etc.
@@ -26,7 +25,6 @@ const ERROR_ICON_PATH: &str = "bundled/svg/alert-circle.svg";
 pub enum AlertFlavor {
     #[default]
     Default,
-    Success,
     Error,
     Warning,
 }
@@ -35,7 +33,6 @@ impl AlertFlavor {
     pub fn icon_path(&self) -> Option<&'static str> {
         match self {
             Self::Default => None,
-            Self::Success => Some(SUCCESS_ICON_PATH),
             Self::Error | Self::Warning => Some(ERROR_ICON_PATH),
         }
     }
@@ -53,7 +50,6 @@ impl AlertFlavor {
         let theme = appearance.theme();
         match self {
             Self::Default => internal_colors::neutral_4(theme).into(),
-            Self::Success => theme.ansi_fg_green().into(),
             Self::Error => theme.ansi_fg_red().into(),
             Self::Warning => theme.yellow_overlay_1(),
         }
@@ -63,7 +59,6 @@ impl AlertFlavor {
         let theme = appearance.theme();
         match self {
             AlertFlavor::Default => internal_colors::neutral_3(theme).into(),
-            AlertFlavor::Success => theme.ansi_bg_green().into(),
             AlertFlavor::Error => theme.ansi_bg_red().into(),
             AlertFlavor::Warning => Fill::Solid(ColorU::transparent_black()),
         }
@@ -158,11 +153,6 @@ impl AlertConfig {
 
     pub fn error(message: String) -> Self {
         Self::new(message, AlertFlavor::Error)
-    }
-
-    #[allow(dead_code)]
-    pub fn success(message: String) -> Self {
-        Self::new(message, AlertFlavor::Success)
     }
 
     pub fn warning(message: String) -> Self {

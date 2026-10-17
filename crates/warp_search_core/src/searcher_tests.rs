@@ -210,13 +210,6 @@ fn test_searcher_async() {
         .unwrap();
     std::thread::sleep(std::time::Duration::from_millis(200));
 
-    let result = searcher_async.get_all_doc_ids().unwrap();
-    assert_eq!(
-        result.len(),
-        6,
-        "the index should be populated with all documents"
-    );
-
     let result = searcher_async.search_full_doc("unlimited").unwrap();
     assert_eq!(
         result.len(),
@@ -268,15 +261,18 @@ fn test_searcher_async() {
         "should highlight the correct positions"
     );
 
-    let result = searcher_async
-        .get_all_documents()
-        .unwrap()
-        .into_iter()
-        .filter(|doc| doc.id == 4)
-        .collect_vec();
-    assert_eq!(result.len(), 1, "there should be exactly 1 match for id 4");
+    let result = searcher_async.search_full_doc("fresh").unwrap();
     assert_eq!(
-        result[0].name, "Run fresh warp-local and clear warp-dev permissions",
+        result.len(),
+        1,
+        "there should be exactly 1 match for 'fresh'"
+    );
+    assert_eq!(
+        result[0].values.id, 4,
+        "the match should be the document with id 4"
+    );
+    assert_eq!(
+        result[0].values.name, "Run fresh warp-local and clear warp-dev permissions",
         "the original document with id 4 should be unchanged"
     );
 
@@ -288,22 +284,21 @@ fn test_searcher_async() {
         .unwrap();
     std::thread::sleep(std::time::Duration::from_millis(200));
 
-    let result = searcher_async
-        .get_all_documents()
-        .unwrap()
-        .into_iter()
-        .filter(|doc| doc.id == 4)
-        .collect_vec();
-    assert_eq!(result.len(), 1, "there should be exactly 1 match for id 4");
+    let result = searcher_async.search_full_doc("Updated").unwrap();
     assert_eq!(
-        result[0].name, "Updated name",
+        result.len(),
+        1,
+        "there should be exactly 1 match for 'Updated'"
+    );
+    assert_eq!(
+        result[0].values.id, 4,
         "the document with id 4 should be updated on insert"
     );
 
     searcher_async.clear_search_index_async().unwrap();
     std::thread::sleep(std::time::Duration::from_millis(200));
 
-    let result = searcher_async.get_all_doc_ids().unwrap();
+    let result = searcher_async.search_full_doc("warp").unwrap();
     assert_eq!(
         result.len(),
         0,

@@ -14,7 +14,7 @@ use string_offset::ByteOffset;
 use strum_macros::Display;
 use tantivy::collector::TopDocs;
 use tantivy::query::{
-    AllQuery, BooleanQuery, BoostQuery, FuzzyTermQuery, Occur, PhrasePrefixQuery, TermQuery,
+    BooleanQuery, BoostQuery, FuzzyTermQuery, Occur, PhrasePrefixQuery, TermQuery,
 };
 use tantivy::schema::{
     BytesOptions, Field, FieldEntry, IndexRecordOption, OwnedValue, STORED, Schema, TEXT,
@@ -203,59 +203,6 @@ impl SearcherReaderWrapper {
             normalizing_factor,
             reader,
         }
-    }
-
-    fn get_all_documents(
-        &self,
-        include_search_fields: bool,
-    ) -> anyhow::Result<Vec<HashMap<String, OwnedValue>>> {
-        let Some(reader) = &self.reader else {
-            // Assume the reader is built on the first write operation, if building-on-construction fails.
-            // Therefore, if the reader is not set, return an empty vector.
-            return Ok(vec![]);
-        };
-        let searcher = reader.searcher();
-
-        // Create an AllQuery to match all documents
-        let all_query = AllQuery {};
-
-        // Search for all documents
-        let all_docs = searcher
-            .search(
-                &all_query,
-                &TopDocs::with_limit(searcher.num_docs().max(1) as usize).order_by_score(),
-            )
-            .with_context(|| "Failed to execute search for all documents")?;
-
-        Ok(all_docs
-            .into_iter()
-            .filter_map(|(_, doc_address)| {
-                // Retrieve the document.
-                let retrieved_doc: TantivyDocument = searcher.doc(doc_address).ok()?;
-                let mut values = HashMap::new();
-
-                // Extract the id fields.
-                for (field_name, (field, _)) in &self.id_fields {
-                    let field_value = retrieved_doc.get_first(*field)?.into();
-                    values.insert(field_name.clone(), field_value);
-                }
-
-                // Extract the search fields if include_sensitive is true
-                if include_search_fields {
-                    for (field_name, (field, _)) in &self.weighted_search_fields {
-                        // Search fields should be strings.
-                        let value = retrieved_doc.get_first(*field)?.into();
-                        if matches!(value, OwnedValue::Str(_)) {
-                            values.insert(field_name.clone(), value);
-                        } else {
-                            return None;
-                        }
-                    }
-                }
-
-                Some(values)
-            })
-            .collect())
     }
 
     fn search(
@@ -552,17 +499,6 @@ impl SearcherWriterWrapper {
         self.execute_operations([SearcherEvent::IndexCleared])
     }
 
-    fn insert_document(&mut self, entry: FullTextSearchDocumentEntry) -> anyhow::Result<()> {
-        self.execute_operations([SearcherEvent::DocumentInserted(entry)])
-    }
-
-    fn delete_document(
-        &mut self,
-        identifying_entry: FullTextSearchDocumentEntry,
-    ) -> anyhow::Result<()> {
-        self.execute_operations([SearcherEvent::DocumentDeleted(identifying_entry)])
-    }
-
     fn entry_to_document(
         &self,
         entry: FullTextSearchDocumentEntry,
@@ -724,59 +660,6 @@ impl<C: SearchSchemaConfig> SimpleFullTextSearcher<C> {
                 .into_iter()
                 .map(|entry| SearcherEvent::DocumentInserted(entry.into_document_entry())),
         )
-    }
-
-    #[allow(unused)]
-    /// Inserts a document into the index. It will overwrite any existing document with the same composite key hash.
-    pub fn insert_document(&self, entry: C::SearchDocEntry) -> anyhow::Result<()> {
-        self.writer
-            .lock()
-            .insert_document(entry.into_document_entry())
-    }
-
-    /// Deletes document(s) that match the composite key hash generated from the identifying_entry.
-    ///
-    /// This method generates a composite key hash from all fields in the identifying_entry,
-    /// then uses a term deletion to efficiently remove matching documents.
-    #[allow(unused)]
-    pub fn delete_document(&self, identifying_entry: C::SearchIdEntry) -> anyhow::Result<()> {
-        self.writer
-            .lock()
-            .delete_document(identifying_entry.into_identifying_entry())
-    }
-
-    #[allow(unused)]
-    pub fn get_all_documents(&self) -> Result<Vec<C::SearchDocEntry>, anyhow::Error> {
-        Ok(self
-            .reader
-            .read()
-            .get_all_documents(true)?
-            .into_iter()
-            .filter_map(|doc_values| {
-                let result = C::SearchDocEntry::from_match_result_values(doc_values);
-                if result.is_none() {
-                    report_error!("Failed to convert search result values into structured data");
-                }
-                result
-            })
-            .collect())
-    }
-
-    #[allow(unused)]
-    pub fn get_all_doc_ids(&self) -> Result<Vec<C::SearchIdEntry>, anyhow::Error> {
-        Ok(self
-            .reader
-            .read()
-            .get_all_documents(false)?
-            .into_iter()
-            .filter_map(|doc_values| {
-                let result = C::SearchIdEntry::from_match_result_values(doc_values);
-                if result.is_none() {
-                    report_error!("Failed to convert search result values into structured data");
-                }
-                result
-            })
-            .collect())
     }
 
     pub fn search_id(
@@ -1053,16 +936,6 @@ impl<C: SearchSchemaConfig> FullTextSearchSchema<C> {
         let simple_searcher = self.create_searcher(memory_budget);
         AsyncSearcher::new(simple_searcher, background)
     }
-
-    #[allow(unused)]
-    pub fn add_search_field(&mut self, field_name: String, weight: f32) {
-        self.weighted_search_fields.insert(field_name, weight);
-    }
-
-    #[allow(unused)]
-    pub fn add_id_field(&mut self, field_name: String, field_type: FullTextSearchFieldTypes) {
-        self.id_fields.insert(field_name, field_type);
-    }
 }
 
 pub trait SearchDocumentEntry: FullTextSearchMatchValues {
@@ -1268,16 +1141,6 @@ impl<C: SearchSchemaConfig> AsyncSearcher<C> {
         search_term: &str,
     ) -> anyhow::Result<Vec<FullTextSearchMatch<C::SearchDocEntry, C::SearchHighlight>>> {
         self.searcher.search_full_doc(search_term)
-    }
-
-    /// Gets all documents in the search index.
-    pub fn get_all_documents(&self) -> anyhow::Result<Vec<C::SearchDocEntry>> {
-        self.searcher.get_all_documents()
-    }
-
-    /// Gets all document identifiers in the search index.
-    pub fn get_all_doc_ids(&self) -> anyhow::Result<Vec<C::SearchIdEntry>> {
-        self.searcher.get_all_doc_ids()
     }
 
     // Async write operations

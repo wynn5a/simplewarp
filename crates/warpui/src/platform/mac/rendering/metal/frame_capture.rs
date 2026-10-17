@@ -1,12 +1,8 @@
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
-use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
-use objc2_metal::{
-    MTLDevice, MTLOrigin, MTLPixelFormat, MTLRegion, MTLSize, MTLStorageMode, MTLTexture,
-    MTLTextureDescriptor, MTLTextureUsage,
-};
+use objc2_metal::{MTLOrigin, MTLRegion, MTLSize, MTLTexture};
 use pathfinder_geometry::vector::Vector2F;
 use warpui_core::platform::CapturedFrame;
 
@@ -77,48 +73,4 @@ pub(crate) fn convert_bgra_to_rgba(data: &mut [u8]) {
     for chunk in data.chunks_exact_mut(4) {
         chunk.swap(0, 2);
     }
-}
-
-/// Creates an off-screen Metal texture
-///
-/// This is a utility function for headless/off-screen rendering scenarios where
-/// you need to render to a texture rather than a window drawable. Currently unused
-/// but kept for future headless capture or visual regression testing support.
-///
-/// # Arguments
-/// * `device` - The Metal device to create the texture on
-/// * `width` - The width of the texture in pixels
-/// * `height` - The height of the texture in pixels
-/// * `pixel_format` - The pixel format (should match the drawable format)
-///
-/// # Returns
-/// * A new Metal texture that can be rendered to and read back from
-#[allow(dead_code)]
-pub fn create_capture_texture(
-    device: &ProtocolObject<dyn MTLDevice>,
-    width: usize,
-    height: usize,
-    pixel_format: MTLPixelFormat,
-) -> Retained<ProtocolObject<dyn MTLTexture>> {
-    let texture_descriptor = MTLTextureDescriptor::new();
-    texture_descriptor.setPixelFormat(pixel_format);
-    // SAFETY: the dimensions are caller-provided valid texture sizes within Metal limits.
-    unsafe {
-        texture_descriptor.setWidth(width);
-        texture_descriptor.setHeight(height);
-        texture_descriptor.setDepth(1);
-        texture_descriptor.setMipmapLevelCount(1);
-        texture_descriptor.setSampleCount(1);
-        texture_descriptor.setArrayLength(1);
-    }
-
-    // Set usage flags for rendering and reading
-    texture_descriptor.setUsage(MTLTextureUsage::RenderTarget | MTLTextureUsage::ShaderRead);
-
-    // Use managed storage mode so we can read it back
-    texture_descriptor.setStorageMode(MTLStorageMode::Managed);
-
-    device
-        .newTextureWithDescriptor(&texture_descriptor)
-        .expect("device should create a capture texture")
 }

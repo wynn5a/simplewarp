@@ -1495,15 +1495,6 @@ pub enum MenuItem<A: Action + Clone = ()> {
 }
 
 impl<A: Action + Clone> MenuItem<A> {
-    #[deprecated(note = "Submenus are not ready for use yet.")]
-    pub fn submenu<T: Into<String>>(label: T, items: Vec<MenuItem<A>>) -> Self {
-        let menu = SubMenu::new(items);
-        MenuItem::Submenu {
-            fields: MenuItemFields::new_submenu(label),
-            menu,
-        }
-    }
-
     fn items_len(&self) -> Option<usize> {
         match self {
             MenuItem::Item(_) => Some(1),

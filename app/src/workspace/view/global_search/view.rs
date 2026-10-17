@@ -1487,25 +1487,6 @@ impl GlobalSearchView {
             .sum()
     }
 
-    /// Gets or creates a DirectoryEntry for the given location.
-    /// Returns a mutable reference to the entry and its index.
-    #[allow(dead_code)] // Will be used in later PRs
-    fn get_or_create_directory_entry(
-        &mut self,
-        path: &LocalOrRemotePath,
-    ) -> (&mut DirectoryEntry, usize) {
-        if let Some(&index) = self.directory_path_to_directory_index_entry.get(path) {
-            (&mut self.directory_entries[index], index)
-        } else {
-            let index = self.directory_entries.len();
-            self.directory_entries
-                .push(DirectoryEntry::new(path.clone()));
-            self.directory_path_to_directory_index_entry
-                .insert(path.clone(), index);
-            (&mut self.directory_entries[index], index)
-        }
-    }
-
     /// Converts directory_path + file_path + optional match_index to a RowIndex.
     /// Returns None if the paths are not found
     fn path_to_row_index(

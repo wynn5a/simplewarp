@@ -19,12 +19,6 @@ pub trait Item: Clone + fmt::Debug {
     fn summary(&self) -> Self::Summary;
 }
 
-pub trait KeyedItem: Item {
-    type Key: for<'a> Dimension<'a, Self::Summary> + Ord;
-
-    fn key(&self) -> Self::Key;
-}
-
 pub trait Dimension<'a, Summary: Default>: 'a + Clone + fmt::Debug + Default {
     fn add_summary(&mut self, summary: &'a Summary);
 }
@@ -84,11 +78,6 @@ impl<T: Item> SumTree<T> {
         U: Dimension<'a, T::Summary>,
     {
         FilterCursor::new(self, filter_node)
-    }
-
-    #[allow(dead_code)]
-    pub fn first(&self) -> Option<&T> {
-        self.leftmost_leaf().0.items().first()
     }
 
     pub fn last(&self) -> Option<&T> {
@@ -360,15 +349,6 @@ impl<T: Item> SumTree<T> {
         }))
     }
 
-    fn leftmost_leaf(&self) -> &Self {
-        match *self.0 {
-            Node::Leaf { .. } => self,
-            Node::Internal {
-                ref child_trees, ..
-            } => child_trees.first().unwrap().leftmost_leaf(),
-        }
-    }
-
     fn rightmost_leaf(&self) -> &Self {
         match *self.0 {
             Node::Leaf { .. } => self,
@@ -376,19 +356,6 @@ impl<T: Item> SumTree<T> {
                 ref child_trees, ..
             } => child_trees.last().unwrap().rightmost_leaf(),
         }
-    }
-}
-
-impl<T: KeyedItem> SumTree<T> {
-    #[allow(dead_code)]
-    pub fn insert(&mut self, item: T) {
-        *self = {
-            let mut cursor = self.cursor::<T::Key, ()>();
-            let mut new_tree = cursor.slice(&item.key(), SeekBias::Left);
-            new_tree.push(item);
-            new_tree.push_tree(cursor.suffix());
-            new_tree
-        };
     }
 }
 

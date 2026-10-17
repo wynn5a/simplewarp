@@ -2,7 +2,6 @@ pub mod ai_agent_tasks;
 pub mod blockgrid;
 pub mod settings;
 pub mod terminal;
-mod virtual_fs;
 
 pub use blockgrid::mock_blockgrid;
 pub use terminal::add_window_with_terminal;

@@ -23,8 +23,6 @@ pub mod summarization_cancel_dialog;
 
 pub(crate) mod view_util;
 
-#[allow(unused_imports)]
-pub use action_model::AIActionStatus;
 pub use action_model::{
     BlocklistAIActionEvent, BlocklistAIActionModel, ShellCommandExecutor, ShellCommandExecutorEvent,
 };
@@ -55,9 +53,6 @@ pub(crate) use history_model::{
     AIQueryHistory, AIQueryHistoryOutputStatus, BlocklistAIHistoryEvent, BlocklistAIHistoryModel,
     ConversationStatusUpdate, FORK_PREFIX, PRE_REWIND_PREFIX,
 };
-// The policy types are re-exported for the TUI frontend via `tui_export`.
-#[allow(unused_imports)]
-pub use input_mode_policy::{InputModePolicy, InputModePolicyHandle, PolicyConfigUpdate};
 pub(crate) use input_model::BlocklistAIInputEvent;
 pub use input_model::{
     BlocklistAIInputModel, InputConfig, InputType, InputTypeAutoDetectionSource,
