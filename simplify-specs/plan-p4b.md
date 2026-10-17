@@ -282,3 +282,31 @@ warp_features flag is dead (all 137 variants checked). No stale keybinding/menu/
 
 Verification per round as usual: `./script/format`, clippy (both feature sets), nextest. The
 compiler surfaces newly-orphaned items after each round.
+
+## 10. Execution log (2026-10-17)
+
+All rounds landed on master, each verified with `./script/format --check`, the three presubmit
+clippy gates (workspace excl. warp_completer, `-p warp`, `-p warp_completer`, all `-D warnings`),
+the simplewarp-set gate where Cargo.toml changed, and targeted nextest; the full workspace suite
+ran as the final gate. Subagents did the cuts; plan corrections are folded into this section.
+
+| Round | Commit | What |
+| --- | --- | --- |
+| P4-1 | `cb99ec06` | 100 dependency entries removed across 26 manifests + 8 orphaned `[workspace.dependencies]` entries. Restored 6 deps that only macro expansion referenced (`strum`/`num-traits` under `strum_macros`/`num_derive`, `concat-idents` under `define_settings_group!`, `log` under `report_error!`); `rust-embed` stays (referenced by the `release_bundle` feature); `futures-lite` moved to command's dev-deps for its doctests. |
+| P4-2 | `1967fc71` | snapshot module (913) + `sum_tree::Edit`/`SumTree::edit` (45). `KeyedItem` left impl-less for P4-5. |
+| P4-3 | `68e98d24` | context-chips cluster, −477 net in 21 files; module-level allow removed and stays removed; unused chip-event forwarding chain cut through display/input/terminal/palette. `Prompt::set_config_for_test` added for a test that relied on the deleted eager `update`. |
+| P4-4a | `43c4d6e6` | 29/29 action variants, ~380 lines incl. cascades (blocklist permission removers, `SettingsPageMeta::on_tab_pressed`, `UnsavedChangeType::ForEdit`). `PromptDisplayAction`/`AIFactViewAction` remain as empty enums (trait obligations). |
+| P4-4b | `e8d058b4` | 48 dead pub fns, ~670 lines incl. the whole `TuiTerminalManager`. **Kept against the plan:** `get_all_aliases` (its tests are the only reader; plan claim wrong) and `set_active_session_id` (already `#[cfg(test)]`-gated). `QueuedQuery::new` gated instead of deleted (7 test sites). |
+| P4-4c | `9635558d` | §2c: 5 fns `#[cfg(test)]`-gated, 6 deleted with their tests. plan-p4 §4 probe items cut (scroll/gutter variants, work_queue methods, `ServerToken` subject, event uuid/tuple payloads, `coding_model` field); §8 keeps stand. **`items_to_hashmap` is alive** (product callers added by the MCP round) — plan-p4 §4 was stale. |
+| P4-5 | `fae5b0ea` | ~980 lines: capture_recorder.rs whole, test_util/virtual_fs.rs whole, sum_tree `KeyedItem` chain (trait + impl block + insert/first/leftmost_leaf), warp_search_core document-dump API, platform/test `App` stubs, `MenuItem::submenu`, app leftovers. **Kept against the plan:** `FormattedTextElement::with_alignment` (4 live callers) and `FullTextSearchFieldTypes` (feeds `define_search_schema!`). |
+| P4-6 | `feba1283` | UI + data crates: editor/warpui_core/warp_completer dead traits & helpers, `elements/gui/debug.rs` whole, 9 persistence tables + `NewMCPServerPane`, settings file-default plumbing, ipc disconnect plumbing, warp_core timer/oauth statics, warp_util `common_path`, repo_metadata chains, command windows builders, warp_cli harness parsers. **Kept against the plan:** `WslUncPath`/`parse_wsl_unc_path` (live callers in `git.rs`); `wait_until_indexed` chain (sole wait-primitive for 9 view tests — test-infra round candidate); `max_table_depth` trait method (live; only the dead manager plumbing went); `SizeSmallerThan`+`Size` (tests pin AND-semantics of a live element). |
+| P4-7 | `38288332` | ai dead chains (index locations/file_outline/api_keys/diff_validation test_util incl. removing the whole `ai/test-util` feature), `AgentHarness` enum (the flag and `agent_sdk::Harness` stay), mcp loopback OAuth (DCR test converted to custom-scheme), jsonrpc handler plumbing, warp_terminal helpers. SSE retry policies kept (vendored rmcp file — fork-API surface). |
+| P4-8 | `b18090d4` | 61 files / 22.6 MB: async/png dir, 28 SVGs (incl. `referral-hydroflask.svg`), 2 bootstrap txts, 6 Windows pdb stubs, `cloud_objects.sqlite` + 8 WAL sidecars, `docker/linux-dev/`, ci.yml stale comment. warp_core `McpOAuthLoopbackClientConfig` orphan cut. 37 stale annotations removed; 3 sites reverted (items genuinely dead: `server/ids.rs` `ServerId` re-export arm, `input.rs` unused import pair, `block.rs background_executor`); `new_scrollable` file-level allow replaced by 3 targeted ones on its dead `scroll_offset` methods. |
+
+Follow-ups found en route (decision-round candidates): `set_callout` (zero callers),
+`EntrypointType::AgentInitiated` (unconstructed since P4-4b but serde wire vocabulary),
+`ContentVersion::{as_i32, as_u64}` (pub, now caller-free), `containing_pane_id`/`ssh_warpify_timeout_handle`
+(read but never set to Some), the 3 `new_scrollable` `scroll_offset` methods, the §6(a) reverted
+three, and everything in the P4-9 decision list (CodeManagerEvent inert path, a11y role variants,
+SSE retry policies, `HashSet` impl, `mountains.jpg`, the 739-candidate pub-fn tail).
+`wayne5a-progress.md` was left alone (user's personal log, not repo dead weight).
