@@ -552,7 +552,6 @@ pub struct AppearanceSettingsPageView {
     blur_state: SliderStateHandle,
     font_family_dropdown: ViewHandle<FilterableDropdown<AppearancePageAction>>,
     font_weight_dropdown: ViewHandle<Dropdown<AppearancePageAction>>,
-    #[allow(dead_code)]
     thin_strokes_dropdown: ViewHandle<Dropdown<AppearancePageAction>>,
     enforce_min_contrast_dropdown: ViewHandle<Dropdown<AppearancePageAction>>,
     input_mode_dropdown: ViewHandle<Dropdown<AppearancePageAction>>,

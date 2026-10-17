@@ -2403,7 +2403,6 @@ impl<A: Action + Clone> Menu<A> {
         self.reset_selection(ctx);
     }
 
-    #[allow(dead_code)]
     pub fn add_item(&mut self, item: MenuItem<A>) {
         self.menu.items.push(item);
     }

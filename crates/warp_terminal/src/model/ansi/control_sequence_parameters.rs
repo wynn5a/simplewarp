@@ -448,7 +448,6 @@ impl StandardCharset {
     /// Switch/Map character to the active charset. Ascii is the common case and
     /// for that we want to do as little as possible.
     #[inline]
-    #[allow(dead_code)]
     pub fn map(self, c: char) -> char {
         match self {
             StandardCharset::Ascii => c,

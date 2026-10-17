@@ -25,7 +25,7 @@ pub(crate) const DEFAULT_DOCKER_SANDBOX_BASE_IMAGE: Option<&str> = None;
 fn create_docker_sandbox_view(
     initial_size: Vector2F,
     model_event_sender: Option<SyncSender<ModelEvent>>,
-    #[allow(dead_code)] sbx_path: PathBuf,
+    sbx_path: PathBuf,
     ctx: &mut ViewContext<TerminalView>,
 ) -> (
     ViewHandle<TerminalView>,

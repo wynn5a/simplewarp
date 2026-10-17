@@ -170,7 +170,6 @@ impl UndoCloseStack {
     }
 
     /// Returns whether or not the stack is empty.
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     pub fn is_empty(&self) -> bool {
         self.stack.is_empty()
     }

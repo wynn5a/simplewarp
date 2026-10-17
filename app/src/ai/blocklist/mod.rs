@@ -68,7 +68,6 @@ pub(crate) use persistence::{PersistedAIInput, PersistedAIInputType, SerializedB
 pub(crate) use queued_query::{
     AutofireAction, QueuedQuery, QueuedQueryId, QueuedQueryOrigin, is_lrc_auto_queue_active,
 };
-#[allow(unused_imports)]
 pub use queued_query::{QueuedQueryEvent, QueuedQueryModel};
 pub use view_util::error_color;
 pub(crate) use view_util::{

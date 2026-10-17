@@ -43,7 +43,6 @@ pub fn create_system_clipboard() -> anyhow::Result<Box<dyn crate::Clipboard + Se
 
 /// A trait for accessing internal per-platform concrete implementations
 /// through a wrapper type.
-#[allow(dead_code)]
 trait AsInnerMut<Inner: ?Sized> {
     fn as_inner_mut(&mut self) -> &mut Inner;
 }

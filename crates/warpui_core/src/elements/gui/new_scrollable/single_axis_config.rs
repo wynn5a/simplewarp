@@ -190,6 +190,7 @@ impl SingleAxisConfig {
         }
     }
 
+    #[allow(dead_code)]
     pub(super) fn scroll_offset(&self, axis: Axis) -> Vector2F {
         match self {
             Self::Manual { .. } => Vector2F::zero(),

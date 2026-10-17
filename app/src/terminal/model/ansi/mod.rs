@@ -87,7 +87,6 @@ const WARP_KV_ENTRY_BYTE: &[u8] = b"B";
 const WARP_KV_END_BYTE: &[u8] = b"C";
 
 /// Parse colors in XParseColor format.
-#[allow(dead_code)]
 fn xparse_color(color: &[u8]) -> Option<ColorU> {
     if !color.is_empty() && color[0] == b'#' {
         parse_legacy_color(&color[1..])

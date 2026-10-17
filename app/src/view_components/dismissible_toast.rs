@@ -335,7 +335,6 @@ impl<A: Action + Clone> ToastLink<A> {
         }
     }
 
-    #[allow(dead_code)]
     pub fn with_href(mut self, href: String) -> Self {
         self.href = Some(href);
         self

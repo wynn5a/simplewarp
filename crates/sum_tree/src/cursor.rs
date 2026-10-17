@@ -225,7 +225,6 @@ where
 
     /// Moves the cursor back one position.
     /// You must first seek before calling this method.
-    #[allow(dead_code)]
     pub fn prev(&mut self) {
         debug_assert!(self.did_seek, "Must seek before calling this method");
 

@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 mod global_hotkey;
 
 use std::cell::RefCell;

@@ -522,6 +522,7 @@ impl DualAxisConfig {
         }
     }
 
+    #[allow(dead_code)]
     pub(super) fn scroll_offset(&self) -> Vector2F {
         match self {
             Self::Manual {

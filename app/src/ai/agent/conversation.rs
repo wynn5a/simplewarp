@@ -81,7 +81,6 @@ pub(crate) struct CommandBlockInfo {
 
 #[derive(Debug, Clone)]
 struct AddedExchange {
-    #[allow(dead_code)]
     task_id: TaskId,
     exchange_id: AIAgentExchangeId,
 }

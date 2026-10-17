@@ -869,7 +869,6 @@ fn get_exchange_output(
 }
 
 /// Assert that the exchange at exchange_index contains the expected action result.
-#[allow(dead_code)]
 fn exchange_with_expected_action_result(
     action_result_assertion: Option<ActionResultAssertion>,
     conversation_target: ConversationTarget,

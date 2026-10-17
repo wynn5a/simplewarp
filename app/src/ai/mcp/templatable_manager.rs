@@ -275,9 +275,7 @@ pub enum TemplatableMCPServerManagerEvent {
     CredentialsChanged,
     // TODO(aeybel) Right now most of the app doesn't use these events to communicate
     // We should change them so this manager is source of truth and all communication goes through here
-    #[allow(dead_code)]
     ServerInstallationAdded,
-    #[allow(dead_code)]
     ServerInstallationDeleted,
     TemplatableMCPServersUpdated,
     LegacyServerConverted,

@@ -1,7 +1,6 @@
 mod alt_screen;
 pub mod async_find;
 mod block_list;
-#[allow(dead_code)]
 mod rich_content;
 #[cfg(any(test, feature = "integration_tests"))]
 mod testing;

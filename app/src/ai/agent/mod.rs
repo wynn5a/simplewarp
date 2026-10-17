@@ -788,7 +788,6 @@ impl Display for RenderableAIError {
     }
 }
 
-#[allow(unused)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProgrammingLanguage {
     Shell(ShellType),

@@ -872,7 +872,6 @@ pub enum BufferBlockStyle {
         alignments: Vec<FormattedTableAlignment>,
         /// Lazy cache of the parsed table, per-cell offset maps, and linear offset map for this
         /// block. Does not participate in equality or hashing.
-        #[allow(dead_code)]
         cache: TableCache,
     },
 }

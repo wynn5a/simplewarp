@@ -31,7 +31,6 @@ use windows_constants::*;
 #[cfg(unix)]
 mod unix_constants {
     pub(super) const TEST_WORK_DIR: &str = "/home/";
-    #[allow(dead_code)]
     pub(super) const TEST_ROOT_DIR: &str = "/";
 }
 

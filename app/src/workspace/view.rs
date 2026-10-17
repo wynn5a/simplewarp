@@ -3696,7 +3696,6 @@ impl Workspace {
             AIFactViewEvent::OpenSettings => {
                 self.show_settings_with_section(Some(SettingsSection::WarpAgent), ctx);
             }
-            #[allow(unused_variables)]
             AIFactViewEvent::OpenFile(location) => match location {
                 LocalOrRemotePath::Local(path) => {
                     let settings = EditorSettings::as_ref(ctx);
@@ -10221,7 +10220,6 @@ impl Workspace {
             CommandPaletteEvent::OpenNotebook { id } => {
                 self.open_notebook(&NotebookSource::Existing(*id), ctx, true)
             }
-            #[allow(unused_variables)]
             CommandPaletteEvent::OpenFile {
                 path,
                 line_and_column_arg,

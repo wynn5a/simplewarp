@@ -335,7 +335,6 @@ impl Cell {
     }
 
     #[inline]
-    #[allow(dead_code)]
     // TODO(visibility): This should be changed to `pub(crate)` when possible.
     pub fn flags(&self) -> &Flags {
         &self.flags

@@ -2146,7 +2146,6 @@ pub struct TerminalView {
     /// Position ID for the active terminal cursor.
     cursor_position_id: String,
 
-    #[cfg_attr(not(test), allow(unused))]
     active_session: ModelHandle<ActiveSession>,
 
     pty_spawn_failed: bool,

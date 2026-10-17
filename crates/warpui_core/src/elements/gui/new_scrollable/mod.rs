@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 mod dual_axis_config;
 mod single_axis_config;
 pub(crate) mod util;
@@ -275,6 +273,7 @@ impl ScrollableState {
         }
     }
 
+    #[allow(dead_code)]
     fn scroll_offset(&self) -> Vector2F {
         match self {
             Self::BothAxes { config, .. } => config.scroll_offset(),

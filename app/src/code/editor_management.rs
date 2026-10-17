@@ -235,7 +235,6 @@ struct CodePaneData {
     locator: PaneViewLocator,
 }
 
-#[allow(dead_code)]
 pub enum CodeManagerEvent {
     EditCompleted,
 }
@@ -285,7 +284,6 @@ impl CodeManager {
             .map(|(_, data)| data.locator)
     }
 
-    #[allow(dead_code)]
     pub fn complete_pending_diffs(&mut self, source: CodeSource, ctx: &mut ModelContext<Self>) {
         if !self.source_to_pane_data.contains_key(&source) {
             log::warn!("Trying to complete an edit on a source that doesn't exist");
