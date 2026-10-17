@@ -4,17 +4,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use ignore::gitignore::Gitignore;
-use itertools::Itertools;
 pub use native::build_outline;
-use serde::{Deserialize, Serialize};
 
 use crate::index::{Entry, FileId};
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct FileSymbols {
-    pub path: String,
-    pub symbols: String,
-}
 
 /// Builds an "outline" of all files and directories under a path.
 #[derive(Debug)]
@@ -30,55 +22,6 @@ pub struct Outline {
 }
 
 impl Outline {
-    /// Format the outline into a list of text representation with FileContexts.
-    ///
-    /// If `partial_path_segments` is `Some()`, only returns the symbols of files where at least
-    /// one of the segments is contained in the full file path.  [] for partial_paths returns all files.
-    pub fn to_file_symbols(&self, partial_path_segments: Option<&Vec<String>>) -> Vec<FileSymbols> {
-        let mut queue = VecDeque::from([&self.root]);
-        let mut repo_map = Vec::new();
-
-        // Iteratively print the files while preserving their traversal order.
-        while let Some(entry) = queue.pop_front() {
-            match entry {
-                Entry::Directory(directory) => {
-                    queue.extend(&directory.children);
-                }
-                Entry::File(file) => {
-                    let Some(relative_file_path) = file.path.strip_prefix(self.root.path()) else {
-                        continue;
-                    };
-
-                    if partial_path_segments.is_some_and(|paths| {
-                        !paths.is_empty()
-                            && !paths
-                                .iter()
-                                .any(|partial_path| relative_file_path.contains(partial_path))
-                    }) {
-                        continue;
-                    }
-
-                    let mut context = FileSymbols {
-                        path: relative_file_path.to_string(),
-                        symbols: String::new(),
-                    };
-
-                    if let Some(file_outline) = self
-                        .file_id_to_outline
-                        .get(&file.file_id)
-                        .and_then(|outline| outline.to_string())
-                    {
-                        context.symbols = file_outline;
-                    }
-
-                    repo_map.push(context);
-                }
-            }
-        }
-
-        repo_map
-    }
-
     pub fn to_symbols_by_file(
         &self,
         partial_path_segments: Option<&Vec<String>>,
@@ -116,14 +59,6 @@ impl Outline {
 
         file_to_symbols
     }
-
-    pub fn file_count(&self) -> usize {
-        self.file_id_to_outline.len()
-    }
-
-    pub fn gitignores(&self) -> Vec<Arc<Gitignore>> {
-        self.gitignores.clone()
-    }
 }
 
 /// An identifier symbol in the code file. For now this is just the top-level functions.
@@ -150,30 +85,5 @@ impl FileOutline {
     /// Get the symbols from the outline.
     pub fn symbols(&self) -> Option<&Vec<Symbol>> {
         self.symbols.as_ref()
-    }
-
-    /// Format the outline into a string.
-    pub fn to_string(&self) -> Option<String> {
-        Some(
-            self.symbols
-                .as_ref()?
-                .iter()
-                .map(|identifier| {
-                    let symbol = match &identifier.type_prefix {
-                        Some(type_prefix) => format!(
-                            "  {} {} (line {})",
-                            type_prefix, identifier.name, identifier.line_number
-                        ),
-                        None => format!("  {} (line {})", identifier.name, identifier.line_number),
-                    };
-                    match &identifier.comment {
-                        Some(comment) => {
-                            format!("  {}\n{}", comment.join("\n  "), symbol)
-                        }
-                        None => symbol,
-                    }
-                })
-                .join("\n"),
-        )
     }
 }

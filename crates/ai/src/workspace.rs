@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use chrono::{DateTime, Days, Utc};
+use chrono::{DateTime, Utc};
 
 /// Public-facing metadata persisted in SQLite
 #[derive(Debug, Default, Clone)]
@@ -52,24 +52,6 @@ impl WorkspaceMetadata {
         }
         last_access_time
     }
-
-    pub fn is_expired(&self, current_time: DateTime<Utc>, shelf_life_days: u64) -> bool {
-        let Some(last_touch) = self.last_touched() else {
-            return true;
-        };
-        last_touch
-            .checked_add_days(Days::new(shelf_life_days))
-            .unwrap_or_default()
-            < current_time
-    }
-}
-
-/// An event to update the workspace metadata.
-#[derive(Debug, Clone, Copy)]
-pub enum WorkspaceMetadataEvent {
-    Queried,
-    Modified,
-    Created,
 }
 
 impl From<WorkspaceMetadata> for persistence::model::NewWorkspaceMetadata {

@@ -113,8 +113,6 @@ pub mod C1 {
     pub const EPA: &[u8] = &[ESC, b'W'];
     /// Start of String
     pub const SOS: &[u8] = &[ESC, b'X'];
-    /// Return Terminal ID
-    pub const DECID: &[u8] = &[ESC, b'Z']; //obsolete form of CSI c
     /// Control Sequence Introducer
     pub const CSI: &[u8] = &[ESC, b'['];
     /// String Terminator
@@ -136,17 +134,6 @@ pub mod C1 {
             sequences defined by constants in the C1 module.",
         )
     }
-}
-
-/// Wraps an escape sequence in a tmux DCS passthrough, doubling inner escapes
-/// so tmux forwards the sequence to the hosting terminal rather than
-/// intercepting it.
-pub fn tmux_passthrough(sequence: &str) -> String {
-    let esc = char::from(C0::ESC);
-    let escaped = sequence.replace(esc, "\x1b\x1b");
-    let dcs = C1::to_utf8(C1::DCS);
-    let st = C1::to_utf8(C1::ST);
-    format!("{dcs}tmux;{escaped}{st}")
 }
 
 /// Escape sequences used to control 'bracketed paste' mode.

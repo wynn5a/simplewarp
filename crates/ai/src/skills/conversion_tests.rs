@@ -1,7 +1,7 @@
 use warp_multi_agent_api as api;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 
-use super::{SkillConversionError, SkillPathOrigin, skill_reference_from_api_skill_ref};
+use super::{SkillConversionError, SkillPathOrigin};
 use crate::skills::{ParsedSkill, SkillProvider, SkillReference, SkillScope};
 
 fn api_project_skill(path: &str) -> api::Skill {
@@ -73,25 +73,6 @@ fn try_from_api_with_unavailable_origin_rejects_path_based_skills() {
     .expect_err("restored skills without host context should not fabricate local paths");
 
     assert!(matches!(error, SkillConversionError::PathOriginUnavailable));
-}
-
-#[test]
-fn skill_ref_with_unavailable_origin_preserves_bundled_skills() {
-    let skill_reference = skill_reference_from_api_skill_ref(
-        api::SkillRef {
-            skill_reference: Some(api::skill_ref::SkillReference::BundledSkillId(
-                "review-comments".to_string(),
-            )),
-        },
-        &SkillPathOrigin::Unavailable,
-    );
-
-    assert_eq!(
-        skill_reference,
-        Some(SkillReference::BundledSkillId(
-            "review-comments".to_string()
-        ))
-    );
 }
 
 #[test]

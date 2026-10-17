@@ -2,9 +2,6 @@
 pub enum AgentTaskState {
     Blocked,
     Cancelled,
-    Claimed,
     Error,
-    InProgress,
-    Succeeded,
     Failed,
 }

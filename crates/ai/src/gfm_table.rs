@@ -109,26 +109,6 @@ where
     Some(table_lines)
 }
 
-/// Attempts to parse a GFM table starting from `header_line`.
-///
-/// If the next line in `lines` is a valid GFM separator row, this consumes all
-/// subsequent table rows and returns the formatted table as a `String`.
-/// The `should_stop` predicate is called on each candidate row to allow the caller
-/// to halt parsing early (e.g., when encountering a fenced code block).
-///
-/// Returns `None` if `header_line` and the next line don't form a valid table start.
-pub fn maybe_parse_gfm_table<'a, I>(
-    header_line: &str,
-    lines: &mut Peekable<I>,
-    should_stop: impl Fn(&str) -> bool,
-) -> Option<String>
-where
-    I: Iterator<Item = &'a str>,
-{
-    maybe_collect_gfm_table_lines(header_line, lines, should_stop)
-        .map(|table_lines| format_gfm_table(&table_lines))
-}
-
 /// Formats a GFM table with normalized column widths.
 pub fn format_gfm_table(rows: &[String]) -> String {
     // A valid GFM table must consist of at least two rows

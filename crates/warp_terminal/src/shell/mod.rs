@@ -370,25 +370,6 @@ impl ShellType {
             .collect()
     }
 
-    /// Returns the syntax to use to run a second command only if the first one succeeds.
-    /// NOTE: Guarded with `cfg(unix)` b/c PowerShell didn't have the `&&` operator until v7. On
-    /// Unix, we can safely assume v7, but Windows comes with PowerShell v5 out of the box.
-    #[cfg(unix)]
-    pub fn and_combiner(self) -> &'static str {
-        match self {
-            ShellType::Bash | ShellType::Zsh | ShellType::PowerShell => " && ",
-            ShellType::Fish => "; and ",
-        }
-    }
-
-    /// Returns the syntax to run a second command regardless if the first one succeeds.
-    pub fn or_combiner(self) -> &'static str {
-        match self {
-            ShellType::Bash | ShellType::Zsh | ShellType::PowerShell => " ; ",
-            ShellType::Fish => "; or ",
-        }
-    }
-
     /// Returns the in-band generator command that asks the shell for its own completions of the
     /// hex-encoded command line.
     pub fn native_completions_generator_command(self, hex_encoded_line: &str) -> String {

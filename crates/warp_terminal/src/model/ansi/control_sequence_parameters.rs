@@ -243,30 +243,6 @@ pub enum NamedColor {
 }
 
 impl NamedColor {
-    pub fn to_bright(self) -> Self {
-        match self {
-            NamedColor::Foreground => NamedColor::BrightForeground,
-            NamedColor::Black => NamedColor::BrightBlack,
-            NamedColor::Red => NamedColor::BrightRed,
-            NamedColor::Green => NamedColor::BrightGreen,
-            NamedColor::Yellow => NamedColor::BrightYellow,
-            NamedColor::Blue => NamedColor::BrightBlue,
-            NamedColor::Magenta => NamedColor::BrightMagenta,
-            NamedColor::Cyan => NamedColor::BrightCyan,
-            NamedColor::White => NamedColor::BrightWhite,
-            NamedColor::DimForeground => NamedColor::Foreground,
-            NamedColor::DimBlack => NamedColor::Black,
-            NamedColor::DimRed => NamedColor::Red,
-            NamedColor::DimGreen => NamedColor::Green,
-            NamedColor::DimYellow => NamedColor::Yellow,
-            NamedColor::DimBlue => NamedColor::Blue,
-            NamedColor::DimMagenta => NamedColor::Magenta,
-            NamedColor::DimCyan => NamedColor::Cyan,
-            NamedColor::DimWhite => NamedColor::White,
-            val => val,
-        }
-    }
-
     pub fn to_dim(self) -> Self {
         match self {
             NamedColor::Black => NamedColor::DimBlack,

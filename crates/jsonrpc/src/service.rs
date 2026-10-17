@@ -1,6 +1,6 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicI32, Ordering};
-use std::sync::{Arc, Mutex};
 
 use anyhow::{Result, anyhow};
 use futures::channel::oneshot;
@@ -74,14 +74,11 @@ pub struct ServerNotificationEvent {
 
 type Subscription = async_channel::Sender<ServerNotificationEvent>;
 
-type ServerRequestHandler = Arc<dyn Fn(String, Value, RequestId) -> Result<()> + Send + Sync>;
-
 pub struct JsonRpcService {
     transport: Arc<dyn Transport>,
     request_id_counter: AtomicI32,
     pending_requests: Arc<AsyncMutex<HashMap<RequestId, oneshot::Sender<Result<Value>>>>>,
     notification_subscriptions: Arc<AsyncMutex<HashMap<String, Subscription>>>,
-    server_request_handler: Arc<Mutex<Option<ServerRequestHandler>>>,
     executor: Arc<Background>,
 }
 
@@ -96,12 +93,10 @@ impl JsonRpcService {
         let transport: Arc<dyn Transport> = transport.into();
         let pending_requests = Arc::new(AsyncMutex::new(HashMap::new()));
         let notification_subscriptions = Arc::new(AsyncMutex::new(HashMap::new()));
-        let server_request_handler = Arc::new(Mutex::new(None));
 
         let transport_clone = transport.clone();
         let pending_requests_clone = pending_requests.clone();
         let notification_subscriptions_clone = notification_subscriptions.clone();
-        let server_request_handler_clone = server_request_handler.clone();
 
         executor
             .spawn(async move {
@@ -109,7 +104,6 @@ impl JsonRpcService {
                     transport_clone,
                     pending_requests_clone,
                     notification_subscriptions_clone,
-                    server_request_handler_clone,
                     request_error_code,
                 )
                 .await
@@ -124,21 +118,8 @@ impl JsonRpcService {
             request_id_counter: AtomicI32::new(1),
             pending_requests,
             notification_subscriptions,
-            server_request_handler,
             executor,
         }
-    }
-
-    /// Installs a best-effort handler for server -> client requests.
-    pub fn set_server_request_handler(
-        &self,
-        handler: impl Fn(String, Value, RequestId) -> Result<()> + Send + Sync + 'static,
-    ) {
-        let mut guard = self
-            .server_request_handler
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        *guard = Some(Arc::new(handler));
     }
 
     /// Background loop that reads complete messages from the transport and dispatches them.
@@ -146,7 +127,6 @@ impl JsonRpcService {
         transport: Arc<dyn Transport>,
         pending_requests: Arc<AsyncMutex<HashMap<RequestId, oneshot::Sender<Result<Value>>>>>,
         notification_subscriptions: Arc<AsyncMutex<HashMap<String, Subscription>>>,
-        server_request_handler: Arc<Mutex<Option<ServerRequestHandler>>>,
         request_error_code: i64,
     ) -> Result<()> {
         loop {
@@ -162,7 +142,6 @@ impl JsonRpcService {
                 &message,
                 &pending_requests,
                 &notification_subscriptions,
-                &server_request_handler,
                 request_error_code,
             )
             .await
@@ -180,7 +159,6 @@ impl JsonRpcService {
         message: &str,
         pending_requests: &AsyncMutex<HashMap<RequestId, oneshot::Sender<Result<Value>>>>,
         notification_subscriptions: &AsyncMutex<HashMap<String, Subscription>>,
-        server_request_handler: &Mutex<Option<ServerRequestHandler>>,
         request_error_code: i64,
     ) -> Result<()> {
         if let Ok(request) = serde_json::from_str::<AnyRequest>(message) {
@@ -217,34 +195,6 @@ impl JsonRpcService {
             };
             let content = serde_json::to_string(&response)?;
             transport.write(&content).await?;
-
-            if should_ack {
-                let handler = server_request_handler
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .clone();
-
-                if let Some(handler) = handler {
-                    let params = if let Some(params) = request.params {
-                        match serde_json::from_str(params.get()) {
-                            Ok(value) => value,
-                            Err(e) => {
-                                log::warn!(
-                                    "Failed to parse params for {} request: {e}",
-                                    request.method
-                                );
-                                Value::Null
-                            }
-                        }
-                    } else {
-                        Value::Null
-                    };
-
-                    if let Err(e) = handler(request.method.to_string(), params, request.id) {
-                        log::warn!("Server request handler error for {}: {e}", request.method);
-                    }
-                }
-            }
 
             return Ok(());
         }

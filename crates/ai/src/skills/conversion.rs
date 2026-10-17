@@ -5,7 +5,7 @@ use warp_multi_agent_api as api;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 
 use crate::agent::action_result::{AnyFileContent, FileContext};
-use crate::skills::{ParsedSkill, SkillProvider, SkillReference, SkillScope};
+use crate::skills::{ParsedSkill, SkillProvider, SkillScope};
 
 #[derive(Error, Debug)]
 pub enum SkillConversionError {
@@ -82,30 +82,6 @@ fn collapse_slashes(path: &str) -> String {
         }
     }
     result
-}
-
-fn skill_reference_for_path(
-    path: impl Into<String>,
-    path_origin: &SkillPathOrigin,
-) -> Result<SkillReference, SkillConversionError> {
-    path_origin
-        .location_for_path(path)
-        .map(SkillReference::Path)
-}
-
-pub fn skill_reference_from_api_skill_ref(
-    skill_ref: api::SkillRef,
-    path_origin: &SkillPathOrigin,
-) -> Option<SkillReference> {
-    match skill_ref.skill_reference {
-        Some(api::skill_ref::SkillReference::Path(path)) => {
-            skill_reference_for_path(path, path_origin).ok()
-        }
-        Some(api::skill_ref::SkillReference::BundledSkillId(id)) => {
-            Some(SkillReference::BundledSkillId(id))
-        }
-        None => None,
-    }
 }
 
 impl From<ParsedSkill> for api::Skill {

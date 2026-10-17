@@ -133,11 +133,6 @@ fn parse_markdown_impl(markdown: &str, parse_gfm_tables: bool) -> Result<Formatt
         })
 }
 
-pub fn parse_markdown_to_raw_text(markdown: &str) -> Result<String> {
-    let formatted_text = parse_markdown(markdown)?;
-    Ok(formatted_text.raw_text())
-}
-
 fn parse_markdown_internal<'a, E: ContextError<&'a str> + ParseError<&'a str>>(
     markdown: &'a str,
     parse_gfm_tables: bool,

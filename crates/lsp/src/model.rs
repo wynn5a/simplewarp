@@ -134,7 +134,6 @@ pub struct DocumentDiagnostics {
 pub enum LspEvent {
     Starting,
     BackgroundTaskUpdated,
-    Idle,
     Stopped,
     Failed(Error),
     Started,

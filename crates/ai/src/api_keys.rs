@@ -61,14 +61,6 @@ impl CustomEndpointSchema {
         }
     }
 
-    pub fn from_display_name(name: &str) -> Option<Self> {
-        match name {
-            "OpenAI Chat Completions" => Some(Self::OpenaiChatCompletions),
-            "OpenAI Responses" => Some(Self::OpenaiResponses),
-            "Anthropic Messages" => Some(Self::AnthropicMessages),
-            _ => None,
-        }
-    }
     fn to_proto(self) -> api::request::settings::custom_model_providers::CustomEndpointSchema {
         match self {
             Self::OpenaiChatCompletions => {
@@ -106,34 +98,6 @@ impl CustomEndpointModel {
     }
 }
 
-impl ApiKeys {
-    pub fn has_any_key(&self) -> bool {
-        self.openai.is_some()
-            || self.anthropic.is_some()
-            || self.google.is_some()
-            || self.open_router.is_some()
-            || self
-                .custom_endpoints
-                .iter()
-                .any(|endpoint| !endpoint.api_key.trim().is_empty())
-    }
-
-    /// Number of single-provider API keys currently configured (OpenAI,
-    /// Anthropic, Google, OpenRouter). Custom endpoints are counted separately
-    /// via `custom_endpoints`.
-    pub fn provider_key_count(&self) -> usize {
-        [
-            &self.openai,
-            &self.anthropic,
-            &self.google,
-            &self.open_router,
-        ]
-        .into_iter()
-        .filter(|key| key.as_deref().is_some_and(|v| !v.trim().is_empty()))
-        .count()
-    }
-}
-
 /// A structure that manages API keys for AI providers.
 pub struct ApiKeyManager {
     keys: ApiKeys,
@@ -158,54 +122,6 @@ impl ApiKeyManager {
 
     pub fn keys(&self) -> &ApiKeys {
         &self.keys
-    }
-
-    /// Reloads API keys after another process updates the active secure-storage namespace.
-    ///
-    /// GUI edits mutate this manager directly before persisting, so they do not
-    /// need to reload. TUI setup commands run in a separate process and notify
-    /// the live TUI to refresh its cached keys after a successful write.
-    pub fn reload_keys_from_secure_storage(&mut self, ctx: &mut ModelContext<Self>) {
-        let keys = Self::load_keys_from_secure_storage(ctx);
-        if self.keys == keys {
-            return;
-        }
-        self.keys = keys;
-        ctx.emit(ApiKeyManagerEvent::KeysUpdated);
-    }
-
-    /// Persists a provider API key before publishing the updated in-memory value.
-    pub fn persist_provider_key(
-        &mut self,
-        provider: LLMProvider,
-        key: Option<String>,
-        ctx: &mut ModelContext<Self>,
-    ) -> anyhow::Result<()> {
-        let mut keys = self.keys.clone();
-        if !provider.set_api_key(&mut keys, key) {
-            return Err(anyhow::anyhow!(
-                "{} does not support pasted API keys",
-                provider.display_name()
-            ));
-        }
-        let json = serde_json::to_string(&keys)
-            .map_err(|error| anyhow::Error::new(error).context("Failed to serialize API keys"))?;
-        ctx.secure_storage()
-            .write_value(SECURE_STORAGE_KEY, &json)
-            .map_err(|error| {
-                anyhow::Error::new(error).context("Failed to write API keys to secure storage")
-            })?;
-        if self.keys != keys {
-            self.keys = keys;
-            ctx.emit(ApiKeyManagerEvent::KeysUpdated);
-        }
-        Ok(())
-    }
-
-    /// Returns `true` when the user has any usable BYO credential: a pasted
-    /// provider or custom-endpoint key.
-    pub fn has_any_key(&self) -> bool {
-        self.keys.has_any_key()
     }
 
     pub fn set_provider_key(
@@ -294,15 +210,6 @@ impl ApiKeyManager {
             return;
         }
         self.keys.custom_endpoints.remove(index);
-        ctx.emit(ApiKeyManagerEvent::KeysUpdated);
-        self.write_keys_to_secure_storage(ctx);
-    }
-
-    pub fn clear_custom_endpoints(&mut self, ctx: &mut ModelContext<Self>) {
-        if self.keys.custom_endpoints.is_empty() {
-            return;
-        }
-        self.keys.custom_endpoints.clear();
         ctx.emit(ApiKeyManagerEvent::KeysUpdated);
         self.write_keys_to_secure_storage(ctx);
     }

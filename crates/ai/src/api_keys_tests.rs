@@ -8,57 +8,6 @@ fn make_manager(keys: ApiKeys) -> ApiKeyManager {
 }
 
 #[test]
-fn persisted_provider_api_key_updates_request_state() {
-    warpui_core::App::test((), |mut app| async move {
-        app.update(|ctx| {
-            warpui_extras::secure_storage::register_noop("test", ctx);
-        });
-        let manager = app.add_singleton_model(ApiKeyManager::new);
-
-        manager
-            .update(&mut app, |manager, ctx| {
-                manager.persist_provider_key(
-                    LLMProvider::Anthropic,
-                    Some("sk-ant-test".to_owned()),
-                    ctx,
-                )
-            })
-            .expect("no-op secure storage should accept the provider key");
-
-        manager.read(&app, |manager, _| {
-            let request_keys = manager
-                .api_keys_for_request()
-                .expect("persisted provider key should be available to requests");
-            assert_eq!(request_keys.anthropic, "sk-ant-test");
-        });
-    });
-}
-
-#[test]
-fn persisted_provider_api_key_can_be_cleared() {
-    warpui_core::App::test((), |mut app| async move {
-        app.update(|ctx| {
-            warpui_extras::secure_storage::register_noop("test", ctx);
-        });
-        let manager = app.add_singleton_model(ApiKeyManager::new);
-
-        manager
-            .update(&mut app, |manager, ctx| {
-                manager.persist_provider_key(
-                    LLMProvider::Anthropic,
-                    Some("sk-ant-test".to_owned()),
-                    ctx,
-                )?;
-                manager.persist_provider_key(LLMProvider::Anthropic, None, ctx)
-            })
-            .expect("no-op secure storage should clear the provider key");
-
-        manager.read(&app, |manager, _| {
-            assert_eq!(manager.keys().anthropic, None);
-        });
-    });
-}
-#[test]
 fn custom_model_providers_preserves_configured_schema() {
     let mut endpoint = endpoint_with_keys(
         "Anthropic",
@@ -185,73 +134,6 @@ fn serde_legacy_endpoint_defaults_to_chat_completions() {
     )
     .unwrap();
     assert_eq!(endpoint.schema, CustomEndpointSchema::OpenaiChatCompletions);
-}
-
-// ── has_any_key ─────────────────────────────────────────────────
-
-#[test]
-fn has_any_key_false_when_empty() {
-    assert!(!ApiKeys::default().has_any_key());
-}
-
-#[test]
-fn has_any_key_true_for_openai_only() {
-    let keys = ApiKeys {
-        openai: Some("sk-x".into()),
-        ..Default::default()
-    };
-    assert!(keys.has_any_key());
-}
-
-#[test]
-fn has_any_key_true_for_custom_endpoints_only() {
-    let keys = ApiKeys {
-        custom_endpoints: vec![endpoint("ep", "https://a.io", "key", &[("m", None)])],
-        ..Default::default()
-    };
-    assert!(keys.has_any_key());
-}
-
-#[test]
-fn has_any_key_false_for_endpoint_with_empty_api_key() {
-    let keys = ApiKeys {
-        custom_endpoints: vec![endpoint("ep", "https://a.io", "", &[("m", None)])],
-        ..Default::default()
-    };
-    assert!(!keys.has_any_key());
-}
-
-// ── provider_key_count ─────────────────────────────────────────
-
-#[test]
-fn provider_key_count_zero_when_empty() {
-    assert_eq!(ApiKeys::default().provider_key_count(), 0);
-}
-
-#[test]
-fn provider_key_count_counts_each_provider_key() {
-    let keys = ApiKeys {
-        openai: Some("sk-o".into()),
-        anthropic: Some("sk-a".into()),
-        google: Some("AIza".into()),
-        open_router: Some("sk-or".into()),
-        custom_endpoints: vec![],
-    };
-    assert_eq!(keys.provider_key_count(), 4);
-}
-
-#[test]
-fn provider_key_count_ignores_blank_keys_and_endpoints() {
-    let keys = ApiKeys {
-        openai: Some("sk-o".into()),
-        anthropic: Some("   ".into()),
-        google: None,
-        open_router: None,
-        custom_endpoints: vec![endpoint("ep", "https://a.io", "k", &[("m", None)])],
-    };
-    // Only the non-blank OpenAI key counts; the whitespace Anthropic key and the
-    // custom endpoint are excluded.
-    assert_eq!(keys.provider_key_count(), 1);
 }
 
 // ── custom_model_providers_for_request ──────────────────────────
@@ -405,21 +287,4 @@ fn api_keys_for_request_none_for_custom_endpoints_only() {
         ..Default::default()
     });
     assert!(mgr.api_keys_for_request().is_none());
-}
-
-// ── ApiKeyManager::has_any_key ──────────────────
-
-#[test]
-fn manager_has_any_key_false_when_no_keys() {
-    let mgr = make_manager(ApiKeys::default());
-    assert!(!mgr.has_any_key());
-}
-
-#[test]
-fn manager_has_any_key_true_for_pasted_key() {
-    let mgr = make_manager(ApiKeys {
-        openai: Some("sk-x".into()),
-        ..Default::default()
-    });
-    assert!(mgr.has_any_key());
 }

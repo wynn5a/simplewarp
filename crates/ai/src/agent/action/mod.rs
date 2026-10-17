@@ -335,7 +335,7 @@ pub enum ShellCommandDelay {
     OnCompletion,
 }
 
-#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, EnumDiscriminants)]
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
 pub enum AIAgentPtyWriteMode {
     #[default]
     Raw,

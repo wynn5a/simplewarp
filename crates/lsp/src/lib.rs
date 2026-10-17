@@ -29,7 +29,6 @@ pub use types::{HoverContents, HoverResult, MarkupKind, ReferenceLocation};
 pub enum LspServerLogLevel {
     Debug,
     Info,
-    Warn,
     Error,
 }
 
@@ -38,7 +37,6 @@ impl std::fmt::Display for LspServerLogLevel {
         let level = match self {
             Self::Debug => "debug",
             Self::Info => "info",
-            Self::Warn => "warn",
             Self::Error => "error",
         };
         f.write_str(level)

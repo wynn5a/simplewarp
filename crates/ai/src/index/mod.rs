@@ -1,12 +1,8 @@
 mod file_outline;
-pub mod locations;
 
 pub use file_outline::{Outline, Symbol, build_outline};
 use native::*;
-pub use repo_metadata::entry::{is_git_internal_path, should_watch_directory_in_git_path};
-pub use repo_metadata::{
-    BuildTreeError, DirectoryEntry, Entry, FileId, FileMetadata, matches_gitignores,
-};
+pub use repo_metadata::{DirectoryEntry, Entry, FileId, FileMetadata, matches_gitignores};
 
 mod native {
     use std::thread::available_parallelism;

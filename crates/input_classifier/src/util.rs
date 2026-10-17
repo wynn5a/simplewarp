@@ -33,10 +33,6 @@ pub fn is_agent_follow_up_input(input: &str) -> bool {
     AGENT_FOLLOW_UP_INPUTS.contains(input)
 }
 
-pub fn is_one_off_shell_command_keyword(word: &str) -> bool {
-    ONE_OFF_SHELL_COMMAND_KEYWORDS.contains(word)
-}
-
 /// Returns true if the word is a one-off natural language word or a prefix of a one-off natural language word.
 pub fn is_one_off_natural_language_word_or_prefix(word: &str) -> bool {
     is_one_off_natural_language_word(word) || is_prefix_of_natural_language_word(word)

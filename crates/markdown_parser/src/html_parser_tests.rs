@@ -1,5 +1,16 @@
 use super::*;
 
+fn bold_italic(text: impl Into<String>) -> FormattedTextFragment {
+    FormattedTextFragment {
+        text: text.into(),
+        styles: FormattedTextStyles {
+            weight: Some(CustomWeight::Bold),
+            italic: true,
+            ..Default::default()
+        },
+    }
+}
+
 // Simple transformer to make testing easier.
 fn test_parse_html(source: &str) -> Vec<FormattedTextLine> {
     parse_html(source).unwrap().lines.into()
@@ -61,7 +72,7 @@ fn test_parse_text_styles() {
                 FormattedTextFragment::bold("me")
             ]),
             FormattedTextLine::Line(vec![
-                FormattedTextFragment::bold_italic("tes"),
+                bold_italic("tes"),
                 FormattedTextFragment::plain_text("ts")
             ])
         ]
@@ -83,7 +94,7 @@ fn test_parse_text_styles() {
             FormattedTextLine::Line(vec![
                 FormattedTextFragment::plain_text("So"),
                 FormattedTextFragment::italic("me"),
-                FormattedTextFragment::bold_italic("p"),
+                bold_italic("p"),
                 FormattedTextFragment::bold("la"),
                 FormattedTextFragment::plain_text("in")
             ]),

@@ -16,8 +16,6 @@ pub enum InputClassifierDecisionSource {
     InputClassifierFallbackHeuristic,
     // Input match with ONE_OFF_NATURAL_LANGUAGE_WORDS
     NaturalLanguageOneOffAllowlist,
-    // Input match with ONE_OFF_SHELL_COMMAND_KEYWORDS
-    ShellCommandAllowList,
     // Classification result coming from is_likely_shell_command
     ShellHeuristic,
 }

@@ -15,7 +15,6 @@ use crate::model::grid::row::Row;
 /// which has had a space character written into it.
 pub const DEFAULT_CHAR: char = '\0';
 pub const DEFAULT_CHAR_BYTE: u8 = b'\0';
-pub const DEFAULT_CHAR_STR: &str = "\0";
 
 /// Maximum byte length of a single cell's accumulated grapheme cluster
 /// (the base character plus any zero-width characters attached to it).

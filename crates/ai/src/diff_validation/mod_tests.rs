@@ -294,28 +294,6 @@ fn test_remove_extra_line_num_prefix() {
 }
 
 #[test]
-fn test_find_similar_sections_out_of_bounds() {
-    let matches = find_similar_sections("hey\nthere\nyou", &[], 0.9);
-    assert!(matches.is_empty());
-
-    let matches = find_similar_sections("hey\nthere\nyou", &["hey", "there", "you"], 0.9);
-    assert_eq!(
-        matches,
-        vec![Match {
-            start_line: 1,
-            end_line: 4,
-            similarity: 1.0
-        }]
-    );
-
-    let matches = find_similar_sections("hey\nthere\nyou", &["hey", "there"], 0.9);
-    assert!(matches.is_empty());
-
-    let matches = find_similar_sections("", &[], 0.9);
-    assert!(matches.is_empty());
-}
-
-#[test]
 fn test_v4a_exact_match() {
     let hunks = vec![V4AHunk {
         change_context: vec![],

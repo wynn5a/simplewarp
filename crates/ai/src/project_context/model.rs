@@ -608,20 +608,6 @@ impl ProjectContextModel {
     pub fn global_rules(&self) -> impl Iterator<Item = ProjectRule> + '_ {
         self.global_rules.active_rules()
     }
-    /// Returns the rule file paths associated with a specific workspace root path.
-    pub fn rules_for_workspace(&self, workspace_path: &Path) -> Vec<PathBuf> {
-        self.path_to_rules
-            .get(&LocalOrRemotePath::Local(workspace_path.to_path_buf()))
-            .into_iter()
-            .flat_map(|rules| {
-                rules.rules.iter().filter_map(|rule| {
-                    rule.respected_rule().and_then(|project_rule| {
-                        project_rule.path.to_local_path().map(Path::to_path_buf)
-                    })
-                })
-            })
-            .collect()
-    }
 }
 
 impl Entity for ProjectContextModel {

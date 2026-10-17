@@ -14,7 +14,6 @@ use uuid::Uuid;
 use warp_core::channel::ChannelState;
 use warp_errors::report_error;
 use warpui_extras::secure_storage::AppContextExt as _;
-mod loopback;
 
 pub const TEMPLATABLE_MCP_CREDENTIALS_KEY: &str = "TemplatableMcpCredentials";
 pub const FILE_BASED_MCP_CREDENTIALS_KEY: &str = "FileBasedMcpCredentials";
@@ -61,52 +60,23 @@ pub enum OAuthCallbackMode {
         redirect_uri: String,
         result_rx: async_channel::Receiver<CallbackResult>,
     },
-    Loopback,
-}
-
-enum OAuthCallbackReceiver {
-    CustomScheme(async_channel::Receiver<CallbackResult>),
-    Loopback(loopback::LoopbackOAuthReceiver),
 }
 
 struct PreparedOAuthCallback {
     redirect_uri: String,
-    receiver: OAuthCallbackReceiver,
-    uses_loopback: bool,
+    receiver: async_channel::Receiver<CallbackResult>,
 }
 
 impl OAuthCallbackMode {
     async fn prepare(self) -> Result<PreparedOAuthCallback, AuthError> {
-        match self {
-            Self::CustomScheme {
-                redirect_uri,
-                result_rx,
-            } => Ok(PreparedOAuthCallback {
-                redirect_uri,
-                receiver: OAuthCallbackReceiver::CustomScheme(result_rx),
-                uses_loopback: false,
-            }),
-            Self::Loopback => {
-                let receiver = loopback::LoopbackOAuthReceiver::bind().await?;
-                Ok(PreparedOAuthCallback {
-                    redirect_uri: receiver.redirect_uri().to_string(),
-                    receiver: OAuthCallbackReceiver::Loopback(receiver),
-                    uses_loopback: true,
-                })
-            }
-        }
-    }
-}
-
-impl OAuthCallbackReceiver {
-    async fn receive(self, expected_state: &str) -> Result<CallbackResult, AuthError> {
-        match self {
-            Self::CustomScheme(receiver) => receiver
-                .recv()
-                .await
-                .map_err(|err| AuthError::InternalError(err.to_string())),
-            Self::Loopback(receiver) => receiver.receive(expected_state).await,
-        }
+        let Self::CustomScheme {
+            redirect_uri,
+            result_rx,
+        } = self;
+        Ok(PreparedOAuthCallback {
+            redirect_uri,
+            receiver: result_rx,
+        })
     }
 }
 
@@ -277,7 +247,6 @@ pub async fn make_authenticated_client(
     let PreparedOAuthCallback {
         redirect_uri,
         receiver: callback_receiver,
-        uses_loopback,
     } = callback_mode.prepare().await?;
 
     // Create the auth manager and initialize it with a backing credential store that persists
@@ -336,19 +305,7 @@ pub async fn make_authenticated_client(
         .as_deref()
         .and_then(ChannelState::mcp_oauth_provider_by_issuer)
     {
-        let (client_id, client_secret) = if uses_loopback {
-            let loopback_client = provider.loopback_client.ok_or_else(|| {
-                AuthError::AuthorizationFailed(
-                    "This OAuth provider uses a pre-registered client that is not configured for \
-                     loopback callbacks. A separate loopback-capable client registration is \
-                     required."
-                        .to_string(),
-                )
-            })?;
-            (loopback_client.client_id, loopback_client.client_secret)
-        } else {
-            (provider.client_id, Some(provider.client_secret))
-        };
+        let (client_id, client_secret) = (provider.client_id, Some(provider.client_secret));
         // Configure the auth manager based on the static MCP configuration for this
         // issuer.
         auth_manager.set_metadata(metadata);
@@ -405,7 +362,10 @@ pub async fn make_authenticated_client(
     }
 
     // Wait for the authorization code from the OAuth callback channel.
-    let oauth_result = callback_receiver.receive(&csrf_state).await?;
+    let oauth_result = callback_receiver
+        .recv()
+        .await
+        .map_err(|err| AuthError::InternalError(err.to_string()))?;
 
     let (code, csrf_token) = match &oauth_result {
         CallbackResult::Success { code, csrf_token } => (code, csrf_token),

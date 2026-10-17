@@ -275,10 +275,6 @@ impl FormattedTextLine {
         }
         hyperlinks
     }
-
-    pub fn is_empty_line(&self) -> bool {
-        matches!(self, Self::Line(line) if line.iter().all(|fragment| fragment.text.is_empty()))
-    }
 }
 
 impl LineCount for FormattedTextLine {
@@ -588,17 +584,6 @@ impl FormattedTextFragment {
         Self {
             text: text.into(),
             styles: FormattedTextStyles {
-                italic: true,
-                ..Default::default()
-            },
-        }
-    }
-
-    pub fn bold_italic(text: impl Into<String>) -> Self {
-        Self {
-            text: text.into(),
-            styles: FormattedTextStyles {
-                weight: Some(CustomWeight::Bold),
                 italic: true,
                 ..Default::default()
             },

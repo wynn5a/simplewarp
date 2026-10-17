@@ -12,6 +12,17 @@ fn test_parse_markdown(source: &str) -> Vec<FormattedTextLine> {
     parse_all(source, |input| parse_markdown_internal(input, false))
 }
 
+fn bold_italic(text: impl Into<String>) -> FormattedTextFragment {
+    FormattedTextFragment {
+        text: text.into(),
+        styles: FormattedTextStyles {
+            weight: Some(CustomWeight::Bold),
+            italic: true,
+            ..Default::default()
+        },
+    }
+}
+
 fn test_parse_markdown_with_gfm_tables(source: &str) -> Vec<FormattedTextLine> {
     parse_all(source, |input| parse_markdown_internal(input, true))
 }
@@ -430,7 +441,7 @@ fn test_formatted_text() {
         vec![FormattedTextLine::Line(vec![
             FormattedTextFragment::plain_text("This is "),
             FormattedTextFragment::italic("italic"),
-            FormattedTextFragment::bold_italic("body")
+            bold_italic("body")
         ])]
     );
 }
@@ -1289,7 +1300,7 @@ fn test_parse_inline() {
     assert_eq!(
         parse_all("***nested** stuff*", parse_inline),
         vec![
-            FormattedTextFragment::bold_italic("nested"),
+            bold_italic("nested"),
             FormattedTextFragment::italic(" stuff")
         ]
     );
@@ -1338,19 +1349,19 @@ fn test_parse_inline() {
     // Bold/italic/combined examples
     assert_eq!(
         parse_all("***strong emph***", parse_inline),
-        vec![FormattedTextFragment::bold_italic("strong emph")]
+        vec![bold_italic("strong emph")]
     );
     assert_eq!(
         parse_all("***strong** in emph*", parse_inline),
         vec![
-            FormattedTextFragment::bold_italic("strong"),
+            bold_italic("strong"),
             FormattedTextFragment::italic(" in emph")
         ]
     );
     assert_eq!(
         parse_all("***emph* in strong**", parse_inline),
         vec![
-            FormattedTextFragment::bold_italic("emph"),
+            bold_italic("emph"),
             FormattedTextFragment::bold(" in strong")
         ]
     );
@@ -1358,14 +1369,14 @@ fn test_parse_inline() {
         parse_all("**in strong *emph***", parse_inline),
         vec![
             FormattedTextFragment::bold("in strong "),
-            FormattedTextFragment::bold_italic("emph")
+            bold_italic("emph")
         ]
     );
     assert_eq!(
         parse_all("*in emph **strong***", parse_inline),
         vec![
             FormattedTextFragment::italic("in emph "),
-            FormattedTextFragment::bold_italic("strong")
+            bold_italic("strong")
         ]
     );
 
@@ -1373,10 +1384,10 @@ fn test_parse_inline() {
         parse_all("*Complicated **text*** with *nest**ing***", parse_inline),
         vec![
             FormattedTextFragment::italic("Complicated "),
-            FormattedTextFragment::bold_italic("text"),
+            bold_italic("text"),
             FormattedTextFragment::plain_text(" with "),
             FormattedTextFragment::italic("nest"),
-            FormattedTextFragment::bold_italic("ing")
+            bold_italic("ing")
         ]
     );
 
@@ -1412,7 +1423,7 @@ fn test_parse_inline() {
         parse_all("*foo**bar**baz*", parse_inline),
         vec![
             FormattedTextFragment::italic("foo"),
-            FormattedTextFragment::bold_italic("bar"),
+            bold_italic("bar"),
             FormattedTextFragment::italic("baz")
         ]
     );

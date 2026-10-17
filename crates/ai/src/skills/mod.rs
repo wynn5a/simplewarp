@@ -4,7 +4,7 @@ mod parser;
 mod read_skills;
 mod skill_provider;
 mod skill_reference;
-pub use conversion::{SkillConversionError, SkillPathOrigin, skill_reference_from_api_skill_ref};
+pub use conversion::{SkillConversionError, SkillPathOrigin};
 pub use parse_skill::{
     ParsedSkill, parse_bundled_skill, parse_skill, parse_skill_content_at_location,
 };

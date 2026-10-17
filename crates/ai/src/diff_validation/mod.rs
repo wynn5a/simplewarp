@@ -14,7 +14,6 @@ lazy_static! {
     static ref LINE_NUMBER_PARSE: Regex = Regex::new(r"^(\d+)\|(.*)$").expect("Regex is valid");
 }
 
-use cfg_if::cfg_if;
 use derivative::Derivative;
 use serde_json::json;
 
@@ -657,32 +656,6 @@ pub struct Match {
     pub similarity: f64,
 }
 
-/// Find similar sections in the target file using Jaro-Winkler similarity
-/// These lines are 1-indexed to match the line numbers in the search string.
-pub fn find_similar_sections(
-    search_text: &str,
-    target_lines: &[&str],
-    threshold: f64,
-) -> Vec<Match> {
-    let search_len = search_text.lines().count();
-    if search_len == 0 {
-        return Vec::new();
-    }
-    // Slide through the target file looking for matches
-    target_lines
-        .windows(search_len)
-        .enumerate()
-        .filter_map(|(i, target_window)| {
-            let similarity = section_similarity(search_text, target_window);
-            (similarity >= threshold).then_some(Match {
-                start_line: i + 1,
-                similarity,
-                end_line: i + search_len + 1,
-            })
-        })
-        .collect()
-}
-
 /// Scores `search_window_lines`-length windows using a provided scoring function.
 ///
 /// Returned matches are 1-indexed, and sorted by similarity.
@@ -941,73 +914,7 @@ impl MakeScorer for MakePrefixTailMatch {
     }
 }
 
-/// Check if an array of lines matches a search string.
-/// This currently uses fuzzy matching.
-fn section_similarity(search_text: &str, target_lines: &[&str]) -> f64 {
-    let window_text = target_lines.join("\n");
-    jaro_winkler(search_text, &window_text)
-}
-
 const SECTION_MATCH_THRESHOLD: f64 = 0.9;
-cfg_if! {
-    if #[cfg(any(test, feature = "test-util"))] {
-        mod test_util {
-            use super::*;
-
-            #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-            pub enum SearchReplaceMatchStrategy {
-                Exact,
-                IndentationAgnostic,
-                JaroWinkler,
-            }
-
-            impl fmt::Display for SearchReplaceMatchStrategy {
-                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                    match self {
-                        SearchReplaceMatchStrategy::Exact => MakeExactMatch.fmt(f),
-                        SearchReplaceMatchStrategy::IndentationAgnostic => {
-                            MakeIndentationAgnosticMatch.fmt(f)
-                        }
-                        SearchReplaceMatchStrategy::JaroWinkler => MakeJaroWinklerMatch.fmt(f),
-                    }
-                }
-            }
-
-            pub fn match_search_replace_block(
-                search: &str,
-                line_range: Option<Range<usize>>,
-                file_content: &[&str],
-                strategy: SearchReplaceMatchStrategy,
-            ) -> Option<Range<usize>> {
-                match strategy {
-                    SearchReplaceMatchStrategy::Exact => match_diff(
-                        search,
-                        line_range,
-                        file_content,
-                        SECTION_MATCH_THRESHOLD,
-                        MakeExactMatch,
-                    ),
-                    SearchReplaceMatchStrategy::IndentationAgnostic => match_diff(
-                        search,
-                        line_range,
-                        file_content,
-                        SECTION_MATCH_THRESHOLD,
-                        MakeIndentationAgnosticMatch,
-                    ),
-                    SearchReplaceMatchStrategy::JaroWinkler => match_diff(
-                        search,
-                        line_range,
-                        file_content,
-                        SECTION_MATCH_THRESHOLD,
-                        MakeJaroWinklerMatch,
-                    ),
-                }
-            }
-        }
-
-        pub use test_util::{match_search_replace_block, SearchReplaceMatchStrategy};
-    }
-}
 
 /// Given a search block and a scoring function, find the most likely matching range of lines from target file contents.
 ///

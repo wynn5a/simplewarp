@@ -7,8 +7,6 @@ use std::ops::{Add, AddAssign, Range, Sub, SubAssign};
 use serde::{Deserialize, Serialize};
 use warpui_core::units::Lines;
 
-use super::grid::Dimensions;
-
 /// Behavior for handling grid boundaries.
 pub enum Boundary {
     /// Clamp to grid boundaries.
@@ -130,56 +128,6 @@ impl Point {
         VisiblePoint {
             row: VisibleRow(self.row.saturating_sub(history_size)),
             col: self.col,
-        }
-    }
-}
-
-impl Point {
-    #[inline]
-    #[must_use = "this returns the result of the operation, without modifying the original"]
-    pub fn sub_absolute<D>(mut self, dimensions: &D, boundary: Boundary, rhs: usize) -> Point
-    where
-        D: Dimensions,
-    {
-        let total_lines = dimensions.total_rows();
-        let num_cols = dimensions.columns();
-
-        self.row += (rhs + num_cols - 1).saturating_sub(self.col) / num_cols;
-        self.col = (num_cols + self.col - rhs % num_cols) % num_cols;
-
-        if self.row >= total_lines {
-            match boundary {
-                Boundary::Clamp => Point::new(total_lines - 1, 0),
-                Boundary::Wrap => Point::new(self.row - total_lines, self.col),
-            }
-        } else {
-            self
-        }
-    }
-
-    #[inline]
-    #[must_use = "this returns the result of the operation, without modifying the original"]
-    pub fn add_absolute<D>(mut self, dimensions: &D, boundary: Boundary, rhs: usize) -> Point
-    where
-        D: Dimensions,
-    {
-        let num_cols = dimensions.columns();
-
-        let line_delta = (rhs + self.col) / num_cols;
-
-        if self.row >= line_delta {
-            self.row -= line_delta;
-            self.col = (self.col + rhs) % num_cols;
-            self
-        } else {
-            match boundary {
-                Boundary::Clamp => Point::new(0, num_cols - 1),
-                Boundary::Wrap => {
-                    let col = (self.col + rhs) % num_cols;
-                    let line = dimensions.total_rows() + self.row - line_delta;
-                    Point::new(line, col)
-                }
-            }
         }
     }
 }

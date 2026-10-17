@@ -5,8 +5,6 @@ use axum::Router;
 use axum::extract::{Json, State};
 use axum::routing::{get, post};
 use rmcp::transport::auth::OAuthTokenResponse;
-use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
-use tokio::net::TcpStream;
 
 use super::*;
 
@@ -21,84 +19,6 @@ fn make_test_token_response(refresh_token: Option<&str>) -> OAuthTokenResponse {
         json["refresh_token"] = serde_json::Value::String(rt.to_string());
     }
     serde_json::from_value(json).expect("OAuthTokenResponse deserialization")
-}
-
-async fn send_loopback_callback(redirect_uri: &str, query: &str) -> String {
-    let url = Url::parse(redirect_uri).expect("redirect URI should parse");
-    let address = format!(
-        "{}:{}",
-        url.host_str().expect("redirect should have a host"),
-        url.port().expect("redirect should have a port")
-    );
-    let mut stream = TcpStream::connect(address)
-        .await
-        .expect("loopback callback should connect");
-    let target = format!("{}?{query}", url.path());
-    stream
-        .write_all(
-            format!("GET {target} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
-                .as_bytes(),
-        )
-        .await
-        .expect("callback request should write");
-    let mut response = String::new();
-    stream
-        .read_to_string(&mut response)
-        .await
-        .expect("callback response should read");
-    response
-}
-
-#[tokio::test]
-async fn loopback_callback_accepts_matching_state() {
-    let receiver = loopback::LoopbackOAuthReceiver::bind()
-        .await
-        .expect("loopback receiver should bind");
-    let redirect_uri = receiver.redirect_uri().to_string();
-    let callback = tokio::spawn(async move {
-        send_loopback_callback(&redirect_uri, "code=test-code&state=test-state").await
-    });
-
-    let result = receiver
-        .receive("test-state")
-        .await
-        .expect("matching callback should succeed");
-    match result {
-        CallbackResult::Success { code, csrf_token } => {
-            assert_eq!(code, "test-code");
-            assert_eq!(csrf_token, "test-state");
-        }
-        CallbackResult::Error { error } => panic!("unexpected callback error: {error:?}"),
-    }
-    assert!(
-        callback
-            .await
-            .expect("callback task should join")
-            .contains("200 OK")
-    );
-}
-
-#[tokio::test]
-async fn loopback_callback_rejects_mismatched_state() {
-    let receiver = loopback::LoopbackOAuthReceiver::bind()
-        .await
-        .expect("loopback receiver should bind");
-    let redirect_uri = receiver.redirect_uri().to_string();
-    let callback = tokio::spawn(async move {
-        send_loopback_callback(&redirect_uri, "code=test-code&state=wrong-state").await
-    });
-
-    let error = receiver
-        .receive("expected-state")
-        .await
-        .expect_err("mismatched callback should fail");
-    assert!(error.to_string().contains("state did not match"));
-    assert!(
-        callback
-            .await
-            .expect("callback task should join")
-            .contains("400 Bad Request")
-    );
 }
 
 #[derive(Clone, Default)]
@@ -151,15 +71,15 @@ async fn register_client(
 
 async fn exchange_token() -> Json<serde_json::Value> {
     Json(serde_json::json!({
-        "access_token": "test-loopback-access-token",
+        "access_token": "test-access-token",
         "token_type": "bearer",
         "expires_in": 3600,
-        "refresh_token": "test-loopback-refresh-token"
+        "refresh_token": "test-refresh-token"
     }))
 }
 
 #[tokio::test]
-async fn loopback_oauth_completes_dcr_and_code_exchange() {
+async fn dcr_oauth_completes_registration_and_code_exchange() {
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
         .await
         .expect("fake OAuth server should bind");
@@ -196,9 +116,15 @@ async fn loopback_oauth_completes_dcr_and_code_exchange() {
             .expect("fake OAuth server should run");
     });
 
+    let custom_redirect_uri = "warp://mcp/oauth2callback".to_string();
+    let closure_redirect_uri = custom_redirect_uri.clone();
+    let (result_tx, result_rx) = async_channel::bounded(1);
     let (persisted_tx, persisted_rx) = async_channel::bounded(1);
     let context = AuthContext {
-        callback_mode: OAuthCallbackMode::Loopback,
+        callback_mode: OAuthCallbackMode::CustomScheme {
+            redirect_uri: custom_redirect_uri.clone(),
+            result_rx,
+        },
         uuid: Uuid::new_v4(),
         persisted_credentials: None,
         is_headless: false,
@@ -213,6 +139,8 @@ async fn loopback_oauth_completes_dcr_and_code_exchange() {
             })
         }),
         requires_authentication: Box::new(move |_, state, auth_url| {
+            let custom_redirect_uri = closure_redirect_uri.clone();
+            let result_tx = result_tx.clone();
             Box::pin(async move {
                 let auth_url = Url::parse(&auth_url)?;
                 let params: HashMap<_, _> = auth_url.query_pairs().into_owned().collect();
@@ -220,13 +148,14 @@ async fn loopback_oauth_completes_dcr_and_code_exchange() {
                     .get("redirect_uri")
                     .cloned()
                     .ok_or_else(|| anyhow::anyhow!("authorization URL missing redirect_uri"))?;
-                assert!(redirect_uri.starts_with("http://127.0.0.1:"));
-                tokio::spawn(async move {
-                    let callback_url = format!("{redirect_uri}?code=test-code&state={state}");
-                    reqwest::get(callback_url)
-                        .await
-                        .expect("loopback callback should complete");
-                });
+                assert_eq!(redirect_uri, custom_redirect_uri);
+                result_tx
+                    .send(CallbackResult::Success {
+                        code: "test-code".to_string(),
+                        csrf_token: state,
+                    })
+                    .await
+                    .map_err(anyhow::Error::new)?;
                 Ok(())
             })
         }),
@@ -236,14 +165,14 @@ async fn loopback_oauth_completes_dcr_and_code_exchange() {
     let (client, did_require_login) =
         make_authenticated_client(&format!("{origin}/mcp"), reqwest::Client::new(), context)
             .await
-            .expect("DCR loopback OAuth should succeed");
+            .expect("DCR OAuth should succeed");
     assert!(did_require_login);
     assert_eq!(
         client
             .get_access_token()
             .await
             .expect("access token should be available"),
-        "test-loopback-access-token"
+        "test-access-token"
     );
 
     let persisted = persisted_rx
@@ -256,8 +185,7 @@ async fn loopback_oauth_completes_dcr_and_code_exchange() {
         .expect("redirect state should lock")
         .clone()
         .expect("DCR redirect should be recorded");
-    assert!(redirect_uri.starts_with("http://127.0.0.1:"));
-    assert!(redirect_uri.ends_with("/mcp/oauth2callback"));
+    assert_eq!(redirect_uri, custom_redirect_uri);
 
     server.abort();
 }

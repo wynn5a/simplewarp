@@ -87,13 +87,6 @@ pub struct ParsedSkill {
     pub scope: SkillScope,
 }
 
-impl ParsedSkill {
-    /// Returns true if this skill is bundled with Warp (not a user-editable file).
-    pub fn is_bundled(&self) -> bool {
-        self.scope == SkillScope::Bundled
-    }
-}
-
 impl Display for ParsedSkill {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Skill: {}", self.path.display_path())

@@ -574,24 +574,6 @@ impl AIAgentActionResultType {
     pub fn is_call_mcp_tool(&self) -> bool {
         matches!(self, AIAgentActionResultType::CallMCPTool(_))
     }
-
-    /// Returns `true` if this result will cause the server to route the next
-    /// turn to a subagent (e.g. the CLI subagent) rather than the orchestrator.
-    /// LRC snapshot variants are the current indicators of this.
-    pub fn triggers_server_subagent(&self) -> bool {
-        matches!(
-            self,
-            Self::RequestCommandOutput(
-                RequestCommandOutputResult::LongRunningCommandSnapshot { .. }
-            ) | Self::WriteToLongRunningShellCommand(
-                WriteToLongRunningShellCommandResult::Snapshot { .. }
-            ) | Self::ReadShellCommandOutput(
-                ReadShellCommandOutputResult::LongRunningCommandSnapshot { .. }
-            ) | Self::TransferShellCommandControlToUser(
-                TransferShellCommandControlToUserResult::Snapshot { .. }
-            )
-        )
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
