@@ -390,49 +390,6 @@ impl<T: KeyedItem> SumTree<T> {
             new_tree
         };
     }
-
-    pub fn edit(&mut self, edits: &mut [Edit<T>]) {
-        if edits.is_empty() {
-            return;
-        }
-
-        edits.sort_unstable_by_key(|item| item.key());
-
-        *self = {
-            let mut cursor = self.cursor::<T::Key, ()>();
-            let mut new_tree = SumTree::new();
-            let mut buffered_items = Vec::new();
-
-            cursor.seek(&T::Key::default(), SeekBias::Left);
-            for edit in edits {
-                let new_key = edit.key();
-                let mut old_item = cursor.item();
-
-                if old_item
-                    .as_ref()
-                    .is_some_and(|old_item| old_item.key() < new_key)
-                {
-                    new_tree.extend(buffered_items.drain(..));
-                    let slice = cursor.slice(&new_key, SeekBias::Left);
-                    new_tree.push_tree(slice);
-                    old_item = cursor.item();
-                }
-                if old_item.is_some_and(|old_item| old_item.key() == new_key) {
-                    cursor.next();
-                }
-                match edit {
-                    Edit::Insert(item) => {
-                        buffered_items.push(item.clone());
-                    }
-                    Edit::Remove(_) => {}
-                }
-            }
-
-            new_tree.extend(buffered_items);
-            new_tree.push_tree(cursor.suffix());
-            new_tree
-        };
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -496,21 +453,6 @@ impl<T: Item> Node<T> {
         match self {
             Node::Internal { child_trees, .. } => child_trees.len() < TREE_BASE,
             Node::Leaf { items, .. } => items.len() < TREE_BASE,
-        }
-    }
-}
-
-#[derive(Debug)]
-#[allow(dead_code)]
-pub enum Edit<T: KeyedItem> {
-    Insert(T),
-    Remove(T),
-}
-
-impl<T: KeyedItem> Edit<T> {
-    fn key(&self) -> T::Key {
-        match self {
-            Edit::Insert(item) | Edit::Remove(item) => item.key(),
         }
     }
 }
