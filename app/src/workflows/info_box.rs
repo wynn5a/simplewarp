@@ -1064,7 +1064,6 @@ pub enum WorkflowsInfoBoxViewEvent {
 #[derive(Debug, Clone)]
 pub enum WorkflowsInfoBoxViewAction {
     CollapseOrExpand,
-    SelectEnvironmentVariables(Option<SyncId>),
 }
 
 impl Entity for WorkflowsMoreInfoView {
@@ -1074,13 +1073,11 @@ impl Entity for WorkflowsMoreInfoView {
 impl TypedActionView for WorkflowsMoreInfoView {
     type Action = WorkflowsInfoBoxViewAction;
 
-    fn handle_action(&mut self, action: &WorkflowsInfoBoxViewAction, ctx: &mut ViewContext<Self>) {
+    fn handle_action(&mut self, action: &WorkflowsInfoBoxViewAction, _ctx: &mut ViewContext<Self>) {
         match action {
             WorkflowsInfoBoxViewAction::CollapseOrExpand => {
                 self.info_box_expanded = !self.info_box_expanded
             }
-            WorkflowsInfoBoxViewAction::SelectEnvironmentVariables(env_vars) => ctx
-                .emit(WorkflowsInfoBoxViewEvent::PrefixCommandWithEnvironmentVariables(*env_vars)),
         }
     }
 }

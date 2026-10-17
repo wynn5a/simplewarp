@@ -7,7 +7,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use settings::Setting as _;
 use warp_editor::editor::NavigationKey;
-use warp_editor::model::{CoreEditorModel, RichTextEditorModel};
+use warp_editor::model::CoreEditorModel;
 use warp_errors::{report_error, report_if_error};
 use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
 use warpui::elements::{
@@ -221,7 +221,6 @@ pub enum NotebookAction {
     Trash,
     Untrash,
     CopyToPersonal,
-    CopyToClipboard,
     Export,
 }
 
@@ -929,12 +928,6 @@ impl NotebookView {
         ctx.emit(NotebookEvent::Pane(PaneEvent::AppStateChanged));
     }
 
-    fn copy_notebook_contents_to_clipboard(&mut self, ctx: &mut ViewContext<Self>) {
-        self.input.update(ctx, |input, ctx| {
-            input.model().update(ctx, |model, ctx| model.copy_all(ctx))
-        });
-    }
-
     /// Items to show in the pane header overflow menu.
     fn overflow_menu_items(&self, ctx: &AppContext) -> Vec<MenuItem<NotebookAction>> {
         let active_notebook_data = self.active_notebook_data.as_ref(ctx);
@@ -1482,7 +1475,6 @@ impl TypedActionView for NotebookView {
             NotebookAction::Trash => self.trash_object(ctx),
             NotebookAction::Untrash => self.untrash_notebook(ctx),
             NotebookAction::CopyToPersonal => self.copy_to_personal(ctx),
-            NotebookAction::CopyToClipboard => self.copy_notebook_contents_to_clipboard(ctx),
             NotebookAction::Export => self.export(ctx),
         };
     }

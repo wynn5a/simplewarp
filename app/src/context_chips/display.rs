@@ -64,9 +64,7 @@ pub struct PromptDisplay {
 }
 
 #[derive(Debug, Clone)]
-pub enum PromptDisplayAction {
-    SelectGitBranch { value: String },
-}
+pub enum PromptDisplayAction {}
 
 pub enum PromptDisplayEvent {
     OpenFile(String),
@@ -289,16 +287,8 @@ impl Entity for PromptDisplay {
 impl TypedActionView for PromptDisplay {
     type Action = PromptDisplayAction;
 
-    fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
-        match action {
-            PromptDisplayAction::SelectGitBranch { value } => {
-                ctx.emit(PromptDisplayEvent::TryExecuteCommand(
-                    PromptChipShellCommand::GitCheckout {
-                        branch_name: value.clone(),
-                    },
-                ));
-            }
-        }
+    fn handle_action(&mut self, action: &Self::Action, _ctx: &mut ViewContext<Self>) {
+        match *action {}
     }
 }
 

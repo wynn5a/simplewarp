@@ -790,10 +790,6 @@ impl SettingsPageMeta for KeybindingsView {
         ctx.notify();
     }
 
-    fn on_tab_pressed(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.focus(&self.search_editor);
-    }
-
     fn update_filter(&mut self, query: &str, ctx: &mut ViewContext<Self>) -> MatchData {
         self.page.update_filter(query, ctx)
     }

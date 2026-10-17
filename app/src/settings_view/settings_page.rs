@@ -77,8 +77,6 @@ pub trait SettingsPageMeta {
 
     fn should_render(&self, _ctx: &AppContext) -> bool;
 
-    fn on_tab_pressed(&mut self, _ctx: &mut ViewContext<Self>) {}
-
     fn update_filter(&mut self, query: &str, ctx: &mut ViewContext<Self>) -> MatchData;
 
     fn scroll_to_widget(&mut self, widget_id: &'static str);

@@ -297,7 +297,6 @@ pub enum CodeReviewAction {
     RefreshGitState,
     UndoRevert,
     Close,
-    EmitPaneEvent(PaneEvent),
     ShowDiscardConfirmDialog(Option<String>),
     ConfirmDiscardFile,
     CancelDiscardFile,
@@ -6851,9 +6850,6 @@ impl TypedActionView for CodeReviewView {
                 }
                 self.update_header_dropdown_active_state(ctx);
                 ctx.notify();
-            }
-            CodeReviewAction::EmitPaneEvent(event) => {
-                ctx.emit(CodeReviewViewEvent::Pane(event.clone()));
             }
             CodeReviewAction::ShowDiscardConfirmDialog(file_path) => {
                 self.discard_dialog_state.show_discard_confirm_dialog = true;

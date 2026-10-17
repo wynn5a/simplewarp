@@ -987,7 +987,6 @@ impl Entity for WarpAgentPageView {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum WarpAgentPageAction {
-    OpenUrl(String),
     ToggleGlobalAI,
     ToggleActiveAI,
     ToggleIntelligentAutosuggestions,
@@ -1016,9 +1015,6 @@ impl TypedActionView for WarpAgentPageView {
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         match action {
-            WarpAgentPageAction::OpenUrl(url) => {
-                ctx.open_url(url.as_str());
-            }
             WarpAgentPageAction::ToggleGlobalAI => {
                 match AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     settings.is_any_ai_enabled.toggle_and_save_value(ctx)

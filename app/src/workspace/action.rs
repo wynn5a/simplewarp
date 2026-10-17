@@ -529,11 +529,6 @@ pub enum WorkspaceAction {
     OpenNewWorktreeModal,
     /// Open the native folder picker for the repo field in the new-worktree modal.
     OpenNewWorktreeRepoPicker,
-    /// Create a new worktree in the given repo using the default worktree tab config.
-    /// The branch name is auto-generated.
-    OpenWorktreeInRepo {
-        repo_path: String,
-    },
     /// Open a folder picker to add a new repo to PersistedWorkspace (from the
     /// "New worktree config" submenu's "+ Add new repo..." item).
     OpenWorktreeAddRepoPicker,
@@ -708,7 +703,6 @@ impl WorkspaceAction {
             | OpenTabConfigRepoPicker { .. }
             | OpenNewWorktreeModal
             | OpenNewWorktreeRepoPicker
-            | OpenWorktreeInRepo { .. }
             | OpenWorktreeAddRepoPicker
             | Panic
             | DumpHeapProfile

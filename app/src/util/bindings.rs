@@ -65,8 +65,6 @@ pub enum CustomAction {
     SplitPaneDown,
     MoveTabLeft,
     MoveTabRight,
-    ActivateNextTab,
-    ActivatePreviousTab,
     ActivateNextPane,
     ActivatePreviousPane,
     NavigationPalette,
@@ -84,7 +82,6 @@ pub enum CustomAction {
     ToggleMaximizePane,
     LaunchConfigPalette,
     FilesPalette,
-    TriggerWelcomeBlock,
     CommandSearch,
     ToggleKeybindingsPage,
     ScrollToTopOfSelectedBlocks,
@@ -301,20 +298,6 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
                 Keystroke::parse("shift-ctrl-pagedown").ok()
             }
         }
-        CustomAction::ActivateNextTab => {
-            if OperatingSystem::get().is_mac() {
-                Keystroke::parse("shift-cmd-}").ok()
-            } else {
-                Keystroke::parse("ctrl-pagedown").ok()
-            }
-        }
-        CustomAction::ActivatePreviousTab => {
-            if OperatingSystem::get().is_mac() {
-                Keystroke::parse("shift-cmd-{").ok()
-            } else {
-                Keystroke::parse("ctrl-pageup").ok()
-            }
-        }
         CustomAction::ActivateNextPane => {
             if OperatingSystem::get().is_mac() {
                 Keystroke::parse("cmd-]").ok()
@@ -419,7 +402,6 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         | CustomAction::CloseTabsRight
         | CustomAction::ShowAppearance
         | CustomAction::SaveCurrentConfig
-        | CustomAction::TriggerWelcomeBlock
         | CustomAction::HistorySearch
         | CustomAction::DisableSyncTerminalInputs
         | CustomAction::ToggleSyncAllTerminalInputsInAllTabs

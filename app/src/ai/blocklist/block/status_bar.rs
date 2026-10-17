@@ -19,7 +19,7 @@ use warpui::{
     ViewContext, ViewHandle,
 };
 
-use super::cli_controller::{CLISubagentController, CLISubagentEvent, UserTakeOverReason};
+use super::cli_controller::{CLISubagentController, CLISubagentEvent};
 use super::model::{AIBlockModel, AIBlockModelImpl, AIBlockOutputStatus};
 use super::view_impl::common::{
     AutoExecuteButtonProps, ButtonProps, ForceRefreshButtonProps, LOAD_OUTPUT_MESSAGE,
@@ -1112,7 +1112,6 @@ impl Entity for BlocklistAIStatusBar {
 #[derive(Debug, Clone)]
 pub enum BlocklistAIStatusBarAction {
     ToggleHideResponses,
-    SwitchCommandControlToUser,
     Stop,
     /// Force the agent's pending poll for a long-running command to resolve
     /// immediately with a fresh snapshot, bypassing its agent-set timer. Dispatched
@@ -1130,11 +1129,6 @@ impl TypedActionView for BlocklistAIStatusBar {
             BlocklistAIStatusBarAction::ToggleHideResponses => {
                 self.cli_subagent_controller.update(ctx, |controller, ctx| {
                     controller.toggle_hide_responses(ctx);
-                });
-            }
-            BlocklistAIStatusBarAction::SwitchCommandControlToUser => {
-                self.cli_subagent_controller.update(ctx, |controller, ctx| {
-                    controller.switch_control_to_user(UserTakeOverReason::Manual, ctx);
                 });
             }
             BlocklistAIStatusBarAction::Stop => {

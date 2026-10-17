@@ -143,7 +143,6 @@ pub enum NavigationState {
 pub enum AIContextMenuAction {
     Prev,
     Next,
-    SelectCurrentItem,
     ResultAccepted {
         action: AIContextMenuSearchableAction,
     },
@@ -272,9 +271,6 @@ impl TypedActionView for AIContextMenu {
                         });
                     }
                 }
-            }
-            AIContextMenuAction::SelectCurrentItem => {
-                self.select_current_item(ctx);
             }
             AIContextMenuAction::ResultAccepted { action } => {
                 let query_length = self.query(ctx).len();

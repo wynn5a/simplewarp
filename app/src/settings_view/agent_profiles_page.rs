@@ -1197,8 +1197,6 @@ impl Entity for AgentProfilesPageView {
 pub enum AgentProfilesPageAction {
     HyperlinkClick(HyperlinkUrl),
     ToggleCodebaseContext,
-    RemoveFromCommandExecutionAllowlist(AgentModeCommandExecutionPredicate),
-    RemoveFromCommandExecutionDenylist(AgentModeCommandExecutionPredicate),
     OpenMCPServerCollection,
     OpenExecutionProfileEditor(ExecutionProfileId),
     SetBaseModel(LLMId),
@@ -1211,7 +1209,6 @@ pub enum AgentProfilesPageAction {
     SetExecuteCommands(ActionPermission),
     SetWriteToPty(WriteToPtyPermission),
     SetMCPPermissions(ActionPermission),
-    RemoveDirectoryFromCodeReadAllowlist(PathBuf),
     RemoveFromProfileDirectoryAllowlist(PathBuf),
     RemoveFromProfileCommandDenylist(AgentModeCommandExecutionPredicate),
     RemoveFromProfileCommandAllowlist(AgentModeCommandExecutionPredicate),
@@ -1242,16 +1239,6 @@ impl TypedActionView for AgentProfilesPageView {
             AgentProfilesPageAction::HyperlinkClick(hyperlink) => {
                 ctx.notify();
                 ctx.open_url(&hyperlink.url);
-            }
-            AgentProfilesPageAction::RemoveFromCommandExecutionAllowlist(cmd) => {
-                BlocklistAIPermissions::handle(ctx).update(ctx, |model, ctx| {
-                    report_if_error!(model.remove_command_from_autoexecution_allowlist(cmd, ctx));
-                })
-            }
-            AgentProfilesPageAction::RemoveFromCommandExecutionDenylist(cmd) => {
-                BlocklistAIPermissions::handle(ctx).update(ctx, |model, ctx| {
-                    report_if_error!(model.remove_command_from_denylist(cmd, ctx));
-                })
             }
             AgentProfilesPageAction::OpenMCPServerCollection => {
                 ctx.emit(AgentProfilesPageEvent::OpenMCPServerCollection)
@@ -1329,13 +1316,6 @@ impl TypedActionView for AgentProfilesPageView {
                     model.set_mcp_permissions(profile.id(), permission, ctx);
                 });
                 ctx.notify();
-            }
-            AgentProfilesPageAction::RemoveDirectoryFromCodeReadAllowlist(dir) => {
-                BlocklistAIPermissions::handle(ctx).update(ctx, |model, ctx| {
-                    report_if_error!(
-                        model.remove_filepath_from_code_read_allowlist(dir.to_owned(), ctx)
-                    );
-                });
             }
             AgentProfilesPageAction::RemoveFromProfileDirectoryAllowlist(path_buf) => {
                 AIExecutionProfilesModel::handle(ctx).update(ctx, |model, ctx| {

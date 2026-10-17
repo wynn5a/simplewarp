@@ -115,7 +115,6 @@ pub enum FileNotebookAction {
     ReloadFile,
     CopyFilePath,
     OpenInEditor,
-    OpenAsCode,
     ContextMenu(ContextMenuAction),
     ToggleMarkdownDisplayMode(MarkdownDisplayMode),
     ToggleMaximized,
@@ -822,7 +821,6 @@ impl TypedActionView for FileNotebookView {
                     });
                 }
             }
-            FileNotebookAction::OpenAsCode => self.open_as_code(ctx),
             FileNotebookAction::ContextMenu(action) => {
                 let copy_file_path = self.file_state.path().map(|p| p.display_path());
                 self.context_menu.set_copy_file_path(copy_file_path);

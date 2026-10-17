@@ -109,10 +109,6 @@ struct OverflowMenuState {
 
 #[derive(Clone, Debug)]
 pub enum ConversationListViewAction {
-    DeleteConversation {
-        conversation_id: AIConversationId,
-        terminal_view_id: Option<EntityId>,
-    },
     ToggleOverflowMenu {
         conversation_id: AgentConversationEntryId,
         /// When `Some`, the menu was opened via right-click and should be
@@ -140,8 +136,6 @@ pub enum ConversationListViewAction {
     StartRename {
         id: AgentConversationEntryId,
     },
-    FinishRename,
-    CancelRename,
 }
 
 pub enum Event {
@@ -937,41 +931,6 @@ impl TypedActionView for ConversationListView {
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         match action {
-            ConversationListViewAction::DeleteConversation {
-                conversation_id,
-                terminal_view_id,
-            } => {
-                let window_id = ctx.window_id();
-                // A conversation can only be deleted once it's done.
-                let conversation_is_done = BlocklistAIHistoryModel::as_ref(ctx)
-                    .conversation(conversation_id)
-                    .is_none_or(|c| c.status().is_done());
-                if !conversation_is_done {
-                    ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                        toast_stack.add_ephemeral_toast(
-                            DismissibleToast::error(
-                                "Conversations cannot be deleted while in progress.".to_string(),
-                            ),
-                            window_id,
-                            ctx,
-                        );
-                    });
-                    return;
-                }
-
-                let id = AgentConversationEntryId::Conversation(*conversation_id);
-                let conversation_title = self
-                    .view_model
-                    .as_ref(ctx)
-                    .get_item_by_id(&id, ctx)
-                    .map(|entry| entry.display.title)
-                    .unwrap_or_else(|| "Conversation".to_string());
-                ctx.emit(Event::ShowDeleteConfirmationDialog {
-                    conversation_id: *conversation_id,
-                    conversation_title,
-                    terminal_view_id: *terminal_view_id,
-                });
-            }
             ConversationListViewAction::ToggleOverflowMenu {
                 conversation_id,
                 position,
@@ -1182,12 +1141,6 @@ impl TypedActionView for ConversationListView {
             }
             ConversationListViewAction::StartRename { id } => {
                 self.start_rename(*id, ctx);
-            }
-            ConversationListViewAction::FinishRename => {
-                self.finish_rename(ctx);
-            }
-            ConversationListViewAction::CancelRename => {
-                self.cancel_rename(ctx);
             }
         }
     }

@@ -891,10 +891,6 @@ pub enum InputAction {
         origin: AgentViewEntryOrigin,
     },
 
-    /// This is for toggling whether autodetection is enabled/disabled at the app-level,
-    /// not for whether its enabled/disabled for the current input
-    ToggleInputAutoDetection,
-
     /// Triggers the lightbulb button click behavior to enable/toggle auto-detection
     EnableAutoDetection,
 
@@ -11897,15 +11893,6 @@ impl TypedActionView for Input {
                 } else {
                     self.open_conversation_menu(ctx);
                 }
-            }
-            InputAction::ToggleInputAutoDetection => {
-                if let Ok(_new_value) =
-                    AISettings::handle(ctx).update(ctx, |ai_settings, model_ctx| {
-                        ai_settings
-                            .ai_autodetection_enabled_internal
-                            .toggle_and_save_value(model_ctx)
-                    })
-                {}
             }
             InputAction::CycleNextCommandSuggestion => {
                 self.cycle_next_command_suggestion(ctx);

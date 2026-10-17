@@ -15876,9 +15876,6 @@ impl TypedActionView for Workspace {
                     }
                 });
             }
-            OpenWorktreeInRepo { repo_path } => {
-                self.open_worktree_in_repo(repo_path.clone(), ctx);
-            }
             OpenWorktreeAddRepoPicker => {
                 self.close_new_session_dropdown_menu(ctx);
                 self.open_folder_picker_for_worktree_submenu(ctx);

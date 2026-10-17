@@ -168,12 +168,10 @@ impl WorkflowEditorErrorState {
 #[derive(Debug, Clone)]
 pub enum WorkflowAction {
     AddArgument,
-    ToggleViewMode,
     RunWorkflow,
     CopyContent,
     Close,
     CloseUnsavedDialog,
-    CloseEnumDialog,
     ForceClose,
     Save,
     Cancel,
@@ -195,7 +193,6 @@ pub enum WorkflowViewEvent {
 }
 
 enum UnsavedChangeType {
-    ForEdit,
     ForClose,
 }
 
@@ -1155,64 +1152,12 @@ impl WorkflowView {
         ctx.notify()
     }
 
-    fn reset_view_mode_argument_values(&mut self, ctx: &mut ViewContext<Self>) {
-        for row in &self.arguments_rows {
-            row.argument_editor.update(ctx, |editor, ctx| {
-                editor.clear_buffer(ctx);
-            })
-        }
-    }
-
     fn focus_first_argument_value(&mut self, ctx: &mut ViewContext<Self>) {
         if let Some(first_row) = self.arguments_rows.first() {
             first_row.argument_editor.update(ctx, |_input, ctx| {
                 ctx.focus_self();
             });
         }
-    }
-
-    // This should only be available in context where we can't run workflows
-    fn toggle_view_mode(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.show_enum_creation_dialog {
-            return;
-        }
-
-        if matches!(self.workflow_view_mode, WorkflowViewMode::Edit)
-            && self.should_show_unsaved_changes_dialog(ctx)
-        {
-            self.show_unsaved_changes_dialog(UnsavedChangeType::ForEdit, ctx);
-            return;
-        }
-
-        self.workflow_view_mode = match self.workflow_view_mode {
-            WorkflowViewMode::View => {
-                WorkflowViewMode::supported_edit_mode(Some(self.workflow_id), ctx)
-            }
-            // Attempt to toggle to view mode only if it is allowed in this context
-            WorkflowViewMode::Edit => {
-                WorkflowViewMode::supported_view_mode(Some(self.workflow_id), ctx)
-            }
-            // NOTE: prevent transition from create to any other mode
-            // we also shouldn't be showing the toggle button in create view
-            WorkflowViewMode::Create => WorkflowViewMode::Create,
-        };
-
-        // Always reset the view with cloud model when we transition to the view or edit mode.
-        // This reset is necessary when transitioning to edit mode so that we can reset the `revision_ts`.
-        // Without this, any updates after a first update will get rejected, due to a perceived conflict.
-        if matches!(self.workflow_view_mode, WorkflowViewMode::View)
-            || matches!(self.workflow_view_mode, WorkflowViewMode::Edit)
-        {
-            self.reset(ctx);
-        }
-
-        // reset the view mode argument editors when we transition away from view mode
-        if !matches!(self.workflow_view_mode, WorkflowViewMode::View) {
-            self.reset_view_mode_argument_values(ctx);
-        }
-
-        self.update_editors_interactivity(ctx);
-        ctx.notify()
     }
 
     fn copy_to_command_line(&mut self, ctx: &mut ViewContext<Self>) {
@@ -2294,15 +2239,6 @@ impl View for WorkflowView {
         }
 
         match self.show_unsaved_changes {
-            Some(UnsavedChangeType::ForEdit) => stack.add_positioned_overlay_child(
-                self.render_unsaved_changes_dialog(WorkflowAction::Cancel, appearance),
-                OffsetPositioning::offset_from_parent(
-                    vec2f(0., 0.),
-                    ParentOffsetBounds::WindowByPosition,
-                    ParentAnchor::Center,
-                    ChildAnchor::Center,
-                ),
-            ),
             Some(UnsavedChangeType::ForClose) => stack.add_positioned_child(
                 self.render_unsaved_changes_dialog(WorkflowAction::ForceClose, appearance),
                 OffsetPositioning::offset_from_parent(
@@ -2348,7 +2284,6 @@ impl TypedActionView for WorkflowView {
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         match action {
             WorkflowAction::AddArgument => self.add_argument(ctx),
-            WorkflowAction::ToggleViewMode => self.toggle_view_mode(ctx),
             WorkflowAction::CloseUnsavedDialog => self.hide_unsaved_changes_dialog(ctx),
             WorkflowAction::Close => {
                 self.close(ctx);
@@ -2370,7 +2305,6 @@ impl TypedActionView for WorkflowView {
             WorkflowAction::Duplicate => self.duplicate_object(ctx),
             WorkflowAction::Trash => self.trash_object(ctx),
             WorkflowAction::Untrash => self.untrash_object(ctx),
-            WorkflowAction::CloseEnumDialog => self.hide_enum_creation_dialog(ctx),
         }
     }
 }

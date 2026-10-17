@@ -827,7 +827,6 @@ pub enum SettingsAction {
     CLIAgents(CLIAgentsPageAction),
     EditorAndCodeReview(EditorAndCodeReviewPageAction),
     WarpifyPageToggle(WarpifyPageAction),
-    Tab,
     Split(Direction),
     ToggleMaximizePane,
     Close,
@@ -1776,14 +1775,6 @@ impl SettingsView {
         self.set_and_refresh_current_page_internal(target_section, false, false, ctx);
     }
 
-    fn input_tab(&mut self, ctx: &mut ViewContext<Self>) {
-        if let Some(current_page) = self.current_settings_page()
-            && let SettingsPageViewHandle::Keybindings(view_handle) = &current_page.view_handle
-        {
-            view_handle.update(ctx, |view, ctx| view.on_tab_pressed(ctx));
-        }
-    }
-
     pub fn scroll_to_settings_widget(
         &mut self,
         page: SettingsSection,
@@ -2265,7 +2256,6 @@ impl TypedActionView for SettingsView {
                     })
                 }
             }
-            SettingsAction::Tab => self.input_tab(ctx),
             SettingsAction::Split(direction) => {
                 let event = match direction {
                     Direction::Left => PaneEvent::SplitLeft(None),

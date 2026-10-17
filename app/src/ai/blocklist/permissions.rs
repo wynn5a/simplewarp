@@ -800,21 +800,6 @@ impl BlocklistAIPermissions {
         Ok(())
     }
 
-    /// Removes `command` from the auto-execution allowlist.
-    ///
-    /// See [`Self::add_command_to_autoexecution_allowlist`] for more about the allowlist.
-    pub fn remove_command_from_autoexecution_allowlist(
-        &mut self,
-        command: &AgentModeCommandExecutionPredicate,
-        ctx: &mut ModelContext<Self>,
-    ) -> Result<()> {
-        AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles, ctx| {
-            let profile_id = profiles.default_profile_id();
-            profiles.remove_from_command_allowlist(&profile_id, command, ctx);
-        });
-        Ok(())
-    }
-
     /// Forces Agent Mode to ask for user consent before executing commands that match `command`.
     pub fn add_command_to_autoexecution_denylist(
         &mut self,
@@ -824,21 +809,6 @@ impl BlocklistAIPermissions {
         AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles, ctx| {
             let profile_id = profiles.default_profile_id();
             profiles.add_to_command_denylist(&profile_id, &command, ctx);
-        });
-        Ok(())
-    }
-
-    /// Removes `command` from the auto-execution denylist.
-    ///
-    /// See [`Self::add_command_to_autoexecution_denylist`] for more about the denylist.
-    pub fn remove_command_from_denylist(
-        &mut self,
-        command: &AgentModeCommandExecutionPredicate,
-        ctx: &mut ModelContext<Self>,
-    ) -> Result<()> {
-        AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles, ctx| {
-            let profile_id = profiles.default_profile_id();
-            profiles.remove_from_command_denylist(&profile_id, command, ctx);
         });
         Ok(())
     }
@@ -940,19 +910,6 @@ impl BlocklistAIPermissions {
         AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles, ctx| {
             let profile_id = profiles.default_profile_id();
             profiles.add_to_directory_allowlist(&profile_id, &filepath, ctx);
-        });
-        Ok(())
-    }
-
-    /// Counterpart to [`Self::add_filepath_to_code_read_allowlist`].
-    pub fn remove_filepath_from_code_read_allowlist(
-        &mut self,
-        filepath: PathBuf,
-        ctx: &mut ModelContext<Self>,
-    ) -> Result<()> {
-        AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles, ctx| {
-            let profile_id = profiles.default_profile_id();
-            profiles.remove_from_directory_allowlist(&profile_id, &filepath, ctx);
         });
         Ok(())
     }

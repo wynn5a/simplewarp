@@ -77,20 +77,11 @@ pub enum ExecutionProfileEditorViewAction {
     SetCallMcpServers {
         permission: ActionPermission,
     },
-    AddToCommandAllowlist {
-        predicate: AgentModeCommandExecutionPredicate,
-    },
     RemoveFromCommandAllowlist {
-        predicate: AgentModeCommandExecutionPredicate,
-    },
-    AddToCommandDenylist {
         predicate: AgentModeCommandExecutionPredicate,
     },
     RemoveFromCommandDenylist {
         predicate: AgentModeCommandExecutionPredicate,
-    },
-    AddToDirectoryAllowlist {
-        path: PathBuf,
     },
     RemoveFromDirectoryAllowlist {
         path: PathBuf,
@@ -1076,33 +1067,15 @@ impl TypedActionView for ExecutionProfileEditorView {
                 });
                 ctx.notify();
             }
-            ExecutionProfileEditorViewAction::AddToCommandAllowlist { predicate } => {
-                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                    profiles_model.add_to_command_allowlist(&self.profile_id, predicate, ctx);
-                });
-                ctx.notify();
-            }
             ExecutionProfileEditorViewAction::RemoveFromCommandAllowlist { predicate } => {
                 AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
                     profiles_model.remove_from_command_allowlist(&self.profile_id, predicate, ctx);
                 });
                 ctx.notify();
             }
-            ExecutionProfileEditorViewAction::AddToCommandDenylist { predicate } => {
-                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                    profiles_model.add_to_command_denylist(&self.profile_id, predicate, ctx);
-                });
-                ctx.notify();
-            }
             ExecutionProfileEditorViewAction::RemoveFromCommandDenylist { predicate } => {
                 AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
                     profiles_model.remove_from_command_denylist(&self.profile_id, predicate, ctx);
-                });
-                ctx.notify();
-            }
-            ExecutionProfileEditorViewAction::AddToDirectoryAllowlist { path } => {
-                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                    profiles_model.add_to_directory_allowlist(&self.profile_id, path, ctx);
                 });
                 ctx.notify();
             }

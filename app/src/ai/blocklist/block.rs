@@ -3908,14 +3908,6 @@ pub enum AIBlockAction {
     Rated {
         is_positive: bool,
     },
-    /// Clear the selections of all other views **except** for the source view that dispatched the event.
-    /// The `source_view_id` will be `None` if the event is dispatched by the [`warpui::elements::SelectableArea`]
-    /// instead of a nested view (i.e. code block, requested command, etc.), which means all nested views
-    /// should have their selections cleared.
-    ClearOtherSelections {
-        source_view_id: Option<EntityId>,
-        source_window_id: WindowId,
-    },
     /// Copy both query and AI output (see below)
     Copy,
     /// Copy the content from the previous user query.
@@ -4209,12 +4201,6 @@ impl TypedActionView for AIBlock {
                         DismissibleToast::default(String::from("Thank you for the feedback!"));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
-            }
-            AIBlockAction::ClearOtherSelections {
-                source_view_id,
-                source_window_id,
-            } => {
-                self.clear_other_selections(*source_view_id, *source_window_id, ctx);
             }
             AIBlockAction::CopyQuery => {
                 // Copy the prompt from the preceding user query (where overflow menu would appear)

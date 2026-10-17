@@ -785,7 +785,6 @@ impl View for AgentInputFooter {
 pub enum AgentInputFooterAction {
     SelectFile,
     InsertFilePath(String),
-    ToggleCodeReview,
     ToggleFileExplorer,
     ToggleAutodetectionSetting,
     OpenCodingAgentSettings,
@@ -811,11 +810,6 @@ impl TypedActionView for AgentInputFooter {
                 if let Some(_agent) = self.cli_agent(ctx) {}
                 let path_with_space = format!("{path} ");
                 ctx.emit(AgentInputFooterEvent::WriteToPty(path_with_space));
-            }
-            AgentInputFooterAction::ToggleCodeReview => {
-                if let Some(agent) = self.cli_agent(ctx) {
-                    ctx.emit(AgentInputFooterEvent::ToggleCodeReviewPane(agent));
-                }
             }
             AgentInputFooterAction::ToggleFileExplorer => {
                 ctx.emit(AgentInputFooterEvent::ToggleFileExplorer(
