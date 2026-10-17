@@ -7,7 +7,7 @@ use siphasher::sip::SipHasher;
 use uuid::Uuid;
 use warp_errors::report_error;
 
-use crate::ai::mcp::{TemplatableMCPServer, TemplateVariable};
+use crate::ai::mcp::TemplatableMCPServer;
 
 lazy_static! {
     static ref HASHER: SipHasher = SipHasher::new_with_keys(0, 0);
@@ -91,10 +91,6 @@ impl TemplatableMCPServerInstallation {
         &self.templatable_mcp_server.template.json
     }
 
-    pub fn template_variables(&self) -> &Vec<TemplateVariable> {
-        &self.templatable_mcp_server.template.variables
-    }
-
     pub fn variable_values(&self) -> &HashMap<String, VariableValue> {
         &self.variable_values
     }
@@ -104,12 +100,5 @@ impl TemplatableMCPServerInstallation {
             .gallery_data
             .as_ref()
             .map(|g| g.gallery_item_id)
-    }
-
-    pub fn gallery_version(&self) -> Option<i32> {
-        self.templatable_mcp_server
-            .gallery_data
-            .as_ref()
-            .map(|g| g.version)
     }
 }

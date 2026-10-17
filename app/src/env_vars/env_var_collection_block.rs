@@ -198,10 +198,6 @@ impl EnvVarCollectionBlock {
         ctx.focus_self();
     }
 
-    pub fn get_block_id(&self) -> &String {
-        &self.block_id
-    }
-
     pub fn is_block_completed(&self) -> bool {
         self.state.has_completed()
     }

@@ -23,7 +23,6 @@ use crate::terminal::{ShellLaunchData, SizeUpdate};
 /// resizing, command execution, and native shell completions.
 pub enum PtyIntent {
     CtrlD,
-    Interrupt,
     ShutdownPty,
     WriteBytes(Cow<'static, [u8]>),
     WriteAgentInput {

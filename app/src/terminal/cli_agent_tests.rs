@@ -197,11 +197,6 @@ fn test_from_serialized_name_falls_back_to_unknown() {
 }
 
 #[test]
-fn test_oh_my_pi_supports_bash_mode() {
-    assert!(CLIAgent::OhMyPi.supports_bash_mode());
-}
-
-#[test]
 fn test_warp_tui_matches_binaries_and_launchers() {
     // Direct binary names.
     assert!(CLIAgent::WarpTui.matches_command("warp", None));
@@ -266,8 +261,6 @@ fn test_warp_tui_variant_properties() {
     assert_eq!(CLIAgent::WarpTui.brand_color(), Some(ColorU::black()));
     assert_eq!(CLIAgent::WarpTui.icon(), Some(Icon::Warp));
     assert_eq!(CLIAgent::WarpTui.brand_icon_color(), ColorU::white());
-    assert!(CLIAgent::WarpTui.supported_skill_providers().is_empty());
-    assert!(!CLIAgent::WarpTui.supports_bash_mode());
     assert!(!CLIAgent::WarpTui.supports_cli_agent_footer());
     // Serialized name round-trips (also covered by
     // `test_serialized_name_round_trips_known_agents`, asserted explicitly here).

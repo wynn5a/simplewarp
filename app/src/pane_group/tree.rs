@@ -212,10 +212,6 @@ impl PaneData {
         self.root.has_horizontal_split(&self.hidden_panes)
     }
 
-    pub fn num_hidden_panes(&self) -> usize {
-        self.hidden_panes.len()
-    }
-
     pub fn remove_hidden_pane(&mut self, pane_id: PaneId) {
         self.hidden_panes.retain(|pane| pane.pane_id != pane_id);
     }

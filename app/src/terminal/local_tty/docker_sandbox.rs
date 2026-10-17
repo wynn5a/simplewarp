@@ -47,18 +47,6 @@ fn docker_sandbox_host_root() -> PathBuf {
     warp_core::paths::cache_dir().join("docker-sandbox")
 }
 
-/// Resolves the absolute path to the `sbx` CLI binary using the Warp
-/// process's `PATH`.
-///
-/// Warp's process `PATH` is minimal and often misses user-shell-installed
-/// tools (e.g. homebrew on Apple Silicon when Warp is launched from Finder,
-/// or `~/.local/bin`). Prefer [`resolve_sbx_path_from_user_shell`], which
-/// captures the PATH from the user's interactive login shell, the same way
-/// MCP servers and LSP resolve binaries.
-pub fn resolve_sbx_path() -> Option<PathBuf> {
-    resolve_executable("sbx").map(|p| p.into_owned())
-}
-
 /// Resolves `sbx` using the PATH captured from the user's interactive login
 /// shell, matching how MCP servers and LSP find binaries.
 ///

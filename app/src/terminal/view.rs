@@ -3881,26 +3881,6 @@ impl TerminalView {
         }
     }
 
-    /// Append a prompt to the queued-query singleton for regular Agent Mode queueing surfaces
-    /// such as the queue-next toggle and `/queue`. Returns `None` if no conversation is selected
-    /// (e.g. the agent view is closed), in which case the prompt is silently dropped.
-    pub fn enqueue_prompt(
-        &mut self,
-        prompt: String,
-        origin: QueuedQueryOrigin,
-        ctx: &mut ViewContext<Self>,
-    ) -> Option<QueuedQueryId> {
-        // Guard against queueing when no conversation is active to avoid stranding prompts.
-        let conversation_id = self
-            .ai_context_model
-            .as_ref(ctx)
-            .selected_conversation_id(ctx)?;
-        let id = QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
-            model.append(conversation_id, QueuedQuery::new(prompt, origin), ctx)
-        });
-        Some(id)
-    }
-
     /// Files a follow-up prompt that will run after the next conversation finishes on
     /// `conversation_id`. Used by `/compact-and` (targets the active conversation) and
     /// `/fork-and-compact` (targets the newly forked conversation, which may differ from the
@@ -4148,19 +4128,6 @@ impl TerminalView {
             input.append_to_buffer(content.as_str(), ctx);
             ctx.notify();
         });
-    }
-
-    /// Returns true if the given conversation is currently selected in this terminal.
-    pub fn is_conversation_selected(
-        &self,
-        conversation_id: &AIConversationId,
-        ctx: &AppContext,
-    ) -> bool {
-        self.ai_context_model
-            .as_ref(ctx)
-            .selected_conversation_id(ctx)
-            .map(|id| id == *conversation_id)
-            .unwrap_or(false)
     }
 
     fn handle_ai_context_model_event(
@@ -6426,17 +6393,6 @@ impl TerminalView {
         }
     }
 
-    pub fn set_show_pane_accent_border(
-        &mut self,
-        show_accent_border: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.pane_configuration.update(ctx, |pane_config, ctx| {
-            pane_config.set_show_accent_border(show_accent_border, ctx);
-            ctx.notify();
-        });
-    }
-
     /// Drops the `done`/`error` program status records: the user has moved on from the result.
     fn dismiss_finished_program_status(&self, ctx: &mut ViewContext<Self>) {
         ProgramStatusModel::handle(ctx).update(ctx, |model, ctx| {
@@ -8258,8 +8214,7 @@ impl TerminalView {
                         if let Some(ssh_host) =
                             parse_interactive_ssh_command(warpify_command).map(|cmd| cmd.host)
                         {
-                            self.warpify_state
-                                .set_pending_ssh_host(warpify_command.to_string(), ssh_host);
+                            self.warpify_state.set_pending_ssh_host(ssh_host);
                             self.model.lock().start_notify_on_end_of_ssh_login();
                             ctx.emit(Event::TerminalViewStateChanged);
                         } else {

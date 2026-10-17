@@ -6407,9 +6407,6 @@ impl CodeReviewView {
         }
         unsaved_paths
     }
-    pub fn set_pane_id(&mut self, pane_id: PaneId) {
-        self.containing_pane_id = Some(pane_id);
-    }
 
     pub fn file_sidebar_expanded(&self) -> bool {
         self.file_sidebar_expanded

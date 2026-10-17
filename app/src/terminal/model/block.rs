@@ -1331,11 +1331,6 @@ impl Block {
         self.hidden = false;
     }
 
-    pub fn toggle_hidden(&mut self) -> bool {
-        self.hidden = !self.hidden;
-        self.hidden
-    }
-
     pub fn should_hide_output_grid(&self) -> bool {
         self.should_hide_output_grid
     }

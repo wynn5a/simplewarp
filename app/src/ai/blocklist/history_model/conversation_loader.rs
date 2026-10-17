@@ -117,22 +117,6 @@ impl BlocklistAIHistoryModel {
         }
     }
 
-    /// Loads a conversation by its server token from local state.
-    ///
-    /// First attempts to find the conversation in local metadata and load it
-    /// via `load_conversation_data`.
-    ///
-    /// Note: This does NOT insert the conversation into memory. Callers are responsible
-    /// for inserting the loaded conversation if needed.
-    pub fn load_conversation_by_server_token(
-        &mut self,
-        server_token: &ServerConversationToken,
-    ) -> warpui::r#async::BoxFuture<'static, Option<Box<AIConversation>>> {
-        let conversation_id =
-            self.get_or_set_canonical_conversation_id_for_server_token(server_token);
-        self.load_conversation_data(conversation_id)
-    }
-
     /// Loads a conversation from local DB and returns it.
     /// This is a private helper method. Use `get_load_conversation_data_future` instead.
     ///

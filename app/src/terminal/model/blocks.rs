@@ -1263,19 +1263,6 @@ impl BlockList {
         inserted_index
     }
 
-    /// If the block is hidden, show it. If it's visible, hide it. See implementation
-    /// of Block::hidden for how this works.
-    pub fn toggle_visibility_of_block(&mut self, block_id: &BlockId) -> Option<bool> {
-        if let Some(block) = self.mut_block_from_id(block_id) {
-            let is_visible = !block.toggle_hidden();
-
-            // Force a re-draw since the blocklist has changed.
-            self.event_proxy.send_wakeup_event();
-            return Some(is_visible);
-        }
-        None
-    }
-
     pub fn is_executing_oz_environment_startup_commands(&self) -> bool {
         self.is_executing_oz_environment_startup_commands
     }

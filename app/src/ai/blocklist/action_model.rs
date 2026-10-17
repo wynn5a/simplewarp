@@ -276,11 +276,6 @@ impl BlocklistAIActionModel {
         }
     }
 
-    /// Enable or disable view-only mode (for use in agent session sharing).
-    pub fn set_view_only(&mut self, is_view_only: bool) {
-        self.is_view_only = is_view_only;
-    }
-
     /// Returns true if the action model is operating in view-only mode (used for shared-session viewers).
     pub fn is_view_only(&self) -> bool {
         self.is_view_only
@@ -389,25 +384,6 @@ impl BlocklistAIActionModel {
             finished_results
                 .sort_by_key(|result| action_order.get(&result.id).copied().unwrap_or(usize::MAX));
         }
-    }
-
-    /// Returns all pending actions for all conversations.
-    pub fn get_pending_actions(&self) -> Vec<&AIAgentAction> {
-        self.pending_actions
-            .values()
-            .flat_map(|queue| queue.iter())
-            .collect()
-    }
-
-    /// Returns all pending actions for a specific conversation.
-    pub fn get_pending_actions_for_conversation(
-        &self,
-        conversation_id: &AIConversationId,
-    ) -> impl Iterator<Item = &AIAgentAction> + use<'_> {
-        self.pending_actions
-            .get(conversation_id)
-            .into_iter()
-            .flat_map(|queue| queue.iter())
     }
 
     /// Returns the next pending action

@@ -675,12 +675,6 @@ impl NewTerminalOptions {
         self.initial_directory = path;
         self
     }
-
-    /// Returns new options with the homepage hidden.
-    pub fn with_homepage_hidden(mut self) -> Self {
-        self.hide_homepage = true;
-        self
-    }
 }
 
 /// The possible layouts of a pane group.
@@ -2487,21 +2481,6 @@ impl PaneGroup {
     }
 
     pub fn notebook_pane_by_pane_id(&self, pane_id: Option<PaneId>) -> Option<&NotebookPane> {
-        self.downcast_pane_by_id(pane_id?)
-    }
-
-    pub fn env_var_collection_pane_by_pane_id(
-        &self,
-        pane_id: Option<PaneId>,
-    ) -> Option<&EnvVarCollectionPane> {
-        self.downcast_pane_by_id(pane_id?)
-    }
-
-    pub fn workflow_pane_by_pane_id(&self, pane_id: Option<PaneId>) -> Option<&WorkflowPane> {
-        self.downcast_pane_by_id(pane_id?)
-    }
-
-    pub fn ai_fact_pane_by_pane_id(&self, pane_id: Option<PaneId>) -> Option<&AIFactPane> {
         self.downcast_pane_by_id(pane_id?)
     }
 

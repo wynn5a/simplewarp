@@ -6,7 +6,6 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use ai::skills::SkillProvider;
 use enum_iterator::Sequence;
 use pathfinder_color::ColorU;
 use serde::{Deserialize, Serialize};
@@ -259,39 +258,6 @@ impl CLIAgent {
         }
     }
 
-    /// Returns the skill providers whose skills this CLI agent can natively interpret.
-    /// When the CLI agent rich input is open, only skills from these providers are shown
-    /// in the slash menu. Returns an empty slice for agents with no known skills support.
-    pub fn supported_skill_providers(&self) -> &'static [SkillProvider] {
-        match self {
-            CLIAgent::Claude => &[SkillProvider::Claude],
-            CLIAgent::Codex => &[
-                SkillProvider::Agents,
-                SkillProvider::Claude,
-                SkillProvider::Codex,
-            ],
-            CLIAgent::OpenCode => &[
-                SkillProvider::OpenCode,
-                SkillProvider::Agents,
-                SkillProvider::Claude,
-            ],
-            CLIAgent::Gemini => &[SkillProvider::Agents, SkillProvider::Gemini],
-            CLIAgent::Amp => &[SkillProvider::Agents],
-            CLIAgent::Copilot => &[SkillProvider::Agents, SkillProvider::Copilot],
-            CLIAgent::Droid => &[SkillProvider::Droid, SkillProvider::Agents],
-            CLIAgent::Pi => &[SkillProvider::Agents],
-            CLIAgent::OhMyPi => &[SkillProvider::Agents],
-            CLIAgent::Auggie => &[SkillProvider::Agents],
-            CLIAgent::CursorCli => &[SkillProvider::Agents],
-            CLIAgent::Goose => &[SkillProvider::Agents],
-            CLIAgent::Hermes => &[SkillProvider::Agents],
-            CLIAgent::Vibe => &[SkillProvider::Agents],
-            CLIAgent::Antigravity => &[],
-            CLIAgent::WarpTui => &[],
-            CLIAgent::Unknown => &[],
-        }
-    }
-
     /// Returns the prefix character used for skill invocations by this CLI agent.
     /// Most agents use `/` (e.g. `/skill-name`), but Codex uses `$` (e.g. `$skill-name`).
     pub fn skill_command_prefix(&self) -> &'static str {
@@ -299,19 +265,6 @@ impl CLIAgent {
             CLIAgent::Codex => "$",
             _ => "/",
         }
-    }
-
-    /// Whether this CLI agent supports the `!` bash mode prefix in the rich input.
-    /// When `true`, typing `!` in the CLI agent rich input activates shell mode with
-    /// decorations, completions, and error underlining.
-    ///
-    /// TODO(advait): Check whether Gemini, Amp, Droid, and Copilot support `!` bash
-    /// mode and enable them here if so.
-    pub fn supports_bash_mode(&self) -> bool {
-        matches!(
-            self,
-            CLIAgent::Claude | CLIAgent::Codex | CLIAgent::OpenCode | CLIAgent::OhMyPi
-        )
     }
 
     /// Whether Warp should show its CLI-agent footer for this agent.

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use warpui::elements::MouseStateHandle;
-use warpui::{AppContext, EntityId, SingletonEntity, ViewContext, ViewHandle, WindowId};
+use warpui::{AppContext, EntityId, SingletonEntity, ViewContext, WindowId};
 
 use crate::appearance::Appearance;
 use crate::pane_group::PaneId;
@@ -257,26 +257,6 @@ pub fn is_terminal_view_in_same_tab(
         .any(|tab_pane_group| {
             tab_pane_group.terminal_ids.contains(terminal_view_id_1)
                 && tab_pane_group.terminal_ids.contains(terminal_view_id_2)
-        })
-}
-
-/// Returns the active terminal session view in the active tab. This is used as the target for any
-/// selections in the adjacent editor.
-pub fn get_context_target_terminal_view(
-    window_id: WindowId,
-    ctx: &AppContext,
-) -> Option<ViewHandle<TerminalView>> {
-    ctx.views_of_type::<Workspace>(window_id)
-        .as_ref()
-        .and_then(|v| v.first())
-        .and_then(|handle| {
-            handle.read(ctx, |workspace, w_ctx| {
-                workspace
-                    .active_tab_pane_group()
-                    .read(w_ctx, |active_group, a_ctx| {
-                        active_group.active_session_view(a_ctx)
-                    })
-            })
         })
 }
 

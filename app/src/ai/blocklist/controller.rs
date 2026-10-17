@@ -721,26 +721,6 @@ impl BlocklistAIController {
         }
     }
 
-    /// Sends a query into an existing conversation as an agent-initiated request.
-    /// This is the agent-initiated counterpart to `send_user_query_in_conversation`.
-    pub fn send_agent_query_in_conversation(
-        &mut self,
-        query: String,
-        conversation_id: AIConversationId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.send_user_query_in_conversation_internal(
-            query,
-            conversation_id,
-            false,
-            HashMap::new(),
-            EntrypointType::AgentInitiated,
-            /*is_queued_prompt*/ false,
-            /*queued_query_id*/ None,
-            ctx,
-        );
-    }
-
     /// Sends the given user query to the AI model, returning whether it
     /// reached the shared request dispatch path.
     pub fn send_user_query_in_conversation(

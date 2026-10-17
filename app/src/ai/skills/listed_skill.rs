@@ -19,11 +19,6 @@ pub struct SkillDescriptor {
 }
 
 impl SkillDescriptor {
-    /// Returns whether this skill is from a project directory (vs home directory).
-    pub fn is_project_skill(&self) -> bool {
-        self.scope == SkillScope::Project
-    }
-
     pub fn new_bundled(id: String, skill: ParsedSkill, icon: Icon) -> Self {
         Self {
             provider: SkillProvider::Warp,

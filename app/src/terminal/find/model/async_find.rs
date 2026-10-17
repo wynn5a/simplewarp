@@ -749,11 +749,6 @@ impl AsyncFindController {
         self.rich_content_views.insert(view_id, handle);
     }
 
-    /// Unregisters a rich content view.
-    pub(crate) fn unregister_rich_content_view(&mut self, view_id: EntityId) {
-        self.rich_content_views.remove(&view_id);
-    }
-
     /// Starts a new find operation with the given options.
     ///
     /// If a find operation is already in progress, it will be cancelled first.
@@ -1058,11 +1053,6 @@ impl AsyncFindController {
         self.block_results
             .terminal_matches
             .get(&(block_index, grid_type))
-    }
-
-    /// Returns matches for a specific AI block.
-    pub fn matches_for_ai_block(&self, view_id: EntityId) -> Option<&Vec<RichContentMatchId>> {
-        self.block_results.ai_matches.get(&view_id)
     }
 
     /// Prunes truncated matches for a specific block and grid type.

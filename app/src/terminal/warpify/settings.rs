@@ -462,15 +462,6 @@ impl WarpifySettings {
             .expect("added_subshell_commands failed to serialize");
         ctx.notify();
     }
-
-    pub fn remove_denylisted_ssh_host(&mut self, index: usize, ctx: &mut ModelContext<Self>) {
-        let mut new_denylist = self.ssh_hosts_denylist.to_vec();
-        new_denylist.remove(index);
-        self.ssh_hosts_denylist
-            .set_value(new_denylist, ctx)
-            .expect("ssh_hosts_denylist failed to serialize");
-        ctx.notify();
-    }
 }
 
 #[cfg(test)]

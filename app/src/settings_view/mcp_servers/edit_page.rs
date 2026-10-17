@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -11,7 +10,6 @@ use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
 use warp_editor::content::buffer::InitialBufferState;
 use warp_editor::render::element::VerticalExpansionBehavior;
-use warp_errors::report_error;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, Container, CornerRadius, CrossAxisAlignment, Flex,
     MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
@@ -23,17 +21,15 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use crate::GlobalResourceHandlesProvider;
 use crate::ai::blocklist::secret_redaction::find_secrets_in_text;
 use crate::ai::mcp::parsing::{ParsedTemplatableMCPServerResult, prettify_json, resolve_json};
 use crate::ai::mcp::templatable::CloudTemplatableMCPServer;
 use crate::ai::mcp::{
-    MCPServer, TemplatableMCPServer, TemplatableMCPServerInstallation, TemplatableMCPServerManager,
-    TransportType,
+    TemplatableMCPServer, TemplatableMCPServerInstallation, TemplatableMCPServerManager,
 };
 use crate::cloud_object::CloudObject;
 use crate::code::editor::view::{CodeEditorRenderOptions, CodeEditorView};
-use crate::persistence::{ModelEvent, database_file_path, establish_ro_connection};
+use crate::persistence::{database_file_path, establish_ro_connection};
 use crate::settings_view::mcp_servers::destructive_mcp_confirmation_dialog::{
     DestructiveMCPConfirmationDialog, DestructiveMCPConfirmationDialogEvent,
 };
@@ -554,34 +550,6 @@ impl MCPServersEditPageView {
                     ctx.notify();
                 }
             }
-        }
-    }
-
-    pub fn save_mcp_server_env_vars(mcp_server: MCPServer, ctx: &mut ViewContext<Self>) {
-        if let TransportType::CLIServer(cli_server) = &mcp_server.transport_type {
-            let env_vars: HashMap<String, String> = cli_server
-                .static_env_vars
-                .iter()
-                .map(|env_var| (env_var.name.clone(), env_var.value.clone()))
-                .collect();
-            let Ok(env_vars_string) = serde_json::to_string(&env_vars) else {
-                report_error!("Could not serialize MCP env vars");
-                return;
-            };
-            let global_resource_handles = GlobalResourceHandlesProvider::as_ref(ctx).get().clone();
-
-            if let Some(model_event_sender) = &global_resource_handles.model_event_sender
-                && let Err(e) =
-                    model_event_sender.send(ModelEvent::UpsertMCPServerEnvironmentVariables {
-                        mcp_server_uuid: mcp_server.uuid.as_bytes().to_vec(),
-                        environment_variables: env_vars_string,
-                    })
-            {
-                report_error!(
-                    anyhow::Error::new(e)
-                        .context("Error persisting MCP server env vars to database")
-                );
-            };
         }
     }
 

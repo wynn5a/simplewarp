@@ -64,6 +64,7 @@ pub struct QueuedQuery {
 }
 
 impl QueuedQuery {
+    #[cfg(test)]
     pub fn new(text: String, origin: QueuedQueryOrigin) -> Self {
         Self::new_with_attachments(text, origin, Vec::new())
     }

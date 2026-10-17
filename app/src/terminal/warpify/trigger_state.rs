@@ -11,7 +11,6 @@ use crate::terminal::model::block::BlockId;
 use crate::terminal::model::session::SessionId;
 use crate::terminal::model::terminal_model::SubshellInitializationInfo;
 use crate::terminal::settings::TerminalSettings;
-use crate::terminal::shell::ShellType;
 use crate::terminal::{TerminalModel, TerminalView};
 
 /// A unique identifier for a subshell separator.
@@ -85,8 +84,6 @@ struct WarpifyTriggerState {
     /// TerminalEvent::BlockCompleted event can abort the banner.
     subshell_banner_abort_handle: Option<SpawnedFutureHandle>,
 
-    /// The command which may trigger ssh Warpification
-    pending_command: Option<String>,
     /// The Host which may trigger ssh Warpification
     pending_warpify_ssh_host: Option<String>,
 
@@ -94,10 +91,6 @@ struct WarpifyTriggerState {
     ssh_block_state: Option<SshBlockState>,
 
     ssh_warpify_timeout_handle: Option<SpawnedFutureHandle>,
-
-    shell_type: Option<ShellType>,
-
-    is_shell_detection_in_progress: bool,
 }
 
 #[derive(Default)]
@@ -112,35 +105,6 @@ pub struct WarpifyState {
 }
 
 impl WarpifyState {
-    pub fn delete_state(&mut self) {
-        self.pending_state.take();
-    }
-
-    pub fn is_shell_detection_in_progress(&self) -> bool {
-        self.pending_state
-            .as_ref()
-            .map(|state| state.is_shell_detection_in_progress)
-            .unwrap_or_default()
-    }
-
-    pub fn set_shell_detection_in_progress(&mut self) {
-        if let Some(ref mut pending_state) = self.pending_state.as_mut() {
-            pending_state.is_shell_detection_in_progress = true;
-        }
-    }
-
-    pub fn set_shell_type(&mut self, shell_type: &ShellType) {
-        let pending_state = self.pending_state.get_or_insert_with(Default::default);
-        pending_state.shell_type = Some(shell_type.to_owned());
-        pending_state.is_shell_detection_in_progress = false;
-    }
-
-    pub fn get_shell_type(&self) -> Option<ShellType> {
-        self.pending_state
-            .as_ref()
-            .and_then(|state| state.shell_type)
-    }
-
     pub fn add_subshell_separator(
         &mut self,
         subshell_info: &SubshellInitializationInfo,
@@ -195,11 +159,6 @@ impl WarpifyState {
         };
     }
 
-    pub fn add_ssh_warpify_timeout_handle(&mut self, spawned_future_handle: SpawnedFutureHandle) {
-        let pending_state = self.pending_state.get_or_insert_with(Default::default);
-        pending_state.ssh_warpify_timeout_handle = Some(spawned_future_handle);
-    }
-
     pub fn abort_ssh_warpify_timeout(&mut self) {
         self.replace_timeout_id();
         if let Some(handle) = self
@@ -234,27 +193,14 @@ impl WarpifyState {
             .and_then(|state: &WarpifyTriggerState| state.pending_warpify_ssh_host.clone())
     }
 
-    pub fn get_pending_ssh_command(&self) -> Option<String> {
-        self.pending_state
-            .as_ref()
-            .and_then(|state: &WarpifyTriggerState| state.pending_command.clone())
-    }
-
-    pub fn take_pending_ssh_host(&mut self) -> Option<String> {
-        self.pending_state
-            .as_mut()
-            .and_then(|state: &mut WarpifyTriggerState| state.pending_warpify_ssh_host.take())
-    }
-
     pub fn clear_pending_ssh_host(&mut self) {
         if let Some(ref mut pending_state) = self.pending_state.as_mut() {
             pending_state.pending_warpify_ssh_host = None;
         }
     }
 
-    pub fn set_pending_ssh_host(&mut self, command: String, ssh_host: Option<String>) {
+    pub fn set_pending_ssh_host(&mut self, ssh_host: Option<String>) {
         let pending_state = self.pending_state.get_or_insert_with(Default::default);
-        pending_state.pending_command = Some(command);
         pending_state.pending_warpify_ssh_host = ssh_host;
     }
 
