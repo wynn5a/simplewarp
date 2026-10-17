@@ -13,7 +13,6 @@ test = false
 
 [dependencies]
 anyhow = "1.0"
-backtrace.workspace = true
 cfg-if.workspace = true
 chrono.workspace = true
 clap.workspace = true
@@ -26,13 +25,10 @@ lazy_static = "1.4.0"
 log = { version = "0.4", features = ["serde"] }
 parking_lot = { version = "0.12.1", features = ["serde"] }
 pathfinder_geometry.workspace = true
-rand = "0.8.2"
 regex.workspace = true
 rust-embed.workspace = true
-serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json.workspace = true
 settings.workspace = true
-simplelog.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
 sum_tree.workspace = true
@@ -40,15 +36,12 @@ version-compare.workspace = true
 warp = { workspace = true, features = ["integration_tests"] }
 warp_cli = { workspace = true, features = ["integration_tests"] }
 warp_core.workspace = true
-warp-command-signatures.workspace = true
 warp_multi_agent_api.workspace = true
-warp-workflows.workspace = true
 warpui_core.workspace = true
 warpui_extras = { workspace = true, features = [
     "user_preferences-file",
 ] }
 whoami = "1.5.2"
-diesel = { version = "2.2.4", features = ["sqlite", "chrono"] }
 sysinfo.workspace = true
 
 [dev-dependencies]

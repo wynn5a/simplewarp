@@ -112,14 +112,11 @@ dependencies = [
  "arborium",
  "async-channel",
  "async-fs",
- "async-trait",
- "bincode",
  "bytes",
  "cfg-if",
  "chrono",
  "derivative",
  "dirs 6.0.0",
- "dunce",
  "futures",
  "ignore",
  "itertools 0.14.0",
@@ -127,7 +124,6 @@ dependencies = [
  "lazy_static",
  "log",
  "nix 0.26.4",
- "notify-debouncer-full",
  "persistence",
  "prost-types",
  "rayon",
@@ -140,14 +136,12 @@ dependencies = [
  "serial_test",
  "shellexpand",
  "streaming-iterator",
- "string-offset",
  "strsim",
  "strum",
  "strum_macros",
  "syntax_tree",
  "tempfile",
  "thiserror 2.0.17",
- "tokio",
  "typed-path",
  "unicode-width 0.1.14",
  "uuid",
@@ -1099,28 +1093,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-stream"
-version = "0.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd56dd203fef61ac097dd65721a419ddccb106b2d2b70ba60a6b529f03961a51"
-dependencies = [
- "async-stream-impl",
- "futures-core",
- "pin-project-lite",
-]
-
-[[package]]
-name = "async-stream-impl"
-version = "0.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16e62a023e7c117e27523144c5d2459f4397fcc3cab0085af8e2224f643a0193"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
 name = "async-task"
 version = "4.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1998,7 +1970,6 @@ dependencies = [
  "uuid",
  "warp-workflows",
  "warp_cli",
- "warp_core",
  "warp_errors",
  "warp_util",
 ]
@@ -2007,16 +1978,10 @@ dependencies = [
 name = "cloud_object_persistence"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "bincode",
- "chrono",
  "cloud_objects",
  "diesel",
  "lazy_static",
- "log",
  "persistence",
- "serde",
- "warp_core",
 ]
 
 [[package]]
@@ -2537,13 +2502,9 @@ checksum = "d8b9f2e4c67f833b660cdb0a3523065869fb35570177239812ed4c905aeff87b"
 dependencies = [
  "bitflags 2.13.0",
  "crossterm_winapi",
- "derive_more 2.0.1",
  "document-features",
- "mio",
  "parking_lot",
  "rustix 1.1.2",
- "signal-hook",
- "signal-hook-mio",
  "winapi",
 ]
 
@@ -2837,27 +2798,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "derive_more"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "093242cf7570c207c83073cf82f79706fe7b8317e98620a47d5be7c3d8497678"
-dependencies = [
- "derive_more-impl",
-]
-
-[[package]]
-name = "derive_more-impl"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bda628edc44c4bb645fbe0f758797143e4e07926f7ebf4e9bdfbd3d2ce621df3"
-dependencies = [
- "convert_case 0.7.1",
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
 name = "dhat"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3138,14 +3078,6 @@ name = "either"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a26ae43d7bcc3b814de94796a5e736d4029efb0ee900c12e2d54c993ad1a1e07"
-
-[[package]]
-name = "email_address"
-version = "0.2.3"
-source = "git+https://github.com/warpdotdev/rust-email_address?branch=main#b3e5205b4efdc83832f230d8eb6894fd00a9ec32"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "email_address"
@@ -4841,7 +4773,6 @@ dependencies = [
  "clap",
  "futures",
  "futures-lite 1.13.0",
- "instant",
  "itertools 0.14.0",
  "lazy_static",
  "log",
@@ -4849,22 +4780,7 @@ dependencies = [
  "serde",
  "smol_str",
  "warp_completer",
- "warp_errors",
  "warp_features",
-]
-
-[[package]]
-name = "inquire"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2628910d0114e9139056161d8644a2026be7b117f8498943f9437748b04c9e0a"
-dependencies = [
- "bitflags 2.13.0",
- "crossterm",
- "dyn-clone",
- "fuzzy-matcher",
- "unicode-segmentation",
- "unicode-width 0.2.1",
 ]
 
 [[package]]
@@ -4881,12 +4797,10 @@ name = "integration"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "backtrace",
  "cfg-if",
  "chrono",
  "clap",
  "command",
- "diesel",
  "directories",
  "float-cmp",
  "instant",
@@ -4896,21 +4810,16 @@ dependencies = [
  "nix 0.26.4",
  "parking_lot",
  "pathfinder_geometry",
- "rand 0.8.6",
  "regex",
  "rust-embed 8.7.2",
- "serde",
  "serde_json",
  "settings",
- "simplelog",
  "strum",
  "strum_macros",
  "sum_tree",
  "sysinfo",
  "version-compare",
  "warp",
- "warp-command-signatures",
- "warp-workflows",
  "warp_cli",
  "warp_core",
  "warp_multi_agent_api",
@@ -5065,17 +4974,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
 
 [[package]]
-name = "iso8601-duration"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a26adff60a5d3ca10dc271ad37a34ff376595d2a1e5f21d02564929ca888c511"
-dependencies = [
- "chrono",
- "nom 7.1.3",
- "serde",
-]
-
-[[package]]
 name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5201,7 +5099,7 @@ dependencies = [
  "ahash 0.8.11",
  "bytecount",
  "data-encoding",
- "email_address 0.2.9",
+ "email_address",
  "fancy-regex",
  "fraction",
  "getrandom 0.3.4",
@@ -5495,14 +5393,11 @@ dependencies = [
  "aha-reqwest-eventsource",
  "chrono",
  "futures",
- "prost",
  "prost-types",
  "reqwest",
- "serde",
  "serde_json",
  "thiserror 2.0.17",
  "tokio",
- "tracing",
  "uuid",
  "warp_multi_agent_api",
 ]
@@ -5582,7 +5477,6 @@ dependencies = [
  "async-fs",
  "async-process",
  "async-trait",
- "cfg-if",
  "chrono",
  "command",
  "env_logger",
@@ -5620,15 +5514,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_repr",
-]
-
-[[package]]
-name = "lz4_flex"
-version = "0.11.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "373f5eceeeab7925e0c1098212f2fbc4d416adec9d35051a6ab251e824c1854a"
-dependencies = [
- "twox-hash",
 ]
 
 [[package]]
@@ -5709,7 +5594,6 @@ dependencies = [
  "markup5ever_rcdom",
  "nom 7.1.3",
  "serde_yaml 0.8.26",
- "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -6177,7 +6061,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-fs",
- "async-trait",
  "cfg-if",
  "command",
  "flate2",
@@ -6186,8 +6069,6 @@ dependencies = [
  "log",
  "semver",
  "serde",
- "serde_json",
- "sha2",
  "tar",
  "warp_core",
  "zip",
@@ -6928,16 +6809,6 @@ name = "ordered_hashmap"
 version = "0.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb1ea499d242299d564879c8b375c11285f5a26d62d8010768909d6d099c4c5a"
-
-[[package]]
-name = "os_info"
-version = "3.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "006e42d5b888366f1880eda20371fedde764ed2213dc8496f49622fa0c99cd5e"
-dependencies = [
- "log",
- "winapi",
-]
 
 [[package]]
 name = "os_pipe"
@@ -7694,12 +7565,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5a041e753da8b807c9255f28de81879c78c876392ff2469cde94799b2896b9d"
 
 [[package]]
-name = "qrcode"
-version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d68782463e408eb1e668cf6152704bd856c78c5b6417adaee3203d8f4c1fc9ec"
-
-[[package]]
 name = "quick-error"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8167,7 +8032,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-fs",
- "cfg-if",
  "dirs 6.0.0",
  "dunce",
  "env_logger",
@@ -8177,17 +8041,10 @@ dependencies = [
  "itertools 0.14.0",
  "log",
  "notify-debouncer-full",
- "once_cell",
  "parking_lot",
- "serde",
- "serde_json",
- "strum",
- "strum_macros",
  "tempfile",
  "thiserror 2.0.17",
  "virtual-fs",
- "walkdir",
- "warp_core",
  "warp_errors",
  "warp_util",
  "warpui",
@@ -9581,7 +9438,6 @@ dependencies = [
  "futures",
  "futures-lite 1.13.0",
  "languages",
- "log",
  "parking_lot",
  "rangemap",
  "streaming-iterator",
@@ -9709,7 +9565,7 @@ dependencies = [
  "levenshtein_automata",
  "log",
  "lru",
- "lz4_flex 0.13.0",
+ "lz4_flex",
  "measure_time",
  "memmap2 0.9.7",
  "once_cell",
@@ -10413,18 +10269,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tracing-futures"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97d095ae15e245a057c8e8451bab9b3ee1e1f68e9ba2b4fbc18d0ac5237835f2"
-dependencies = [
- "futures",
- "futures-task",
- "pin-project",
- "tracing",
-]
-
-[[package]]
 name = "trait-set"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10466,12 +10310,6 @@ checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
 dependencies = [
  "core_maths",
 ]
-
-[[package]]
-name = "twox-hash"
-version = "2.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ea3136b675547379c4bd395ca6b938e5ad3c3d20fad76e7fe85f9e0d011419c"
 
 [[package]]
 name = "typed-path"
@@ -10788,21 +10626,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "validator"
-version = "0.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0b4a29d8709210980a09379f27ee31549b73292c87ab9899beee1c0d3be6303"
-dependencies = [
- "idna",
- "once_cell",
- "regex",
- "serde",
- "serde_derive",
- "serde_json",
- "url",
-]
-
-[[package]]
 name = "variant_count"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10858,7 +10681,6 @@ dependencies = [
  "log",
  "string-offset",
  "unindent 0.2.4",
- "warp_core",
  "warpui_core",
 ]
 
@@ -10869,7 +10691,6 @@ dependencies = [
  "dunce",
  "getset",
  "tempfile",
- "typed-path",
 ]
 
 [[package]]
@@ -10946,7 +10767,6 @@ name = "warp"
 version = "0.1.0"
 dependencies = [
  "addr",
- "aha-reqwest-eventsource",
  "aho-corasick",
  "ai",
  "alphanumeric-sort",
@@ -10962,15 +10782,12 @@ dependencies = [
  "async-io",
  "async-process",
  "async-recursion",
- "async-stream",
  "async-trait",
  "base64 0.22.1",
  "bimap",
  "bincode",
  "bitflags 2.13.0",
- "bitflags-serde-legacy",
  "block",
- "blocking",
  "bounded-vec-deque",
  "byte-unit",
  "bytecount",
@@ -10989,10 +10806,8 @@ dependencies = [
  "command",
  "command-corrections",
  "concat-idents",
- "content_inspector",
  "core-foundation 0.10.1",
  "counter",
- "crc",
  "csv",
  "ctor",
  "cvt",
@@ -11006,12 +10821,10 @@ dependencies = [
  "directories",
  "dirs 6.0.0",
  "dunce",
- "email_address 0.2.3",
  "embed-resource",
  "embed_plist",
  "enclose",
  "enum-iterator",
- "env_logger",
  "event-listener",
  "field_mask",
  "flate2",
@@ -11022,7 +10835,6 @@ dependencies = [
  "futures-util",
  "fuzzy_match",
  "gethostname",
- "getset",
  "git2",
  "handlebars",
  "hex",
@@ -11033,12 +10845,10 @@ dependencies = [
  "indexmap 2.12.0",
  "infer",
  "input_classifier",
- "inquire",
  "instant",
  "inventory",
  "ipc",
  "is_executable",
- "iso8601-duration",
  "itertools 0.14.0",
  "jemalloc_pprof",
  "jsonschema",
@@ -11050,24 +10860,18 @@ dependencies = [
  "line-ending",
  "local_inference",
  "log",
- "log-panics",
  "lsp",
  "lsp-types",
- "lz4_flex 0.11.6",
  "markdown_parser",
  "mcp",
- "memchr",
  "memo-map",
  "mermaid_to_svg",
  "mime_guess",
  "mio",
  "mockall",
- "natural_language_detection",
  "nix 0.26.4",
  "notify-debouncer-full",
  "num-traits",
- "num_cpus",
- "oauth2",
  "objc",
  "objc2 0.6.3",
  "objc2-app-kit 0.3.2",
@@ -11075,20 +10879,17 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "once_cell",
  "ordered-float 3.9.2",
- "os_info",
  "palette",
  "parking_lot",
  "pathfinder_color",
  "pathfinder_geometry",
  "permissions",
  "persistence",
- "pin-project",
  "plist",
  "pprof",
  "prost",
  "prost-build",
  "prost-types",
- "qrcode",
  "rand 0.8.6",
  "rangemap",
  "rayon",
@@ -11098,7 +10899,6 @@ dependencies = [
  "reqwest",
  "rmcp",
  "rust-embed 8.7.2",
- "rustls",
  "schemars 1.0.4",
  "security-framework-sys",
  "serde",
@@ -11115,7 +10915,6 @@ dependencies = [
  "sha2",
  "shell-words",
  "shellexpand",
- "shlex",
  "signal-hook",
  "signal-hook-mio",
  "similar",
@@ -11123,7 +10922,6 @@ dependencies = [
  "siphasher 0.3.11",
  "smallvec",
  "smol_str",
- "static_assertions",
  "string-offset",
  "strum",
  "strum_macros",
@@ -11134,14 +10932,11 @@ dependencies = [
  "tabwriter",
  "tempfile",
  "thiserror 2.0.17",
- "thousands",
  "tikv-jemallocator",
  "tokio",
- "tokio-util",
  "toml 0.8.23",
  "toml_edit 0.25.6+spec-1.1.0",
  "tracing",
- "tracing-futures",
  "typed-path",
  "ui_components",
  "unicase",
@@ -11152,7 +10947,6 @@ dependencies = [
  "urlencoding",
  "urlocator",
  "uuid",
- "validator",
  "variant_count",
  "vec1",
  "version-compare",
@@ -11257,15 +11051,12 @@ name = "warp_cli"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "cfg-if",
  "cfg_aliases 0.2.1",
- "chrono",
  "clap",
  "clap_complete",
  "color-print",
  "humantime",
  "serde",
- "serde_json",
  "url",
  "uuid",
  "warp_core",
@@ -11280,12 +11071,9 @@ dependencies = [
  "anyhow",
  "async-recursion",
  "async-trait",
- "bincode",
- "cfg-if",
  "clap",
  "command",
  "derive-new",
- "dirs 6.0.0",
  "futures",
  "fuzzy_match",
  "getset",
@@ -11296,10 +11084,8 @@ dependencies = [
  "memo-map",
  "regex",
  "serde",
- "shellexpand",
  "smol_str",
  "string-offset",
- "thiserror 2.0.17",
  "typed-path",
  "warp-command-signatures",
  "warp_cli",
@@ -11316,17 +11102,13 @@ dependencies = [
  "anyhow",
  "async-broadcast",
  "cfg-if",
- "chrono",
  "command-corrections",
  "concat-idents",
- "dashmap",
  "directories",
  "dirs 6.0.0",
- "enum-iterator",
  "futures",
  "futures-lite 1.13.0",
  "getset",
- "http",
  "instant",
  "itertools 0.14.0",
  "lazy_static",
@@ -11337,7 +11119,6 @@ dependencies = [
  "pin-project",
  "rand 0.8.6",
  "regex",
- "reqwest",
  "schemars 1.0.4",
  "serde",
  "serde_json",
@@ -11345,18 +11126,14 @@ dependencies = [
  "serde_yaml 0.8.26",
  "settings",
  "settings_value",
- "shellexpand",
  "string-offset",
  "strum",
  "strum_macros",
  "tempfile",
  "thiserror 2.0.17",
- "tokio",
  "tracing",
- "url",
  "warp_errors",
  "warp_features",
- "warp_util",
  "warpui_core",
  "warpui_extras",
 ]
@@ -11387,7 +11164,6 @@ dependencies = [
  "markdown_parser",
  "markup5ever",
  "mermaid_to_svg",
- "mime_guess",
  "num-traits",
  "ordered-float 3.9.2",
  "parking_lot",
@@ -11447,8 +11223,6 @@ dependencies = [
  "notify-debouncer-full",
  "repo_metadata",
  "tempfile",
- "thiserror 2.0.17",
- "warp_core",
  "warp_util",
  "warpui_core",
  "watcher",
@@ -11501,7 +11275,6 @@ dependencies = [
  "futures",
  "grep",
  "ignore",
- "instant",
  "log",
  "nix 0.26.4",
  "serde",
@@ -11532,7 +11305,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "string-offset",
- "strum",
  "strum_macros",
  "tantivy",
  "warp_core",
@@ -11547,7 +11319,6 @@ dependencies = [
  "anyhow",
  "bitflags 2.13.0",
  "bitflags-serde-legacy",
- "cfg-if",
  "command-corrections",
  "enum-iterator",
  "get-size",
@@ -11555,7 +11326,6 @@ dependencies = [
  "lazy_static",
  "log",
  "pathfinder_color",
- "regex",
  "serde",
  "smol_str",
  "static_assertions",
@@ -11608,7 +11378,6 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "arboard",
- "async-io",
  "async-task",
  "bimap",
  "bindgen 0.70.1",
@@ -11628,7 +11397,6 @@ dependencies = [
  "ctrlc",
  "dashmap",
  "derivative",
- "derive_more 0.99.17",
  "dirs 6.0.0",
  "dispatch",
  "dispatch2",
@@ -11674,7 +11442,6 @@ dependencies = [
  "resvg",
  "rust-embed 8.7.2",
  "serde",
- "sum_tree",
  "takecell",
  "tauri-winrt-notification",
  "thiserror 2.0.17",
@@ -11704,7 +11471,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arboard",
- "async-broadcast",
  "async-channel",
  "async-executor",
  "async-fs",
@@ -11721,13 +11487,12 @@ dependencies = [
  "ctrlc",
  "dashmap",
  "derivative",
- "derive_more 0.99.17",
+ "derive_more",
  "dirs 6.0.0",
  "enum-iterator",
  "float-cmp",
  "font-kit",
  "futures",
- "futures-lite 1.13.0",
  "futures-util",
  "image",
  "infer",
@@ -11757,7 +11522,6 @@ dependencies = [
  "serde",
  "serde_json",
  "settings_value",
- "similar",
  "simplelog",
  "smallvec",
  "string-offset",
@@ -11770,7 +11534,6 @@ dependencies = [
  "tokio",
  "tracing",
  "trait-set",
- "unicode-segmentation",
  "vec1",
  "warp_errors",
  "warp_util",
@@ -11782,7 +11545,6 @@ name = "warpui_extras"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "async-channel",
  "log",
  "objc2 0.6.3",
  "objc2-foundation 0.3.2",

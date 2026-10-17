@@ -15,14 +15,12 @@ nld_heuristic_v1 = []
 nld_heuristic_v2 = []
 
 [dependencies]
-warp_errors.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 clap.workspace = true
 futures.workspace = true
 itertools.workspace = true
 futures-lite.workspace = true
-instant.workspace = true
 lazy_static.workspace = true
 log.workspace = true
 natural_language_detection.workspace = true

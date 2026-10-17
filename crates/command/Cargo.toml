@@ -12,9 +12,9 @@ test-util = []
 warp_errors.workspace = true
 log.workspace = true
 async-process = { workspace = true }
-futures-lite.workspace = true
 
 [dev-dependencies]
+futures-lite.workspace = true
 tempfile = "3.8.0"
 
 [target.'cfg(windows)'.dependencies]

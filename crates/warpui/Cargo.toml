@@ -37,7 +37,6 @@ anyhow.workspace = true
 bytemuck = { workspace = true, features = ["derive"], optional = true }
 cfg-if.workspace = true
 dashmap.workspace = true
-derive_more.workspace = true
 futures.workspace = true
 futures-util.workspace = true
 instant.workspace = true
@@ -50,7 +49,6 @@ ordered-float.workspace = true
 parking_lot.workspace = true
 pathfinder_color.workspace = true
 pathfinder_geometry.workspace = true
-sum_tree.workspace = true
 takecell = "0.1.1"
 thiserror.workspace = true
 url.workspace = true
@@ -58,7 +56,6 @@ vec1.workspace = true
 version-compare = { workspace = true, optional = true }
 warpui_core.workspace = true
 wgpu = { workspace = true, optional = true }
-async-io.workspace = true
 ctrlc.workspace = true
 font-kit.workspace = true
 

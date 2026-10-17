@@ -10,4 +10,3 @@ license.workspace = true
 dunce = "1.0.1"
 getset.workspace = true
 tempfile.workspace = true
-typed-path.workspace = true

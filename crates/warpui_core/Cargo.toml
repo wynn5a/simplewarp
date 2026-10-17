@@ -21,7 +21,6 @@ test-util = []
 [dependencies]
 warp_errors.workspace = true
 anyhow = "1.0"
-async-broadcast.workspace = true
 async-channel.workspace = true
 async-executor = "1.4.1"
 async-task.workspace = true
@@ -37,7 +36,6 @@ dirs.workspace = true
 enum-iterator.workspace = true
 float-cmp.workspace = true
 futures = "0.3"
-futures-lite.workspace = true
 futures-util = { version = "0.3", default-features = false }
 image.workspace = true
 minimp4 = { workspace = true, optional = true }
@@ -65,7 +63,6 @@ rstar = "0.12.2"
 rustc-hash.workspace = true
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json.workspace = true
-similar.workspace = true
 smallvec.workspace = true
 string-offset.workspace = true
 strum.workspace = true
@@ -76,7 +73,6 @@ thiserror.workspace = true
 titlecase = "1.0"
 tracing.workspace = true
 trait-set = "0.3.0"
-unicode-segmentation.workspace = true
 vec1.workspace = true
 warp_util.workspace = true
 async-io.workspace = true

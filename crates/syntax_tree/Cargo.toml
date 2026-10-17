@@ -15,7 +15,6 @@ languages.workspace = true
 futures.workspace = true
 futures-lite.workspace = true
 parking_lot.workspace = true
-log.workspace = true
 string-offset.workspace = true
 streaming-iterator = "0.1.9"
 warp_util.workspace = true

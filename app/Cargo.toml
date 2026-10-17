@@ -49,14 +49,11 @@ async-channel.workspace = true
 async-compat.workspace = true
 async-fs.workspace = true
 async-recursion.workspace = true
-async-stream.workspace = true
 async-trait.workspace = true
 base64.workspace = true
 bimap = "0.6.2"
 bincode.workspace = true
 bitflags.workspace = true
-bitflags-serde-legacy.workspace = true
-blocking.workspace = true
 bounded-vec-deque.workspace = true
 bytecount = "0.6.9"
 bytes.workspace = true
@@ -68,8 +65,6 @@ cloud_object_models.workspace = true
 cloud_objects.workspace = true
 command = { workspace = true }
 command-corrections.workspace = true
-crc.workspace = true
-content_inspector = "0.2.4"
 concat-idents.workspace = true
 csv = "1.3.1"
 dashmap.workspace = true
@@ -80,7 +75,6 @@ difflib = { git = "https://github.com/warpdotdev/difflib.git", rev = "114177e7d8
 directories.workspace = true
 dirs.workspace = true
 dunce.workspace = true
-email_address = { git = "https://github.com/warpdotdev/rust-email_address", branch = "main" }
 embed_plist = "1.2"
 enclose = "1.1.8"
 enum-iterator.workspace = true
@@ -92,7 +86,6 @@ futures-lite.workspace = true
 futures-util.workspace = true
 futures.workspace = true
 fuzzy_match.workspace = true
-getset.workspace = true
 handlebars.workspace = true
 hex.workspace = true
 http.workspace = true
@@ -109,7 +102,6 @@ indexmap = { version = "2.0.2", features = ["serde"] }
 input_classifier.workspace = true
 instant.workspace = true
 ipc.workspace = true
-iso8601-duration.workspace = true
 itertools.workspace = true
 kmeans_colors = { version = "0.5", default-features = false, features = [
     "palette_color",
@@ -118,32 +110,24 @@ lazy_static.workspace = true
 libc.workspace = true
 line-ending.workspace = true
 log.workspace = true
-log-panics = { version = "2.1.0", features = ["with-backtrace"] }
 lsp.workspace = true
 warp_logging.workspace = true
-lz4_flex = "0.11"
 markdown_parser.workspace = true
 mcp.workspace = true
-memchr.workspace = true
 memo-map.workspace = true
 mermaid_to_svg.workspace = true
 num-traits.workspace = true
-num_cpus = "1.13.0"
-oauth2.workspace = true
 once_cell.workspace = true
 ordered-float.workspace = true
-os_info = { version = "3.7.0", default-features = false }
 palette = { version = "0.6.0", default-features = false, features = ["std"] }
 parking_lot = { version = "0.12.1", features = ["serde"] }
 pathfinder_color = "0.5.0"
 pathfinder_geometry.workspace = true
 persistence.workspace = true
-pin-project.workspace = true
 plist = "1"
 pprof = { workspace = true, optional = true, features = ["protobuf-codec"] }
 prost.workspace = true
 prost-types.workspace = true
-qrcode.workspace = true
 rand.workspace = true
 rangemap.workspace = true
 rayon.workspace = true
@@ -166,26 +150,22 @@ settings_value = { workspace = true, features = ["derive"] }
 sha2.workspace = true
 shellexpand.workspace = true
 shell-words = "1.1.0"
-shlex = "1.3.0"
 siphasher = "0.3.11"
 similar.workspace = true
 simple_logger.workspace = true
 smallvec.workspace = true
 smol_str.workspace = true
-static_assertions.workspace = true
 string-offset.workspace = true
 sum_tree.workspace = true
 tabwriter = "1.4"
 tempfile.workspace = true
 thiserror.workspace = true
-thousands = "0.2.0"
 tikv-jemallocator = { version = "0.6", optional = true, features = [
     "override_allocator_on_supported_platforms",
 ] }
 toml = "0.8.13"
 toml_edit.workspace = true
 tracing.workspace = true
-tracing-futures = { workspace = true, features = ["futures-03"] }
 ui_components.workspace = true
 unicase = "2.7.0"
 unicode-general-category.workspace = true
@@ -195,7 +175,6 @@ url = { workspace = true, features = ["serde"] }
 urlocator.workspace = true
 uuid.workspace = true
 warp_cli.workspace = true
-validator = "0.19.0"
 variant_count = "1.1.0"
 vec1.workspace = true
 version-compare.workspace = true
@@ -216,11 +195,9 @@ syntax_tree.workspace = true
 languages.workspace = true
 warp_terminal.workspace = true
 wgpu = { workspace = true, optional = true }
-natural_language_detection.workspace = true
 aho-corasick = "1.1.3"
 strum.workspace = true
 strum_macros.workspace = true
-reqwest-eventsource = { workspace = true }
 counter = "0.6.0"
 typed-path.workspace = true
 urlencoding = "2.1.3"
@@ -235,10 +212,8 @@ local_inference.workspace = true
 async-io.workspace = true
 cloud_object_persistence.workspace = true
 comfy-table = "7.1.4"
-inquire = "0.9.1"
 diesel = { workspace = true, features = ["sqlite", "chrono"] }
 diesel_migrations = { version = "2.2.0", features = ["sqlite"] }
-env_logger.workspace = true
 git2 = { version = "0.20.4", default-features = false, features = [
     "vendored-libgit2",
 ] }
@@ -246,10 +221,8 @@ hyper.workspace = true
 libsqlite3-sys = { version = "0.33.0", features = ["bundled"] }
 mio = { version = "1.1.1", features = ["os-poll", "os-ext"] }
 tokio.workspace = true
-tokio-util.workspace = true
 
 notify-debouncer-full.workspace = true
-rustls.workspace = true
 syntect = "5.0"
 sysinfo.workspace = true
 warp-command-signatures = { workspace = true, features = ["embed-signatures"] }
