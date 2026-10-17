@@ -40,9 +40,6 @@ pub trait GenericMenuItem: Debug + 'static {
     /// Icon to display for the menu item (None for no icon)
     fn icon(&self, _app: &AppContext) -> Option<Icon>;
 
-    /// Data associated with this menu item action
-    fn action_data(&self) -> String;
-
     /// Optional element to render on the right side of the menu item
     fn right_side_element(&self, _app: &AppContext) -> Option<Box<dyn Element>> {
         None
@@ -68,7 +65,6 @@ impl FixedFooter {
 pub enum ChipMenuType {
     Directories,
     Branches,
-    CodeReview,
 }
 
 const LABEL_HORIZONTAL_PADDING: f32 = 14.;
@@ -152,7 +148,6 @@ pub struct DisplayChipMenu {
     fixed_footer: Option<FixedFooter>,
     search_input: Option<ViewHandle<EditorView>>,
     search_query: String,
-    chip_menu_type: ChipMenuType,
     /// When set, the menu offers a synthetic "create from query" item whenever
     /// the user's query doesn't exactly match an existing item. See
     /// [`CreateItemFromQueryFn`].
@@ -193,38 +188,30 @@ impl DisplayChipMenu {
         chip_menu_type: ChipMenuType,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        let search_input = match chip_menu_type {
-            ChipMenuType::Directories | ChipMenuType::Branches => {
-                Some(ctx.add_typed_action_view(|ctx| {
-                    let appearance = Appearance::handle(ctx).as_ref(ctx);
+        let search_input = Some(ctx.add_typed_action_view(|ctx| {
+            let appearance = Appearance::handle(ctx).as_ref(ctx);
 
-                    let ui_font_family = appearance.ui_font_family();
-                    let mut text_options = TextOptions::ui_font_size(appearance);
-                    text_options.font_family_override = Some(ui_font_family);
+            let ui_font_family = appearance.ui_font_family();
+            let mut text_options = TextOptions::ui_font_size(appearance);
+            text_options.font_family_override = Some(ui_font_family);
 
-                    let options = EditorOptions {
-                        autogrow: false,
-                        soft_wrap: false,
-                        single_line: true,
-                        text: text_options,
-                        propagate_and_no_op_vertical_navigation_keys:
-                            PropagateAndNoOpNavigationKeys::Always,
-                        ..Default::default()
-                    };
-                    let mut editor = EditorView::new(options, ctx);
-                    let placeholder_text = match chip_menu_type {
-                        ChipMenuType::Directories => "Search directories...",
-                        ChipMenuType::Branches => "Search branches...",
-                        ChipMenuType::CodeReview => {
-                            unreachable!("search input should not be constructed")
-                        }
-                    };
-                    editor.set_placeholder_text(placeholder_text, ctx);
-                    editor
-                }))
-            }
-            ChipMenuType::CodeReview => None,
-        };
+            let options = EditorOptions {
+                autogrow: false,
+                soft_wrap: false,
+                single_line: true,
+                text: text_options,
+                propagate_and_no_op_vertical_navigation_keys:
+                    PropagateAndNoOpNavigationKeys::Always,
+                ..Default::default()
+            };
+            let mut editor = EditorView::new(options, ctx);
+            let placeholder_text = match chip_menu_type {
+                ChipMenuType::Directories => "Search directories...",
+                ChipMenuType::Branches => "Search branches...",
+            };
+            editor.set_placeholder_text(placeholder_text, ctx);
+            editor
+        }));
 
         // Subscribe to editor changes to update search query (only if search input exists)
         if let Some(ref search_input_handle) = search_input {
@@ -288,7 +275,6 @@ impl DisplayChipMenu {
             is_footer_selected: false,
             search_input,
             search_query: String::new(),
-            chip_menu_type,
             create_item_from_query: None,
         }
     }
@@ -417,15 +403,6 @@ impl DisplayChipMenu {
     fn select(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
         self.selected_index = index;
         ctx.notify();
-    }
-
-    pub fn select_index(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
-        if index >= self.filtered_items.len() {
-            return;
-        }
-        self.is_footer_selected = false;
-        self.select(index, ctx);
-        self.list_state.scroll_to(self.selected_index);
     }
 
     fn is_footer_selected(&self) -> bool {

@@ -125,11 +125,6 @@ impl DirectoryFetcher {
         self.refetch_directory(ctx);
     }
 
-    /// Get the current directory path
-    pub fn current_directory(&self) -> &str {
-        &self.current_directory
-    }
-
     /// Get the cached directory files
     pub fn cached_files(&self) -> &[DirectoryItem] {
         &self.cached_files
@@ -138,15 +133,6 @@ impl DirectoryFetcher {
     /// Check if a fetch operation is in progress
     pub fn is_fetching(&self) -> bool {
         self.fetch_handle.is_some()
-    }
-
-    /// Change the current directory and refetch contents
-    pub fn change_directory(&mut self, new_directory: String, ctx: &mut ModelContext<Self>) {
-        if self.current_directory != new_directory {
-            self.current_directory = new_directory;
-            self.cached_files.clear();
-            self.refetch_directory(ctx);
-        }
     }
 }
 
@@ -192,10 +178,6 @@ impl GenericMenuItem for DirectoryItem {
             DirectoryType::OtherFile => Icon::File,
             DirectoryType::NavigateToParent => Icon::ArrowUp,
         })
-    }
-
-    fn action_data(&self) -> String {
-        self.name.clone()
     }
 }
 

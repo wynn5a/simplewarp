@@ -1,16 +1,16 @@
+#[cfg(not(test))]
 use std::fs::{self, File, OpenOptions};
+#[cfg(not(test))]
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
-#[cfg(test)]
-use std::sync::Arc;
 #[cfg(not(test))]
 use std::sync::OnceLock;
+#[cfg(not(test))]
 use std::sync::mpsc;
 
 use chrono::{Local, SecondsFormat};
-#[cfg(test)]
-use parking_lot::Mutex;
 use warp_completer::completer::{CommandExitStatus, CommandOutput};
+#[cfg(not(test))]
 use warp_errors::report_error;
 
 use super::ContextChipKind;
@@ -48,12 +48,9 @@ impl PromptChipExecutionPhase {
 #[derive(Clone)]
 pub(crate) enum PromptChipLogger {
     Disabled,
+    #[cfg(not(test))]
     Runtime {
         sender: mpsc::Sender<String>,
-    },
-    #[cfg(test)]
-    TestBuffer {
-        entries: Arc<Mutex<Vec<String>>>,
     },
 }
 
@@ -75,26 +72,19 @@ impl PromptChipLogger {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn with_test_buffer(entries: Arc<Mutex<Vec<String>>>) -> Self {
-        Self::TestBuffer { entries }
-    }
-
+    // The entry is only consumed by the runtime logger, which tests stub out.
+    #[cfg_attr(test, allow(unused_variables))]
     pub(crate) fn log_shell_command(&self, entry: &ChipCommandLogEntry<'_>) {
-        let formatted = format_log_entry(entry);
-
         match self {
             Self::Disabled => {}
+            #[cfg(not(test))]
             Self::Runtime { sender } => {
-                let _ = sender.send(formatted);
-            }
-            #[cfg(test)]
-            Self::TestBuffer { entries } => {
-                entries.lock().push(formatted);
+                let _ = sender.send(format_log_entry(entry));
             }
         }
     }
 
+    #[cfg(not(test))]
     fn init_runtime() -> Self {
         if !warp_core::channel::ChannelState::enable_debug_features() {
             return Self::Disabled;
@@ -134,6 +124,7 @@ fn prompt_chip_log_file_path(log_path: &Path) -> anyhow::Result<PathBuf> {
     Ok(log_path.with_file_name(prompt_chip_log_filename(channel_logfile_name)))
 }
 
+#[cfg(not(test))]
 fn spawn_log_writer(log_path: PathBuf) -> io::Result<mpsc::Sender<String>> {
     if let Some(parent) = log_path.parent() {
         fs::create_dir_all(parent)?;
@@ -154,6 +145,7 @@ fn spawn_log_writer(log_path: PathBuf) -> io::Result<mpsc::Sender<String>> {
     Ok(tx)
 }
 
+#[cfg(not(test))]
 fn write_log_entries(mut file: File, rx: mpsc::Receiver<String>, log_path: PathBuf) {
     while let Ok(entry) = rx.recv() {
         if let Err(err) = file.write_all(entry.as_bytes()).and_then(|_| file.flush()) {

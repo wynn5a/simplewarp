@@ -2,7 +2,8 @@ use pathfinder_color::ColorU;
 use warpui::fonts::Properties;
 
 use super::{Renderer, RendererStyles};
-use crate::context_chips::{ChipAvailability, ChipDisabledReason, ContextChipKind};
+use crate::context_chips::context_chip::ChipDisabledReason;
+use crate::context_chips::{ChipAvailability, ContextChipKind};
 
 #[test]
 fn test_constructor_availability_updates_disabled_state_and_tooltip_override() {

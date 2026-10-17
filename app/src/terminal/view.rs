@@ -15384,9 +15384,6 @@ impl TerminalView {
             InputEvent::AttachDiffSetContext { diff_mode } => {
                 self.handle_attach_diffset_context(diff_mode.clone(), ctx);
             }
-            InputEvent::OpenConversationHistory => {
-                ctx.emit(Event::OpenConversationHistory);
-            }
             InputEvent::OpenProjectRulesPane => {
                 self.handle_action(&TerminalAction::OpenProjectRulesPane, ctx);
             }

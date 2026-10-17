@@ -18,11 +18,6 @@ use super::{ChipAvailability, ChipValue, ContextChipKind, spacing};
 use crate::appearance::Appearance;
 use crate::ui_components::icons;
 
-/// Styling consts.
-const CORNER_RADIUS_PIXELS: f32 = 4.;
-const ICON_MARGIN_RIGHT: f32 = 6.;
-const LABEL_MARGIN_BOTTOM: f32 = 6.;
-
 #[derive(Clone)]
 pub struct RendererStyles {
     pub value_color: ColorU,
@@ -113,10 +108,6 @@ impl Renderer {
 
     pub fn chip_kind(&self) -> &ContextChipKind {
         &self.kind
-    }
-
-    pub fn is_disabled(&self) -> bool {
-        self.is_disabled
     }
 
     fn render_remove_button<A: Action + Clone>(

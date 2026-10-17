@@ -33,20 +33,10 @@ impl AgentInputFooter {
         ctx: &mut ViewContext<Self>,
     ) -> Vec<ViewHandle<DisplayChip>> {
         let mut display_chips = Vec::with_capacity(new_chips.len());
-        let mut new_chips = new_chips.iter().peekable();
-        while let Some(chip_result) = new_chips.next() {
-            let next_chip_kind = new_chips
-                .peek()
-                .map(|chip_result| chip_result.kind().clone());
-
+        for chip_result in new_chips {
             let view_handle = ctx.add_typed_action_view(|ctx| {
                 let config = self.display_chip_config.clone();
-                let mut chip = DisplayChip::new_for_agent_view(
-                    chip_result.clone(),
-                    next_chip_kind,
-                    config,
-                    ctx,
-                );
+                let mut chip = DisplayChip::new_for_agent_view(chip_result.clone(), config, ctx);
                 chip.maybe_set_git_line_changes_info(git_line_changes_info.clone());
                 chip.update_session_context(self.display_chip_config.session_context.clone(), ctx);
                 chip

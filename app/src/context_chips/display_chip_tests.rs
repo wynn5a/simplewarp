@@ -244,10 +244,8 @@ fn test_create_git_branch_menu_name_quotes_query() {
 }
 
 #[test]
-fn test_create_git_branch_action_data_returns_branch_name() {
+fn test_create_git_branch_prompt_chip_command_creates_branch() {
     let item = CreateGitBranch::new("feature/xyz".to_string());
-    assert_eq!(item.action_data(), "feature/xyz");
-    assert_eq!(item.branch_name(), "feature/xyz");
     assert_eq!(
         item.prompt_chip_command(),
         PromptChipShellCommand::GitCreateAndCheckoutBranch {
@@ -259,7 +257,6 @@ fn test_create_git_branch_action_data_returns_branch_name() {
 #[test]
 fn test_create_git_branch_trims_whitespace_in_constructor() {
     let item = CreateGitBranch::new("  feature/xyz  ".to_string());
-    assert_eq!(item.branch_name(), "feature/xyz");
     assert_eq!(item.name(), "Create new branch \"feature/xyz\"");
 }
 

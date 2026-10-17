@@ -833,7 +833,6 @@ pub enum Event {
     AttachDiffSetContext {
         diff_mode: DiffMode,
     },
-    OpenConversationHistory,
     OpenViewMCPPane,
     OpenAddMCPPane,
     OpenProjectRulesPane,
@@ -4293,15 +4292,6 @@ impl Input {
             }
             PromptDisplayEvent::OpenCodeReview => {
                 ctx.emit(Event::OpenCodeReviewPane);
-            }
-            PromptDisplayEvent::OpenConversationHistory => {
-                // Emit event to open command palette with conversation filter
-                ctx.emit(Event::OpenConversationHistory);
-            }
-            PromptDisplayEvent::OpenCommandPaletteFiles => {
-                ctx.emit(Event::OpenFilesPalette {
-                    source: PaletteSource::ContextChip,
-                });
             }
             PromptDisplayEvent::RunAgentQuery(query) => {
                 self.cancel_active_conversation(ctx, CancellationReason::UserCommandExecuted);

@@ -79,27 +79,6 @@ fn test_prompt_settings() {
             assert_eq!(settings.saved_prompt.to_owned(), PromptSelection::Default)
         });
 
-        // Now, set a new prompt.
-        let new_chips = [ContextChipKind::Ssh, ContextChipKind::WorkingDirectory];
-        prompt.update(&mut app, |prompt, ctx| {
-            prompt
-                .update(new_chips.clone(), false, WarpPromptSeparator::None, ctx)
-                .expect("Saving prompt failed")
-        });
-
-        // The configuration should be updated both in-memory and in settings.
-        let new_prompt_chips = prompt.read(&app, |prompt, _| prompt.chip_kinds());
-        assert_eq!(
-            new_prompt_chips,
-            vec![ContextChipKind::Ssh, ContextChipKind::WorkingDirectory]
-        );
-        session_settings.read(&app, |settings, _| {
-            assert_eq!(
-                settings.saved_prompt.to_owned(),
-                PromptConfiguration::from_chips(new_chips, false, WarpPromptSeparator::None).into()
-            );
-        });
-
         // If we reset the prompt, settings are cleared.
         prompt.update(&mut app, |prompt, ctx| {
             prompt.reset(ctx).expect("Saving prompt failed");

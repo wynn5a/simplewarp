@@ -18,10 +18,10 @@ use crate::ai::blocklist::agent_view::toolbar_item::AgentToolbarItemKind;
 use crate::code_review::diff_state::DiffStats;
 use crate::code_review::git_repo_model::{GitRepoStatusModel, GitStatusMetadata};
 use crate::code_review::github_repo_model::GitHubRepoModel;
-use crate::context_chips::context_chip::{Environment, PromptGenerator};
+use crate::context_chips::context_chip::{ChipDisabledReason, Environment, PromptGenerator};
 use crate::context_chips::display_chip::GitBranchTrackingStatus;
 use crate::context_chips::prompt::Prompt;
-use crate::context_chips::{ChipAvailability, ChipDisabledReason, ContextChipKind};
+use crate::context_chips::{ChipAvailability, ContextChipKind};
 use crate::features::FeatureFlag;
 use crate::menu::MenuItem;
 use crate::server::server_api::ServerApiProvider;
@@ -1076,37 +1076,12 @@ struct RecordingCommandExecutor {
 }
 
 impl RecordingCommandExecutor {
-    pub fn with_success_responses(responses: impl IntoIterator<Item = &'static str>) -> Self {
-        Self::with_outputs(
-            responses
-                .into_iter()
-                .map(Self::success_output)
-                .collect::<Vec<_>>(),
-        )
-    }
-
-    pub fn with_outputs(outputs: impl IntoIterator<Item = CommandOutput>) -> Self {
-        Self {
-            commands: Mutex::default(),
-            response_queue: Mutex::new(outputs.into_iter().collect()),
-        }
-    }
-
     pub fn success_output(stdout: impl AsRef<[u8]>) -> CommandOutput {
         CommandOutput {
             stdout: stdout.as_ref().to_vec(),
             stderr: vec![],
             status: CommandExitStatus::Success,
             exit_code: Some(ExitCode::from(0)),
-        }
-    }
-
-    pub fn failure_output(stderr: impl AsRef<[u8]>, exit_code: ExitCode) -> CommandOutput {
-        CommandOutput {
-            stdout: vec![],
-            stderr: stderr.as_ref().to_vec(),
-            status: CommandExitStatus::Failure,
-            exit_code: Some(exit_code),
         }
     }
 

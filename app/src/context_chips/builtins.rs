@@ -73,18 +73,6 @@ pub fn time24(_: &GeneratorContext) -> Option<ChipValue> {
     Some(ChipValue::Text(Local::now().format("%H:%M").to_string()))
 }
 
-/// Generator function that shows the current 12-hour time with seconds.
-pub fn time12_with_seconds(_: &GeneratorContext) -> Option<ChipValue> {
-    Some(ChipValue::Text(
-        Local::now().format("%I:%M:%S %P").to_string(),
-    ))
-}
-
-/// Generator function that shows the current 24-hour time with seconds.
-pub fn time24_with_seconds(_: &GeneratorContext) -> Option<ChipValue> {
-    Some(ChipValue::Text(Local::now().format("%H:%M:%S").to_string()))
-}
-
 /// Generator function for SSH session chip.
 pub fn ssh_session(ctx: &GeneratorContext) -> Option<ChipValue> {
     let session = ctx.active_session?;

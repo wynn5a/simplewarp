@@ -34,7 +34,6 @@ pub enum PaletteSource {
     QuitModal,
     IntegrationTest,
     ConversationManager,
-    ContextChip,
     PaneHeader,
     AgentTip,
     TitleBarSearchBar,

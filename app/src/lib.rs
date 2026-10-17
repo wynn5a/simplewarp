@@ -14,7 +14,6 @@ mod code_review;
 mod coding_entrypoints;
 mod coding_panel_enablement_state;
 mod completer;
-#[allow(dead_code)]
 mod context_chips;
 #[cfg(enable_crash_recovery)]
 mod crash_recovery;

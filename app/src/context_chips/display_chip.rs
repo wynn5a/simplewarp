@@ -1,9 +1,8 @@
-use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use pathfinder_color::ColorU;
-use pathfinder_geometry::vector::{Vector2F, vec2f};
+use pathfinder_geometry::vector::vec2f;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
@@ -12,13 +11,12 @@ use warpui::elements::{
     DEFAULT_UI_LINE_HEIGHT_RATIO, Empty, Flex, Hoverable, MouseStateHandle, OffsetPositioning,
     ParentAnchor, ParentElement, ParentOffsetBounds, Radius, Stack, Text,
 };
-use warpui::fonts::{Cache, FamilyId, Properties, Weight};
-use warpui::keymap::Keystroke;
+use warpui::fonts::{FamilyId, Properties, Weight};
 use warpui::platform::Cursor;
-use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::ui_components::components::UiComponent;
 use warpui::{
-    AppContext, Element, Entity, EntityId, Gradient, ModelHandle, SingletonEntity, TypedActionView,
-    View, ViewContext, ViewHandle,
+    AppContext, Element, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
 };
 
 use super::directory_fetcher::{
@@ -48,11 +46,9 @@ use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};
 use crate::terminal::model::session::SessionType;
 use crate::terminal::model_events::ModelEventDispatcher;
-use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 use crate::util::bindings::keybinding_name_to_display_string;
 use crate::util::truncation::truncate_from_beginning;
-use crate::view_components::action_button::{ActionButtonTheme, NakedTheme};
 use crate::workspace::view::TOGGLE_RIGHT_PANEL_BINDING_NAME;
 
 /// Helper function to render git diff stats content (file icon or +- icons, file count, bullet, +/- counts)
@@ -216,14 +212,6 @@ fn add_git_branch_status_child(content: &mut Flex, child: Box<dyn Element>, marg
     );
 }
 
-const PROMPT_CHIP_DISPLAY_ID: &str = "PromptChipDisplay";
-const DROP_SHADOW_COLOR: ColorU = ColorU {
-    r: 0,
-    g: 0,
-    b: 0,
-    a: 32,
-};
-
 const CHIP_MARGIN_RIGHT: f32 = 8.;
 const UDI_CHIP_MAX_NUM_CHARACTERS: usize = 40;
 
@@ -251,13 +239,10 @@ fn udi_tooltip_positioning() -> OffsetPositioning {
 pub(crate) struct UdiChipConfig {
     /// The icon to display
     icon: Option<Icon>,
-    keystroke: Option<Keystroke>,
     /// The color for both icon and text
     color: ColorU,
     /// The text content to display
     text: String,
-    /// Whether to truncate text to UDI_CHIP_MAX_NUM_CHARACTERS
-    truncate_text: bool,
     border_override: Option<Border>,
     is_in_agent_view: bool,
     /// When `true`, the chip paints its hover background instead of its
@@ -271,10 +256,8 @@ impl UdiChipConfig {
     pub(crate) fn new(color: ColorU, text: String) -> Self {
         Self {
             icon: None,
-            keystroke: None,
             color,
             text,
-            truncate_text: true,
             border_override: None,
             is_in_agent_view: false,
             hovered: false,
@@ -284,32 +267,12 @@ impl UdiChipConfig {
     pub(crate) fn new_with_icon(icon: Icon, color: ColorU, text: String) -> Self {
         Self {
             icon: Some(icon),
-            keystroke: None,
             color,
             text,
-            truncate_text: true,
             border_override: None,
             is_in_agent_view: false,
             hovered: false,
         }
-    }
-
-    fn new_with_keystroke(color: ColorU, text: String, keystroke: Keystroke) -> Self {
-        Self {
-            icon: None,
-            keystroke: Some(keystroke),
-            color,
-            text,
-            truncate_text: true,
-            border_override: None,
-            is_in_agent_view: false,
-            hovered: false,
-        }
-    }
-
-    pub(crate) fn with_truncate_text(mut self, truncate: bool) -> Self {
-        self.truncate_text = truncate;
-        self
     }
 
     pub(crate) fn with_border_override(mut self, border: Border) -> Self {
@@ -344,11 +307,9 @@ pub struct DisplayChip {
     value: Option<ChipValue>,
     chip_kind: ContextChipKind,
     display_chip_kind: DisplayChipKind,
-    next_chip_kind: Option<ContextChipKind>,
     on_click_values: Vec<String>,
     session_context: Option<SessionContext>,
     menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
-    agent_view_controller: ModelHandle<AgentViewController>,
     is_in_agent_view: bool,
     /// Cached display string for the code review keybinding.
     code_review_keybinding: Option<String>,
@@ -653,27 +614,6 @@ impl DisplayChipKind {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum SelectAction {
-    Prev,
-    Next,
-    Index(usize),
-}
-
-#[derive(Debug, Clone)]
-pub enum MenuItemType {
-    GitBranch,
-    File,
-    TextFile,
-    Directory,
-}
-
-#[derive(Debug, Clone)]
-pub struct MenuItem {
-    pub name: String,
-    pub item_type: MenuItemType,
-}
-
 /// Configuration for creating a DisplayChip
 #[derive(Clone)]
 pub struct DisplayChipConfig {
@@ -732,10 +672,6 @@ impl GenericMenuItem for GitBranch {
     fn icon(&self, _app: &AppContext) -> Option<Icon> {
         Some(self.icon_for_menu())
     }
-
-    fn action_data(&self) -> String {
-        self.0.clone()
-    }
 }
 
 /// Synthetic menu entry shown in the branch switcher when the user types a
@@ -748,10 +684,6 @@ pub(crate) struct CreateGitBranch(String);
 impl CreateGitBranch {
     pub(crate) fn new(branch_name: String) -> Self {
         Self(branch_name.trim().to_string())
-    }
-
-    pub(crate) fn branch_name(&self) -> &str {
-        &self.0
     }
 
     fn prompt_chip_command(&self) -> PromptChipShellCommand {
@@ -773,10 +705,6 @@ impl GenericMenuItem for CreateGitBranch {
     fn icon(&self, _app: &AppContext) -> Option<Icon> {
         Some(Icon::Plus)
     }
-
-    fn action_data(&self) -> String {
-        self.0.clone()
-    }
 }
 
 impl DisplayChip {
@@ -791,19 +719,17 @@ impl DisplayChip {
     pub fn new(
         ctx: &mut ViewContext<Self>,
         chip_result: ChipResult,
-        next_chip_kind: Option<ContextChipKind>,
         config: DisplayChipConfig,
     ) -> Self {
-        Self::new_internal(chip_result, next_chip_kind, config, false, ctx)
+        Self::new_internal(chip_result, config, false, ctx)
     }
 
     pub fn new_for_agent_view(
         chip_result: ChipResult,
-        next_chip_kind: Option<ContextChipKind>,
         config: DisplayChipConfig,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        Self::new_internal(chip_result, next_chip_kind, config, true, ctx)
+        Self::new_internal(chip_result, config, true, ctx)
     }
 
     /// Builds the branch-switcher menu shared by the `GitBranch` and
@@ -865,7 +791,6 @@ impl DisplayChip {
 
     fn new_internal(
         chip_result: ChipResult,
-        next_chip_kind: Option<ContextChipKind>,
         config: DisplayChipConfig,
         is_in_agent_view: bool,
         ctx: &mut ViewContext<Self>,
@@ -1092,11 +1017,9 @@ impl DisplayChip {
             value: chip_result.value,
             chip_kind: chip_result.kind,
             display_chip_kind,
-            next_chip_kind,
             on_click_values: chip_result.on_click_values,
             session_context: config.session_context,
             menu_positioning_provider: config.menu_positioning_provider,
-            agent_view_controller: config.agent_view_controller.clone(),
             is_in_agent_view,
             code_review_keybinding,
             terminal_view_id: config.terminal_view_id,
@@ -1116,10 +1039,6 @@ impl DisplayChip {
             *popup_open = false;
             ctx.notify();
         }
-    }
-
-    pub fn text(&self) -> &str {
-        &self.text
     }
 
     pub fn value(&self) -> Option<&ChipValue> {
@@ -1225,66 +1144,6 @@ impl DisplayChip {
                 fetcher.update_session_context(session_context, model_ctx);
             });
         }
-    }
-
-    pub fn em_width(&self, font_cache: &Cache, appearance: &Appearance) -> f32 {
-        font_cache.em_width(
-            appearance.monospace_font_family(),
-            appearance.monospace_font_size(),
-        )
-    }
-
-    fn render_keystroke_with_label(
-        keystroke: &Option<Keystroke>,
-        label: impl Into<Cow<'static, str>>,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let appearance = Appearance::as_ref(app);
-        let prompt_height = app.font_cache().line_height(
-            appearance.monospace_font_size(),
-            DEFAULT_UI_LINE_HEIGHT_RATIO,
-        );
-        let theme = appearance.theme();
-        let keybinding_style = UiComponentStyles {
-            height: Some(prompt_height),
-            width: Some(prompt_height),
-            font_size: Some(appearance.monospace_font_size() - 4.),
-            font_color: Some(blended_colors::text_main(theme, theme.surface_2())),
-            background: Some(theme.surface_2().into()),
-            foreground: Some(theme.foreground().into()),
-            padding: Some(Coords::default()),
-            margin: Some(Coords {
-                left: 2.,
-                right: 2.,
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let mut row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
-
-        if let Some(keystroke) = keystroke {
-            row.add_child(
-                Container::new(
-                    appearance
-                        .ui_builder()
-                        .keyboard_shortcut(keystroke)
-                        .with_style(keybinding_style)
-                        .build()
-                        .finish(),
-                )
-                .finish(),
-            );
-        }
-        row.add_child(
-            Text::new_inline(
-                label,
-                appearance.monospace_font_family(),
-                appearance.monospace_font_size(),
-            )
-            .with_color(blended_colors::text_disabled(theme, theme.background()))
-            .finish(),
-        );
-        row.finish()
     }
 
     fn git_branch_chip(
@@ -2000,8 +1859,6 @@ pub enum PromptDisplayChipEvent {
     OpenTextFileInCodeEditor(String),
     ToggleMenu { open: bool },
     OpenCodeReview,
-    OpenConversationHistory,
-    OpenCommandPaletteFiles,
     TryExecuteCommand(PromptChipShellCommand),
     RunAgentQuery(String),
 }
@@ -2121,93 +1978,6 @@ impl TypedActionView for DisplayChip {
     }
 }
 
-/// Button theme for hint buttons in the classic input prompt.
-pub struct ClassicPromptChipHintButton;
-
-impl ActionButtonTheme for ClassicPromptChipHintButton {
-    fn background(&self, hovered: bool, appearance: &Appearance) -> Option<Fill> {
-        NakedTheme.background(hovered, appearance)
-    }
-
-    fn text_color(
-        &self,
-        _hovered: bool,
-        _background: Option<Fill>,
-        appearance: &Appearance,
-    ) -> ColorU {
-        // For consistency, always choose the text color based on the input background.
-        appearance
-            .theme()
-            .sub_text_color(appearance.theme().background())
-            .into_solid()
-    }
-}
-
-/// Button theme for hint buttons in the UDI prompt chips.
-pub struct UdiPromptChipHintButton;
-
-impl ActionButtonTheme for UdiPromptChipHintButton {
-    fn background(&self, hovered: bool, appearance: &Appearance) -> Option<Fill> {
-        NakedTheme.background(hovered, appearance)
-    }
-
-    fn text_color(
-        &self,
-        _hovered: bool,
-        _background: Option<Fill>,
-        appearance: &Appearance,
-    ) -> ColorU {
-        // For consistency, always choose the text color based on the input background.
-        appearance
-            .theme()
-            .sub_text_color(appearance.theme().background())
-            .into_solid()
-    }
-
-    fn border(&self, appearance: &Appearance) -> Option<ColorU> {
-        Some(internal_colors::neutral_3(appearance.theme()))
-    }
-}
-
-pub struct EnterAgentViewButton;
-
-impl ActionButtonTheme for EnterAgentViewButton {
-    fn background(&self, hovered: bool, appearance: &Appearance) -> Option<Fill> {
-        Some(if hovered {
-            internal_colors::fg_overlay_2(appearance.theme())
-        } else {
-            internal_colors::fg_overlay_1(appearance.theme())
-        })
-    }
-
-    fn text_color(
-        &self,
-        _hovered: bool,
-        _background: Option<Fill>,
-        appearance: &Appearance,
-    ) -> ColorU {
-        appearance
-            .theme()
-            .main_text_color(appearance.theme().background())
-            .into_solid()
-    }
-
-    fn border_gradient(&self, appearance: &Appearance) -> Option<(Vector2F, Vector2F, Gradient)> {
-        Some((
-            vec2f(0.0, 0.0),
-            vec2f(3.0, 3.0),
-            Gradient {
-                start: appearance.theme().ansi_fg_magenta(),
-                end: appearance.theme().ansi_fg_yellow(),
-            },
-        ))
-    }
-
-    fn should_opt_out_of_contrast_adjustment(&self) -> bool {
-        true
-    }
-}
-
 pub(crate) fn chip_container(
     content: Box<dyn Element>,
     border_override: Option<Border>,
@@ -2246,11 +2016,7 @@ pub(crate) fn render_udi_chip(config: UdiChipConfig, appearance: &Appearance) ->
         );
     }
 
-    let display_text = if config.truncate_text {
-        truncate_from_beginning(&config.text, UDI_CHIP_MAX_NUM_CHARACTERS)
-    } else {
-        config.text.clone()
-    };
+    let display_text = truncate_from_beginning(&config.text, UDI_CHIP_MAX_NUM_CHARACTERS);
 
     let font_family = if config.is_in_agent_view || !FeatureFlag::AgentView.is_enabled() {
         appearance.ui_font_family()
@@ -2267,26 +2033,6 @@ pub(crate) fn render_udi_chip(config: UdiChipConfig, appearance: &Appearance) ->
     }
 
     content.add_child(rendered_text.finish());
-
-    if let Some(keystroke) = config.keystroke {
-        content.add_child(
-            appearance
-                .ui_builder()
-                .keyboard_shortcut(&keystroke)
-                .with_space_between_keys(4.)
-                .with_style(UiComponentStyles {
-                    font_size: Some(appearance.monospace_font_size() - 4.),
-                    width: Some(appearance.monospace_font_size()),
-                    height: Some(appearance.monospace_font_size()),
-                    padding: Some(Coords::default()),
-                    margin: Some(Coords::default().left(4.)),
-                    ..Default::default()
-                })
-                .with_line_height_ratio(1.0)
-                .build()
-                .finish(),
-        );
-    }
 
     let mut container = chip_container(content.finish(), config.border_override, appearance);
     if config.hovered {

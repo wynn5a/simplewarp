@@ -6,16 +6,11 @@ use super::current_prompt::CurrentPrompt;
 use super::prompt::Prompt;
 use super::{ChipResult, ChipValue, chips_to_string};
 use crate::context_chips::ContextChipKind;
-use crate::settings::WarpPromptSeparator;
 
 /// Struct that holds a point in time snapshot of a prompt (chips are no longer interactive)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PromptSnapshot {
     chips: Vec<ChipResult>,
-
-    same_line_prompt_enabled: bool,
-    /// The separator to use as a trailing character at the end of Warp prompt, if any.
-    separator: WarpPromptSeparator,
 }
 
 impl PromptSnapshot {
@@ -48,23 +43,7 @@ impl PromptSnapshot {
             .collect_vec();
 
         log::debug!("Current prompt snapshot: {chips:?}");
-        Self {
-            chips,
-            same_line_prompt_enabled: current_prompt.same_line_prompt_enabled(),
-            separator: current_prompt.separator(),
-        }
-    }
-
-    pub fn from_chips(
-        chips: Vec<ChipResult>,
-        same_line_prompt_enabled: bool,
-        separator: WarpPromptSeparator,
-    ) -> Self {
-        Self {
-            chips,
-            same_line_prompt_enabled,
-            separator,
-        }
+        Self { chips }
     }
 
     /// The value of the given chip, in this snapshot.
@@ -80,14 +59,6 @@ impl PromptSnapshot {
 
     pub(crate) fn chips(&self) -> &Vec<ChipResult> {
         &self.chips
-    }
-
-    pub(super) fn same_line_prompt_enabled(&self) -> bool {
-        self.same_line_prompt_enabled
-    }
-
-    pub(super) fn separator(&self) -> WarpPromptSeparator {
-        self.separator
     }
 }
 

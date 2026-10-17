@@ -50,7 +50,6 @@ pub enum NodeVersionPopupEvent {
 struct Styles {
     ui_font_family: FamilyId,
     background: Fill,
-    main_text_color: ColorU,
     secondary_text_color: ColorU,
     tertiary_text_color: ColorU,
     detail_font_size: f32,
@@ -135,7 +134,6 @@ impl NodeVersionPopupView {
     fn styles(&self, appearance: &Appearance) -> Styles {
         let theme = appearance.theme();
         let background = theme.surface_2();
-        let main_text_color = blended_colors::text_main(theme, background);
         let secondary_text_color = blended_colors::text_sub(theme, background);
         let tertiary_text_color = theme.hint_text_color(background).into_solid();
         let detail_font_size = appearance.ui_font_size();
@@ -144,7 +142,6 @@ impl NodeVersionPopupView {
         Styles {
             ui_font_family,
             background,
-            main_text_color,
             secondary_text_color,
             tertiary_text_color,
             detail_font_size,

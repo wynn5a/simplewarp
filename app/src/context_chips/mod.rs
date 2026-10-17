@@ -28,10 +28,7 @@ use warpui::color::ColorU;
 use warpui::elements::Text;
 use warpui::fonts::{Properties, Weight};
 
-#[allow(unused_imports)]
-pub use self::context_chip::{
-    ChipAvailability, ChipDisabledReason, ChipRuntimeCapabilities, ExternalCommandsAvailability,
-};
+pub use self::context_chip::{ChipAvailability, ChipRuntimeCapabilities};
 use self::context_chip::{ChipFingerprintInput, ChipRuntimePolicy, ContextChip, RefreshConfig};
 use self::renderer::RendererStyles;
 use crate::appearance::Appearance;

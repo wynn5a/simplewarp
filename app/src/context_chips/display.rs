@@ -63,8 +63,6 @@ pub struct PromptDisplay {
     agent_view_controller: ModelHandle<AgentViewController>,
 }
 
-const PROMPT_CHIP_DISPLAY_ID: &str = "PromptChipDisplay";
-
 #[derive(Debug, Clone)]
 pub enum PromptDisplayAction {
     SelectGitBranch { value: String },
@@ -75,8 +73,6 @@ pub enum PromptDisplayEvent {
     OpenTextFileInCodeEditor(String),
     ToggleMenu { open: bool },
     OpenCodeReview,
-    OpenConversationHistory,
-    OpenCommandPaletteFiles,
     RunAgentQuery(String),
     TryExecuteCommand(PromptChipShellCommand),
 }
@@ -174,17 +170,11 @@ impl PromptDisplay {
         let git_line_changes_info = git_line_changes_from_chips(new_chips);
 
         self.display_chips.clear();
-        let mut display_chips = new_chips.iter().peekable();
-        while let Some(chip_result) = display_chips.next() {
-            let next_chip_kind = display_chips
-                .peek()
-                .map(|chip_result| chip_result.kind.clone());
-
+        for chip_result in new_chips {
             let view_handle = ctx.add_typed_action_view(|ctx| {
                 let mut chip = DisplayChip::new(
                     ctx,
                     chip_result.clone(),
-                    next_chip_kind,
                     DisplayChipConfig {
                         ai_input_model: self.ai_input_model.clone(),
                         ai_context_model: self.ai_context_model.clone(),
@@ -215,14 +205,6 @@ impl PromptDisplay {
                 }
                 PromptDisplayChipEvent::OpenCodeReview => {
                     ctx.emit(PromptDisplayEvent::OpenCodeReview);
-                    ctx.notify();
-                }
-                PromptDisplayChipEvent::OpenConversationHistory => {
-                    ctx.emit(PromptDisplayEvent::OpenConversationHistory);
-                    ctx.notify();
-                }
-                PromptDisplayChipEvent::OpenCommandPaletteFiles => {
-                    ctx.emit(PromptDisplayEvent::OpenCommandPaletteFiles);
                     ctx.notify();
                 }
                 PromptDisplayChipEvent::RunAgentQuery(query) => {

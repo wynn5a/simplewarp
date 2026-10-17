@@ -26,7 +26,7 @@ use crate::ai::blocklist::{
     BlocklistAIHistoryEvent, BlocklistAIHistoryModel, InputType, ResponseStream, ResponseStreamId,
 };
 use crate::ai::llms::LLMId;
-use crate::context_chips::prompt::Prompt;
+use crate::context_chips::prompt::{Prompt, PromptConfiguration};
 use crate::editor::{AutosuggestionLocation, AutosuggestionType};
 use crate::features::FeatureFlag;
 use crate::pane_group::TerminalPaneId;
@@ -4351,17 +4351,15 @@ fn test_prompt_context_menu_items_for_context_chips() {
             })
         });
 
-        // Set the prompt to something we can actually read for.
+        // Set the prompt to something we can actually read for. The mock `Prompt`
+        // singleton has no settings subscriptions, so write its config directly.
         let prompt = Prompt::handle(&app);
-        prompt.update(&mut app, |prompt, ctx| {
-            prompt
-                .update(
-                    [ContextChipKind::Time12],
-                    false,
-                    WarpPromptSeparator::None,
-                    ctx,
-                )
-                .expect("updating prompt to time chip failed");
+        prompt.update(&mut app, |prompt, _| {
+            prompt.set_config_for_test(PromptConfiguration::from_chips(
+                [ContextChipKind::Time12],
+                false,
+                WarpPromptSeparator::None,
+            ));
         });
 
         let session_settings = SessionSettings::handle(&app);

@@ -55,10 +55,6 @@ impl PromptChip {
     fn new(chip: ContextChipKind, config: ChipConfig) -> Self {
         Self { chip, config }
     }
-
-    pub fn chip(&self) -> &ContextChipKind {
-        &self.chip
-    }
 }
 
 /// Deserialize prompt chips, silently dropping any with unrecognized chip kinds.
@@ -174,28 +170,6 @@ impl Prompt {
         }
     }
 
-    pub fn update<I>(
-        &mut self,
-        chips: I,
-        same_line_prompt_enabled: bool,
-        separator: WarpPromptSeparator,
-        ctx: &mut ModelContext<Self>,
-    ) -> anyhow::Result<()>
-    where
-        I: IntoIterator<Item = ContextChipKind>,
-    {
-        let config = PromptConfiguration::from_chips(chips, same_line_prompt_enabled, separator);
-        // Eagerly set the new config - it will be re-updated when the settings change propagates.
-        self.config = config.clone();
-        SessionSettings::handle(ctx).update(ctx, |session_settings, ctx| {
-            session_settings.honor_ps1.set_value(false, ctx)?;
-            session_settings
-                .saved_prompt
-                .set_value(PromptSelection::CustomChipSelection(config), ctx)?;
-            Ok(())
-        })
-    }
-
     /// Reset to the default Warp prompt.
     pub fn reset<C: UpdateModel + GetSingletonModelHandle>(
         &mut self,
@@ -244,6 +218,14 @@ impl Prompt {
         Self {
             config: PromptConfiguration::from_chips(chips, same_line_prompt_enabled, separator),
         }
+    }
+
+    /// Overwrites the in-memory configuration without persisting it. The mock
+    /// singleton used by tests has no settings subscriptions, so tests that
+    /// need a specific prompt write it directly.
+    #[cfg(test)]
+    pub fn set_config_for_test(&mut self, config: PromptConfiguration) {
+        self.config = config;
     }
 
     /// Whether same line prompt is enabled for Warp prompt.
@@ -303,13 +285,6 @@ impl Prompt {
             self.config = Self::from_user_settings(ctx);
             ctx.emit(PromptEvent::Changed);
         }
-    }
-
-    /// Updates the in-memory prompt configuration to reflect an AI input model change.
-    fn handle_ai_input_model_change(&mut self, ctx: &mut ModelContext<Self>) {
-        log::debug!("Loading new prompt configuration due to AI input model change");
-        self.config = Self::from_user_settings(ctx);
-        ctx.emit(PromptEvent::Changed);
     }
 }
 
