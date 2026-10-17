@@ -721,6 +721,7 @@ impl CommandExecutionSource {
         matches!(self, CommandExecutionSource::AI { .. })
     }
 
+    #[cfg(test)]
     pub fn should_preserve_input(&self) -> bool {
         matches!(self, CommandExecutionSource::QueuedCommand)
     }

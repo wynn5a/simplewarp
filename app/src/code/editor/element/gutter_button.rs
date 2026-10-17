@@ -114,10 +114,10 @@ impl GutterButton for RevertHunkButton {
 
 #[derive(Debug, Default, Clone, Copy)]
 #[allow(dead_code)]
+#[allow(clippy::enum_variant_names)]
 pub enum CommentButton {
     #[default]
     CreateNewComment,
-    Disabled,
     AddedComment,
     EditorOpenedToCreateNewComment,
     EditorOpenedToUpdateComment,
@@ -136,7 +136,6 @@ impl GutterButton for CommentButton {
             CommentButton::EditorOpenedToCreateNewComment => {
                 Fill::Solid(internal_colors::neutral_3(appearance.theme()))
             }
-            CommentButton::Disabled => Fill::Solid(internal_colors::neutral_1(appearance.theme())),
             CommentButton::AddedComment | CommentButton::EditorOpenedToUpdateComment => {
                 internal_colors::accent(appearance.theme())
             }
@@ -155,7 +154,6 @@ impl GutterButton for CommentButton {
     fn tooltip_text(&self) -> Option<&'static str> {
         match self {
             CommentButton::CreateNewComment => Some("Add comment on line"),
-            CommentButton::Disabled => Some("Save changes to add comment"),
             CommentButton::AddedComment => Some("Show saved comment"),
             CommentButton::EditorOpenedToCreateNewComment
             | CommentButton::EditorOpenedToUpdateComment => None,
@@ -164,9 +162,9 @@ impl GutterButton for CommentButton {
 
     fn icon(&self) -> Icon {
         match self {
-            CommentButton::CreateNewComment
-            | CommentButton::Disabled
-            | CommentButton::EditorOpenedToCreateNewComment => Icon::MessagePlusSquare,
+            CommentButton::CreateNewComment | CommentButton::EditorOpenedToCreateNewComment => {
+                Icon::MessagePlusSquare
+            }
             CommentButton::AddedComment | CommentButton::EditorOpenedToUpdateComment => {
                 Icon::MessageText
             }

@@ -431,6 +431,7 @@ impl BlocklistAIHistoryModel {
     /// Sets a live conversation's server token, updates the reverse index,
     /// synchronizes cached metadata, persists the rebound token to SQLite,
     /// and emits refresh events for live consumers.
+    #[cfg(test)]
     pub fn set_server_conversation_token_for_conversation_and_persist(
         &mut self,
         conversation_id: AIConversationId,

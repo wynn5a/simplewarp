@@ -1574,18 +1574,6 @@ impl CodeEditorView {
         });
     }
 
-    /// Identifies which line (current or removed) is at the given content-space
-    /// vertical offset. Delegates to [`CodeEditorModel::line_at_vertical_offset`].
-    #[allow(dead_code)]
-    pub fn line_at_vertical_offset(
-        &self,
-        offset: Pixels,
-        ctx: &mut ViewContext<Self>,
-    ) -> Option<(StableEditorLine, Pixels)> {
-        self.model
-            .update(ctx, |model, ctx| model.line_at_vertical_offset(offset, ctx))
-    }
-
     /// Returns the content-space vertical offset of the top of the given line.
     /// Delegates to [`CodeEditorModel::line_top`].
     pub fn line_top(&self, line: &StableEditorLine, ctx: &AppContext) -> Option<Pixels> {
@@ -2249,9 +2237,7 @@ impl View for CodeEditorView {
                 }),
                 _ => {}
             }),
-            self.display_options
-                .scroll_wheel_behavior
-                .should_handle(focused),
+            self.display_options.scroll_wheel_behavior.should_handle(),
             self.model.as_ref(app).diff_navigation_state().clone(),
             if let Some(index) = self.model.as_ref(app).focused_diff_index() {
                 self.model

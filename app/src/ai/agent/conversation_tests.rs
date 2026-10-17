@@ -206,7 +206,7 @@ fn restored_conversation_with_empty_task_list_creates_in_progress_optimistic_roo
         "synthesized optimistic root must have a non-empty UUID id"
     );
     assert_eq!(conversation.status(), &ConversationStatus::InProgress);
-    assert!(conversation.status_error_message().is_none());
+    assert!(conversation.status_error().is_none());
 }
 /// The legacy `AgentConversationData.root_task_is_optimistic` flag must be
 /// ignored on restore. A non-empty task list always produces a real

@@ -8,16 +8,13 @@ use persistence::model::AgentConversationData;
 use warp_core::features::FeatureFlag;
 use warpui::{App, EntityId, ModelHandle, SingletonEntity};
 
-use super::entry::{
-    AgentConversationEntryId, AgentConversationNavigationSubject, AgentConversationProvenance,
-};
+use super::entry::{AgentConversationEntryId, AgentConversationProvenance};
 use super::query::{DEFAULT_RESULT_COUNT, MAX_SEARCH_RESULTS};
 use super::{
     AgentConversationsModel, AgentConversationsModelEvent, ConversationMetadata,
     ConversationUpdateKind, StatusFilter, query_conversation_entries,
 };
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
-use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId, ConversationStatus};
 use crate::ai::blocklist::history_model::{
     BlocklistAIHistoryEvent, BlocklistAIHistoryModel, ConversationStatusUpdate,
@@ -326,26 +323,6 @@ fn test_get_entries_includes_local_only_entry() {
             assert_eq!(entry.display.title, "Local conversation");
         });
     });
-}
-
-#[test]
-fn test_resolve_open_action_handles_server_token_subject_without_entry() {
-    App::test((), |mut app| async move {
-        add_entry_projection_test_models(&mut app);
-        app.add_singleton_model(|_| create_test_model());
-
-        let server_token = ServerConversationToken::new("server-token-subject".to_string());
-        app.update(|ctx| {
-            let action = AgentConversationsModel::resolve_open_action(
-                AgentConversationNavigationSubject::ServerToken(server_token.clone()),
-                None,
-                ctx,
-            );
-
-            // A server token with no locally-resolvable conversation has no local open action.
-            assert!(action.is_none());
-        });
-    })
 }
 
 #[test]

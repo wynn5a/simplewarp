@@ -2130,8 +2130,8 @@ fn recovery_pending_error_sets_transient_error_status() {
 }
 
 /// The structured exchange error (and its rendering hints) must survive the
-/// conversion to `AmbientConversationStatus`; the conversation-level
-/// `status_error_message` is a plain string and would otherwise drop them.
+/// conversion to `AmbientConversationStatus`; a plain-string rendering of the
+/// conversation-level error would otherwise drop them.
 #[test]
 fn structured_exchange_error_is_preserved_in_output_status() {
     let (status, derived) = statuses_after_stream_error(

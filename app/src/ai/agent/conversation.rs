@@ -492,12 +492,6 @@ impl AIConversation {
         &self.status
     }
 
-    /// The human-readable message for the current error status, derived from the
-    /// structured `status_error`.
-    pub fn status_error_message(&self) -> Option<String> {
-        self.status_error.as_ref().map(|error| error.to_string())
-    }
-
     /// The structured error backing the current `Error`/`TransientError` status.
     /// Status consumers use it to classify the failure (e.g. FAILED vs ERROR) and
     /// to render the message.

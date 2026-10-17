@@ -157,9 +157,8 @@ impl PaneContent for CodePane {
 
         let source = self.file_view(ctx).as_ref(ctx).source().clone();
         let pane_group_id = ctx.view_id();
-        let window_id = ctx.window_id();
         CodeManager::handle(ctx).update(ctx, |manager, _ctx| {
-            manager.register_pane(pane_group_id, window_id, pane_id, source);
+            manager.register_pane(pane_group_id, pane_id, source);
         });
     }
 

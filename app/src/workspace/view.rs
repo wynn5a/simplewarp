@@ -11332,31 +11332,6 @@ impl Workspace {
             .active_session_terminal_model(app)
     }
 
-    /// Replace the active terminal input's buffer with `contents`. Adds to the
-    /// undo stack.
-    pub fn set_active_terminal_input_contents_and_focus_app(
-        &mut self,
-        contents: &str,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let window_id = ctx.window_id();
-
-        match self.get_active_input_view_handle(ctx) {
-            Some(active_input_view_handle) => {
-                active_input_view_handle.update(ctx, |input_view, input_ctx| {
-                    input_view.replace_buffer_content(contents, input_ctx);
-                });
-
-                ctx.windows().show_window_and_focus_app(window_id);
-
-                ctx.notify();
-            }
-            _ => {
-                report_error!("workspace::view::fill_input(): no active input view handle to fill");
-            }
-        }
-    }
-
     /// Insert the given command that should open a subshell. And set a flag that we should
     /// automatically bootstrap AKA "warpify" that subshell if we support it. No-op if there is
     /// no active terminal session.

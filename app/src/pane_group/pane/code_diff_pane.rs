@@ -86,11 +86,9 @@ impl PaneContent for CodeDiffPane {
 
         let action_id = self.diff_view(ctx).as_ref(ctx).action_id().clone();
         let pane_group_id = ctx.view_id();
-        let window_id = ctx.window_id();
         CodeManager::handle(ctx).update(ctx, |manager, _ctx| {
             manager.register_pane(
                 pane_group_id,
-                window_id,
                 pane_id,
                 CodeSource::AIAction { id: action_id },
             );

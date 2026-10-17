@@ -185,20 +185,4 @@ impl FindWorkQueue {
         drop(inner);
         self.event.notify(usize::MAX);
     }
-
-    /// Removes all pending items from the queue.
-    pub fn clear(&self) {
-        let mut inner = self.inner.lock().unwrap();
-        inner.items.clear();
-    }
-
-    /// Returns `true` if the queue has no pending items.
-    pub fn is_empty(&self) -> bool {
-        self.inner.lock().unwrap().items.is_empty()
-    }
-
-    /// Returns the number of pending items.
-    pub fn len(&self) -> usize {
-        self.inner.lock().unwrap().items.len()
-    }
 }

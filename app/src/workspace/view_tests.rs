@@ -1583,36 +1583,6 @@ fn test_create_personal_env_var_collection_opens_a_pane() {
     });
 }
 
-#[test]
-fn test_set_active_terminal_input_contents_and_focus_app() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-        let workspace = mock_workspace(&mut app);
-
-        workspace.update(&mut app, |workspace, ctx| {
-            let initial_buffer_contents = workspace
-                .get_active_input_view_handle(ctx)
-                .map(|input_view_handle| input_view_handle.as_ref(ctx).buffer_text(ctx))
-                .expect("There should be an active input view");
-            assert_eq!(
-                "", initial_buffer_contents,
-                "initial active input should be empty"
-            );
-
-            workspace.set_active_terminal_input_contents_and_focus_app("foobar", ctx);
-
-            assert_eq!(
-                "foobar",
-                workspace
-                    .get_active_input_view_handle(ctx)
-                    .map(|input_view_handle| input_view_handle.as_ref(ctx).buffer_text(ctx))
-                    .expect("There should be an active input view")
-            );
-            assert!(ctx.windows().app_is_active());
-        });
-    });
-}
-
 /// Ensures that the terminal model is destroyed when it is no longer needed.
 /// This is only a "workspace" test because we want to mimic what a normal
 /// user would do and expect (e.g. close a tab and expect that its backing

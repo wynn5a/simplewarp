@@ -62,9 +62,6 @@ impl PartialEq for Box<dyn DropdownItemAction> {
 pub enum DropdownStyle {
     #[default]
     Secondary,
-    /// No border, smaller text, smaller padding
-    #[allow(dead_code)]
-    Naked,
 }
 
 impl DropdownStyle {
@@ -77,9 +74,6 @@ impl DropdownStyle {
                     left: 8.,
                     right: 8.,
                 }),
-                ..Default::default()
-            },
-            DropdownStyle::Naked => UiComponentStyles {
                 ..Default::default()
             },
         }
@@ -606,13 +600,7 @@ where
         };
         let mut top_bar = appearance
             .ui_builder()
-            .button(
-                match self.style {
-                    DropdownStyle::Secondary => ButtonVariant::Outlined,
-                    DropdownStyle::Naked => ButtonVariant::Text,
-                },
-                self.top_bar_mouse_state.clone(),
-            )
+            .button(ButtonVariant::Outlined, self.top_bar_mouse_state.clone())
             .with_text_and_icon_label(
                 TextAndIcon::new(
                     TextAndIconAlignment::TextFirst,
@@ -626,10 +614,7 @@ where
                     MainAxisAlignment::SpaceBetween,
                     vec2f(15., 15.),
                 )
-                .with_inner_padding(match self.style {
-                    DropdownStyle::Secondary => 10.,
-                    DropdownStyle::Naked => 6.,
-                }),
+                .with_inner_padding(10.),
             )
             .with_style(self.style.ui_component_styles())
             .with_style(UiComponentStyles {

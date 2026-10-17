@@ -390,11 +390,6 @@ impl WorkingDirectoriesModel {
         self.selected_review_repo.insert(pane_group_id, repo_path);
     }
 
-    /// Clear the saved code review panel selection for a pane group.
-    pub fn clear_selected_review_repo(&mut self, pane_group_id: EntityId) {
-        self.selected_review_repo.remove(&pane_group_id);
-    }
-
     pub fn store_global_search_view(
         &mut self,
         pane_group_id: EntityId,

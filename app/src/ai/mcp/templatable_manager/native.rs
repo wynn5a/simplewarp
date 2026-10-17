@@ -167,9 +167,7 @@ impl TemplatableMCPServerManager {
                 FILE_BASED_MCP_CREDENTIALS_KEY,
                 &self.file_based_server_credentials,
             );
-            app.emit(TemplatableMCPServerManagerEvent::CredentialsChanged {
-                uuid: installation_uuid,
-            });
+            app.emit(TemplatableMCPServerManagerEvent::CredentialsChanged);
             return;
         }
 
@@ -180,9 +178,7 @@ impl TemplatableMCPServerManager {
                 TEMPLATABLE_MCP_CREDENTIALS_KEY,
                 &self.server_credentials,
             );
-            app.emit(TemplatableMCPServerManagerEvent::CredentialsChanged {
-                uuid: installation_uuid,
-            });
+            app.emit(TemplatableMCPServerManagerEvent::CredentialsChanged);
         } else {
             report_error!(
                 "Corresponding file or cloud-based server not found for installation UUID",
@@ -203,9 +199,7 @@ impl TemplatableMCPServerManager {
                 FILE_BASED_MCP_CREDENTIALS_KEY,
                 &self.file_based_server_credentials,
             );
-            app.emit(TemplatableMCPServerManagerEvent::CredentialsChanged {
-                uuid: installation_uuid,
-            });
+            app.emit(TemplatableMCPServerManagerEvent::CredentialsChanged);
             return;
         }
         if let Some(template_uuid) = self.get_template_uuid(installation_uuid) {
@@ -215,9 +209,7 @@ impl TemplatableMCPServerManager {
                 TEMPLATABLE_MCP_CREDENTIALS_KEY,
                 &self.server_credentials,
             );
-            app.emit(TemplatableMCPServerManagerEvent::CredentialsChanged {
-                uuid: installation_uuid,
-            });
+            app.emit(TemplatableMCPServerManagerEvent::CredentialsChanged);
         } else {
             report_error!(
                 "No template UUID found for installation UUID",
@@ -863,9 +855,7 @@ impl TemplatableMCPServerManager {
                                 }
                                 manager.authorization_urls.insert(uuid, auth_url.clone());
                                 ctx.emit(
-                                    TemplatableMCPServerManagerEvent::AuthenticationRequired {
-                                        uuid,
-                                    },
+                                    TemplatableMCPServerManagerEvent::AuthenticationRequired,
                                 );
                                 ctx.open_url(&auth_url);
                                 manager.change_server_state(uuid, MCPServerState::Authenticating, ctx);
@@ -1083,9 +1073,7 @@ impl TemplatableMCPServerManager {
             }
         }
 
-        ctx.emit(TemplatableMCPServerManagerEvent::ServerInstallationAdded(
-            installation_uuid,
-        ));
+        ctx.emit(TemplatableMCPServerManagerEvent::ServerInstallationAdded);
 
         // Spawn the server
         if start_automatically {
@@ -1151,11 +1139,7 @@ impl TemplatableMCPServerManager {
             }
         }
 
-        for uuid in installation_uuids {
-            ctx.emit(TemplatableMCPServerManagerEvent::ServerInstallationDeleted(
-                uuid,
-            ));
-        }
+        ctx.emit(TemplatableMCPServerManagerEvent::ServerInstallationDeleted);
         ctx.notify();
     }
 

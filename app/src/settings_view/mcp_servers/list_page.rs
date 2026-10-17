@@ -755,10 +755,10 @@ impl MCPServersListPageView {
     ) {
         match event {
             TemplatableMCPServerManagerEvent::StateChanged { uuid: _, state: _ }
-            | TemplatableMCPServerManagerEvent::AuthenticationRequired { uuid: _ }
-            | TemplatableMCPServerManagerEvent::CredentialsChanged { uuid: _ }
-            | TemplatableMCPServerManagerEvent::ServerInstallationAdded(_)
-            | TemplatableMCPServerManagerEvent::ServerInstallationDeleted(_)
+            | TemplatableMCPServerManagerEvent::AuthenticationRequired
+            | TemplatableMCPServerManagerEvent::CredentialsChanged
+            | TemplatableMCPServerManagerEvent::ServerInstallationAdded
+            | TemplatableMCPServerManagerEvent::ServerInstallationDeleted
             | TemplatableMCPServerManagerEvent::TemplatableMCPServersUpdated
             | TemplatableMCPServerManagerEvent::LegacyServerConverted => {
                 self.refresh_server_cards(ctx);

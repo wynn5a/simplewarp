@@ -13,9 +13,7 @@ use warpui::{App, ModelHandle};
 use super::{HistoryEntry, HistoryEvent, PersistedCommand, ShellHost};
 use crate::ai::agent::conversation::AIConversationId;
 use crate::terminal::History;
-use crate::terminal::model::block::{
-    AgentInteractionMetadata, SerializedAIMetadata, SerializedBlock,
-};
+use crate::terminal::model::block::AgentInteractionMetadata;
 use crate::terminal::model::bootstrap::BootstrapStage;
 use crate::terminal::model::session::command_executor::testing::TestCommandExecutor;
 use crate::terminal::model::session::{Session, SessionId, SessionInfo, SessionType};
@@ -132,41 +130,6 @@ fn history_entry_for_restored_block_does_not_treat_all_agent_interactions_as_age
     ));
 
     let entry = HistoryEntry::for_restored_block("ls".to_string(), &block);
-
-    assert!(!entry.is_agent_executed);
-}
-
-#[test]
-fn history_entry_for_completed_block_preserves_agent_execution() {
-    let ai_metadata = serde_json::to_string(&SerializedAIMetadata::from(
-        AgentInteractionMetadata::new_hidden(
-            String::from("action-id").into(),
-            AIConversationId::new(),
-        ),
-    ))
-    .unwrap();
-    let block = SerializedBlock {
-        ai_metadata: Some(ai_metadata),
-        ..SerializedBlock::new_for_test("ls".as_bytes().to_vec(), vec![])
-    };
-
-    let entry = HistoryEntry::for_completed_block("ls".to_string(), &block);
-
-    assert!(entry.is_agent_executed);
-}
-
-#[test]
-fn history_entry_for_completed_block_does_not_treat_all_agent_interactions_as_agent_execution() {
-    let ai_metadata = serde_json::to_string(&SerializedAIMetadata::from(
-        AgentInteractionMetadata::new(None, AIConversationId::new(), None, None, false, false),
-    ))
-    .unwrap();
-    let block = SerializedBlock {
-        ai_metadata: Some(ai_metadata),
-        ..SerializedBlock::new_for_test("ls".as_bytes().to_vec(), vec![])
-    };
-
-    let entry = HistoryEntry::for_completed_block("ls".to_string(), &block);
 
     assert!(!entry.is_agent_executed);
 }

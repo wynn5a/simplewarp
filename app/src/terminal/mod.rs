@@ -202,17 +202,6 @@ pub struct SizeUpdate {
 }
 
 impl SizeUpdate {
-    /// Creates a size update for a layout measured directly in terminal cells.
-    pub fn from_cell_dimensions(last_size: SizeInfo, rows: usize, columns: usize) -> Self {
-        let new_size = SizeInfo::new_without_font_metrics(rows, columns);
-        Self {
-            update_reason: SizeUpdateReason::AfterLayout,
-            last_size,
-            new_size,
-            new_gap_height: None,
-        }
-    }
-
     /// Returns the resulting terminal size.
     pub fn new_size(&self) -> SizeInfo {
         self.new_size
@@ -350,6 +339,7 @@ impl SizeInfo {
         )
     }
 
+    #[cfg(test)]
     pub fn with_rows_and_columns(mut self, rows: usize, cols: usize) -> SizeInfo {
         self.columns = cols;
         self.rows = rows;
@@ -466,7 +456,3 @@ impl BlockPadding {
 
 #[cfg(test)]
 mod ref_tests;
-
-#[cfg(test)]
-#[path = "size_update_tests.rs"]
-mod size_update_tests;

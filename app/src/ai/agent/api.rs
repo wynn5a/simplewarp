@@ -74,8 +74,6 @@ pub struct RequestParams {
     pub metadata: Option<RequestMetadata>,
     pub session_context: SessionContext,
     pub model: LLMId,
-    #[allow(unused)]
-    pub coding_model: LLMId,
     pub cli_agent_model: LLMId,
     pub is_memory_enabled: bool,
     /// The user's own rules (the Knowledge page), as (name, content). Empty when rules are off.
@@ -139,7 +137,6 @@ impl RequestParams {
             metadata: None,
             session_context: SessionContext::new_for_test(),
             model: LLMId::from("test-model"),
-            coding_model: LLMId::from("test-model"),
             cli_agent_model: LLMId::from("test-model"),
             is_memory_enabled: false,
             global_rules: vec![],
@@ -240,7 +237,6 @@ impl RequestParams {
             metadata,
             session_context,
             model: request_input.model_id.clone(),
-            coding_model: request_input.coding_model_id.clone(),
             cli_agent_model: request_input.cli_agent_model_id.clone(),
             is_memory_enabled,
             global_rules,

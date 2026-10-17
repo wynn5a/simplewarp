@@ -165,10 +165,6 @@ impl RangeInModel for &mut Secret {
 pub type SecretAndHandle<'a> = (SecretHandle, &'a Secret);
 
 impl Secret {
-    pub(super) fn set_is_obfuscated(&mut self, is_obfuscated: IsObfuscated) {
-        self.is_obfuscated = is_obfuscated
-    }
-
     pub fn is_obfuscated(&self) -> bool {
         matches!(self.is_obfuscated, IsObfuscated::Yes)
     }
@@ -330,6 +326,7 @@ impl RangeMapPoint {
         Self { point, num_cols }
     }
 
+    #[cfg(test)]
     fn as_point(&self) -> Point {
         self.point
     }

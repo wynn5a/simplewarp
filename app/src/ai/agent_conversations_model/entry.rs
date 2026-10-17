@@ -23,12 +23,10 @@ impl AgentConversationEntryId {
     }
 }
 
-/// Navigation request input for resolving an entry or server-token handle at action time.
+/// Navigation request input for resolving an entry at action time.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AgentConversationNavigationSubject {
     Entry(AgentConversationEntryId),
-    #[allow(dead_code)]
-    ServerToken(ServerConversationToken),
 }
 
 /// Normalized row data for agent conversation list, management, and navigation surfaces.

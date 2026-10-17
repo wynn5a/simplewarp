@@ -17,7 +17,6 @@ use warpui::color::ColorU;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
-use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::blocklist::{
     BlocklistAIHistoryEvent, BlocklistAIHistoryModel, ConversationStatusUpdate,
@@ -295,9 +294,6 @@ impl AgentConversationsModel {
             AgentConversationNavigationSubject::Entry(id) => model
                 .get_entry_by_id(&id, app)
                 .and_then(|entry| model.resolve_entry_open_action(&entry, restore_layout, app)),
-            AgentConversationNavigationSubject::ServerToken(server_token) => model
-                .entry_for_server_token(&server_token, app)
-                .and_then(|entry| model.resolve_entry_open_action(&entry, restore_layout, app)),
         }
     }
 
@@ -354,19 +350,6 @@ impl AgentConversationsModel {
         }
 
         None
-    }
-
-    fn entry_for_server_token(
-        &self,
-        server_token: &ServerConversationToken,
-        app: &AppContext,
-    ) -> Option<AgentConversationEntry> {
-        let history_model = BlocklistAIHistoryModel::as_ref(app);
-        let conversation_id = history_model.find_conversation_id_by_server_token(server_token)?;
-        self.get_entry_by_id(
-            &AgentConversationEntryId::Conversation(conversation_id),
-            app,
-        )
     }
 
     fn handle_history_event(

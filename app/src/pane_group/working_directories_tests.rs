@@ -542,30 +542,3 @@ fn remove_pane_group_does_not_drop_diff_state_model_shared_with_other_pane_group
         );
     });
 }
-
-#[test]
-fn clear_selected_review_repo_removes_only_the_targeted_pane_group_entry() {
-    App::test((), |mut app| async move {
-        app.add_singleton_model(|_| DetectedRepositories::default());
-
-        let pane_group_a = EntityId::new();
-        let pane_group_b = EntityId::new();
-        let repo_a = PathBuf::from("/repos/a");
-        let repo_b = PathBuf::from("/repos/b");
-
-        let working_directories_handle = app.add_model(|_| WorkingDirectoriesModel::new());
-
-        working_directories_handle.update(&mut app, |model, _ctx| {
-            model.set_selected_review_repo(pane_group_a, local(&repo_a));
-            model.set_selected_review_repo(pane_group_b, local(&repo_b));
-
-            model.clear_selected_review_repo(pane_group_a);
-
-            assert!(model.get_selected_review_repo(pane_group_a).is_none());
-            assert_eq!(
-                model.get_selected_review_repo(pane_group_b).cloned(),
-                Some(local(&repo_b)),
-            );
-        });
-    });
-}

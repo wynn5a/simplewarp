@@ -876,6 +876,7 @@ impl PaneGroup {
     }
 
     /// Returns true if this pane group contains any terminal panes.
+    #[cfg(test)]
     pub fn has_terminal_panes(&self) -> bool {
         self.pane_contents
             .keys()

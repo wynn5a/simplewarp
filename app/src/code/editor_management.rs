@@ -232,15 +232,12 @@ impl CodeSource {
 }
 
 struct CodePaneData {
-    #[allow(unused)]
-    window_id: WindowId,
-    #[allow(unused)]
     locator: PaneViewLocator,
 }
 
 #[allow(dead_code)]
 pub enum CodeManagerEvent {
-    EditCompleted { action_id: AIAgentActionId },
+    EditCompleted,
 }
 
 /// Singleton model for managing the state of open code panes. It is responsible for
@@ -253,17 +250,10 @@ pub struct CodeManager {
 
 impl CodeManager {
     /// Register a new pane in the code manager.
-    pub fn register_pane(
-        &mut self,
-        pane_group_id: EntityId,
-        window_id: WindowId,
-        pane_id: PaneId,
-        source: CodeSource,
-    ) {
+    pub fn register_pane(&mut self, pane_group_id: EntityId, pane_id: PaneId, source: CodeSource) {
         let entry = self.source_to_pane_data.entry(source.omit_line_col());
         if let Entry::Vacant(entry) = entry {
             entry.insert(CodePaneData {
-                window_id,
                 locator: PaneViewLocator {
                     pane_group_id,
                     pane_id,
@@ -301,11 +291,11 @@ impl CodeManager {
             log::warn!("Trying to complete an edit on a source that doesn't exist");
         }
 
-        let CodeSource::AIAction { id } = source else {
+        let CodeSource::AIAction { .. } = source else {
             return;
         };
 
-        ctx.emit(CodeManagerEvent::EditCompleted { action_id: id })
+        ctx.emit(CodeManagerEvent::EditCompleted)
     }
 }
 
