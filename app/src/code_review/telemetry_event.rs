@@ -29,8 +29,7 @@ pub enum GitOperationKind {
     CreatePr,
 }
 
-/// Terminal status of a `GitDialog`. Captures both async-op outcomes and
-/// pre-confirmation user cancels in a single enum.
+/// Terminal status of a `GitDialog`.
 #[derive(Clone, Copy, Debug, Serialize)]
 pub enum GitDialogStatus {
     /// User confirmed the dialog and the underlying git operation succeeded.
@@ -39,11 +38,6 @@ pub enum GitDialogStatus {
     /// User confirmed the dialog and the underlying git operation failed.
     #[serde(rename = "failed")]
     Failed,
-    /// User cancelled the dialog (ESC / close button / cancel button) before
-    /// the async op ran.
-    #[serde(rename = "cancelled")]
-    #[allow(dead_code)]
-    Cancelled,
 }
 
 /// Entry points for opening the code review pane.

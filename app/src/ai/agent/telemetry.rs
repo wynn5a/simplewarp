@@ -9,7 +9,6 @@ impl EntrypointType {
         match self {
             Self::InitProjectRules => "INIT_PROJECT_RULES".to_string(),
             Self::UserInitiated => "USER_INITIATED".to_string(),
-            Self::AgentInitiated => "AGENT_INITIATED".to_string(),
             Self::CloneRepository => "CLONE_REPOSITORY".to_string(),
             Self::ResumeConversation => "RESUME_CONVERSATION".to_string(),
         }

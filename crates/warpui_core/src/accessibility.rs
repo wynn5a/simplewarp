@@ -206,18 +206,12 @@ impl AccessibilityContent {
 #[derive(Default, Debug, Clone, Copy)]
 pub enum WarpA11yRole {
     ButtonRole,
-    CheckboxRole,
     HelpRole,
-    ImageRole,
-    LinkRole,
-    ListRole,
     MenuItemRole,
     MenuRole,
     PopoverRole,
-    ScrollareaRole,
     TextRole,
     TextareaRole,
-    TextfieldRole,
     #[default]
     WindowRole,
     UserAction,
@@ -228,18 +222,12 @@ impl std::fmt::Display for WarpA11yRole {
         use WarpA11yRole::*;
         let word = match self {
             ButtonRole => "Button",
-            CheckboxRole => "Checkbox",
             HelpRole => "Help",
-            ImageRole => "Image",
-            LinkRole => "Link",
-            ListRole => "List",
             MenuItemRole => "MenuItem",
             MenuRole => "Menu",
             PopoverRole => "Popover",
-            ScrollareaRole => "Scrollarea",
             TextRole => "Text",
             TextareaRole => "Textarea",
-            TextfieldRole => "Textfield",
             WindowRole => "Window",
             UserAction => "Action",
         };

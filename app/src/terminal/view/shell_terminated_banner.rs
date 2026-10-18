@@ -114,12 +114,6 @@ impl TypedActionView for ShellTerminatedBanner {
 }
 
 pub enum TerminationType {
-    /// The shell process terminated normally.
-    ///
-    /// TODO(vorporeal): Use this instead of the old inline banner.  Requires
-    /// updating styling to support this properly.
-    #[allow(dead_code)]
-    Normal,
     /// The PTY failed to spawn and the shell process never started.
     PtySpawnFailure { pty_spawn_error: anyhow::Error },
     /// The shell process terminated before we were able to bootstrap.
@@ -131,7 +125,6 @@ impl TerminationType {
         const ICON_SIZE: f32 = 16.;
 
         let icon_type = match self {
-            TerminationType::Normal => ui_components::icons::Icon::Info,
             TerminationType::Premature { .. } | TerminationType::PtySpawnFailure { .. } => {
                 ui_components::icons::Icon::Warning
             }
@@ -153,7 +146,6 @@ impl TerminationType {
 
     fn text(&self, appearance: &Appearance) -> Box<dyn Element> {
         let text = match self {
-            TerminationType::Normal => "Shell process exited",
             TerminationType::PtySpawnFailure { .. } => "Shell process could not start!",
             TerminationType::Premature { .. } => "Shell process exited prematurely!",
         };
@@ -166,7 +158,6 @@ impl TerminationType {
 
     fn subtext(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
         let text: Cow<str> = match self {
-            TerminationType::Normal => return None,
             TerminationType::PtySpawnFailure { pty_spawn_error } => {
                 format!("{pty_spawn_error:#}").into()
             }
@@ -192,7 +183,6 @@ impl TerminationType {
         handles: &mut Vec<MouseStateHandle>,
     ) -> Vec<Box<dyn Element>> {
         match self {
-            TerminationType::Normal => vec![],
             TerminationType::Premature { .. } => vec![],
             TerminationType::PtySpawnFailure { pty_spawn_error } => {
                 let ui_builder = inverted_color_ui_builder(appearance);

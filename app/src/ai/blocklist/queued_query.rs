@@ -219,8 +219,6 @@ pub enum QueuedQueryEvent {
     },
     EditCancelled {
         conversation_id: AIConversationId,
-        #[allow(dead_code)]
-        query_id: QueuedQueryId,
     },
     Cleared {
         conversation_id: AIConversationId,
@@ -702,10 +700,7 @@ impl QueuedQueryModel {
         if let Some(prev) = prev_edit
             && prev != query_id
         {
-            ctx.emit(QueuedQueryEvent::EditCancelled {
-                conversation_id,
-                query_id: prev,
-            });
+            ctx.emit(QueuedQueryEvent::EditCancelled { conversation_id });
         }
         ctx.emit(QueuedQueryEvent::EditEntered {
             conversation_id,
@@ -729,10 +724,7 @@ impl QueuedQueryModel {
             return;
         };
         if new_text.is_empty() {
-            ctx.emit(QueuedQueryEvent::EditCancelled {
-                conversation_id,
-                query_id,
-            });
+            ctx.emit(QueuedQueryEvent::EditCancelled { conversation_id });
             return;
         }
         if let Some(row) = state.queue.iter_mut().find(|q| q.id == query_id) {
@@ -749,13 +741,10 @@ impl QueuedQueryModel {
         let Some(state) = self.queues.get_mut(&conversation_id) else {
             return;
         };
-        let Some(query_id) = state.editing.take() else {
+        if state.editing.take().is_none() {
             return;
-        };
-        ctx.emit(QueuedQueryEvent::EditCancelled {
-            conversation_id,
-            query_id,
-        });
+        }
+        ctx.emit(QueuedQueryEvent::EditCancelled { conversation_id });
     }
 }
 

@@ -2038,7 +2038,6 @@ pub enum StaticQueryType {
 pub enum EntrypointType {
     InitProjectRules,
     UserInitiated,
-    AgentInitiated,
     CloneRepository,
     ResumeConversation,
 }

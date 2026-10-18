@@ -1,7 +1,6 @@
-#![allow(dead_code)]
 use getset::Getters;
 
-use crate::meta::{Span, Spanned, SpannedItem};
+use crate::meta::{Spanned, SpannedItem};
 
 #[derive(Getters, Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct ParseError {
@@ -10,25 +9,6 @@ pub struct ParseError {
 }
 
 impl ParseError {
-    pub fn unexpected_eof(expected: impl Into<String>, span: Span) -> ParseError {
-        ParseError {
-            reason: ParseErrorReason::Eof {
-                expected: expected.into(),
-                span,
-            },
-        }
-    }
-
-    pub fn extra_tokens(actual: Spanned<impl Into<String>>) -> ParseError {
-        let Spanned { span, item } = actual;
-
-        ParseError {
-            reason: ParseErrorReason::ExtraTokens {
-                actual: item.into().spanned(span),
-            },
-        }
-    }
-
     pub fn mismatch(expected: impl Into<String>, actual: Spanned<impl Into<String>>) -> ParseError {
         let Spanned { span, item } = actual;
 
@@ -36,14 +16,6 @@ impl ParseError {
             reason: ParseErrorReason::Mismatch {
                 expected: expected.into(),
                 actual: item.into().spanned(span),
-            },
-        }
-    }
-
-    pub fn internal_error(message: Spanned<impl Into<String>>) -> ParseError {
-        ParseError {
-            reason: ParseErrorReason::InternalError {
-                message: message.item.into().spanned(message.span),
             },
         }
     }
@@ -60,19 +32,9 @@ impl ParseError {
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum ParseErrorReason {
-    Eof {
-        expected: String,
-        span: Span,
-    },
-    ExtraTokens {
-        actual: Spanned<String>,
-    },
     Mismatch {
         expected: String,
         actual: Spanned<String>,
-    },
-    InternalError {
-        message: Spanned<String>,
     },
     ArgumentError {
         command: Spanned<String>,
