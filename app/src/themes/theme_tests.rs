@@ -456,43 +456,43 @@ mod windows_custom_theme_path_tests {
 
 #[test]
 fn in_memory_theme_generation_test() {
-    let mountains_bg_path: PathBuf = [
+    let pink_city_bg_path: PathBuf = [
         env!("CARGO_MANIFEST_DIR"),
         "assets",
         "async",
         "jpg",
-        "mountains.jpg",
+        "pink_city_bg.jpg",
     ]
     .iter()
     .collect();
 
     let mut in_memory_theme = warpui::r#async::block_on(InMemoryThemeOptions::new(
-        "mountains".to_string(),
-        mountains_bg_path.clone(),
+        "pink city".to_string(),
+        pink_city_bg_path.clone(),
     ))
     .unwrap();
 
-    let mountains_bg_path_string = mountains_bg_path.to_str().unwrap_or_default().to_owned();
+    let pink_city_bg_path_string = pink_city_bg_path.to_str().unwrap_or_default().to_owned();
     assert_eq!(
         in_memory_theme.theme(),
         WarpTheme::new(
             // the theme defaults to the 0th bg color
-            ColorU::new(35, 31, 44, OPAQUE).into(),
+            ColorU::new(132, 79, 122, OPAQUE).into(),
             // this background color makes it a "dark" theme, so the foreground is white
             ColorU::white(),
             // the most distinct accent color is 3rd one
-            ColorU::new(238, 203, 111, OPAQUE).into(),
+            ColorU::new(233, 146, 181, OPAQUE).into(),
             None,
             Some(Details::Darker),
             dark_mode_colors(),
             Some(Image {
                 source: AssetSource::LocalFile {
-                    path: mountains_bg_path_string.clone(),
+                    path: pink_city_bg_path_string.clone(),
                     content_version: None,
                 },
                 opacity: 30,
             }),
-            Some("mountains".to_string()),
+            Some("pink city".to_string()),
         )
     );
 
@@ -502,22 +502,22 @@ fn in_memory_theme_generation_test() {
         in_memory_theme.theme(),
         WarpTheme::new(
             // now the background is the 2nd one
-            ColorU::new(229, 142, 113, OPAQUE).into(),
+            ColorU::new(233, 146, 181, OPAQUE).into(),
             // changing the background color made this a light theme
             ColorU::black(),
-            // now the 4th color is the most distinct color
-            ColorU::new(193, 217, 212, OPAQUE).into(),
+            // now the 5th color is the most distinct color
+            ColorU::new(245, 218, 222, OPAQUE).into(),
             None,
             Some(Details::Lighter),
             light_mode_colors(),
             Some(Image {
                 source: AssetSource::LocalFile {
-                    path: mountains_bg_path_string,
+                    path: pink_city_bg_path_string,
                     content_version: None,
                 },
                 opacity: 30,
             }),
-            Some("mountains".to_string()),
+            Some("pink city".to_string()),
         )
     );
 }

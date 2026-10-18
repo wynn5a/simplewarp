@@ -134,6 +134,7 @@ impl IndexedRepoState {
         Self::Pending(Condition::new())
     }
 
+    #[cfg(any(test, feature = "test-util"))]
     pub fn wait_until_indexed(&self) -> BoxFuture<'static, ()> {
         match self {
             Self::Indexed(_) | Self::Failed(_) => future::ready(()).boxed(),
@@ -1912,6 +1913,7 @@ impl LocalRepoMetadataModel {
     ///
     /// Callers should check [`Self::repository_state`] after awaiting this future to see whether
     /// indexing succeeded or failed.
+    #[cfg(any(test, feature = "test-util"))]
     pub fn repository_indexed(&self, repo_path: &StandardizedPath) -> BoxFuture<'static, ()> {
         match self.repositories.get(repo_path) {
             Some(state) => state.wait_until_indexed(),

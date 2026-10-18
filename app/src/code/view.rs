@@ -519,13 +519,13 @@ impl CodeView {
                 CodeView::display_save_failure(ctx.window_id(), ctx);
             }
             LocalCodeEditorEvent::DiffAccepted => {
-                CodeManager::handle(ctx).update(ctx, |code_manager, ctx| {
-                    code_manager.complete_pending_diffs(me.source.clone(), ctx);
+                CodeManager::handle(ctx).update(ctx, |code_manager, _ctx| {
+                    code_manager.complete_pending_diffs(me.source.clone());
                 });
             }
             LocalCodeEditorEvent::DiffRejected => {
-                CodeManager::handle(ctx).update(ctx, |code_manager, ctx| {
-                    code_manager.complete_pending_diffs(me.source.clone(), ctx);
+                CodeManager::handle(ctx).update(ctx, |code_manager, _ctx| {
+                    code_manager.complete_pending_diffs(me.source.clone());
                 });
             }
             LocalCodeEditorEvent::DiffStatusUpdated => (),

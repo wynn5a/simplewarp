@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use ai::skills::SkillReference;
 use serde::{Deserialize, Serialize};
 use warp_util::path::LineAndColumnArg;
-use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity, ViewHandle, WindowId};
+use warpui::{AppContext, Entity, EntityId, SingletonEntity, ViewHandle, WindowId};
 
 use super::buffer_location::LocalOrRemotePath;
 use super::view::CodeView;
@@ -235,13 +235,8 @@ struct CodePaneData {
     locator: PaneViewLocator,
 }
 
-pub enum CodeManagerEvent {
-    EditCompleted,
-}
-
 /// Singleton model for managing the state of open code panes. It is responsible for
-/// 1) Allow caller to find an open code pane if exists.
-/// 2) Allow other sources to listen for events emitted when code pane is closed.
+/// allowing a caller to find an open code pane if one exists.
 #[derive(Default)]
 pub struct CodeManager {
     source_to_pane_data: HashMap<CodeSource, CodePaneData>,
@@ -284,21 +279,15 @@ impl CodeManager {
             .map(|(_, data)| data.locator)
     }
 
-    pub fn complete_pending_diffs(&mut self, source: CodeSource, ctx: &mut ModelContext<Self>) {
+    pub fn complete_pending_diffs(&mut self, source: CodeSource) {
         if !self.source_to_pane_data.contains_key(&source) {
             log::warn!("Trying to complete an edit on a source that doesn't exist");
         }
-
-        let CodeSource::AIAction { .. } = source else {
-            return;
-        };
-
-        ctx.emit(CodeManagerEvent::EditCompleted)
     }
 }
 
 impl Entity for CodeManager {
-    type Event = CodeManagerEvent;
+    type Event = ();
 }
 
 impl SingletonEntity for CodeManager {}

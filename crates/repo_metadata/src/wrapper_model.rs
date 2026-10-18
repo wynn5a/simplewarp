@@ -156,6 +156,7 @@ impl RepoMetadataModel {
     ///
     /// Callers should inspect [`Self::repository_state`] after awaiting this future to see whether
     /// indexing succeeded or failed.
+    #[cfg(any(test, feature = "test-util"))]
     pub fn repository_indexed(
         &self,
         id: &RepositoryIdentifier,

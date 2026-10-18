@@ -50,45 +50,6 @@ impl Default for FixedInterval {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ExponentialBackoff {
-    pub max_times: Option<usize>,
-    pub base_duration: Duration,
-}
-
-impl ExponentialBackoff {
-    pub const DEFAULT_DURATION: Duration = Duration::from_millis(1000);
-}
-
-impl Default for ExponentialBackoff {
-    fn default() -> Self {
-        Self {
-            max_times: None,
-            base_duration: Self::DEFAULT_DURATION,
-        }
-    }
-}
-
-impl SseRetryPolicy for ExponentialBackoff {
-    fn retry(&self, current_times: usize) -> Option<Duration> {
-        if let Some(max_times) = self.max_times
-            && current_times >= max_times
-        {
-            return None;
-        }
-        Some(self.base_duration * (2u32.pow(current_times as u32)))
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct NeverRetry;
-
-impl SseRetryPolicy for NeverRetry {
-    fn retry(&self, _current_times: usize) -> Option<Duration> {
-        None
-    }
-}
-
 /// Abstraction for SSE reconnection logic. Implementors can hook into
 /// [`handle_control_event`](Self::handle_control_event) to consume control
 /// frames (e.g. `event: endpoint`) that arrive when a server restarts an SSE

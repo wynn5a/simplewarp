@@ -6,5 +6,5 @@ mod client_side_sse;
 mod reqwest_impl;
 mod sse_client;
 
-pub use client_side_sse::{ExponentialBackoff, FixedInterval, NeverRetry, SseRetryPolicy};
+pub use client_side_sse::{FixedInterval, SseRetryPolicy};
 pub use sse_client::{SseClient, SseClientConfig, SseClientTransport, SseTransportError};
