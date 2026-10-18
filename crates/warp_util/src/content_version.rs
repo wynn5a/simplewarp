@@ -14,15 +14,6 @@ impl ContentVersion {
         let raw = NEXT_ID.fetch_add(1, Ordering::Relaxed);
         ContentVersion(raw)
     }
-
-    pub fn as_i32(&self) -> i32 {
-        self.0 as i32
-    }
-
-    /// Returns the underlying value as a `u64` for wire serialization.
-    pub fn as_u64(&self) -> u64 {
-        self.0 as u64
-    }
 }
 
 #[cfg(test)]

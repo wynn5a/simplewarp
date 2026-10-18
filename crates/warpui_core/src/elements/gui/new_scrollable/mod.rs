@@ -273,14 +273,6 @@ impl ScrollableState {
         }
     }
 
-    #[allow(dead_code)]
-    fn scroll_offset(&self) -> Vector2F {
-        match self {
-            Self::BothAxes { config, .. } => config.scroll_offset(),
-            Self::SingleAxis { axis, config, .. } => config.scroll_offset(*axis),
-        }
-    }
-
     /// Paint the scrollbars on both axes.
     fn draw_scrollbars(
         &mut self,

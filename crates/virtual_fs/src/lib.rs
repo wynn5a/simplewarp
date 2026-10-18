@@ -149,26 +149,3 @@ impl VirtualFS {
         self
     }
 }
-
-pub struct Warp;
-
-impl Warp {
-    pub fn root() -> PathBuf {
-        let manifest_dir = if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
-            PathBuf::from(manifest_dir)
-        } else {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        };
-
-        if manifest_dir.join("Cargo.lock").exists() {
-            manifest_dir
-        } else {
-            manifest_dir
-                .parent()
-                .expect("Could not find the debug binaries directory")
-                .parent()
-                .expect("Could not find the debug binaries directory")
-                .to_path_buf()
-        }
-    }
-}

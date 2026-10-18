@@ -11,8 +11,8 @@ use warp_core::ui::theme::{AnsiColorIdentifier, Fill};
 use warpui::elements::{
     Border, ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
     DEFAULT_UI_LINE_HEIGHT_RATIO, Flex, Hoverable, MainAxisAlignment, MainAxisSize,
-    MouseStateHandle, OffsetPositioning, Padding, ParentAnchor, ParentElement as _,
-    ParentOffsetBounds, Radius, Stack, Text,
+    MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement as _, ParentOffsetBounds,
+    Radius, Stack, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::keymap::Keystroke;
@@ -61,7 +61,6 @@ pub struct ActionButton {
     width: Option<f32>,
     /// Optional custom height that overrides the default height from ButtonSize.
     custom_height: Option<f32>,
-    callout: Option<Callout>,
     theme: Arc<dyn ActionButtonTheme>,
 
     /// If `true`, this button triggers a dropdown menu, so we add a chevron icon to the right.
@@ -152,12 +151,6 @@ pub enum TooltipAlignment {
     Right,
 }
 
-/// A special callout that may be attached to buttons, usually for announcing new features.
-pub enum Callout {
-    /// This button is for a beta feature.
-    Beta,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AdjoinedSide {
     Left,
@@ -234,7 +227,6 @@ impl ActionButton {
             click_handler: None,
             cached_keystroke: None,
             mouse_state_handle: Default::default(),
-            callout: None,
             tooltip_positioning_provider: None,
             tooltip_alignment: TooltipAlignment::default(),
             disabled_theme: None,
@@ -471,11 +463,6 @@ impl ActionButton {
         ctx.notify();
     }
 
-    pub fn set_callout(&mut self, callout: Option<Callout>, ctx: &mut ViewContext<Self>) {
-        self.callout = callout;
-        ctx.notify();
-    }
-
     /// Set up a new keybinding associated with this button. The caller is responsible for resetting
     /// any previous keybinding state.
     fn setup_keybinding(&mut self, source: KeystrokeSource, ctx: &mut ViewContext<Self>) {
@@ -505,40 +492,6 @@ impl ActionButton {
     /// Returns true if the button only displays an icon (no label, no keybinding).
     fn is_icon_only(&self) -> bool {
         self.icon.is_some() && self.label.is_empty() && self.cached_keystroke.is_none()
-    }
-
-    fn maybe_render_callout(
-        &self,
-        has_preceding_element: bool,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Option<Box<dyn Element>> {
-        match self.callout.as_ref()? {
-            Callout::Beta => {
-                // The beta callout should overall be the same height as an icon, so we set the font size accordingly.
-                let padding = self.size.callout_padding();
-                let overall_height = self.size.icon_size(appearance, app);
-
-                Some(
-                    Container::new(
-                        Text::new_inline(
-                            "Beta",
-                            appearance.ui_font_family(),
-                            overall_height - padding.top() - padding.bottom(),
-                        )
-                        .with_color(appearance.theme().background().into_solid())
-                        .finish(),
-                    )
-                    .with_padding(padding)
-                    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(3.)))
-                    .with_background_color(
-                        appearance.theme().terminal_colors().bright.magenta.into(),
-                    )
-                    .with_margin_left(if has_preceding_element { 4. } else { 0. })
-                    .finish(),
-                )
-            }
-        }
     }
 
     fn maybe_render_tooltip(&self, appearance: &Appearance, app: &AppContext, stack: &mut Stack) {
@@ -800,12 +753,6 @@ impl View for ActionButton {
                         .with_margin_left(if has_preceding_element { 4. } else { 0. })
                         .finish(),
                 );
-                has_preceding_element = true;
-            }
-
-            if let Some(callout) = self.maybe_render_callout(has_preceding_element, appearance, app)
-            {
-                row.add_child(callout);
                 has_preceding_element = true;
             }
 
@@ -1505,21 +1452,6 @@ impl ButtonSize {
             ButtonSize::InputPrompt => -8.,
             ButtonSize::UDIButton => -8.,
             ButtonSize::UDIPromptChip | ButtonSize::AgentInputButton => -8.,
-        }
-    }
-
-    /// Padding on callout items.
-    fn callout_padding(&self) -> Padding {
-        match self {
-            ButtonSize::Default => Padding::uniform(2.),
-            ButtonSize::Small => Padding::uniform(2.),
-            ButtonSize::XSmall => Padding::uniform(2.),
-            ButtonSize::InlineActionHeader => Padding::uniform(2.),
-            ButtonSize::InputPrompt => Padding::default().with_vertical(1.).with_horizontal(2.),
-            ButtonSize::UDIButton => Padding::default().with_vertical(1.).with_horizontal(2.),
-            ButtonSize::UDIPromptChip | ButtonSize::AgentInputButton => {
-                Padding::default().with_vertical(1.).with_horizontal(2.)
-            }
         }
     }
 }

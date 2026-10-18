@@ -262,8 +262,6 @@ use crate::workspace::{
     CommandSearchOptions, ForkFromExchange, ForkedConversationDestination, InitContent,
     RestoreConversationLayout, ToastStack, WorkspaceAction,
 };
-#[allow(unused_imports)]
-use crate::{ServerApiProvider, cmd_or_ctrl_shift};
 
 /// Drop target data for dropping content on the [`Input`].
 #[derive(Debug, Clone)]

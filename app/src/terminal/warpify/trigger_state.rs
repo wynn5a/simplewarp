@@ -89,8 +89,6 @@ struct WarpifyTriggerState {
 
     /// Which, if any, SSH block is currently added to the blocklist.
     ssh_block_state: Option<SshBlockState>,
-
-    ssh_warpify_timeout_handle: Option<SpawnedFutureHandle>,
 }
 
 #[derive(Default)]
@@ -161,13 +159,6 @@ impl WarpifyState {
 
     pub fn abort_ssh_warpify_timeout(&mut self) {
         self.replace_timeout_id();
-        if let Some(handle) = self
-            .pending_state
-            .as_mut()
-            .and_then(|state| state.ssh_warpify_timeout_handle.take())
-        {
-            handle.abort();
-        };
     }
 
     pub fn clear_ssh_block_state(&mut self) {

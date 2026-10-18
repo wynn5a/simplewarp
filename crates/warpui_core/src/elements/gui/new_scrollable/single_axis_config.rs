@@ -190,14 +190,6 @@ impl SingleAxisConfig {
         }
     }
 
-    #[allow(dead_code)]
-    pub(super) fn scroll_offset(&self, axis: Axis) -> Vector2F {
-        match self {
-            Self::Manual { .. } => Vector2F::zero(),
-            Self::Clipped { handle, .. } => handle.scroll_start().as_f32().along(axis),
-        }
-    }
-
     pub(super) fn child_hovered(&self) -> bool {
         match self {
             Self::Manual { handle, .. } => {

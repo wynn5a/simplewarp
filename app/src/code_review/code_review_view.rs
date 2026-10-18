@@ -99,7 +99,6 @@ use crate::code_review::telemetry_event::{DiffSetContextScope, PaneStateChange};
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
 use crate::editor::InteractionState;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
-use crate::pane_group::PaneId;
 use crate::pane_group::focus_state::{PaneFocusHandle, PaneGroupFocusEvent};
 use crate::pane_group::pane::{BackingView, PaneEvent, view};
 use crate::quit_warning::UnsavedStateSummary;
@@ -228,7 +227,6 @@ const FILE_SIDEBAR_MAX_WIDTH: f32 = 800.;
 const FILE_HEADER_HEIGHT: f32 = 41.;
 /// The gap between editors in the viewported list.
 const EDITOR_GAP: f32 = 12.;
-const FILE_SIDEBAR_PANE_WIDTH_PERCENTAGE: f32 = 0.25;
 /// Vertical gap between the right panel header row and the code review content below it
 /// (sub-header in loaded state, loading text in loading state).
 pub(super) const CONTENT_TOP_MARGIN: f32 = 4.;
@@ -592,7 +590,6 @@ pub struct CodeReviewView {
 
     undo_action_button: ViewHandle<ActionButton>,
     last_revert: Option<(ViewHandle<CodeEditorView>, ContentVersion)>,
-    containing_pane_id: Option<PaneId>,
     // Header-specific dropdown menu ("Add diff set as context" / "Add comment")
     view_position_id: String,
     /// Position ID of the code review list within this view.
@@ -1263,7 +1260,6 @@ impl CodeReviewView {
             header_menu,
             header_menu_open: false,
             last_revert: None,
-            containing_pane_id: None,
             view_position_id: format!("code_review_view_{}", ctx.view_id()),
             code_review_list_position_id: format!("code_review_view_list_{}", ctx.view_id()),
             header_position_id: format!("code_review_view_header_{}", ctx.view_id()),
@@ -1358,16 +1354,8 @@ impl CodeReviewView {
         });
     }
 
-    fn open_file_sidebar(&mut self, ctx: &mut ViewContext<Self>) {
+    fn open_file_sidebar(&mut self) {
         self.file_sidebar_expanded = true;
-        if let Some(containing_pane_id) = self.containing_pane_id
-            && let Some(pane_width) = ctx
-                .element_position_by_id(containing_pane_id.position_id())
-                .map(|rect| rect.width())
-            && let Ok(mut state) = self.ui_state_handles.sidebar_resizable_state.lock()
-        {
-            state.set_size(pane_width * FILE_SIDEBAR_PANE_WIDTH_PERCENTAGE);
-        }
     }
 
     /// Handles file sidebar state transitions when the maximize state changes.
@@ -1378,7 +1366,7 @@ impl CodeReviewView {
             // Transitioning to maximized: save current sidebar state and open it
             self.file_sidebar_expanded_before_maximize = Some(self.file_sidebar_expanded);
             if !self.file_sidebar_expanded {
-                self.open_file_sidebar(ctx);
+                self.open_file_sidebar();
                 self.update_file_nav_button_tooltip(ctx);
                 ctx.notify();
             }
@@ -6749,7 +6737,7 @@ impl TypedActionView for CodeReviewView {
                         self.file_sidebar_expanded_before_maximize = Some(false);
                     }
                 } else {
-                    self.open_file_sidebar(ctx);
+                    self.open_file_sidebar();
                 }
                 self.update_file_nav_button_tooltip(ctx);
                 ctx.notify();

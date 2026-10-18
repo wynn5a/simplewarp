@@ -522,28 +522,6 @@ impl DualAxisConfig {
         }
     }
 
-    #[allow(dead_code)]
-    pub(super) fn scroll_offset(&self) -> Vector2F {
-        match self {
-            Self::Manual {
-                horizontal,
-                vertical,
-                ..
-            } => vec2f(
-                horizontal.paint_origin_offset(),
-                vertical.paint_origin_offset(),
-            ),
-            Self::Clipped {
-                horizontal,
-                vertical,
-                ..
-            } => vec2f(
-                horizontal.handle.scroll_start().as_f32(),
-                vertical.handle.scroll_start().as_f32(),
-            ),
-        }
-    }
-
     pub(super) fn child_hovered(&self) -> bool {
         match self {
             Self::Manual {
