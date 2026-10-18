@@ -1,5 +1,5 @@
 {
-  description = "Warp is an agentic development environment, born out of the terminal (Experimental Nix Support, Linux-only).";
+  description = "SimpleWarp is a local-only terminal with bring-your-own-key AI (Experimental Nix Support, Linux-only).";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -86,7 +86,7 @@
             in
             # crane writes a root config.toml; buildRustPackage expects the
             # cargoDeps layout to include .cargo/config.toml and Cargo.lock.
-            pkgs.runCommand "warp-terminal-experimental-${version}-cargo-vendor" { } ''
+            pkgs.runCommand "simplewarp-${version}-cargo-vendor" { } ''
               cp -R ${craneVendorDir}/. "$out"
               chmod u+w "$out"
               mkdir -p "$out/.cargo"
@@ -127,8 +127,8 @@
             "release_bundle"
           ];
 
-          warp-terminal-experimental = rustPlatform.buildRustPackage {
-            pname = "warp-terminal-experimental";
+          simplewarp = rustPlatform.buildRustPackage {
+            pname = "simplewarp";
             inherit version;
 
             inherit src;
@@ -153,7 +153,7 @@
               "-p"
               "warp"
               "--bin"
-              "warp-oss"
+              "simplewarp"
               "--bin"
               "generate_settings_schema"
             ];
@@ -164,7 +164,6 @@
             doCheck = false;
 
             env = {
-              APPIMAGE_NAME = "WarpOss-${pkgs.stdenv.hostPlatform.parsed.cpu.name}.AppImage";
               LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
               PROTOC = "${pkgs.protobuf}/bin/protoc";
               PROTOC_INCLUDE = "${pkgs.protobuf}/include";
@@ -172,15 +171,15 @@
             };
             postInstall =
               let
-                installDir = "$out/opt/warpdotdev/warp-terminal-experimental";
+                installDir = "$out/opt/simplewarp";
                 resourcesDir = "${installDir}/resources";
                 releaseChannel = "stable";
                 libraryPath = lib.makeLibraryPath linuxRuntimeLibraries;
                 executablePath = lib.makeBinPath (with pkgs; [ xdg-utils ]);
               in
               ''
-                install -Dm755 "$out/bin/warp-oss" "${installDir}/warp-oss"
-                rm -f "$out/bin/warp-oss"
+                install -Dm755 "$out/bin/simplewarp" "${installDir}/simplewarp"
+                rm -f "$out/bin/simplewarp"
 
                 patchShebangs \
                   ./script/prepare_bundled_resources \
@@ -198,52 +197,71 @@
 
                 install -Dm644 \
                   "${resourcesDir}/THIRD_PARTY_LICENSES.txt" \
-                  "$out/share/licenses/warp-terminal-experimental/THIRD_PARTY_LICENSES.txt"
+                  "$out/share/licenses/simplewarp/THIRD_PARTY_LICENSES.txt"
 
-                install -Dm644 LICENSE-AGPL "$out/share/licenses/warp-terminal-experimental/LICENSE-AGPL"
-                install -Dm644 LICENSE-MIT "$out/share/licenses/warp-terminal-experimental/LICENSE-MIT"
+                install -Dm644 LICENSE-AGPL "$out/share/licenses/simplewarp/LICENSE-AGPL"
+                install -Dm644 LICENSE-MIT "$out/share/licenses/simplewarp/LICENSE-MIT"
 
-                install -Dm644 app/channels/oss/dev.warp.WarpOss.desktop \
-                  "$out/share/applications/dev.warp.WarpOss.desktop"
-                substituteInPlace "$out/share/applications/dev.warp.WarpOss.desktop" \
-                  --replace-fail "Exec=warp-terminal-oss %U" "Exec=warp-terminal-experimental %U"
+                install -Dm644 /dev/null "$out/share/applications/dev.simplewarp.SimpleWarp.desktop"
+                cat > "$out/share/applications/dev.simplewarp.SimpleWarp.desktop" <<DESKTOP
+                [Desktop Entry]
+                Version=1.0
+
+                Type=Application
+
+                Name=SimpleWarp
+                GenericName=TerminalEmulator
+
+                Exec=simplewarp %U
+                StartupWMClass=dev.simplewarp.SimpleWarp
+
+                Keywords=shell;prompt;command;commandline;cmd;
+
+                Icon=dev.simplewarp.SimpleWarp
+
+                Categories=System;TerminalEmulator;
+
+                # Don't run this application within a terminal.
+                Terminal=false
+
+                # Register ourselves as the handler for simplewarp:// URLs.
+                MimeType=x-scheme-handler/simplewarp;
+                DESKTOP
 
                 for size in 16x16 32x32 64x64 128x128 256x256 512x512; do
-                  icon="app/channels/oss/icon/no-padding/$size.png"
+                  icon="app/channels/stable/icon/no-padding/$size.png"
                   if [ -f "$icon" ]; then
                     install -Dm644 "$icon" \
-                      "$out/share/icons/hicolor/$size/apps/dev.warp.WarpOss.png"
+                      "$out/share/icons/hicolor/$size/apps/dev.simplewarp.SimpleWarp.png"
                   fi
                 done
 
-                wrapProgram "${installDir}/warp-oss" \
+                wrapProgram "${installDir}/simplewarp" \
                   --prefix LD_LIBRARY_PATH : "${libraryPath}" \
                   --prefix PATH : "${executablePath}"
 
                 mkdir -p "$out/bin"
-                ln -s "${installDir}/warp-oss" "$out/bin/warp-oss"
-                ln -s "${installDir}/warp-oss" "$out/bin/warp-terminal-experimental"
+                ln -s "${installDir}/simplewarp" "$out/bin/simplewarp"
               '';
 
             postFixup = lib.optionalString pkgs.stdenv.isLinux ''
-              wrapped="/opt/warpdotdev/warp-terminal-experimental/.warp-oss-wrapped"
+              wrapped="/opt/simplewarp/.simplewarp-wrapped"
               if [ -e "$out$wrapped" ] && ! patchelf --print-needed "$out$wrapped" | grep -q '^libfontconfig\.so\.1$'; then
                 patchelf --add-needed libfontconfig.so.1 "$out$wrapped"
               fi
             '';
 
             meta = {
-              description = "Warp is an agentic development environment, born out of the terminal (Experimental Nix Support, Linux-only).";
-              homepage = "https://www.warp.dev";
+              description = "SimpleWarp is a local-only terminal with bring-your-own-key AI (Experimental Nix Support, Linux-only).";
               license = lib.licenses.agpl3Only;
-              mainProgram = "warp-terminal-experimental";
+              mainProgram = "simplewarp";
               platforms = systems;
               sourceProvenance = with lib.sourceTypes; [ fromSource ];
             };
           };
         in
         {
-          inherit warp-terminal-experimental;
+          inherit simplewarp;
         }
       );
 
@@ -302,7 +320,6 @@
         {
           default = pkgs.mkShell {
             inherit nativeBuildInputs buildInputs;
-            APPIMAGE_NAME = "WarpOss-${pkgs.stdenv.hostPlatform.parsed.cpu.name}.AppImage";
             LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
             PROTOC = "${pkgs.protobuf}/bin/protoc";
             PROTOC_INCLUDE = "${pkgs.protobuf}/include";

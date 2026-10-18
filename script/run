@@ -7,7 +7,7 @@
 # and Windows it invokes `cargo run` directly for the appropriate binary.
 #
 # This script owns all cross-platform setup (argument parsing, common skill
-# installation, and the bin/channel choice), so platform-specific scripts can
+# installation, and the bin choice), so platform-specific scripts can
 # assume those values are already provided via environment variables.
 
 set -e
@@ -17,13 +17,12 @@ cd "${REPO_ROOT}"
 
 OS_TYPE="$(uname -s)"
 
-FEATURES="gui"
+FEATURES="simplewarp"
 INSTALL_COMMON_SKILLS=1
 FORCE_COMMON_SKILLS=0
 COMMON_SKILLS_TARGET="${WARP_COMMON_SKILLS_INSTALL_TARGET:-}"
 
-WARP_BIN_NAME="warp-oss"
-WARP_CHANNEL="oss"
+WARP_BIN_NAME="simplewarp"
 
 # Shared argument parsing. macOS-specific flags (--dont-open,
 # --open_with_launchd, --generate-schema) are forwarded through MAC_ARGS and
@@ -105,7 +104,6 @@ fi
 
 export FEATURES
 export WARP_BIN_NAME
-export WARP_CHANNEL
 
 if [[ "$OS_TYPE" = "Darwin" ]]; then
   if [[ ${#WARP_ARGS[@]} -gt 0 ]]; then

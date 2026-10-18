@@ -15,7 +15,7 @@ destination. Cleanup of what upstream's server owned is tracked in
 
 ```bash
 ./script/bootstrap   # platform-specific setup
-cargo run --no-default-features --features simplewarp --bin simplewarp
+cargo run            # builds the simplewarp bin with the app's default (only) feature set
 ./script/presubmit   # fmt, clippy, and tests
 ```
 

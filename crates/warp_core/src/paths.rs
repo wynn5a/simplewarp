@@ -33,16 +33,18 @@ pub const WARP_CONFIG_DIR: &str = ".warp";
 pub const WARP_LOGS_DIR: &str = "logs";
 
 fn base_warp_config_dir_name() -> String {
+    // The `-oss` suffix predates the SimpleWarp naming; directories on disk were
+    // created with it and must keep resolving to the same paths.
     match ChannelState::channel() {
-        Channel::Oss => format!("{WARP_CONFIG_DIR}-oss"),
+        Channel::SimpleWarp => format!("{WARP_CONFIG_DIR}-oss"),
         Channel::Integration => format!("{WARP_CONFIG_DIR}-integration"),
     }
 }
 
 /// Returns the home-relative Warp config directory name for the current channel and data profile.
 ///
-/// This preserves the historical `.warp*` directory shape while still isolating integration, oss,
-/// and optional development profiles.
+/// This preserves the historical `.warp*` directory shape while still isolating integration and
+/// optional development profiles.
 pub fn warp_home_config_dir_name() -> String {
     let base_dir_name = base_warp_config_dir_name();
 
@@ -93,7 +95,7 @@ fn macos_config_dir_name() -> String {
 #[cfg(target_os = "macos")]
 fn macos_config_dir_name_for(channel: Channel, data_profile: Option<&str>) -> String {
     let base_dir_name = match channel {
-        Channel::Oss => format!("{WARP_CONFIG_DIR}-oss"),
+        Channel::SimpleWarp => format!("{WARP_CONFIG_DIR}-oss"),
         Channel::Integration => format!("{WARP_CONFIG_DIR}-integration"),
     };
     match data_profile {
@@ -120,11 +122,12 @@ pub fn data_dir() -> PathBuf {
 
 /// Returns the GUI application ID for the current channel.
 ///
-/// The OSS channel always uses `WarpOss`, whatever the running binary's own ID.
+/// Kept for data compatibility: existing non-macOS GUI data directories were created under the
+/// historical `WarpOss` app ID, whatever the running binary's own ID.
 #[cfg(any(not(target_os = "macos"), test))]
 fn gui_app_id_for_channel(channel: Channel, current_app_id: AppId) -> AppId {
     match channel {
-        Channel::Oss => AppId::new("dev", "warp", "WarpOss"),
+        Channel::SimpleWarp => AppId::new("dev", "warp", "WarpOss"),
         Channel::Integration => current_app_id,
     }
 }
@@ -152,9 +155,9 @@ pub fn config_local_dir() -> PathBuf {
 
 /// Resolves the GUI's non-portable configuration directory from any frontend.
 ///
-/// This differs from [`config_local_dir`] when the active process uses a
-/// frontend-specific application ID, as the OSS TUI does on Linux and Windows.
-/// On macOS, development data profiles do not have an unambiguous corresponding
+/// This differs from [`config_local_dir`] on non-macOS platforms, where it resolves through the
+/// historical GUI app ID ([`gui_app_id_for_channel`]) so existing GUI data directories keep
+/// resolving. On macOS, development data profiles do not have an unambiguous corresponding
 /// GUI `.warp*` directory, so this fails closed instead of selecting a source
 /// profile implicitly.
 pub fn gui_config_local_dir() -> Option<PathBuf> {

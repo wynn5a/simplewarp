@@ -17,7 +17,7 @@ use warp_core::channel::{Channel, ChannelConfig, ChannelState};
 // request to Warp to be addressed to.
 fn main() -> Result<()> {
     let mut state = ChannelState::new(
-        Channel::Oss,
+        Channel::SimpleWarp,
         ChannelConfig {
             app_id: AppId::new("dev", "simplewarp", "SimpleWarp"),
             url_scheme: "simplewarp",

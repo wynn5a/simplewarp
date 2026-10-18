@@ -780,18 +780,14 @@ fn test_decode_uuid_hex_rejects_invalid_chars() {
 #[test]
 fn test_bin_url_schemes_match_registered_plist_schemes() {
     let simplewarp_bin = include_str!("../bin/simplewarp.rs");
-    let oss_bin = include_str!("../bin/oss.rs");
-    let cases = [
-        (
-            "simplewarp",
+    let cases = [(
+        "simplewarp",
+        simplewarp_bin,
+        vec![
             simplewarp_bin,
-            vec![
-                simplewarp_bin,
-                include_str!("../../../script/bundle_simplewarp"),
-            ],
-        ),
-        ("warposs", oss_bin, vec![oss_bin]),
-    ];
+            include_str!("../../../script/bundle_simplewarp"),
+        ],
+    )];
     for (scheme, bin_source, plists) in cases {
         assert!(
             bin_source.contains(&format!("url_scheme: \"{scheme}\",")),

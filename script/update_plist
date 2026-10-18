@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Updates the Info.plist file for a macOS app bundle to register supported file types and URL schemes.
-# This only applies the updates common to `script/bundle` and `script/run`.
+# This applies the updates common to the apps bundled by `script/run`.
 # Must be called from the root directory of the warp repo.
 
 set -e

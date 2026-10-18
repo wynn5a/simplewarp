@@ -1,13 +1,12 @@
 #!/bin/bash
 #
 # macOS-specific implementation of `./script/run`. Runs a local version of
-# Warp as a real 'app' instead of a bare executable, so macOS can treat it
+# SimpleWarp as a real 'app' instead of a bare executable, so macOS can treat it
 # like a real signed app (custom URL schemes, user notifications, etc.).
 #
 # This script is invoked by `./script/run`, which handles cross-platform
 # setup. The following env vars are expected to be set by the caller:
-#   WARP_BIN_NAME  — "warp-oss"
-#   WARP_CHANNEL   — "oss"
+#   WARP_BIN_NAME  — "simplewarp"
 #   FEATURES       — comma-separated cargo features (already normalized)
 # Must be called from the root directory of the warp repo.
 
@@ -17,7 +16,6 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")"/../.. && pwd)"
 cd "${REPO_ROOT}"
 
 : "${WARP_BIN_NAME:?WARP_BIN_NAME must be set (invoke via ./script/run)}"
-: "${WARP_CHANNEL:?WARP_CHANNEL must be set (invoke via ./script/run)}"
 : "${FEATURES:?FEATURES must be set (invoke via ./script/run)}"
 
 # Resolve Cargo's actual target directory rather than assuming ./target. This
@@ -28,8 +26,8 @@ if [ -z "$TARGET_DIR" ] || [ "$TARGET_DIR" = "null" ]; then
     TARGET_DIR="${REPO_ROOT}/target"
 fi
 
-WARP_APP_PATH="${TARGET_DIR}/debug/bundle/osx/WarpOss.app"
-WARP_SCHEME_NAME="warposs"
+WARP_APP_PATH="${TARGET_DIR}/debug/bundle/osx/SimpleWarp.app"
+WARP_SCHEME_NAME="simplewarp"
 DONT_OPEN=false
 # Launches the binary with "open", meaning the Warp process is
 # launched by the MacOS application launcher instead of a shell session.
@@ -57,14 +55,14 @@ while (( "$#" )); do
       ;;
     --release)
       echo "Detected release build, pointing at release bundle under ${TARGET_DIR}/release/bundle"
-      WARP_APP_PATH="${TARGET_DIR}/release/bundle/osx/WarpOss.app"
+      WARP_APP_PATH="${TARGET_DIR}/release/bundle/osx/SimpleWarp.app"
       PARAMS="$PARAMS $1"
       shift
       ;;
     --profile)
       PROFILE="$2"
       shift 2
-      WARP_APP_PATH="${TARGET_DIR}/${PROFILE}/bundle/osx/WarpOss.app"
+      WARP_APP_PATH="${TARGET_DIR}/${PROFILE}/bundle/osx/SimpleWarp.app"
       PARAMS="$PARAMS --profile $PROFILE"
       ;;
     --open_with_launchd)
@@ -100,9 +98,9 @@ echo "Preparing bundled resources..."
 if [ "${GENERATE_SCHEMA:-false}" != "true" ]; then
   export SKIP_SETTINGS_SCHEMA=1
 fi
-NO_LICENSES=1 "${REPO_ROOT}/script/prepare_bundled_resources" "$WARP_APP_PATH/Contents/Resources" "$WARP_CHANNEL"
+NO_LICENSES=1 "${REPO_ROOT}/script/prepare_bundled_resources" "$WARP_APP_PATH/Contents/Resources"
 
-"${REPO_ROOT}/script/compile_icon" "$WARP_CHANNEL" "$WARP_APP_PATH"
+"${REPO_ROOT}/script/compile_icon" stable "$WARP_APP_PATH"
 
 if [[ ",$FEATURES," =~ ",heap_usage_tracking," ]]; then
   echo "Bundling pprof..."
@@ -118,7 +116,7 @@ if [ "$DONT_OPEN" = false ] ; then
     if  [ "$OPEN_WITH_LAUNCHD" = true ]; then
         echo "Launching with MacOS application launcher"
         PATH="" /usr/bin/open "$WARP_APP_PATH"
-        tail -F ~/Library/Logs/warp-oss.log
+        tail -F ~/Library/Logs/simplewarp.log
     else
         echo "Opening app at $WARP_APP_PATH/Contents/MacOS/$WARP_BIN_NAME"
         "$WARP_APP_PATH/Contents/MacOS/$WARP_BIN_NAME" "${WARP_ARGS[@]}"

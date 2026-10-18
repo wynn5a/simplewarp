@@ -24,10 +24,6 @@ ICON_BUNDLE_PATH="$REPO_ROOT/app/channels/$CHANNEL/icon/AppIcon.icon"
 
 # Only compile if the .icon bundle exists for this channel.
 if [[ ! -d "$ICON_BUNDLE_PATH" ]]; then
-    if [[ "$CHANNEL" = "oss" ]]; then
-        echo "Warning: no .icon bundle found for $CHANNEL channel at $ICON_BUNDLE_PATH; skipping adaptive icon compilation." >&2
-        exit 0
-    fi
     echo "Error: .icon bundle not found at $ICON_BUNDLE_PATH" >&2
     exit 1
 fi

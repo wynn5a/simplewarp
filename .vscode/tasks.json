@@ -24,7 +24,7 @@
         {
             "type": "shell",
             "command": "./script/run --dont-open",
-            "label": "build_warposs"
+            "label": "build_simplewarp"
         }
     ]
 }

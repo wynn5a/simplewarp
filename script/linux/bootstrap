@@ -11,7 +11,4 @@ warp_sudo apt update -y
 # Install all dependencies needed to build, run, and test Warp.
 "$PWD"/script/linux/install_test_deps
 
-# Install linuxdeploy.
-"$PWD"/script/linux/install_linuxdeploy
-
 echo "✅ Your machine is bootstrapped and ready to go. :)"

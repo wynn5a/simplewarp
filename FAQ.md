@@ -30,7 +30,7 @@ Remote images named in markdown or notebooks are never fetched.
 
 ```bash
 ./script/bootstrap
-cargo run --no-default-features --features simplewarp --bin simplewarp
+cargo run
 ```
 
 `script/bundle_simplewarp` builds a macOS `.app`. See [AGENTS.md](AGENTS.md) for the engineering

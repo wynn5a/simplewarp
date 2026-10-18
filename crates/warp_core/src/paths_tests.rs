@@ -5,14 +5,17 @@ use super::*;
 #[test]
 fn test_data_dir_path() {
     let home_dir = home_dir().expect("Should be able to compute home directory");
-    // ChannelState, by default, is configured for Channel::Oss.
+    // ChannelState, by default, is configured for Channel::SimpleWarp.
     cfg_if::cfg_if! {
         if #[cfg(target_os = "macos")] {
             assert_eq!(data_dir(), home_dir.join(".warp-oss"));
         } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
-            assert_eq!(data_dir(), home_dir.join(".local/share/warp-oss"));
+            assert_eq!(data_dir(), home_dir.join(".local/share/simplewarp"));
         } else if #[cfg(windows)] {
-            assert_eq!(data_dir(), home_dir.join("AppData\\Roaming\\warp\\WarpOss\\data"));
+            assert_eq!(
+                data_dir(),
+                home_dir.join("AppData\\Roaming\\simplewarp\\SimpleWarp\\data")
+            );
         } else {
             unimplemented!("Need to update tests for current platform!");
         }
@@ -22,14 +25,17 @@ fn test_data_dir_path() {
 #[test]
 fn test_config_local_dir_path() {
     let home_dir = home_dir().expect("Should be able to compute home directory");
-    // ChannelState, by default, is configured for Channel::Oss.
+    // ChannelState, by default, is configured for Channel::SimpleWarp.
     cfg_if::cfg_if! {
         if #[cfg(target_os = "macos")] {
             assert_eq!(config_local_dir(), home_dir.join(".warp-oss"));
         } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
-            assert_eq!(config_local_dir(), home_dir.join(".config/warp-oss"));
+            assert_eq!(config_local_dir(), home_dir.join(".config/simplewarp"));
         } else if #[cfg(windows)] {
-            assert_eq!(config_local_dir(), home_dir.join("AppData\\Local\\warp\\WarpOss\\config"));
+            assert_eq!(
+                config_local_dir(),
+                home_dir.join("AppData\\Local\\simplewarp\\SimpleWarp\\config")
+            );
         } else {
             unimplemented!("Need to update tests for current platform!");
         }
@@ -39,7 +45,10 @@ fn test_config_local_dir_path() {
 #[cfg(target_os = "macos")]
 #[test]
 fn test_macos_config_dir_name_scopes_to_data_profile() {
-    assert_eq!(macos_config_dir_name_for(Channel::Oss, None), ".warp-oss");
+    assert_eq!(
+        macos_config_dir_name_for(Channel::SimpleWarp, None),
+        ".warp-oss"
+    );
     assert_eq!(
         macos_config_dir_name_for(Channel::Integration, None),
         ".warp-integration"
@@ -48,14 +57,15 @@ fn test_macos_config_dir_name_scopes_to_data_profile() {
     // Each development profile must get its own directory so shared config
     // (notably settings.toml) cannot leak between profiles.
     assert_eq!(
-        macos_config_dir_name_for(Channel::Oss, Some("myprofile")),
+        macos_config_dir_name_for(Channel::SimpleWarp, Some("myprofile")),
         ".warp-oss-myprofile"
     );
 }
 
 #[test]
-fn test_gui_app_id_maps_oss_channel_to_oss_gui() {
-    let gui_app_id = gui_app_id_for_channel(Channel::Oss, AppId::new("dev", "warp", "WarpOther"));
+fn test_gui_app_id_maps_simplewarp_channel_to_legacy_gui() {
+    let gui_app_id =
+        gui_app_id_for_channel(Channel::SimpleWarp, AppId::new("dev", "warp", "WarpOther"));
 
     assert_eq!(gui_app_id.to_string(), "dev.warp.WarpOss");
 }
@@ -112,14 +122,20 @@ fn test_warp_home_skills_and_mcp_paths() {
 #[test]
 fn test_cache_dir_path() {
     let home_dir = home_dir().expect("Should be able to compute home directory");
-    // ChannelState, by default, is configured for Channel::Oss.
+    // ChannelState, by default, is configured for Channel::SimpleWarp.
     cfg_if::cfg_if! {
         if #[cfg(target_os = "macos")] {
-            assert_eq!(cache_dir(), home_dir.join("Library/Application Support/dev.warp.WarpOss"));
+            assert_eq!(
+                cache_dir(),
+                home_dir.join("Library/Application Support/dev.simplewarp.SimpleWarp")
+            );
         } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
-            assert_eq!(cache_dir(), home_dir.join(".cache/warp-oss"));
+            assert_eq!(cache_dir(), home_dir.join(".cache/simplewarp"));
         } else if #[cfg(windows)] {
-            assert_eq!(cache_dir(), home_dir.join("AppData\\Local\\warp\\WarpOss\\cache"));
+            assert_eq!(
+                cache_dir(),
+                home_dir.join("AppData\\Local\\simplewarp\\SimpleWarp\\cache")
+            );
         } else {
             unimplemented!("Need to update tests for current platform!");
         }
@@ -130,13 +146,19 @@ fn test_cache_dir_path() {
 fn test_state_dir_path() {
     let home_dir = home_dir().expect("Should be able to compute home directory");
     cfg_if::cfg_if! {
-        // ChannelState, by default, is configured for Channel::Oss.
+        // ChannelState, by default, is configured for Channel::SimpleWarp.
         if #[cfg(target_os = "macos")] {
-            assert_eq!(state_dir(), home_dir.join("Library/Application Support/dev.warp.WarpOss"));
+            assert_eq!(
+                state_dir(),
+                home_dir.join("Library/Application Support/dev.simplewarp.SimpleWarp")
+            );
         } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
-            assert_eq!(state_dir(), home_dir.join(".local/state/warp-oss"));
+            assert_eq!(state_dir(), home_dir.join(".local/state/simplewarp"));
         } else if #[cfg(windows)] {
-            assert_eq!(state_dir(), home_dir.join("AppData\\Local\\warp\\WarpOss\\data"));
+            assert_eq!(
+                state_dir(),
+                home_dir.join("AppData\\Local\\simplewarp\\SimpleWarp\\data")
+            );
         } else {
             unimplemented!("Need to update tests for current platform!");
         }

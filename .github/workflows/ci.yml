@@ -439,52 +439,6 @@ jobs:
       - name: Check for inline Rust test modules
         run: ./script/check_no_inline_test_modules
 
-  check-release-compilation:
-    name: Verify compilation with release flags (${{ matrix.name }})
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: "macos"
-            name: "MacOS"
-            runner: ${{ fromJSON(needs.params.outputs.macos-runner) }}
-            is_self_hosted: ${{ contains(fromJSON(needs.params.outputs.macos-runner), 'self-hosted') }}
-            null_device: "/dev/null"
-
-          - os: "linux"
-            name: "Linux"
-            # Use a larger (16 core, 64GB ram) runner on Linux to speed up execution time.
-            # https://github.com/warpdotdev/warp-internal/settings/actions/runners
-            runner: ubuntu-latest-large
-            # We don't (yet) have any self-hosted Linux runners.
-            is_self_hosted: false
-            null_device: "/dev/null"
-
-          - os: "windows"
-            name: "Windows"
-            runner: windows-latest-large
-            # We don't (yet) have any self-hosted Windows runners.
-            is_self_hosted: false
-            null_device: "NUL"
-    runs-on: ${{ matrix.runner }}
-    needs: params
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - uses: ./.github/actions/prepare_environment
-        with:
-          target_os: ${{ matrix.os }}
-          is_self_hosted: ${{ matrix.is_self_hosted }}
-
-      - name: Verify compilation with release flags
-        shell: bash
-        run: ./script/bundle --channel oss --nouniversal --check-only
-        env:
-          # Attach the GitHub auth token so that requests to the GitHub API
-          # don't get rate limited during compilation.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   # A final job that collects the results of all of the parallel CI jobs and
   # makes sure that all of them pass.
   #
@@ -504,7 +458,6 @@ jobs:
       - tests
       - lints
       - general-lint
-      - check-release-compilation
     steps:
       - name: Check CI results
         run: |

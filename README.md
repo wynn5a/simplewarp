@@ -8,7 +8,7 @@ crash reporting or auto-update. The only network traffic goes to the AI provider
 
 ```bash
 ./script/bootstrap   # platform-specific setup
-cargo run --no-default-features --features simplewarp --bin simplewarp
+cargo run            # builds the simplewarp bin with the app's default (only) feature set
 ```
 
 `script/bundle_simplewarp` builds a macOS `.app` (ad-hoc signed, not notarized).

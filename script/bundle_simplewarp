@@ -4,9 +4,6 @@
 # minimal .app (so it gets a Dock icon and can be Finder-launched), and compiles
 # in the real Warp icon.
 #
-# This deliberately does NOT use script/bundle: that pipeline builds the
-# `warp-oss` bin with its own bundle id, dock tile plugin and dmg.
-#
 # Usage: script/bundle_simplewarp [--debug]
 
 set -euo pipefail
@@ -29,7 +26,7 @@ for arg in "$@"; do
 done
 VERSION="${SIMPLEWARP_VERSION:-0.1.0}"
 
-cargo build "${CARGO_ARGS[@]}" --no-default-features --features simplewarp --bin simplewarp
+cargo build "${CARGO_ARGS[@]}" --bin simplewarp
 
 APP="target/$PROFILE/SimpleWarp.app"
 rm -rf "$APP"

@@ -54,9 +54,8 @@ fn try_create_mutex() -> Result<Option<MutexHandle>, Error> {
     // > "client processes can use the "Local\" prefix to explicitly create an object in their
     //   session namespace"
     //
-    // NOTE: This lock name must stay in sync with `AppMutexName` in
-    // `script/windows/windows-installer.iss`, which the installer uses to detect whether Warp is
-    // running.
+    // The lock name is part of the single-instance contract; renaming it would let multiple
+    // instances of the same channel run side by side.
     let name = format!("Local\\Warp{:?}_SingleInstance", ChannelState::channel())
         .encode_utf16()
         .chain(std::iter::once(0))

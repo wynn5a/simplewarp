@@ -5,9 +5,8 @@ This file provides guidance when working with code in this repository.
 ## Development Commands
 
 ### Build and Run
-- `cargo run` / `./script/run` - Build and run the GUI desktop app locally (the `warp-oss` bin)
-- `cargo run --no-default-features --features simplewarp --bin simplewarp` - Build and run SimpleWarp
-- `cargo bundle --bin warp-oss` - Bundle the main (GUI) app; `script/bundle_simplewarp` bundles SimpleWarp
+- `cargo run` / `./script/run` - Build and run the GUI desktop app locally (the `simplewarp` bin, the app's only feature set)
+- `cargo bundle --bin simplewarp` - Bundle the app for local runs; `script/bundle_simplewarp` builds a standalone `.app`
 
 ### Running locally
 There is no login: every build runs entirely locally against the anonymous default user, and no

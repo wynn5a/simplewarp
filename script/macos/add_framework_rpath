@@ -6,9 +6,9 @@
 # `install_name_tool -add_rpath` treats an existing LC_RPATH for the same path
 # as an error, and cargo-bundle 0.11.0 adds this rpath itself whenever it
 # copies at least one framework into the bundle. Bins that declare
-# `osx_frameworks` (`dev`, `stable`, `preview`) therefore arrive with the rpath
-# already set, while bins that declare none (`warp`, `warp-oss`) still need us
-# to add it, so the add has to be conditional rather than dropped.
+# `osx_frameworks` therefore arrive with the rpath already set, while bins that
+# declare none (`simplewarp`) still need us to add it, so the add has to be
+# conditional rather than dropped.
 
 set -euo pipefail
 

@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-
-rm -f /usr/bin/warp-terminal@@CHANNEL_SUFFIX@@
-
-# Make sure the system forgets the newly-uninstalled desktop file.
-if hash update-desktop-database 2>/dev/null; then
-	update-desktop-database
-fi

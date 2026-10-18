@@ -25,16 +25,16 @@ pub struct ChannelState {
 
 impl ChannelState {
     pub fn init() -> Self {
-        let channel = Channel::Oss;
-        let app_id = AppId::new("dev", "warp", "WarpOss");
+        let channel = Channel::SimpleWarp;
+        let app_id = AppId::new("dev", "simplewarp", "SimpleWarp");
         Self {
             channel,
             additional_features: Default::default(),
             config: ChannelConfig {
                 app_id,
-                url_scheme: "warposs",
-                cli_command_name: "warp-oss",
-                logfile_name: "".into(),
+                url_scheme: "simplewarp",
+                cli_command_name: "simplewarp",
+                logfile_name: "simplewarp.log".into(),
                 mcp_static_config: None,
             },
         }

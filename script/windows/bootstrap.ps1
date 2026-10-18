@@ -242,9 +242,6 @@ Add-WinGetPackageCommandToPath -CommandName 'protoc' -PackageId 'Google.Protobuf
 winget install -e --id LLVM.LLVM
 Use-LibclangIfInstalled
 
-# We use InnoSetup to build our release bundle installer.
-winget install -e --id JRSoftware.InnoSetup
-
 if ($InstallCommonSkills) {
     Install-CommonSkill
 }

@@ -16,14 +16,14 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug executable 'warp-oss'",
+      "name": "Debug executable 'simplewarp'",
       "cargo": {
         "args": [
           "build",
-          "--bin=warp-oss"
+          "--bin=simplewarp"
         ],
         "filter": {
-          "name": "warp-oss",
+          "name": "simplewarp",
           "kind": "bin"
         }
       },
@@ -37,8 +37,8 @@
       "type": "lldb",
       "request": "launch",
       "name": "Debug MacOS executable",
-      "preLaunchTask": "build_warposs",
-      "program": "${workspaceFolder}/target/debug/bundle/osx/WarpOss.app/Contents/MacOS/warp-oss",
+      "preLaunchTask": "build_simplewarp",
+      "program": "${workspaceFolder}/target/debug/bundle/osx/SimpleWarp.app/Contents/MacOS/simplewarp",
       "args": [],
       "cwd": "${workspaceFolder}",
       "sourceLanguages": [

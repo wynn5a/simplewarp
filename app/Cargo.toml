@@ -1,7 +1,7 @@
 [package]
 authors = ["Warp Team <dev@warp.dev>"]
-default-run = "warp-oss"
-description = "The cloud-backed terminal for individuals and teams"
+default-run = "simplewarp"
+description = "A local-only terminal with bring-your-own-key AI"
 edition = "2024"
 autobins = false
 name = "warp"
@@ -19,11 +19,6 @@ path = "src/lib.rs"
 [[bin]]
 name = "simplewarp"
 path = "src/bin/simplewarp.rs"
-test = false
-
-[[bin]]
-name = "warp-oss"
-path = "src/bin/oss.rs"
 test = false
 
 [[bin]]
@@ -347,126 +342,8 @@ bundled_skills = []
 agent_mode = []
 async_find = []
 clear_autosuggestion_on_escape = []
-default = [
-    "use_tantivy_search",
-    "agent_mode",
-    "osc_hyperlinks",
-    "program_status_protocol",
-    "render_continuous_block_selections_with_single_border",
-    "external_agent_mode_context",
-    "shell_selector",
-    "minimalist_ui",
-    "avatar_in_tab_bar",
-    "full_screen_zen_mode",
-    "workflow_aliases",
-    "ligatures",
-    "dynamic_workflow_enums",
-    "rect_selection",
-    "ai_rules",
-    "am_workflows",
-    "render_agent_mode_output_markdown",
-    "command_correction_key",
-    "kitty_images",
-    "validate_autosuggestions",
-    "clear_autosuggestion_on_escape",
-    "mcp_server",
-    "fast_forward_autoexecute_button",
-    "image_as_context",
-    "command_palette_file_search",
-    "ai_context_menu",
-    "at_menu_outside_of_ai_mode",
-    "interactive_conversation_management_view",
-    "tab_close_button_on_left",
-    "ai_resume_button",
-    "code_find_replace",
-    "ai_context_menu_code",
-    "agent_decides_command_execution",
-    "linked_code_blocks",
-    "profiles_design_revamp",
-    "multi_profile",
-    "tabbed_editor_view",
-    "allow_opening_file_links_using_editor_env",
-    "read_image_files",
-    "selection_as_context",
-    "undo_closed_panes",
-    "revert_diff_hunk",
-    "code_review_save_changes",
-    "create_project_flow",
-    "get_started_tab",
-    "file_tree",
-    "vim_code_editor",
-    "code_launch_modal",
-    "allow_ignoring_input_suggestions",
-    "mcp_oauth",
-    "expand_edit_to_pane",
-    "fallback_model_load_output_messaging",
-    "summarization_cancellation_confirmation",
-    "ui_zoom",
-    "discard_per_file_and_all_changes",
-    "auto_open_code_review_pane",
-    "diff_set_as_context",
-    "summarize_conversation_command",
-    "inline_code_review",
-    "code_review_find",
-    "async_find",
-    "fork_from_command",
-    "v4a_file_diffs",
-    "classic_completions",
-    "force_classic_completions",
-    "native_shell_completions",
-    "agent_tips",
-    "pluggable_notifications",
-    "global_search",
-    "list_skills",
-    "bundled_skills",
-    "agent_view",
-    "agent_view_block_context",
-    "agent_view_conversation_list_view",
-    "inline_slash_commands",
-    "inline_history_menu",
-    "inline_model_selector",
-    "new_tab_styling",
-    "richtext_multiselect",
-    "inline_profile_selector",
-    "skill_arguments",
-    "incremental_auto_reload",
-    "active_conversation_requires_interaction",
-    "figma_detection",
-    "file_based_mcp",
-    "inline_repo_menu",
-    "kitty_keyboard_protocol",
-    "inline_menu_headers",
-    "github_pr_prompt_chip",
-    "conversations_as_context",
-    "markdown_tables",
-    "blocklist_markdown_table_rendering",
-    "markdown_mermaid",
-    "blocklist_markdown_images",
-    "pr_comments_v2",
-    "revert_to_checkpoints",
-    "rewind_slash_command",
-    "warpify_footer",
-    "agent_toolbar_editor",
-    "configurable_toolbar",
-    "vertical_tabs",
-    "vertical_tabs_summary_mode",
-    "tab_configs",
-    "grouped_tabs",
-    "pinned_tabs",
-    "agent_harness",
-    "trim_trailing_blank_lines",
-    "settings_file",
-    "directory_tab_colors",
-    "pending_user_query_indicator",
-    "queue_slash_command",
-    "queued_prompts_v2",
-    "git_operations_in_code_review",
-    "terminal_lifecycle_recovery",
-]
-
 # SimpleWarp: a local-only build. No cloud, no login, no billing, and no Warp Drive.
-# Build it with: cargo run --no-default-features --features simplewarp --bin simplewarp
-# It is the `default` set, less the cloud, sharing, hand-off, and billing features.
+# It is the app's only feature set; `default` just forwards to it.
 simplewarp = [
     "use_tantivy_search",
     "agent_mode",
@@ -608,6 +485,7 @@ simplewarp = [
     "drag_tabs_to_windows",
     "projects",
 ]
+default = ["simplewarp"]
 # Enable this feature to automatically perform heap profiling.  NOTE: This will
 # substantially slow down program execution.
 dhat_heap_profiling = ["dep:dhat"]
@@ -793,13 +671,12 @@ git_operations_in_code_review = []
 osc_hyperlinks = []
 program_status_protocol = []
 
-[package.metadata.bundle.bin.warp-oss]
+[package.metadata.bundle.bin.simplewarp]
 category = "public.app-category.developer-tools"
-copyright = "© 2025, Denver Technologies, Inc"
-identifier = "dev.warp.WarpOss"
-name = "WarpOss"
-icon = ["channels/oss/icon/no-padding/512x512.png", "channels/oss/icon/no-padding/icon.ico"]
-short_description = "The open-source, cloud-backed terminal for individuals and teams."
+identifier = "dev.simplewarp.SimpleWarp"
+name = "SimpleWarp"
+icon = ["channels/stable/icon/no-padding/512x512.png", "channels/stable/icon/no-padding/icon.ico"]
+short_description = "A local-only terminal with bring-your-own-key AI."
 
 [package.metadata.cargo-udeps.ignore]
 normal = ["embed_plist"]

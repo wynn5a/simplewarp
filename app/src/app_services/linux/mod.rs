@@ -146,8 +146,8 @@ impl ApplicationService {
 // invoking org.freedesktop.Application IPC methods.
 #[proxy(
     interface = "org.freedesktop.Application",
-    default_service = "dev.warp.WarpOss",
-    default_path = "/dev/warp/WarpOss",
+    default_service = "dev.simplewarp.SimpleWarp",
+    default_path = "/dev/simplewarp/SimpleWarp",
     gen_blocking = false
 )]
 trait ExistingApplication {
