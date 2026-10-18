@@ -234,7 +234,18 @@ impl EditorModal {
                         report_if_error!(prompt.reset(ctx));
                     });
                 }
-                PromptType::Warp => {}
+                PromptType::Warp => {
+                    let new_setup = self
+                        .chip_configurator
+                        .used_chips
+                        .iter()
+                        .filter_map(|r| r.chip_kind().cloned());
+
+                    // Updating the `Prompt` handles turning off PS1.
+                    Prompt::handle(ctx).update(ctx, |prompt, ctx| {
+                        report_if_error!(prompt.set_custom_chips(new_setup, ctx));
+                    });
+                }
             }
         }
     }

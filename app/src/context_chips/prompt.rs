@@ -187,6 +187,29 @@ impl Prompt {
         })
     }
 
+    /// Saves a custom chip selection as the prompt, keeping the current
+    /// same-line-prompt and separator settings.
+    pub fn set_custom_chips<C: UpdateModel + GetSingletonModelHandle>(
+        &mut self,
+        chips: impl IntoIterator<Item = ContextChipKind>,
+        ctx: &mut C,
+    ) -> anyhow::Result<()> {
+        let config = PromptConfiguration::from_chips(
+            chips,
+            self.same_line_prompt_enabled(),
+            self.separator(),
+        );
+        // Eagerly set the new config - it will be re-updated when the settings change propagates.
+        self.config = config.clone();
+        SessionSettings::handle(ctx).update(ctx, |session_settings, ctx| {
+            session_settings.honor_ps1.set_value(false, ctx)?;
+            session_settings
+                .saved_prompt
+                .set_value(PromptSelection::CustomChipSelection(config), ctx)?;
+            Ok(())
+        })
+    }
+
     /// Builds the [`PromptConfiguration`] from current user settings.
     fn from_user_settings(ctx: &mut ModelContext<Self>) -> PromptConfiguration {
         let session_settings = SessionSettings::handle(ctx);

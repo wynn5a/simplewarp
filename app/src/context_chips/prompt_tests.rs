@@ -88,5 +88,29 @@ fn test_prompt_settings() {
         session_settings.read(&app, |settings, _| {
             assert_eq!(settings.saved_prompt.to_owned(), PromptSelection::Default);
         });
+
+        // Saving a custom chip selection persists the chips and keeps PS1 off.
+        let custom_chips = vec![
+            ContextChipKind::WorkingDirectory,
+            ContextChipKind::ShellGitBranch,
+        ];
+        prompt.update(&mut app, |prompt, ctx| {
+            prompt
+                .set_custom_chips(custom_chips.clone(), ctx)
+                .expect("Saving custom chips failed");
+        });
+        let custom_prompt_chips = prompt.read(&app, |prompt, _| prompt.chip_kinds());
+        assert_eq!(custom_prompt_chips, custom_chips);
+        session_settings.read(&app, |settings, _| {
+            assert_eq!(
+                settings.saved_prompt.to_owned(),
+                PromptSelection::CustomChipSelection(PromptConfiguration::from_chips(
+                    custom_chips,
+                    false,
+                    WarpPromptSeparator::None,
+                ))
+            );
+            assert!(!settings.honor_ps1.to_owned());
+        });
     });
 }
