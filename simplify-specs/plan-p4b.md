@@ -310,3 +310,19 @@ Follow-ups found en route (decision-round candidates): `set_callout` (zero calle
 three, and everything in the P4-9 decision list (CodeManagerEvent inert path, a11y role variants,
 SSE retry policies, `HashSet` impl, `mountains.jpg`, the 739-candidate pub-fn tail).
 `wayne5a-progress.md` was left alone (user's personal log, not repo dead weight).
+
+## 11. P4-9 decision-round log (2026-10-18)
+
+Every P4-9 item was re-verified individually; confirmed-dead ones were cut, the rest have
+recorded evidence for staying. Commits, all on master:
+
+| Round | Commit | What |
+| --- | --- | --- |
+| P4-9a | `d5781f18` | Quick confirmed-dead cuts: `ServerId` re-export arm, unused import pair, `scroll_offset` trio, the `set_callout` chain (field provably always `None`; `Callout` enum + `callout_padding` went too), `ContentVersion::{as_i32, as_u64}`, the `Warp` struct (empty husk), `containing_pane_id` + `ssh_warpify_timeout_handle` chains. **Kept against the claim:** `background_executor` — read by the `cfg(not(test))` `wakeup_after_delay()`; dead only under test compilation, annotation needed. |
+| P4-9b | `73671fbe` | 6 a11y role variants; warp_completer parser error constructors (file-level allow now fully removed); `EntrypointType::AgentInitiated` ( Serialize-only in-memory metadata — no tombstone needed); `EditCancelled.query_id`; never-constructed `TerminationType::Normal`; outbound-only `GitDialogStatus::Cancelled`. **Kept:** `SkipUndoRedoRecord` — `skip_undo()` matches it by name and its behavior differs from every other variant (test-pinned). |
+| P4-9c | `a2ac2e8d` | `CodeManagerEvent` proven zero-subscriber on all features: enum + emit + AIAction gate deleted, `complete_pending_diffs` keeps its non-event work, `type Event = ()`. SSE `ExponentialBackoff`/`NeverRetry` cut (documented divergence from the vendored rmcp file). `mountains.jpg` deleted, palette test retargeted to `pink_city_bg.jpg` with constants re-derived empirically. `wait_until_indexed` chain gated behind the existing `repo_metadata/test-util` pattern (3-line diff). `SizeSmallerThan` + `Size` deleted with their 3 self-only tests (the tested code is the deleted code). |
+| P4-9d | `7e536758` | Fixpoint sweep of app/src definition-line-only pub fns: 125 deleted + 11 private cascades + `MenuItemLabel::{MultilineText, StackedText}` variant cascade, `ContainerConfiguration` collapse, `extract_fields!` macro, 3 husk files (~2,280 lines). `cargo check --features integration_tests` run separately. Re-scan: 0 candidates remain. New follow-up: `MenuItemFields.timestamp` never set to `Some`. |
+
+Still intentionally kept (evidence recorded above): `SkipUndoRedoRecord`, `background_executor`
+annotation, `SizeConstraintCondition` single-variant enum shape, the vendored-file doc comment on
+SSE. P4-9 closed except `wayne5a-progress.md` (user's personal log, untouched by decision).
