@@ -133,31 +133,6 @@ pub fn assert_block_visible(
     })
 }
 
-/// Asserts the top of a block is at the given line position
-pub fn assert_top_of_block_approx_at(
-    block_position: BlockPosition,
-    line_position: LinePosition,
-) -> AssertionCallback {
-    Box::new(move |app, window_id| {
-        let terminal_view = single_terminal_view(app, window_id);
-        terminal_view.read(app, move |view, ctx| {
-            let model = view.model.lock();
-            let input_mode = *InputModeSettings::as_ref(ctx).input_mode.value();
-            let viewport = view.viewport_state(model.block_list(), input_mode, ctx);
-            let block_index = block_position.block_index(&model);
-            let top_of_block_in_lines = viewport.top_of_block_in_lines(block_index);
-            let lines = line_position.calculate_lines(window_id, view, &viewport, ctx);
-            async_assert!(
-                heights_approx_eq(top_of_block_in_lines, lines),
-                "Expected top of block at {:?} ({}) but was {}",
-                line_position,
-                lines,
-                top_of_block_in_lines,
-            )
-        })
-    })
-}
-
 /// Asserts the bottom of a block is at the given line position
 pub fn assert_bottom_of_block_approx_at(
     block_position: BlockPosition,

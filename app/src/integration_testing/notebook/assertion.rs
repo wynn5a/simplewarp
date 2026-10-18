@@ -1,6 +1,4 @@
 use itertools::Itertools;
-use string_offset::CharOffset;
-use warp_editor::render::model::BlockItem;
 use warpui::integration::{AssertionCallback, AssertionOutcome, AssertionWithDataCallback};
 use warpui::{App, ViewHandle, async_assert, async_assert_eq};
 
@@ -120,31 +118,6 @@ pub fn assert_open_in_warp_banner_open(tab_index: usize, pane_index: usize) -> A
             async_assert!(
                 view.is_open_in_warp_banner_open(),
                 "Expected the 'Open in Warp' banner to be open"
-            )
-        })
-    })
-}
-
-pub fn assert_notebook_renders_mermaid_diagram(
-    tab_index: usize,
-    pane_index: usize,
-    mermaid_block_start: usize,
-) -> AssertionCallback {
-    Box::new(move |app, window_id| {
-        let editor = notebook_view(app, window_id, tab_index, pane_index)
-            .read(app, |notebook, _ctx| notebook.input_editor());
-        editor.read(app, |editor, ctx| {
-            let is_mermaid_diagram = editor
-                .model()
-                .as_ref(ctx)
-                .render_state()
-                .as_ref(ctx)
-                .content()
-                .block_at_offset(CharOffset::from(mermaid_block_start))
-                .is_some_and(|block| matches!(&block.item, BlockItem::MermaidDiagram { .. }));
-            async_assert!(
-                is_mermaid_diagram,
-                "Expected notebook editor to render Mermaid in editable mode"
             )
         })
     })

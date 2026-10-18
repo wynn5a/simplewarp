@@ -245,15 +245,6 @@ impl<T: Action + Clone> SearchResultsMenuView<T> {
         }
     }
 
-    /// Update the menu based on the filter text - switches between zero state and search results
-    /// Returns whether there are match results.
-    pub fn update_search_filter(&mut self, filter_text: &str, ctx: &mut ViewContext<Self>) {
-        self.search_bar.update(ctx, |search_bar, ctx| {
-            search_bar.set_query(filter_text.to_string(), ctx);
-        });
-        ctx.notify();
-    }
-
     pub fn has_results(&self, ctx: &AppContext) -> bool {
         self.search_bar_state
             .as_ref(ctx)

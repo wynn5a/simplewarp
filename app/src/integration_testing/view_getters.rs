@@ -6,7 +6,7 @@
 //! See https://github.com/warpdotdev/warp-internal/pull/4785#issue-1634862270
 
 use warpui::integration::AssertionCallback;
-use warpui::{App, Entity, View, ViewHandle, WindowId, async_assert};
+use warpui::{App, View, ViewHandle, WindowId, async_assert};
 
 use crate::input_suggestions::InputSuggestions;
 use crate::notebooks::notebook::NotebookView;
@@ -19,8 +19,6 @@ use crate::settings_view::keybindings::KeybindingsView;
 use crate::terminal::TerminalView;
 use crate::terminal::input::Input;
 use crate::themes::theme_chooser::ThemeChooser;
-use crate::view_components::find::{Find, FindEvent, FindModel};
-use crate::workflows::CategoriesView;
 use crate::workflows::workflow_view::WorkflowView;
 use crate::workspace::Workspace;
 
@@ -36,32 +34,7 @@ pub enum TerminalViewIdentifier {
     Custom { tab_index: usize, pane_index: usize },
 }
 
-impl TerminalViewIdentifier {
-    pub fn to_terminal_view(&self, app: &App, window_id: WindowId) -> ViewHandle<TerminalView> {
-        use TerminalViewIdentifier::*;
-        match self {
-            Singleton => single_terminal_view(app, window_id),
-            SingleInTab { tab_index } => single_terminal_view_for_tab(app, window_id, *tab_index),
-            Custom {
-                tab_index,
-                pane_index,
-            } => terminal_view(app, window_id, *tab_index, *pane_index),
-        }
-    }
-
-    pub fn to_input_view(&self, app: &App, window_id: WindowId) -> ViewHandle<Input> {
-        self.to_terminal_view(app, window_id)
-            .read(app, |terminal, _ctx| terminal.input().to_owned())
-    }
-}
-
-/// Panics if there isn't a single input suggestions view in the entire view hierarchy.
-pub fn single_input_suggestions_view(
-    app: &App,
-    window_id: WindowId,
-) -> ViewHandle<InputSuggestions> {
-    singleton_view_of_type(app, window_id)
-}
+impl TerminalViewIdentifier {}
 
 pub fn single_input_suggestions_view_for_tab(
     app: &App,
@@ -70,14 +43,6 @@ pub fn single_input_suggestions_view_for_tab(
 ) -> ViewHandle<InputSuggestions> {
     single_input_view_for_tab(app, window_id, tab_index)
         .read(app, |input, _| input.input_suggestions().to_owned())
-}
-
-/// Panics if there isn't a single find view in the entire view hierarchy.
-pub fn single_find_view<T: FindModel + Entity<Event = FindEvent>>(
-    app: &App,
-    window_id: WindowId,
-) -> ViewHandle<Find<T>> {
-    singleton_view_of_type(app, window_id)
 }
 
 /// Panics if there isn't a single input view in the entire view hierarchy.
@@ -219,11 +184,6 @@ pub fn keybindings_view(app: &App, window_id: WindowId) -> ViewHandle<Keybinding
 
 /// Panics if there isn't a single settings view in the view hierarchy.
 pub fn settings_view(app: &App, window_id: WindowId) -> ViewHandle<SettingsView> {
-    singleton_view_of_type(app, window_id)
-}
-
-/// Panics if there isn't a single workflows view in the view hierarchy.
-pub fn workflow_categories_view(app: &App, window_id: WindowId) -> ViewHandle<CategoriesView> {
     singleton_view_of_type(app, window_id)
 }
 

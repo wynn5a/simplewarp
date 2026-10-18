@@ -1,20 +1,13 @@
-use std::collections::HashMap;
-use std::fmt;
 use std::result::Result;
-use std::str::FromStr;
 
-use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_yaml::Value;
-use strum::VariantNames as _;
-use strum_macros::{Display, EnumString, VariantNames};
 use warpui::{AppContext, SingletonEntity};
 
 use super::workflow::{Argument, ArgumentType, Workflow};
-use super::workflow_enum::{EnumVariants, WorkflowEnum};
+use super::workflow_enum::EnumVariants;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::server::ids::{ClientId, SyncId};
 
 /// Separate structure for exporting arguments. This new structure holds explicit enum information,
 /// unlike the `Argument` struct which just holds the enum_id. It is also flatter than the normal `Argument`
@@ -80,80 +73,6 @@ impl ExportArgument {
             default_value: argument.default_value.clone(),
         }
     }
-
-    /// Convert an ExportArgument to an Argument and create a new WorkflowEnum, if possible
-    fn to_argument(argument: ExportArgument) -> (Argument, Option<(ClientId, WorkflowEnum)>) {
-        let mut new_enum_info = None;
-
-        let name = argument.name;
-        let description = argument.description;
-        let default_value = argument.default_value;
-
-        let arg_type = match argument.arg_type {
-            ExportArgumentType::Text => ArgumentType::Text,
-            ExportArgumentType::Enum {
-                enum_name,
-                enum_variants,
-                enum_command,
-            } => {
-                let workflow_enum =
-                    Self::try_into_workflow_enum(enum_name, enum_variants, enum_command);
-
-                match workflow_enum {
-                    Ok(enum_data) => {
-                        let client_id = ClientId::default();
-                        new_enum_info = Some((client_id, enum_data));
-                        ArgumentType::Enum {
-                            enum_id: SyncId::from(client_id),
-                        }
-                    }
-                    // If we are missing some enum info, use the default type instead
-                    Err(_) => {
-                        log::warn!(
-                            "Tried to deserialize an enum argument without any static variants or dynamic command provided, defaulting to {:?} argument",
-                            ArgumentType::default()
-                        );
-                        ArgumentType::default()
-                    }
-                }
-            }
-        };
-
-        (
-            Argument {
-                name,
-                arg_type,
-                description,
-                default_value,
-            },
-            new_enum_info,
-        )
-    }
-
-    /// Try to create a new workflow enum from parsed data
-    fn try_into_workflow_enum(
-        enum_name: String,
-        enum_variants: Option<Vec<String>>,
-        enum_command: Option<String>,
-    ) -> Result<WorkflowEnum, anyhow::Error> {
-        // Always create unshared enums on import
-        let is_shared = false;
-
-        // Try to grab variants or command
-        let variants = if let Some(variants) = enum_variants {
-            EnumVariants::Static(variants)
-        } else if let Some(command) = enum_command {
-            EnumVariants::Dynamic(command)
-        } else {
-            return Err(anyhow::anyhow!("Missing valid enum variants"));
-        };
-
-        Ok(WorkflowEnum {
-            name: enum_name,
-            is_shared,
-            variants,
-        })
-    }
 }
 
 /// Custom serialize function used to export a workflow to YAML
@@ -212,161 +131,6 @@ where
     }
 
     state.end()
-}
-
-/// Macro for deserializing workflow fields, given an associated variant on Field, a string name, a variable name, an expected type, a
-/// and an optional flag, which is true when the field is optional as we deserialize.
-macro_rules! extract_fields {
-    ($map:expr_2021; $(($field:ident, $name:literal, $var:ident, $type:ty, $optional:expr_2021)),* $(,)?) => {{
-        $(let mut $var = None;)*
-
-        while let Some(key) = $map.next_key()? {
-            match key {
-                $(Field::$field => {
-                    if $var.is_some() {
-                        return Err(de::Error::duplicate_field($name));
-                    }
-                    $var = Some($map.next_value()?);
-                })*
-            }
-        }
-
-        $(
-            let $var: $type = if $optional {
-                $var.unwrap_or_default()
-            } else {
-                $var.ok_or_else(|| de::Error::missing_field($name))?
-            };
-        )*
-
-        ($($var),*)
-    }};
-}
-
-/// Custom deserialize function used to import a workflow from YAML
-pub fn export_deserialize<'de, D>(
-    deserializer: D,
-) -> Result<(Workflow, HashMap<ClientId, WorkflowEnum>), D::Error>
-where
-    D: Deserializer<'de>,
-{
-    /// We use `strum` here to derive `from_str` and `VARIANTS`, which allows us to convert between
-    /// field variants and strings a lot more easily.
-    #[derive(Display, EnumString, VariantNames)]
-    #[strum(serialize_all = "snake_case")]
-    enum Field {
-        Name,
-        Command,
-        Tags,
-        Description,
-        Arguments,
-        SourceUrl,
-        Author,
-        AuthorUrl,
-        Shells,
-        EnvironmentVariables,
-    }
-
-    impl<'de> Deserialize<'de> for Field {
-        fn deserialize<D>(deserializer: D) -> Result<Field, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
-            struct FieldVisitor;
-
-            impl Visitor<'_> for FieldVisitor {
-                type Value = Field;
-
-                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                    formatter.write_str("workflow identifier")
-                }
-
-                fn visit_str<E>(self, value: &str) -> Result<Field, E>
-                where
-                    E: de::Error,
-                {
-                    match Field::from_str(value) {
-                        Ok(field) => Ok(field),
-                        Err(_) => Err(de::Error::unknown_field(value, FIELDS)),
-                    }
-                }
-            }
-
-            deserializer.deserialize_identifier(FieldVisitor)
-        }
-    }
-
-    struct WorkflowVisitor;
-
-    impl<'de> Visitor<'de> for WorkflowVisitor {
-        type Value = (Workflow, HashMap<ClientId, WorkflowEnum>);
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("struct Workflow")
-        }
-
-        fn visit_map<V>(
-            self,
-            mut map: V,
-        ) -> Result<(Workflow, HashMap<ClientId, WorkflowEnum>), V::Error>
-        where
-            V: MapAccess<'de>,
-        {
-            // Use the macro to extract values for each field
-            let (
-                name,
-                command,
-                description,
-                export_arguments,
-                tags,
-                source_url,
-                author,
-                author_url,
-                shells,
-                environment_variables,
-            ) = extract_fields!(
-                map; (Name, "name", name, String, false),
-                (Command, "command", command, String, false),
-                (Description, "description", description, Option<String>, true),
-                (Arguments, "arguments", arguments, Vec<ExportArgument>, true),
-                (Tags, "tags", tags, Vec<String>, true),
-                (SourceUrl, "source_url", source_url, Option<String>, true),
-                (Author, "author", author, Option<String>, true),
-                (AuthorUrl, "author_url", author_url, Option<String>, true),
-                (Shells, "shells", shells, Vec<warp_workflows::Shell>, true),
-                (EnvironmentVariables, "environment_variables", environment_variables, Option<SyncId>, true),
-            );
-
-            // Convert the ExportArguments to Arguments, and get a list of workflow enums that need to be created
-            let (arguments, potential_enums): (
-                Vec<Argument>,
-                Vec<Option<(ClientId, WorkflowEnum)>>,
-            ) = export_arguments
-                .into_iter()
-                .map(ExportArgument::to_argument)
-                .unzip();
-            let workflow_enums = potential_enums.into_iter().flatten().collect();
-
-            Ok((
-                Workflow::Command {
-                    name,
-                    command,
-                    description,
-                    arguments,
-                    tags,
-                    source_url,
-                    author,
-                    author_url,
-                    shells,
-                    environment_variables,
-                },
-                workflow_enums,
-            ))
-        }
-    }
-
-    const FIELDS: &[&str] = Field::VARIANTS;
-    deserializer.deserialize_struct("Workflow", FIELDS, WorkflowVisitor)
 }
 
 /// Custom deserialization for argument types, used to both `flatten` the argument type

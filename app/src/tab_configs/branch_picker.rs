@@ -250,13 +250,6 @@ impl BranchPicker {
         self.fetch_branches(new_cwd, ctx);
     }
 
-    pub fn toggle_dropdown(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        self.dropdown.update(ctx, |dropdown, ctx| {
-            dropdown.toggle_expanded(ctx);
-        });
-        self.dropdown.as_ref(ctx).is_expanded()
-    }
-
     pub fn selected_value(&self, app: &AppContext) -> Option<String> {
         // While loading, the dropdown shows a placeholder label
         // ("Fetching branches…") that must not be treated as a real

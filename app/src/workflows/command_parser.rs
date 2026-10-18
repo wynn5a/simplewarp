@@ -521,13 +521,6 @@ fn parse_argument_values_from_command(
     }
 }
 
-/// Returns `true` if the given `command` is an instance of the given `workflow`.
-pub fn command_matches_workflow(command: &str, workflow: &Workflow) -> bool {
-    let (workflow_command, workflow_arguments) = parse_and_escape_workflow(workflow);
-    parse_argument_values_from_command(command, workflow_command.as_str(), &workflow_arguments)
-        .is_some()
-}
-
 #[cfg(test)]
 #[path = "command_parser_tests.rs"]
 mod tests;

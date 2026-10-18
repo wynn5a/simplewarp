@@ -1,7 +1,6 @@
 mod assertions;
 pub mod llm_judge;
 mod step;
-mod user_defaults;
 mod util;
 use std::collections::{BTreeMap, HashSet};
 use std::fs::File;
@@ -10,7 +9,6 @@ use std::sync::Mutex;
 
 pub use assertions::*;
 pub use step::*;
-pub use user_defaults::*;
 pub use util::*;
 use warp_errors::report_error;
 use warpui::integration::PersistedDataMap;
@@ -20,10 +18,6 @@ use warpui::{App, SingletonEntity as _, WindowId};
 use crate::BlocklistAIHistoryModel;
 use crate::ai::agent::{AIAgentActionType, AIAgentOutputStatus, FinishedAIAgentOutput};
 pub use crate::integration_testing::view_getters::terminal_view;
-
-pub const TOTAL_EXCHANGES_PREFIX: &str = "Total number of exchanges: ";
-
-pub const RUNTIME_TAG_TOTAL_EXCHANGES: &str = "total_exchanges";
 
 const CODE_DIFF_OUTPUT_FILE_ENV_VAR: &str = "CODE_DIFF_OUTPUT_FILE";
 
@@ -164,75 +158,6 @@ fn write_git_diff_output_to_file(
             .expect("Failed to write command error to code diff file");
         }
     }
-}
-
-pub fn output_conversation_debug_info(
-    app: &mut App,
-    window_id: WindowId,
-    persisted_data: &mut PersistedDataMap,
-) {
-    let terminal_view = terminal_view(app, window_id, 0, 0);
-    BlocklistAIHistoryModel::handle(app).update(app, |history_model, _| {
-        let Some(conversation) = history_model.active_conversation(terminal_view.id()) else {
-            return;
-        };
-        let mut output_file = open_debug_file_from_env("DEBUG_OUTPUT_FILE");
-
-        // Create a function to handle output
-        let mut write_to_debug_file = |text: &str| {
-            if let Some(file) = &mut output_file {
-                use std::io::Write;
-                writeln!(file, "{text}").expect("Failed to write to debug output file");
-            } else {
-                println!("{text}");
-            }
-        };
-
-        // Add timestamp to the header
-        let current_time = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ");
-        write_to_debug_file(&format!(
-            "========Conversation Debug Info (Generated: {current_time})========"
-        ));
-        let conversation_token = conversation
-            .server_conversation_token()
-            .map(|token| token.as_str().to_owned())
-            .unwrap_or("unavailable".to_owned());
-        write_to_debug_file(&format!("Conversation Token: {conversation_token}"));
-
-        let total_exchanges = conversation.all_exchanges().len();
-
-        // Populate runtime tags with conversation data
-        persisted_data.insert(
-            RUNTIME_TAG_TOTAL_EXCHANGES.to_string(),
-            total_exchanges.to_string(),
-        );
-
-        // Write to debug file for backward compatibility
-        write_to_debug_file(&format!("{TOTAL_EXCHANGES_PREFIX}{total_exchanges}"));
-
-        write_to_debug_file("\nConversation Exchanges:\n");
-        for (i, exchange) in conversation.all_exchanges().into_iter().enumerate() {
-            // Add timestamp for each exchange
-            let exchange_time = chrono::DateTime::<chrono::Utc>::from(exchange.start_time)
-                .format("%Y-%m-%dT%H:%M:%S%.3fZ");
-            write_to_debug_file(&format!(
-                "\n--- Exchange {} (Started: {}) ---",
-                i + 1,
-                exchange_time
-            ));
-
-            for input in &exchange.input {
-                write_to_debug_file(&format!("\nInput:\n\n{input}\n"));
-            }
-            write_to_debug_file(&format!("Output:\n{}", &exchange.output_status))
-        }
-
-        // Add completion timestamp
-        let completion_time = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ");
-        write_to_debug_file(&format!(
-            "\n========Debug Info Complete ({completion_time})=========="
-        ));
-    })
 }
 
 // Get debug output file path from environment

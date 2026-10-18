@@ -171,11 +171,6 @@ pub type PinnedHeaderBuilder = dyn Fn(&AppContext) -> Box<dyn Element>;
 #[derive(Clone)]
 pub enum MenuItemLabel {
     Text(String),
-    // A label that can take up multiple lines. Doesn't support submenus yet.
-    MultilineText {
-        label: String,
-        max_lines: usize,
-    },
     Icon {
         path: &'static str,
         color: Fill,
@@ -183,11 +178,6 @@ pub enum MenuItemLabel {
     },
     // Label with primary and secondary text, spaced apart (e.g., for keybinding hints).
     LabeledText {
-        primary_text: String,
-        secondary_text: String,
-    },
-    // Label with primary and secondary text stacked vertically (follows dropdown pattern).
-    StackedText {
         primary_text: String,
         secondary_text: String,
     },
@@ -201,11 +191,6 @@ impl std::fmt::Debug for MenuItemLabel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Text(arg0) => f.debug_tuple("Text").field(arg0).finish(),
-            Self::MultilineText { label, max_lines } => f
-                .debug_struct("MultilineText")
-                .field("label", label)
-                .field("max_lines", max_lines)
-                .finish(),
             Self::Icon {
                 path,
                 color,
@@ -224,14 +209,6 @@ impl std::fmt::Debug for MenuItemLabel {
                 .field("primary_text", primary_text)
                 .field("secondary_text", secondary_text)
                 .finish(),
-            Self::StackedText {
-                primary_text,
-                secondary_text,
-            } => f
-                .debug_struct("StackedText")
-                .field("primary_text", primary_text)
-                .field("secondary_text", secondary_text)
-                .finish(),
             Self::Custom { .. } => f.debug_tuple("Custom").finish(),
         }
     }
@@ -247,8 +224,6 @@ impl MenuItemLabel {
     fn label(&self) -> Option<&str> {
         match self {
             Self::Text(label) => Some(label),
-            Self::MultilineText { label, .. } => Some(label),
-            Self::StackedText { primary_text, .. } => Some(primary_text),
             Self::Custom { label, .. } => label.as_deref(),
             _ => None,
         }
@@ -279,19 +254,6 @@ impl MenuItemLabel {
                     text = text.with_clip(config).soft_wrap(false);
                 }
                 Shrinkable::new(4., text.finish()).finish()
-            }
-            Self::MultilineText { label, max_lines } => {
-                let max_height_for_n_lines =
-                    *max_lines as f32 * font_size * appearance.line_height_ratio();
-                ConstrainedBox::new(
-                    Text::new(label.clone(), font_family, font_size)
-                        .with_color(primary_color.into())
-                        .autosize_text(MINIMUM_MENU_ITEM_FONT_SIZE)
-                        .soft_wrap(true)
-                        .finish(),
-                )
-                .with_max_height(max_height_for_n_lines)
-                .finish()
             }
             Self::Icon { path, color, .. } => {
                 // TODO figure out the sizes
@@ -336,46 +298,6 @@ impl MenuItemLabel {
                 ConstrainedBox::new(row.finish())
                     .with_max_width(max_width)
                     .finish()
-            }
-            Self::StackedText {
-                primary_text,
-                secondary_text,
-            } => {
-                // Create column layout for stacked text
-                let mut column = Flex::column()
-                    .with_cross_axis_alignment(CrossAxisAlignment::Start)
-                    .with_main_axis_alignment(MainAxisAlignment::Start);
-
-                // Add primary text
-                column.add_child(
-                    Text::new_inline(primary_text.clone(), font_family, font_size)
-                        .with_color(primary_color.into())
-                        .autosize_text(MINIMUM_MENU_ITEM_FONT_SIZE)
-                        .finish(),
-                );
-
-                // Add secondary text with spacing
-                column.add_child(
-                    Container::new(
-                        Text::new_inline(
-                            secondary_text.clone(),
-                            font_family,
-                            font_size * SECONDARY_TEXT_RATIO,
-                        )
-                        .with_color(secondary_color.into())
-                        .autosize_text(MINIMUM_MENU_ITEM_FONT_SIZE)
-                        .finish(),
-                    )
-                    .with_margin_top(2.)
-                    .finish(),
-                );
-
-                let max_width = menu_width - (horizontal_padding * 2.0);
-                Box::new(
-                    ConstrainedBox::new(column.finish())
-                        .with_max_width(max_width)
-                        .with_min_width(max_width),
-                )
             }
             Self::Custom { builder, .. } => {
                 let width = menu_width - (horizontal_padding * 2.0);
@@ -470,7 +392,7 @@ pub struct MenuItemFields<A: Action + Clone> {
     icon_size_override: Option<f32>,
     /// Optional clip config controlling how the label text is clipped when it
     /// would overflow the available width. Only applied to plain
-    /// [`MenuItemLabel::Text`] labels — multiline/stacked/labeled/icon/custom
+    /// [`MenuItemLabel::Text`] labels — labeled/icon/custom
     /// variants ignore this field.
     clip_config: Option<ClipConfig>,
 }
@@ -580,81 +502,12 @@ impl<A: Action + Clone> MenuItemFields<A> {
         }
     }
 
-    /// Creates a new menu item with vertically stacked
-    /// This is useful for items that need both a title and description/subtitle,
-    /// such as slash commands with their descriptions.
-    pub fn new_with_stacked_label<T: Into<String>>(title: T, subtitle: T) -> Self {
-        MenuItemFields {
-            element: MenuItemLabel::StackedText {
-                primary_text: title.into(),
-                secondary_text: subtitle.into(),
-            },
-            timestamp: None,
-            on_select_action: None,
-            key_shortcut_label: None,
-            disabled: false,
-            mouse_state: Default::default(),
-            icon: None,
-            image_icon: None,
-            override_icon_color: None,
-            override_font_family: None,
-            override_font_size: None,
-            override_text_color: None,
-            highlight_on_hover: true,
-            indent: false,
-            no_interaction_on_hover: false,
-            vertical_padding_override: None,
-            horizontal_padding_override: None,
-            has_submenu: false,
-            tooltip: None,
-            tooltip_position: MenuTooltipPosition::default(),
-            right_side_label: None,
-            right_side_icon: None,
-            override_hover_background_color: None,
-            icon_size_override: None,
-            clip_config: None,
-        }
-    }
-
     pub fn new_with_icon(icon_path: &'static str, icon_color: Fill, icon_label: String) -> Self {
         MenuItemFields {
             element: MenuItemLabel::Icon {
                 path: icon_path,
                 color: icon_color,
                 alt_text: icon_label,
-            },
-            timestamp: None,
-            on_select_action: None,
-            key_shortcut_label: None,
-            disabled: false,
-            mouse_state: Default::default(),
-            icon: None,
-            image_icon: None,
-            override_icon_color: None,
-            override_font_family: None,
-            override_font_size: None,
-            override_text_color: None,
-            highlight_on_hover: true,
-            indent: false,
-            no_interaction_on_hover: false,
-            vertical_padding_override: None,
-            horizontal_padding_override: None,
-            has_submenu: false,
-            tooltip: None,
-            tooltip_position: MenuTooltipPosition::default(),
-            right_side_label: None,
-            right_side_icon: None,
-            override_hover_background_color: None,
-            icon_size_override: None,
-            clip_config: None,
-        }
-    }
-
-    pub fn new_multiline<T: Into<String>>(label: T, max_lines: usize) -> Self {
-        MenuItemFields {
-            element: MenuItemLabel::MultilineText {
-                label: label.into(),
-                max_lines,
             },
             timestamp: None,
             on_select_action: None,
@@ -765,11 +618,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
         }
     }
 
-    pub fn with_timestamp(mut self, timestamp: DateTime<Local>) -> Self {
-        self.timestamp = Some(timestamp);
-        self
-    }
-
     pub fn on_select_action(&self) -> Option<&A> {
         self.on_select_action.as_ref()
     }
@@ -807,22 +655,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
 
     pub fn with_override_text_color(mut self, override_text_color: impl Into<ColorU>) -> Self {
         self.override_text_color = Some(override_text_color.into());
-        self
-    }
-
-    /// Overrides the background color rendered when this item is hovered or
-    /// selected. Takes precedence over the default hover color (which depends
-    /// on `highlight_on_hover`). Has no effect when `no_interaction_on_hover`
-    /// is set, or when the item is disabled.
-    pub fn with_override_hover_background_color(mut self, color: impl Into<Fill>) -> Self {
-        self.override_hover_background_color = Some(color.into());
-        self
-    }
-
-    /// Overrides the leading icon size (in logical pixels) for this item.
-    /// The default is `appearance.ui_font_size()`.
-    pub fn with_icon_size_override(mut self, size: f32) -> Self {
-        self.icon_size_override = Some(size);
         self
     }
 
@@ -909,20 +741,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
         self
     }
 
-    pub fn with_right_side_icon_a11y_label(mut self, label: impl Into<String>) -> Self {
-        if let Some(config) = &mut self.right_side_icon {
-            config.a11y_label = Some(label.into());
-        }
-        self
-    }
-
-    pub fn with_right_side_icon_disabled(mut self, disabled: bool) -> Self {
-        if let Some(config) = &mut self.right_side_icon {
-            config.disabled = disabled;
-        }
-        self
-    }
-
     pub fn into_item(self) -> MenuItem<A> {
         MenuItem::Item(self)
     }
@@ -937,10 +755,9 @@ impl<A: Action + Clone> MenuItemFields<A> {
 
     pub fn get_a11y_text(&self) -> &str {
         match &self.element {
-            MenuItemLabel::Text(label) | MenuItemLabel::MultilineText { label, .. } => label,
+            MenuItemLabel::Text(label) => label,
             MenuItemLabel::Icon { alt_text, .. } => alt_text,
             MenuItemLabel::LabeledText { primary_text, .. } => primary_text,
-            MenuItemLabel::StackedText { primary_text, .. } => primary_text,
             MenuItemLabel::Custom { label, .. } => label.as_deref().unwrap_or(""),
         }
     }
@@ -1260,65 +1077,43 @@ impl<A: Action + Clone> MenuItemFields<A> {
                 app,
             );
 
-            if matches!(self.element, MenuItemLabel::MultilineText { .. }) {
-                // In multiline labels, the timestamp is positioned underneath the label.
-                let mut content_column = Flex::column()
-                    .with_main_axis_size(MainAxisSize::Min)
-                    .with_child(label_element);
-                if let Some(timestamp) = &self.timestamp {
-                    content_column.add_child(
-                        Container::new(self.render_time_estimation(
-                            timestamp,
-                            font_family,
-                            font_size - 1.,
-                            text_background_color,
-                            appearance,
-                        ))
-                        .with_margin_top(2.)
-                        .finish(),
-                    );
-                }
-                label_row.add_child(Shrinkable::new(1., content_column.finish()).finish());
+            // Keep a clipped label from pushing its right-side label out of bounds.
+            if self.clip_config.is_some() && self.right_side_label.is_some() {
+                label_row.add_child(Expanded::new(1., label_element).finish());
             } else {
-                // Keep a clipped label from pushing its right-side label out of bounds.
-                if self.clip_config.is_some() && self.right_side_label.is_some() {
-                    label_row.add_child(Expanded::new(1., label_element).finish());
-                } else {
-                    label_row.add_child(label_element);
-                }
+                label_row.add_child(label_element);
+            }
 
-                if self.has_submenu {
-                    label_row
-                        .add_child(self.render_right_aligned_chevron(appearance, primary_color));
-                } else {
-                    match self.render_right_side_label(appearance, secondary_color.into()) {
-                        Some(right_label) => {
-                            label_row.add_child(right_label);
-                        }
-                        _ => match self.render_key_shortcut(appearance, secondary_color.into()) {
-                            Some(key_shortcut) => {
-                                label_row.add_child(key_shortcut);
-                            }
-                            _ => {
-                                if let Some(timestamp) = &self.timestamp {
-                                    label_row.add_child(self.render_right_aligned_time_estimation(
-                                        timestamp,
-                                        font_family,
-                                        font_size,
-                                        text_background_color,
-                                        appearance,
-                                    ));
-                                }
-                            }
-                        },
+            if self.has_submenu {
+                label_row.add_child(self.render_right_aligned_chevron(appearance, primary_color));
+            } else {
+                match self.render_right_side_label(appearance, secondary_color.into()) {
+                    Some(right_label) => {
+                        label_row.add_child(right_label);
                     }
+                    _ => match self.render_key_shortcut(appearance, secondary_color.into()) {
+                        Some(key_shortcut) => {
+                            label_row.add_child(key_shortcut);
+                        }
+                        _ => {
+                            if let Some(timestamp) = &self.timestamp {
+                                label_row.add_child(self.render_right_aligned_time_estimation(
+                                    timestamp,
+                                    font_family,
+                                    font_size,
+                                    text_background_color,
+                                    appearance,
+                                ));
+                            }
+                        }
+                    },
                 }
+            }
 
-                if let Some(right_icon) =
-                    self.render_right_side_icon(appearance, primary_color, dispatch_item_actions)
-                {
-                    label_row.add_child(right_icon);
-                }
+            if let Some(right_icon) =
+                self.render_right_side_icon(appearance, primary_color, dispatch_item_actions)
+            {
+                label_row.add_child(right_icon);
             }
 
             // If menu item doesn't have an icon but we want to indent it, add left padding so it aligns with menu items that do have icons
@@ -1328,17 +1123,10 @@ impl<A: Action + Clone> MenuItemFields<A> {
                 horizontal_padding
             };
 
-            let horizontal_alignment =
-                if matches!(self.element, MenuItemLabel::MultilineText { .. }) {
-                    CrossAxisAlignment::Start
-                } else {
-                    CrossAxisAlignment::Center
-                };
-
             let container = Container::new(
                 label_row
                     .with_main_axis_alignment(MainAxisAlignment::SpaceEvenly)
-                    .with_cross_axis_alignment(horizontal_alignment)
+                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
                     .finish(),
             )
             .with_padding_top(vertical_padding)
@@ -2053,7 +1841,7 @@ impl<A: Action + Clone> SubMenu<A> {
         let selected_item = selected_item.as_ref();
         if let Some(index) = self.items.iter().position(|item| match item {
             MenuItem::Item(MenuItemFields {
-                element: MenuItemLabel::Text(label) | MenuItemLabel::MultilineText { label, .. },
+                element: MenuItemLabel::Text(label),
                 ..
             }) => selected_item == label,
             _ => false,
@@ -2345,14 +2133,6 @@ impl<A: Action + Clone> Menu<A> {
         self.width_match_position_id = position_id;
     }
 
-    pub fn set_border(&mut self, border: Option<Border>) {
-        self.border = border;
-    }
-
-    pub fn set_flatten_bottom_corners(&mut self, flatten: bool) {
-        self.flatten_bottom_corners = flatten;
-    }
-
     /// Set a pinned footer element
     /// **inside** the `Dismiss`, so clicks on it never trigger the dismiss handler.
     /// Use `on_click` (not `on_mouse_down`) on interactive elements in the footer.
@@ -2365,15 +2145,6 @@ impl<A: Action + Clone> Menu<A> {
 
     pub fn clear_pinned_footer_builder(&mut self) {
         self.pinned_footer_builder = None;
-    }
-
-    /// Set a pinned header element rendered above the scrollable items
-    /// **inside** the `Dismiss`, so clicks on it never trigger the dismiss handler.
-    pub fn set_pinned_header_builder<F>(&mut self, builder: F)
-    where
-        F: Fn(&AppContext) -> Box<dyn Element> + 'static,
-    {
-        self.pinned_header_builder = Some(Box::new(builder));
     }
 
     pub fn clear_pinned_header_builder(&mut self) {
@@ -2478,11 +2249,6 @@ impl<A: Action + Clone> Menu<A> {
 
     pub fn select_next(&mut self, ctx: &mut ViewContext<Self>) {
         self.select(SelectAction::Next, ctx);
-    }
-
-    /// Select the first selectable item in the menu. No-op if no item is selectable.
-    pub fn select_first(&mut self, ctx: &mut ViewContext<Self>) {
-        self.menu.select_first_selectable(ctx);
     }
 
     #[cfg(test)]
@@ -2941,32 +2707,6 @@ impl<A: Action + Clone> MenuItem<A> {
 
     pub fn is_separator(&self) -> bool {
         matches!(self, MenuItem::Separator)
-    }
-
-    /// Returns true iff a and b are "approximately" equal. By "approximately", we mean:
-    /// - they are either both separators
-    /// - or, they are both single items with the same label
-    /// - or, they are both item rows with items whose labels match pairwise
-    pub fn is_approximately_same_item_as(&self, other: &MenuItem<A>) -> bool {
-        match (self, other) {
-            (MenuItem::Separator, MenuItem::Separator) => true,
-            (MenuItem::Item(self_fields), MenuItem::Item(other_fields)) => {
-                self_fields.label() == other_fields.label()
-            }
-            (
-                MenuItem::ItemsRow { items: self_items },
-                MenuItem::ItemsRow { items: other_items },
-            ) => {
-                self_items.len() == other_items.len()
-                    && self_items
-                        .iter()
-                        .zip(other_items)
-                        .all(|(self_fields, other_fields)| {
-                            self_fields.label() == other_fields.label()
-                        })
-            }
-            _ => false,
-        }
     }
 }
 

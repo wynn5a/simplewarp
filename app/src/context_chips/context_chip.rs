@@ -278,21 +278,8 @@ impl ChipRuntimePolicy {
         self.suppress_on_failure
     }
 
-    pub fn with_suppress_on_failure(mut self) -> Self {
-        self.suppress_on_failure = true;
-        self
-    }
-
     pub fn invalidate_on_commands(&self) -> &[String] {
         &self.invalidate_on_commands
-    }
-
-    pub fn with_invalidate_on_commands(
-        mut self,
-        commands: impl IntoIterator<Item = impl Into<String>>,
-    ) -> Self {
-        self.invalidate_on_commands = commands.into_iter().map(Into::into).collect();
-        self
     }
 
     pub fn availability(&self, capabilities: &ChipRuntimeCapabilities) -> ChipAvailability {
@@ -439,19 +426,6 @@ impl ContextChip {
             on_click_generator: on_click_generator.map(PromptGenerator::ShellCommand),
             icon_path: None,
             refresh_config,
-            runtime_policy,
-            allow_empty_value: false,
-        }
-    }
-
-    pub fn new_custom_chip(title: String, shell_command_generator: ShellCommandGenerator) -> Self {
-        let runtime_policy = ChipRuntimePolicy::for_shell_generator(&shell_command_generator);
-        Self {
-            title,
-            generator: PromptGenerator::ShellCommand(shell_command_generator),
-            on_click_generator: None,
-            icon_path: None,
-            refresh_config: Default::default(),
             runtime_policy,
             allow_empty_value: false,
         }

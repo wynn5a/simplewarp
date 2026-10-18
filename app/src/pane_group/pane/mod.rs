@@ -344,10 +344,6 @@ impl PaneId {
         matches!(self.0.pane_type, IPaneType::Terminal)
     }
 
-    pub fn is_notebook_pane(&self) -> bool {
-        matches!(self.0.pane_type, IPaneType::Notebook)
-    }
-
     pub fn is_code_pane(&self) -> bool {
         matches!(self.0.pane_type, IPaneType::Code)
     }
@@ -681,15 +677,6 @@ impl PaneConfiguration {
         }
     }
 
-    pub fn set_show_accent_border(
-        &mut self,
-        show_accent_border: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.show_accent_border = show_accent_border;
-        ctx.emit(PaneConfigurationEvent::ShowAccentBorderUpdated);
-    }
-
     pub fn set_has_open_modal(&mut self, has_open_modal: bool, ctx: &mut ModelContext<Self>) {
         self.has_open_modal = has_open_modal;
         ctx.emit(PaneConfigurationEvent::OpenModalUpdated);
@@ -706,13 +693,6 @@ impl PaneConfiguration {
     /// content returned by `render_header_content()`.
     pub fn notify_header_content_changed(&mut self, ctx: &mut ModelContext<Self>) {
         ctx.emit(PaneConfigurationEvent::HeaderContentChanged);
-    }
-
-    pub fn set_header_left_inset(&mut self, inset: f32, ctx: &mut ModelContext<Self>) {
-        if (self.header_left_inset - inset).abs() > f32::EPSILON {
-            self.header_left_inset = inset;
-            ctx.emit(PaneConfigurationEvent::HeaderContentChanged);
-        }
     }
 }
 
@@ -758,13 +738,7 @@ impl<P: BackingView> Entity for PaneStack<P> {
     type Event = PaneStackEvent<P>;
 }
 
-impl<P: BackingView<AssociatedData = ()>> PaneStack<P> {
-    /// Pushes a new view onto the stack, making it the active view. This is a convenience wrapper
-    /// around [`Self::push`] for panes with no associated data.
-    pub fn push_view(&mut self, view: ViewHandle<P>, ctx: &mut ModelContext<Self>) {
-        self.push((), view, ctx);
-    }
-}
+impl<P: BackingView<AssociatedData = ()>> PaneStack<P> {}
 
 impl<P: BackingView> PaneStack<P> {
     /// Creates a new pane stack with a single initial view and its associated data.
@@ -790,11 +764,6 @@ impl<P: BackingView> PaneStack<P> {
     /// Returns the associated data for the topmost (active) view in the stack.
     pub fn active_data(&self) -> &P::AssociatedData {
         &self.children.last().0
-    }
-
-    /// Returns a mutable reference to the associated data for the topmost (active) view.
-    pub fn active_data_mut(&mut self) -> &mut P::AssociatedData {
-        &mut self.children.last_mut().0
     }
 
     /// Returns all views in the stack.

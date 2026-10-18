@@ -72,10 +72,6 @@ impl ImportedConfigModel {
         });
     }
 
-    pub fn is_started(&self) -> bool {
-        self.started
-    }
-
     #[cfg(target_os = "macos")]
     fn maybe_send_multiple_hotkeys_telemetry_event(
         &self,

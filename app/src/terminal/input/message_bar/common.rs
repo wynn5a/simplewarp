@@ -1,11 +1,10 @@
-use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_color::ColorU;
 use warp_core::ui::Icon;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
 use warpui::elements::{
-    Border, CacheOption, Clipped, Container, CornerRadius, DEFAULT_UI_LINE_HEIGHT_RATIO, Element,
-    FormattedTextElement, Hoverable, Image, ParentElement, Radius, Wrap, WrapFill,
+    Border, CacheOption, Clipped, Container, CornerRadius, Element, Hoverable, Image,
+    ParentElement, Radius,
 };
 use warpui::platform::Cursor;
 use warpui::prelude::{Align, ConstrainedBox, CrossAxisAlignment, Flex, MainAxisSize, Text};
@@ -79,51 +78,6 @@ pub fn render_standard_message_bar(
         .finish(),
     )
     .with_height(standard_message_bar_height(app))
-    .finish()
-}
-/// Renders a standard message bar variant for inline text and hyperlinks that need to soft-wrap.
-/// `render_standard_message_bar` intentionally remains fixed-height and single-line for existing
-/// hint/status bars.
-pub fn render_wrapping_standard_message_bar(
-    icon: Icon,
-    icon_color: ColorU,
-    text_color: ColorU,
-    fragments: Vec<FormattedTextFragment>,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-    let font_size = styles::font_size(app);
-    let icon = ConstrainedBox::new(icon.to_warpui_icon(Fill::Solid(icon_color)).finish())
-        .with_height(font_size)
-        .with_width(font_size)
-        .finish();
-    let text = FormattedTextElement::new(
-        FormattedText::new([FormattedTextLine::Line(fragments)]),
-        font_size,
-        appearance.ui_font_family(),
-        appearance.monospace_font_family(),
-        text_color,
-        Default::default(),
-    )
-    .with_line_height_ratio(DEFAULT_UI_LINE_HEIGHT_RATIO)
-    .with_hyperlink_font_color(theme.accent().into())
-    .register_default_click_handlers(|url, _ctx, app| {
-        app.open_url(&url.url);
-    })
-    .finish();
-
-    Container::new(
-        Wrap::row()
-            .with_main_axis_size(MainAxisSize::Max)
-            .with_cross_axis_alignment(CrossAxisAlignment::Start)
-            .with_spacing(4.)
-            .with_child(icon)
-            .with_child(WrapFill::new(0., text).finish())
-            .finish(),
-    )
-    .with_horizontal_padding(*terminal::view::PADDING_LEFT)
-    .with_vertical_padding(styles::VERTICAL_PADDING)
     .finish()
 }
 

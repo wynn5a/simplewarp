@@ -756,13 +756,6 @@ impl BlockMatches {
             None => self.output_grid_matches.as_slice(),
         }
     }
-
-    pub fn number_of_output_grid_matches(&self) -> usize {
-        match &self.filtered_output_grid_matches {
-            Some(filtered_output_grid_matches) => filtered_output_grid_matches.len(),
-            None => self.output_grid_matches.len(),
-        }
-    }
 }
 
 /// Calculates the optimal number of rows to use for content truncation based on terminal width.
@@ -1337,10 +1330,6 @@ impl Block {
 
     pub fn should_hide_command_grid(&self) -> bool {
         self.should_hide_command_grid
-    }
-
-    pub fn set_should_hide_command_grid(&mut self, should_hide: bool) {
-        self.should_hide_command_grid = should_hide;
     }
 
     pub fn index(&self) -> BlockIndex {

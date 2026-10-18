@@ -357,10 +357,6 @@ where
         ctx.notify();
     }
 
-    pub(crate) fn is_expanded(&self) -> bool {
-        self.is_expanded
-    }
-
     fn render_closed_top_bar(&self, appearance: &Appearance) -> Box<dyn Element> {
         let (selected_item_text, font_family_id, is_placeholder) = match self.static_menu_header {
             Some(header) => (header.to_string(), None, false),

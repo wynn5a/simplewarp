@@ -79,11 +79,6 @@ impl Block {
         self.is_agent_in_control() || self.is_agent_tagged_in()
     }
 
-    pub fn cli_subagent_task_id(&self) -> Option<&TaskId> {
-        self.agent_interaction_metadata()
-            .and_then(|metadata| metadata.subagent_task_id())
-    }
-
     pub fn upgrade_cli_subagent_task_id(&mut self, new_task_id: TaskId) -> anyhow::Result<()> {
         if let InteractionMode::Agent(AgentInteractionMetadata {
             subagent_task_id: Some(task_id),

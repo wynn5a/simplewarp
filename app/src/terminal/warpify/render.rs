@@ -6,15 +6,12 @@ use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::{Fill, WarpTheme};
 use warpui::elements::{
     Align, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, FormattedTextElement,
-    HighlightedHyperlink, Icon, MouseStateHandle, ParentElement, Radius, Rect, Shrinkable, Stack,
-    Text,
+    HighlightedHyperlink, Icon, ParentElement, Radius, Rect, Shrinkable, Stack, Text,
 };
 use warpui::fonts::{FamilyId, Properties, Weight};
-use warpui::ui_components::components::{UiComponent as _, UiComponentStyles};
-use warpui::{AppContext, Element, EventContext, PaintContext, SingletonEntity as _};
+use warpui::{Element, PaintContext};
 
 use super::SubshellSource;
-use super::settings::WarpifySettings;
 use crate::ai::blocklist::inline_action::inline_action_icons;
 use crate::ui_components::blended_colors;
 
@@ -156,47 +153,6 @@ pub fn description_row(text: &str, theme: &WarpTheme, appearance: &Appearance) -
         build_description_row(text, theme, appearance, Default::default()).finish(),
     ))
     .finish()
-}
-
-/// Renders a "Never Warpify this host" link or nothing.
-pub fn render_never_warpify_ssh_link(
-    ssh_host: &Option<String>,
-    app: &AppContext,
-    appearance: &Appearance,
-    mouse_state_handle: MouseStateHandle,
-    on_never_warpify: fn(&mut EventContext<'_>, ssh_host: String),
-) -> Option<Box<dyn Element>> {
-    let Some(ssh_host) = ssh_host else {
-        return None;
-    };
-
-    let settings = WarpifySettings::handle(app);
-    if settings.as_ref(app).is_ssh_host_denylisted(ssh_host) {
-        // Should only happen if user manually attempts to Warpify a denylisted host.
-        return None;
-    }
-
-    let link = appearance
-        .ui_builder()
-        .link(
-            "Never Warpify this host".into(),
-            None,
-            Some(Box::new({
-                let ssh_host = ssh_host.clone();
-                move |ctx| on_never_warpify(ctx, ssh_host.to_owned())
-            })),
-            mouse_state_handle,
-        )
-        .soft_wrap(false)
-        .with_style(UiComponentStyles {
-            font_size: Some(appearance.monospace_font_size()),
-            font_family_id: Some(appearance.monospace_font_family()),
-            ..Default::default()
-        })
-        .build()
-        .finish();
-
-    Some(Align::new(link).bottom_right().finish())
 }
 
 fn get_subshell_flag_info(subshell_source: &SubshellSource, theme: &WarpTheme) -> (String, Fill) {

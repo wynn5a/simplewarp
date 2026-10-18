@@ -859,10 +859,6 @@ impl AISettings {
         *self.file_based_mcp_enabled
     }
 
-    pub fn is_command_denylist_editable(&self) -> bool {
-        self.is_any_ai_enabled()
-    }
-
     pub fn is_command_allowlist_editable(&self) -> bool {
         self.is_any_ai_enabled()
     }

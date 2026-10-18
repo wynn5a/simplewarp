@@ -264,11 +264,6 @@ impl ActionButton {
         self
     }
 
-    pub fn with_tooltip_max_height(mut self, tooltip_max_height: f32) -> Self {
-        self.tooltip_max_height = Some(tooltip_max_height);
-        self
-    }
-
     /// Set the size class of the button.
     pub fn with_size(mut self, size: ButtonSize) -> Self {
         self.size = size;
@@ -315,10 +310,6 @@ impl ActionButton {
     pub fn with_menu(mut self, has_menu: bool) -> Self {
         self.has_menu = has_menu;
         self
-    }
-    pub fn set_has_menu(&mut self, has_menu: bool, ctx: &mut ViewContext<Self>) {
-        self.has_menu = has_menu;
-        ctx.notify();
     }
 
     pub fn on_click<F>(mut self, handler: F) -> Self
@@ -415,11 +406,6 @@ impl ActionButton {
 
     pub fn set_tooltip(&mut self, tooltip: Option<impl Into<String>>, ctx: &mut ViewContext<Self>) {
         self.tooltip = tooltip.map(|t| t.into());
-        ctx.notify();
-    }
-
-    pub fn clear_tooltip(&mut self, ctx: &mut ViewContext<Self>) {
-        self.tooltip = None;
         ctx.notify();
     }
 

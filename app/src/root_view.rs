@@ -832,11 +832,6 @@ pub fn quake_mode_window_id() -> Option<WindowId> {
     quake_mode_state.as_ref().map(|state| state.window_id)
 }
 
-pub fn set_quake_mode(new_state: Option<QuakeModeState>) {
-    let mut quake_mode_state = QUAKE_STATE.lock();
-    *quake_mode_state = new_state;
-}
-
 fn move_quake_mode_window_from_screen_change(settings: &QuakeModeSettings, ctx: &mut AppContext) {
     fit_quake_mode_window_within_active_screen(
         settings,

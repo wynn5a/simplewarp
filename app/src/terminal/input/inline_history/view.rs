@@ -468,10 +468,6 @@ impl InlineHistoryMenuView {
             .update(ctx, |v, ctx| v.accept_selected_item(false, ctx));
     }
 
-    pub fn arm_initial_buffer_sync(&mut self) {
-        self.pending_initial_buffer_sync = true;
-    }
-
     fn open_with_current_buffer(&mut self, ctx: &mut ViewContext<Self>) {
         let query_text = self.buffer_model.as_ref(ctx).current_value().to_owned();
         let filters = self.model.as_ref(ctx).active_tab_filters();

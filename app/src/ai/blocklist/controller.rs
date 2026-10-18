@@ -198,11 +198,6 @@ impl RequestInput {
         self.input_messages.values().flatten()
     }
 
-    pub fn with_supported_tools(mut self, tools: Vec<ToolType>) -> Self {
-        self.supported_tools_override = Some(tools);
-        self
-    }
-
     fn new_with_common_fields(
         conversation_id: AIConversationId,
         active_session: &ModelHandle<ActiveSession>,

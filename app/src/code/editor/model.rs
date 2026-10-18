@@ -58,7 +58,7 @@ use warpui::elements::{
 use warpui::text::TextBuffer;
 use warpui::text::point::Point;
 use warpui::units::{IntoPixels, Pixels};
-use warpui::{AppContext, Entity, ModelAsRef, ModelContext, ModelHandle, SingletonEntity};
+use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use super::super::DiffResult;
 use super::comments::{EditorCommentsModel, PendingComment, PendingCommentEvent};
@@ -1936,86 +1936,6 @@ impl CodeEditorModel {
 
     // ── Char-cell (TUI) visual-row kill ──────────────────────────────────────
 
-    /// Deletes from the primary cursor to the end of its soft-wrapped visual
-    /// row, returning the deleted text; `None` when the cursor is already at
-    /// the row end. Char-cell (TUI) mode only — visual rows follow the
-    /// terminal-width wrap math.
-    pub fn kill_to_char_cell_visual_row_end(
-        &mut self,
-        ctx: &mut ModelContext<Self>,
-    ) -> Option<String> {
-        // `cursor_gap` is a 1-indexed gap position (gap 1 sits before the
-        // first character); `text_in_range` / `Delete` use those same
-        // coordinates, so the kill range starts exactly at `cursor_gap`.
-        let cursor_gap = self.primary_cursor_gap(ctx);
-        let cursor_offset = CharOffset::from(cursor_gap.as_usize().saturating_sub(1));
-        let row = self.char_cell_visual_row_range(cursor_offset, ctx)?;
-        if row.end <= cursor_offset {
-            return None;
-        }
-        // `text[i]` lives at gap `i + 1`, so the exclusive end gap is `row.end + 1`.
-        Some(self.delete_range_returning_text(cursor_gap..row.end + 1, ctx))
-    }
-
-    /// Deletes from the start of the primary cursor's soft-wrapped visual row
-    /// up to the cursor, returning the deleted text; `None` when the cursor
-    /// is already at the row start. Char-cell (TUI) mode only.
-    pub fn kill_to_char_cell_visual_row_start(
-        &mut self,
-        ctx: &mut ModelContext<Self>,
-    ) -> Option<String> {
-        let cursor_gap = self.primary_cursor_gap(ctx);
-        let cursor_offset = CharOffset::from(cursor_gap.as_usize().saturating_sub(1));
-        let row = self.char_cell_visual_row_range(cursor_offset, ctx)?;
-        if row.start >= cursor_offset {
-            return None;
-        }
-        Some(self.delete_range_returning_text(row.start + 1..cursor_gap, ctx))
-    }
-
-    /// The primary cursor as a 1-indexed gap offset.
-    fn primary_cursor_gap(&self, ctx: &impl ModelAsRef) -> CharOffset {
-        *self.selection.as_ref(ctx).cursors(ctx).first()
-    }
-
-    /// The soft-wrapped visual row containing 0-based `cursor_offset`, as
-    /// 0-based character offsets; `None` outside char-cell (TUI) mode.
-    fn char_cell_visual_row_range(
-        &self,
-        cursor_offset: CharOffset,
-        ctx: &impl ModelAsRef,
-    ) -> Option<Range<CharOffset>> {
-        let render = self.render_state.as_ref(ctx);
-        Some(render.char_cell()?.visual_row_char_range(cursor_offset))
-    }
-
-    /// Deletes `range` (1-indexed gap offsets) as a user edit, returning the
-    /// deleted text.
-    fn delete_range_returning_text(
-        &mut self,
-        range: Range<CharOffset>,
-        ctx: &mut ModelContext<Self>,
-    ) -> String {
-        let deleted = self
-            .content
-            .as_ref(ctx)
-            .text_in_range(range.clone())
-            .into_string();
-        let selection_model = self.selection_model.clone();
-        self.update_content(
-            |mut content, ctx| {
-                content.apply_edit(
-                    BufferEditAction::Delete(vec1![range]),
-                    EditOrigin::UserInitiated,
-                    selection_model,
-                    ctx,
-                );
-            },
-            ctx,
-        );
-        deleted
-    }
-
     pub fn reset_content(&mut self, state: InitialBufferState, ctx: &mut ModelContext<Self>) {
         self.set_base(state.text, false, ctx);
         // Line ending is now inferred automatically by Buffer::reset.
@@ -2140,51 +2060,6 @@ impl CodeEditorModel {
 
     pub fn vim_visual_tails(&self) -> &Vec<CharOffset> {
         &self.vim_visual_tails
-    }
-
-    /// Return the ranges represented by the current Vim visual tails and
-    /// selection heads without consuming the tails.
-    pub fn vim_visual_selection_ranges(
-        &self,
-        motion_type: MotionType,
-        ctx: &AppContext,
-    ) -> Vec<Range<CharOffset>> {
-        let selection_model = self.selection_model.as_ref(ctx);
-        let buffer = self.content().as_ref(ctx);
-
-        selection_model
-            .selection_offsets()
-            .iter()
-            .zip(self.vim_visual_tails.iter())
-            .map(|(selection, visual_tail)| {
-                let mut start = *visual_tail;
-                let mut end = selection.head;
-                if start > end {
-                    mem::swap(&mut start, &mut end);
-                }
-
-                let max_offset = buffer.max_charoffset();
-                if end < max_offset
-                    && (motion_type != MotionType::Linewise
-                        || buffer.char_at(end).is_some_and(|c| c != '\n'))
-                {
-                    end += 1;
-                }
-
-                if motion_type == MotionType::Linewise {
-                    let start_point = start.to_buffer_point(buffer);
-                    start = Point::new(start_point.row, 0).to_buffer_char_offset(buffer);
-
-                    let end_point = end.to_buffer_point(buffer);
-                    if end_point.column != 0 {
-                        end = Point::new(end_point.row, buffer.line_len(end_point.row))
-                            .to_buffer_char_offset(buffer);
-                    }
-                }
-
-                start..end
-            })
-            .collect()
     }
 
     /// Expand the current selection(s) for a visual-mode operation using stored visual tails.

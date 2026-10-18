@@ -114,16 +114,6 @@ impl TextColors {
             hint_color: theme.hint_text_color(theme.background()),
         }
     }
-
-    pub fn all_hint_color(appearance: &Appearance) -> Self {
-        let theme = appearance.theme();
-        let hint_color = theme.hint_text_color(theme.background());
-        Self {
-            default_color: hint_color,
-            disabled_color: hint_color,
-            hint_color,
-        }
-    }
 }
 
 #[derive(Default)]

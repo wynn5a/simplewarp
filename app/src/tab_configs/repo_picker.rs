@@ -193,13 +193,6 @@ impl RepoPicker {
         ctx.notify();
     }
 
-    pub fn toggle_dropdown(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        self.dropdown.update(ctx, |dropdown, ctx| {
-            dropdown.toggle_expanded(ctx);
-        });
-        self.dropdown.as_ref(ctx).is_expanded()
-    }
-
     /// Returns the currently shown selected repo path (raw absolute path).
     ///
     /// `refresh_items` eagerly mirrors any pre-selected raw path into

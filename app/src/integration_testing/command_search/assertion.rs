@@ -37,13 +37,3 @@ pub fn assert_command_search_has_results() -> AssertionCallback {
         })
     })
 }
-
-pub fn assert_query(query: impl AsRef<str> + 'static) -> AssertionCallback {
-    Box::new(move |app, window_id| {
-        let command_search_view = command_search_view(app, window_id);
-        command_search_view.read(app, |command_search_view, ctx| {
-            let search_bar = command_search_view.search_bar();
-            async_assert_eq!(search_bar.as_ref(ctx).query(ctx).as_str(), query.as_ref())
-        })
-    })
-}

@@ -280,17 +280,6 @@ impl BlocklistAIContextModel {
             .collect()
     }
 
-    /// Returns only the pending files for the next query.
-    pub fn pending_files(&self) -> Vec<&PendingFile> {
-        self.pending_attachments
-            .iter()
-            .filter_map(|a| match a {
-                PendingAttachment::File(file) => Some(file),
-                PendingAttachment::Image(_) => None,
-            })
-            .collect()
-    }
-
     /// Given a block ID, transform it into an AIAgentContext::Block.
     pub fn transform_block_to_context(
         &self,

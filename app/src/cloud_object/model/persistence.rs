@@ -293,22 +293,10 @@ impl CloudModel {
             .and_then(|object| object.into())
     }
 
-    pub fn get_env_var_collection_by_uid(&self, uid: &str) -> Option<&CloudEnvVarCollection> {
-        self.objects_by_id.get(uid).and_then(|object| object.into())
-    }
-
     /// Returns only active (not trashed) EVCs in cloud model.
     pub fn get_all_active_env_var_collections(
         &self,
     ) -> impl Iterator<Item = &CloudEnvVarCollection> {
-        self.objects_by_id
-            .values()
-            .filter(|object| !object.is_trashed(self))
-            .filter_map(|object| object.into())
-    }
-
-    /// Returns only active (not trashed) notebooks in cloud model.
-    pub fn get_all_active_notebooks(&self) -> impl Iterator<Item = &CloudNotebook> {
         self.objects_by_id
             .values()
             .filter(|object| !object.is_trashed(self))

@@ -16,12 +16,7 @@ pub enum AgentConversationEntryId {
     Conversation(AIConversationId),
 }
 
-impl AgentConversationEntryId {
-    pub fn as_key(&self) -> String {
-        let AgentConversationEntryId::Conversation(id) = self;
-        format!("conv_{id}")
-    }
-}
+impl AgentConversationEntryId {}
 
 /// Navigation request input for resolving an entry at action time.
 #[derive(Clone, Debug, PartialEq, Eq)]

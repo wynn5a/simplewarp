@@ -86,12 +86,6 @@ impl SubmittableTextInput {
         });
     }
 
-    pub fn set_outer_margins(&mut self, top: f32, bottom: f32, ctx: &mut ViewContext<Self>) {
-        self.outer_margin_top = top;
-        self.outer_margin_bottom = bottom;
-        ctx.notify();
-    }
-
     /// Returns a handle to the backing [`EditorView`].
     pub fn editor(&self) -> &ViewHandle<EditorView> {
         &self.editor

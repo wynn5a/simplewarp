@@ -156,22 +156,6 @@ impl SyncedInputState {
         matches!(self.get_state(window_id), Some(SyncedPanes::All))
     }
 
-    /// Returns true if sync mode is all panes in a set of pane group ids and
-    /// the specified pane group id is in that set.
-    /// Returns false otherwise -- notably, even when all panes are synced.
-    /// Useful when we need to know the exact sync state, not just sync.
-    pub fn is_syncing_all_panes_in_pane_group(
-        &self,
-        window_id: WindowId,
-        pane_group_id: EntityId,
-    ) -> bool {
-        match self.sync_state_by_window.get(&window_id).unwrap_or(&None) {
-            Some(SyncedPanes::AllPanesInPaneGroups {
-                pane_group_ids: tab_ids,
-            }) => tab_ids.contains(&pane_group_id),
-            _ => false,
-        }
-    }
     /// Returns true if we're in any state that should sync this pane group.
     pub fn should_sync_this_pane_group(
         &self,

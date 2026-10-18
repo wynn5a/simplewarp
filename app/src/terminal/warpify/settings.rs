@@ -353,15 +353,6 @@ impl WarpifySettings {
         false
     }
 
-    /// This function determines if we should ask the user whether they want to bootstrap an ssh session.
-    /// It determines this by matching the host against a denylist of hosts, which can include regex.
-    pub fn is_ssh_host_denylisted(&self, ssh_host: &str) -> bool {
-        self.parsed_ssh_hosts_denylist
-            .iter()
-            .flatten()
-            .any(|regex| regex.is_match(ssh_host.trim()))
-    }
-
     fn parse_added_subshell_commands(
         added_subshell_commands: &AddedSubshellCommands,
     ) -> Vec<Result<Regex, regex::Error>> {

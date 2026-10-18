@@ -48,12 +48,6 @@ pub fn open_settings_page(section: SettingsSection) -> TestStep {
         )
 }
 
-/// Clicks a top-level sidebar row.
-pub fn click_settings_nav_page(section: SettingsSection) -> TestStep {
-    new_step_with_default_assertions(&format!("Click settings nav row {section:?}"))
-        .with_click_on_saved_position(nav_page_position_id(section))
-}
-
 /// Clicks an umbrella header row, toggling it open or closed.
 pub fn click_settings_umbrella(label: &'static str) -> TestStep {
     new_step_with_default_assertions(&format!("Click settings umbrella \"{label}\""))
@@ -157,15 +151,6 @@ pub fn assert_settings_nav_subpage_visible(section: SettingsSection, visible: bo
     assert_row_painted(
         nav_subpage_position_id(section),
         format!("subpage row {section:?}"),
-        visible,
-    )
-}
-
-/// Asserts whether an umbrella header row is currently rendered.
-pub fn assert_settings_umbrella_visible(label: &'static str, visible: bool) -> TestStep {
-    assert_row_painted(
-        nav_umbrella_position_id(label),
-        format!("umbrella header \"{label}\""),
         visible,
     )
 }

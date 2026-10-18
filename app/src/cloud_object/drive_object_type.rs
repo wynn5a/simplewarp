@@ -1,11 +1,6 @@
 use std::fmt;
 
-use cloud_objects::cloud_object::{GenericStringObjectFormat, JsonObjectType};
-
-use crate::cloud_object::{CloudObject, ObjectType};
-use crate::notebooks::CloudNotebook;
 use crate::ui_components::icons::Icon;
-use crate::workflows::CloudWorkflow;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum DriveObjectType {
@@ -21,43 +16,6 @@ pub enum DriveObjectType {
     EnvVarCollection,
     MCPServer,
     MCPServerCollection,
-}
-
-impl DriveObjectType {
-    /// Returns the display type of a cloud object, or None for object kinds
-    /// that have no display type (e.g. preferences or workflow enums).
-    pub fn for_cloud_object(object: &dyn CloudObject) -> Option<Self> {
-        match object.object_type() {
-            ObjectType::Notebook => Some(Self::Notebook {
-                is_ai_document: object
-                    .as_any()
-                    .downcast_ref::<CloudNotebook>()
-                    .is_some_and(|notebook| notebook.model().ai_document_id.is_some()),
-            }),
-            ObjectType::Workflow => Some(
-                object
-                    .as_any()
-                    .downcast_ref::<CloudWorkflow>()
-                    .filter(|workflow| workflow.model().data.is_agent_mode_workflow())
-                    .map(|_| Self::AgentModeWorkflow)
-                    .unwrap_or(Self::Workflow),
-            ),
-            ObjectType::Folder => Some(Self::Folder),
-            ObjectType::GenericStringObject(GenericStringObjectFormat::Json(object_type)) => {
-                match object_type {
-                    JsonObjectType::EnvVarCollection => Some(Self::EnvVarCollection),
-                    JsonObjectType::AIFact => Some(Self::AIFact),
-                    JsonObjectType::MCPServer => Some(Self::MCPServer),
-                    JsonObjectType::WorkflowEnum
-                    | JsonObjectType::AIExecutionProfile
-                    | JsonObjectType::TemplatableMCPServer
-                    | JsonObjectType::CloudEnvironment
-                    | JsonObjectType::ScheduledAmbientAgent
-                    | JsonObjectType::CloudAgentConfig => None,
-                }
-            }
-        }
-    }
 }
 
 impl From<DriveObjectType> for Icon {

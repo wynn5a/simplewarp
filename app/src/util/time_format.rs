@@ -130,37 +130,6 @@ pub fn format_elapsed_seconds(elapsed: StdDuration) -> String {
     }
 }
 
-/// Formats a monotonic `Instant` as a human-readable relative timestamp.
-/// (Uses `Instant` rather than wall-clock `DateTime` for elapsed-time display.)
-pub fn format_elapsed_since(created_at: instant::Instant) -> String {
-    let secs = created_at.elapsed().as_secs();
-
-    if secs < 60 {
-        "Just now".to_string()
-    } else if secs < 3600 {
-        let mins = secs / 60;
-        if mins == 1 {
-            "1 minute ago".to_string()
-        } else {
-            format!("{mins} minutes ago")
-        }
-    } else if secs < 86400 {
-        let hours = secs / 3600;
-        if hours == 1 {
-            "1 hour ago".to_string()
-        } else {
-            format!("{hours} hours ago")
-        }
-    } else {
-        let days = secs / 86400;
-        if days == 1 {
-            "1 day ago".to_string()
-        } else {
-            format!("{days} days ago")
-        }
-    }
-}
-
 #[cfg(test)]
 #[path = "time_format_tests.rs"]
 mod tests;

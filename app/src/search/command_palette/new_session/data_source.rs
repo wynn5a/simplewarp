@@ -33,15 +33,7 @@ impl Default for AllowedSessionKinds {
     }
 }
 
-impl AllowedSessionKinds {
-    pub fn tabs_only() -> Self {
-        Self {
-            windows: false,
-            tabs: true,
-            panes: false,
-        }
-    }
-}
+impl AllowedSessionKinds {}
 
 /// A data source that provides options for creating new terminal sessions
 /// Gathers this data by:
@@ -81,11 +73,6 @@ impl NewSessionDataSource {
             )),
             allowed: Default::default(),
         }
-    }
-
-    pub fn with_allowed_kinds(mut self, allowed: AllowedSessionKinds) -> Self {
-        self.allowed = allowed;
-        self
     }
 
     fn on_binding_source_changed(

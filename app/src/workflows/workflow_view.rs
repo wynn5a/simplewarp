@@ -26,8 +26,8 @@ use warpui::text_layout::TextStyle;
 use warpui::ui_components::button::{Button, ButtonVariant, TextAndIcon, TextAndIconAlignment};
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
-    AppContext, Element, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle, WindowId,
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle, WindowId,
 };
 
 use super::command_parser::WorkflowCommandDisplayData;
@@ -196,11 +196,6 @@ enum UnsavedChangeType {
     ForClose,
 }
 
-enum ContainerConfiguration {
-    Pane(ModelHandle<PaneConfiguration>),
-    SuggestionDialog,
-}
-
 #[derive(Default, Debug)]
 struct EnvironmentVariablesState {
     default_env_vars: Option<SyncId>,
@@ -225,7 +220,7 @@ struct UiStateHandles {
 pub struct WorkflowView {
     workflow_view_mode: WorkflowViewMode,
     workflow_id: SyncId,
-    container_configuration: ContainerConfiguration,
+    container_configuration: ModelHandle<PaneConfiguration>,
     focus_handle: Option<PaneFocusHandle>,
     name_editor: ViewHandle<EditorView>,
     description_editor: ViewHandle<EditorView>,
@@ -273,16 +268,12 @@ impl WorkflowView {
     pub fn new_in_pane(ctx: &mut ViewContext<Self>) -> Self {
         let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new("Untitled"));
 
-        Self::new_internal(ctx, ContainerConfiguration::Pane(pane_configuration))
-    }
-
-    pub fn new_in_suggestion_dialog(ctx: &mut ViewContext<Self>) -> Self {
-        Self::new_internal(ctx, ContainerConfiguration::SuggestionDialog)
+        Self::new_internal(ctx, pane_configuration)
     }
 
     fn new_internal(
         ctx: &mut ViewContext<Self>,
-        container_configuration: ContainerConfiguration,
+        container_configuration: ModelHandle<PaneConfiguration>,
     ) -> Self {
         let appearance = Appearance::as_ref(ctx);
         let header_font_size = appearance.header_font_size();
@@ -547,11 +538,10 @@ impl WorkflowView {
 
         self.command_display_data = WorkflowCommandDisplayData::new_from_workflow(workflow_data);
 
-        if let ContainerConfiguration::Pane(pane_config) = &mut self.container_configuration {
-            pane_config.update(ctx, |pane_config, ctx| {
+        self.container_configuration
+            .update(ctx, |pane_config, ctx| {
                 pane_config.set_title(workflow_name, ctx);
             });
-        }
 
         self.name_editor.update(ctx, |editor, ctx| {
             editor.set_buffer_text_with_base_buffer(workflow_name, ctx)
@@ -636,13 +626,12 @@ impl WorkflowView {
     }
 
     pub fn refresh_pane_overflow_menu(&self, ctx: &mut ViewContext<Self>) {
-        if let ContainerConfiguration::Pane(pane_config) = &self.container_configuration {
-            // Refresh the overflow menu to show actions that only apply to synced notebooks.
-            pane_config.update(ctx, |pane_config, ctx| {
+        // Refresh the overflow menu to show actions that only apply to synced notebooks.
+        self.container_configuration
+            .update(ctx, |pane_config, ctx| {
                 pane_config.refresh_pane_header_overflow_menu_items(ctx)
             });
-            ctx.notify();
-        }
+        ctx.notify();
     }
 
     pub fn workflow_id(&self) -> SyncId {
@@ -657,12 +646,7 @@ impl WorkflowView {
     }
 
     pub fn pane_configuration(&self) -> &ModelHandle<PaneConfiguration> {
-        match &self.container_configuration {
-            ContainerConfiguration::Pane(pane_config) => pane_config,
-            ContainerConfiguration::SuggestionDialog => {
-                panic!("No pane configuration for suggestion dialog");
-            }
-        }
+        &self.container_configuration
     }
 
     fn can_save_new(&self, app: &AppContext) -> bool {
@@ -1284,13 +1268,11 @@ impl WorkflowView {
                 UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
                     update_manager.update_workflow(workflow.clone(), self.workflow_id, ctx);
                 });
-                if let ContainerConfiguration::Pane(pane_config) = &mut self.container_configuration
-                {
-                    // update the pane title if the workflow title changes
-                    pane_config.update(ctx, |pane_config, ctx| {
-                        pane_config.set_title(workflow.name().to_owned(), ctx)
+                self.container_configuration
+                    .update(ctx, |pane_config, ctx| {
+                        // update the pane title if the workflow title changes
+                        pane_config.set_title(workflow.name().to_owned(), ctx);
                     });
-                }
 
                 // after save transition to the view mode if we are allowed to
                 self.try_set_view_mode(ctx);
@@ -1309,14 +1291,11 @@ impl WorkflowView {
                             ctx,
                         );
                     });
-                    if let ContainerConfiguration::Pane(pane_config) =
-                        &mut self.container_configuration
-                    {
-                        // update the pane title if the workflow title changes
-                        pane_config.update(ctx, |pane_config, ctx| {
-                            pane_config.set_title(workflow.name().to_owned(), ctx)
+                    self.container_configuration
+                        .update(ctx, |pane_config, ctx| {
+                            // update the pane title if the workflow title changes
+                            pane_config.set_title(workflow.name().to_owned(), ctx);
                         });
-                    }
 
                     // after create transition to the view mode
                     self.try_set_view_mode(ctx);
@@ -1516,11 +1495,10 @@ impl WorkflowView {
 
     /// Set the [`PaneConfiguration`] open modal flag based on whether or not any dialogs are open.
     fn update_open_modal_state(&self, ctx: &mut ViewContext<Self>) {
-        if let ContainerConfiguration::Pane(pane_config) = &self.container_configuration {
-            pane_config.update(ctx, |pane_config, ctx| {
+        self.container_configuration
+            .update(ctx, |pane_config, ctx| {
                 pane_config.set_has_open_modal(self.has_open_dialog(), ctx);
             });
-        }
     }
 
     /// Adds a default argument, either at the end with a placeholder name if
@@ -2142,17 +2120,6 @@ impl View for WorkflowView {
         "WorkflowView"
     }
 
-    fn on_focus(&mut self, focus_ctx: &FocusContext, ctx: &mut ViewContext<Self>) {
-        if focus_ctx.is_self_focused()
-            && matches!(
-                self.container_configuration,
-                ContainerConfiguration::SuggestionDialog
-            )
-        {
-            ctx.focus(&self.content_editor);
-        }
-    }
-
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
@@ -2169,10 +2136,7 @@ impl View for WorkflowView {
 
         main_section.extend(self.render_arguments_section(appearance, app));
 
-        let vertical_margin = match &self.container_configuration {
-            ContainerConfiguration::Pane(_) => CORE_VERTICAL_MARGIN_IN_PANE,
-            ContainerConfiguration::SuggestionDialog => 0.,
-        };
+        let vertical_margin = CORE_VERTICAL_MARGIN_IN_PANE;
 
         // We use a stack here with two children — an expanded transparent box and
         // container with the core ui elements. The core UI elements are layered
@@ -2189,18 +2153,13 @@ impl View for WorkflowView {
             .finish(),
         );
 
-        // In the pane configuration, we render the button row above the main section.
-        if matches!(
-            self.container_configuration,
-            ContainerConfiguration::Pane(_)
-        ) {
-            content.add_child(
-                Container::new(self.render_button_row(appearance, app))
-                    .with_margin_bottom(SECTION_SPACING)
-                    .with_horizontal_margin(CORE_HORIZONATAL_MARGIN + ScrollbarWidth::Auto.as_f32())
-                    .finish(),
-            );
-        }
+        // We render the button row above the main section.
+        content.add_child(
+            Container::new(self.render_button_row(appearance, app))
+                .with_margin_bottom(SECTION_SPACING)
+                .with_horizontal_margin(CORE_HORIZONATAL_MARGIN + ScrollbarWidth::Auto.as_f32())
+                .finish(),
+        );
 
         stack.add_child(
             ClippedScrollable::vertical(
@@ -2252,18 +2211,6 @@ impl View for WorkflowView {
         }
 
         content.add_child(Shrinkable::new(1., stack.finish()).finish());
-
-        // In the suggestion dialog configuration, we render the button row below the main section.
-        if matches!(
-            self.container_configuration,
-            ContainerConfiguration::SuggestionDialog
-        ) {
-            content.add_child(
-                Container::new(self.render_button_row(appearance, app))
-                    .with_horizontal_margin(CORE_HORIZONATAL_MARGIN + ScrollbarWidth::Auto.as_f32())
-                    .finish(),
-            );
-        }
 
         let content = content
             .with_cross_axis_alignment(CrossAxisAlignment::Center)

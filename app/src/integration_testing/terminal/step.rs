@@ -10,7 +10,6 @@ use super::{
     PYTHON_PROMPT_READY, assert_active_block_output_for_single_terminal_in_tab,
     assert_active_block_received_precmd, assert_alt_grid_active, assert_command_executed,
     assert_long_running_block_executing_for_single_terminal_in_tab, assert_terminal_bootstrapped,
-    validate_block_output,
 };
 use crate::cmd_or_ctrl_shift;
 use crate::integration_testing::block::assert_num_blocks_in_model;
@@ -199,23 +198,6 @@ pub fn execute_command_for_single_terminal_in_tab(
     execute_command(tab_idx, 0, command, expected_exit_code, expected_output)
 }
 
-pub fn execute_command_successfully(command: &str) -> TestStep {
-    execute_command(0, 0, command.to_owned(), ExpectedExitStatus::Success, ())
-}
-
-pub fn assert_execute_command_successfully(
-    command: &str,
-    expected_output: impl ExpectedOutput + 'static,
-) -> TestStep {
-    execute_command(
-        0,
-        0,
-        command.to_owned(),
-        ExpectedExitStatus::Success,
-        expected_output,
-    )
-}
-
 /// Creates an event function that saves whether AI mode is active, switches to terminal
 /// input mode if needed, and returns a `TypedCharacters` event for the given command.
 fn switch_to_terminal_mode_and_type_command(
@@ -379,21 +361,6 @@ pub fn execute_command(
         "check that input is empty",
         assert_active_block_input_is_empty(tab_idx, pane_idx),
     )
-}
-
-/// Executes a given command and validates its output, without asserting the exit code.
-///
-/// If the input is in AI mode, this automatically switches to terminal input mode
-/// before running the command and restores AI mode afterward.
-pub fn execute_command_without_expected_exit_code(
-    tab_idx: usize,
-    pane_idx: usize,
-    command: String,
-    expected_output: impl ExpectedOutput + 'static,
-) -> TestStep {
-    execute_command_step(tab_idx, pane_idx, command, move |app, window_id| {
-        validate_block_output(&expected_output, tab_idx, pane_idx, window_id, app)
-    })
 }
 
 // Executes an echo with a random nonce and verifies it's executed.

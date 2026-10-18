@@ -59,14 +59,6 @@ impl GlowingEditor {
         }
     }
 
-    /// Validates the input contents using the provided `validator` whenever a submit action is
-    /// attempted.
-    #[expect(dead_code, reason = "Nothing needs validation currently.")]
-    pub fn with_validator<F: Fn(&str) -> bool + 'static>(mut self, validator: F) -> Self {
-        self.validator = Box::new(validator);
-        self
-    }
-
     pub fn clear_buffer(&mut self, ctx: &mut ViewContext<Self>) {
         self.editor.update(ctx, |editor, ctx| {
             editor.clear_buffer(ctx);

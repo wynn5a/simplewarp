@@ -3490,21 +3490,12 @@ impl EditorView {
         self.placeholder_texts = Arc::new(HashMap::new());
     }
 
-    pub fn is_single_line(&self) -> bool {
-        self.single_line
-    }
-
     pub fn is_focused(&self) -> bool {
         self.focused
     }
 
     pub fn set_autogrow(&mut self, autogrow: bool) {
         self.autogrow = autogrow;
-    }
-
-    /// Replaces the editor's enter-key settings at runtime (effective next keystroke).
-    pub fn set_enter_settings(&mut self, settings: EnterSettings) {
-        self.enter_settings = settings;
     }
 
     /// Returns the current enter-key settings (for tests asserting applied settings).
@@ -3523,20 +3514,6 @@ impl EditorView {
         editor_height_shrink_delay.editor_height_before_shrink = 0.;
         editor_height_shrink_delay.editor_height_shrink_start = None;
         ctx.notify();
-    }
-
-    pub fn set_propagate_vertical_navigation_keys(
-        &mut self,
-        propagate_vertical_navigation_keys: PropagateAndNoOpNavigationKeys,
-    ) {
-        self.propagate_vertical_navigation_keys = propagate_vertical_navigation_keys;
-    }
-
-    pub fn set_propagate_horizontal_navigation_keys(
-        &mut self,
-        propagate_horizontal_navigation_keys: PropagateHorizontalNavigationKeys,
-    ) {
-        self.propagate_horizontal_navigation_keys = propagate_horizontal_navigation_keys;
     }
 
     pub fn can_edit<C: ModelAsRef>(&self, ctx: &C) -> bool {
@@ -6569,25 +6546,6 @@ impl EditorView {
             }
         } else {
             false
-        }
-    }
-
-    /// Returns the line number where the single cursor exists. If there's more than one selection
-    /// or the selection is more than just a cursor, returns None.
-    pub fn single_cursor_line_index(&self, ctx: &AppContext) -> Option<u32> {
-        let model = self.editor_model.as_ref(ctx);
-        if model.selections(ctx).len() == 1 {
-            let selection = model.first_selection(ctx);
-            let buffer = model.buffer(ctx);
-            selection.is_cursor_only(buffer).then(|| {
-                let cursor = selection.end();
-                cursor
-                    .to_point(buffer)
-                    .expect("cursor should convert to point")
-                    .row
-            })
-        } else {
-            None
         }
     }
 
