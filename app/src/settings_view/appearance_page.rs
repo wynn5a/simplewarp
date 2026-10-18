@@ -1855,19 +1855,51 @@ impl AppearanceSettingsPageView {
 
     fn set_opacity(
         &mut self,
-        _opacity_value: f32,
-        _should_set_defaults: bool,
+        opacity_value: f32,
+        should_persist: bool,
         ctx: &mut ViewContext<Self>,
     ) {
+        WindowSettings::handle(ctx).update(ctx, |window_settings, ctx| {
+            if should_persist {
+                report_if_error!(
+                    window_settings
+                        .background_opacity
+                        .set_value(opacity_value as u8, ctx)
+                );
+            } else {
+                // Live drag preview: update in memory only to avoid a settings-file
+                // write per tick; the value is persisted when the drag ends.
+                report_if_error!(window_settings.background_opacity.load_value(
+                    opacity_value as u8,
+                    true,
+                    ctx
+                ));
+            }
+        });
         ctx.notify();
     }
 
-    fn set_blur(
-        &mut self,
-        _blur_value: f32,
-        _should_set_defaults: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn set_blur(&mut self, blur_value: f32, should_persist: bool, ctx: &mut ViewContext<Self>) {
+        ctx.windows()
+            .set_all_windows_background_blur_radius(blur_value as u8);
+
+        WindowSettings::handle(ctx).update(ctx, |window_settings, ctx| {
+            if should_persist {
+                report_if_error!(
+                    window_settings
+                        .background_blur_radius
+                        .set_value(blur_value as u8, ctx)
+                );
+            } else {
+                // Live drag preview: update in memory only to avoid a settings-file
+                // write per tick; the value is persisted when the drag ends.
+                report_if_error!(window_settings.background_blur_radius.load_value(
+                    blur_value as u8,
+                    true,
+                    ctx
+                ));
+            }
+        });
         ctx.notify()
     }
 
