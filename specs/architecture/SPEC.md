@@ -1,3 +1,11 @@
+---
+id: architecture
+type: architecture-design
+title: SimpleWarp — Architecture
+parent: simplewarp
+status: active
+---
+
 # SimpleWarp — Architecture
 
 ## Topology
@@ -9,12 +17,12 @@ Layers, top to bottom (spec'd boundaries link by id):
 
 | Layer | Crates | Spec |
 | --- | --- | --- |
-| Product shell | `app` | [`app`](app/SPEC.md) |
-| UI framework (MIT) | `warpui`, `warpui_core`, `warpui_extras`, `ui_components` | [`ui-framework`](crates/warpui/SPEC.md) |
-| Terminal core | `warp_terminal` | [`terminal-core`](crates/warp_terminal/SPEC.md) |
-| AI domain | `ai`, `local_inference` | [`ai-core`](crates/ai/SPEC.md), [`local-inference`](crates/local_inference/SPEC.md) |
-| Local object store | `cloud_objects`, `cloud_object_models`, `cloud_object_persistence`, `persistence` | [`object-store`](crates/cloud_objects/SPEC.md) |
-| Settings | `settings`, `settings_value`, `settings_value_derive` | [`settings`](crates/settings/SPEC.md) |
+| Product shell | `app` | [`app`](../../app/SPEC.md) |
+| UI framework (MIT) | `warpui`, `warpui_core`, `warpui_extras`, `ui_components` | [`ui-framework`](../../crates/warpui/SPEC.md) |
+| Terminal core | `warp_terminal` | [`terminal-core`](../../crates/warp_terminal/SPEC.md) |
+| AI domain | `ai`, `local_inference` | [`ai-core`](../../crates/ai/SPEC.md), [`local-inference`](../../crates/local_inference/SPEC.md) |
+| Local object store | `cloud_objects`, `cloud_object_models`, `cloud_object_persistence`, `persistence` | [`object-store`](../../crates/cloud_objects/SPEC.md) |
+| Settings | `settings`, `settings_value`, `settings_value_derive` | [`settings`](../../crates/settings/SPEC.md) |
 | Long-tail shared libs | `editor`, `command`, `sum_tree`, `languages`, `syntax_tree`, `markdown_parser`, `ipynb_parser`, `lsp`, `mcp`, `node_runtime`, `vim`, `fuzzy_match`, `warp_search_core`, `warp_ripgrep`, `warp_completer`, `input_classifier`, `virtual-fs`, `watcher`, `http_client`, `ipc`, `jsonrpc`, `isolation_platform`, `warp_core`, `warp_util`, `warp_files`, `warp_errors`, `warp_logging`, `repo_metadata`, … | none (one boundary each, stable, no spec needed) |
 | Test-only | `integration` (real-display GUI test framework), `asset_macro` | none |
 
@@ -50,8 +58,10 @@ local-inference ──► (external) warp_multi_agent_api   [git dep, warp-proto
 ## Decisions
 
 - The AI call path: the client keeps tool-running, block rendering, and next-request decisions;
-  only the model call moved from Warp's server to the local adapter ([`local-inference`](crates/local_inference/SPEC.md)).
+  only the model call moved from Warp's server to the local adapter
+  ([`local-inference`](../../crates/local_inference/SPEC.md)).
 - The local object store keeps the cloud object *model* (ids, metadata, serde shapes) while all
-  sync/sharing machinery is gone — old data still loads ([`object-store`](crates/cloud_objects/SPEC.md)).
+  sync/sharing machinery is gone — old data still loads
+  ([`object-store`](../../crates/cloud_objects/SPEC.md)).
 - Removal methodology of the fork (historical, all applied): gate → hide → delete, one vertical at
   a time, each round pinned by test-count ledger entries in `simplify-specs/plan.md`.
