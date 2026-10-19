@@ -2244,26 +2244,6 @@ impl PaneGroup {
         new_pane_id
     }
 
-    /// Adds a terminal split pane without applying the user's default session mode.
-    pub fn add_terminal_pane_ignoring_default_session_mode(
-        &mut self,
-        direction: Direction,
-        chosen_shell: Option<AvailableShell>,
-        ctx: &mut ViewContext<Self>,
-    ) -> TerminalPaneId {
-        let new_pane_id = self.add_session_with_default_session_mode_behavior(
-            direction,
-            Some(self.focused_pane_id(ctx)),
-            self.active_session_id(ctx),
-            chosen_shell,
-            None, /* conversation_restoration */
-            DefaultSessionModeBehavior::Ignore,
-            ctx,
-        );
-        ctx.emit(Event::AppStateChanged);
-        new_pane_id
-    }
-
     /// Used when splitting panes.
     fn insert_terminal_pane(
         &mut self,
@@ -3955,24 +3935,6 @@ impl PaneGroup {
         let _ = self.add_pane(direction, None, Box::new(pane), focus_new_pane, ctx);
     }
 
-    /// Adds a new pane to this group, relative to an existing pane.
-    pub fn add_pane_sibling(
-        &mut self,
-        relative_to: PaneId,
-        direction: Direction,
-        pane: impl Into<Box<dyn AnyPaneContent>>,
-        focus_new_pane: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let _ = self.add_pane(
-            direction,
-            Some(relative_to),
-            pane.into(),
-            focus_new_pane,
-            ctx,
-        );
-    }
-
     fn init_pane(
         &mut self,
         pane: Box<dyn AnyPaneContent>,
@@ -4239,19 +4201,6 @@ impl PaneGroup {
     /// as the active_session_view if the focused pane is a terminal pane.
     pub fn focused_session_view(&self, ctx: &AppContext) -> Option<ViewHandle<TerminalView>> {
         self.terminal_view_from_pane_id(self.focused_pane_id(ctx), ctx)
-    }
-
-    /// If the active session slot holds a swapped-in replacement (e.g. a
-    /// child agent pane), returns the displaced original's pane ID and
-    /// terminal view. Returns `None` when no swap is active.
-    pub fn original_session_if_swapped(
-        &self,
-        ctx: &AppContext,
-    ) -> Option<(PaneId, ViewHandle<TerminalView>)> {
-        let active_pane_id = PaneId::from(self.active_session_id(ctx)?);
-        let original_pane_id = self.panes.original_pane_for_replacement(active_pane_id)?;
-        let view = self.terminal_view_from_pane_id(original_pane_id, ctx)?;
-        Some((original_pane_id, view))
     }
 
     /// Given a pane ID, retrieve its backing terminal pane contents, if the pane is a terminal pane.

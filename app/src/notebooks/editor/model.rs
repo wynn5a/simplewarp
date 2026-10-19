@@ -161,11 +161,6 @@ impl NotebooksEditorModel {
         Self::new_internal(text_styles, Some(rte_window_id), ctx)
     }
 
-    /// Create a model that is not yet bound to a window. The window id should be set later via `set_window_id`.
-    pub fn new_unbound(text_styles: RichTextStyles, ctx: &mut ModelContext<Self>) -> Self {
-        Self::new_internal(text_styles, None, ctx)
-    }
-
     fn new_internal(
         text_styles: RichTextStyles,
         rte_window_id: Option<WindowId>,
@@ -252,24 +247,10 @@ impl NotebooksEditorModel {
             });
     }
 
-    /// Set the window this editor model is associated with. Should be called when the pane attaches.
-    pub fn set_window_id(&mut self, window_id: WindowId, _ctx: &mut ModelContext<Self>) {
-        self.rte_window_id = Some(window_id);
-    }
-
     /// Get the context for the session and working directory associated with this editor, if any.
     /// Used to generate clickable file path links.
     pub fn file_link_resolution_context(&self) -> Option<&FileLinkResolutionContext> {
         self.file_link_resolution_context.as_ref()
-    }
-
-    /// Set the context for the session and working directory associated with this editor, if any.
-    /// Used to generate clickable file path links.
-    pub fn set_file_link_resolution_context(
-        &mut self,
-        file_link_resolution_context: Option<FileLinkResolutionContext>,
-    ) {
-        self.file_link_resolution_context = file_link_resolution_context;
     }
 
     pub fn set_default_mermaid_display_mode(
@@ -1537,14 +1518,6 @@ impl NotebooksEditorModel {
             });
     }
 
-    /// Returns true if any of the subviews store on any of the NotebookCommand models are focused
-    /// (such as the dropdown view for picking different block types)
-    pub fn any_notebook_command_submodel_focused(&self, ctx: &AppContext) -> bool {
-        self.child_models
-            .models::<NotebookCommand>(ctx)
-            .any(|command| command.is_dropdown_focused(ctx))
-    }
-
     /// The currently-selected command blocks and their starting offsets.
     fn selected_commands<'a>(
         &'a self,
@@ -2112,14 +2085,6 @@ impl ChildModels {
                 .downcast_ref::<ModelHandle<T>>()?
                 .clone(),
         )
-    }
-
-    /// Iterate over all child models of the given type.
-    pub fn models<'a, T: Entity>(
-        &'a self,
-        ctx: &'a AppContext,
-    ) -> impl Iterator<Item = &'a T> + 'a {
-        self.model_handles().map(|handle| handle.as_ref(ctx))
     }
 
     /// Iterates over all child model handles of the given type.

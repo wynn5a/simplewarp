@@ -209,11 +209,6 @@ impl<A: Action + Clone> DismissibleToastStack<A> {
         self.toasts.clear();
         ctx.notify();
     }
-
-    /// Returns whether the stack currently has any toasts.
-    pub fn has_toasts(&self) -> bool {
-        !self.toasts.is_empty()
-    }
 }
 
 impl<A: Action + Clone> View for DismissibleToastStack<A> {
@@ -342,11 +337,6 @@ impl<A: Action + Clone> ToastLink<A> {
 
     pub fn with_onclick_action(mut self, action: A) -> Self {
         self.action = Some(action);
-        self
-    }
-
-    pub fn with_keystroke(mut self, keystroke: Keystroke) -> Self {
-        self.keystroke = Some(keystroke);
         self
     }
 

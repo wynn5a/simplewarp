@@ -541,10 +541,6 @@ impl NotebookCommand {
         )
     }
 
-    pub fn is_dropdown_focused(&self, ctx: &AppContext) -> bool {
-        self.block_type_dropdown.as_ref(ctx).is_focused(ctx)
-    }
-
     /// Whether or not this block contains the text cursor
     pub fn contains_cursor(&self, ctx: &impl ModelAsRef) -> bool {
         let cursor = self.selection_model.as_ref(ctx).first_selection_head();

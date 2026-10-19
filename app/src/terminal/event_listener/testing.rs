@@ -30,14 +30,6 @@ impl ChannelEventListenerBuilder {
         self
     }
 
-    pub fn with_pty_bytes_read_tx(
-        mut self,
-        pty_bytes_read_tx: async_broadcast::Sender<Arc<Vec<u8>>>,
-    ) -> Self {
-        self.pty_bytes_read_tx = Some(pty_bytes_read_tx);
-        self
-    }
-
     pub fn build(self) -> ChannelEventListener {
         ChannelEventListener::new(
             self.wakeups_tx.unwrap_or_else(|| {

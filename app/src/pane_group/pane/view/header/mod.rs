@@ -252,11 +252,6 @@ impl<P: BackingView> PaneHeader<P> {
         ctx.notify();
     }
 
-    #[cfg(feature = "integration_tests")]
-    pub fn is_overlay_open(&self) -> bool {
-        !matches!(self.open_overlay, OpenOverlay::None)
-    }
-
     pub fn set_overflow_menu_items(
         &mut self,
         items: impl IntoIterator<Item = MenuItem<P::PaneHeaderOverflowMenuAction>>,

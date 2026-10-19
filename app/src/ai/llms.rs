@@ -610,11 +610,6 @@ impl LLMPreferences {
             .chain(self.provider_llm_choices())
     }
 
-    #[cfg(any(test, feature = "test-util"))]
-    pub fn add_agent_mode_model_for_test(&mut self, llm: LLMInfo) {
-        self.models_by_feature.agent_mode.choices.push(llm);
-    }
-
     /// Returns the set of LLMs available for coding.
     pub fn get_coding_llm_choices(&self) -> impl Iterator<Item = &LLMInfo> + use<'_> {
         // Don't show admin-disabled models in the dropdown
@@ -773,11 +768,6 @@ impl LLMPreferences {
     /// (disable-aware, see [`Self::fallback_llm_info`]).
     pub fn get_default_coding_model(&self, app: &AppContext) -> &LLMInfo {
         self.fallback_llm_info(&self.models_by_feature.coding, app)
-    }
-
-    #[cfg(feature = "integration_tests")]
-    pub fn is_available_agent_mode_llm(&self, id: &LLMId) -> bool {
-        self.models_by_feature.agent_mode.info_for_id(id).is_some()
     }
 
     #[cfg(test)]

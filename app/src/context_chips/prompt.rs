@@ -405,12 +405,4 @@ impl PromptConfiguration {
     pub fn separator(&self) -> WarpPromptSeparator {
         self.separator
     }
-
-    pub fn remove_chip(&mut self, chip: ContextChipKind) {
-        self.chips.retain(|c| c.chip != chip);
-    }
-
-    pub fn add_chip_to_end(&mut self, chip: ContextChipKind) {
-        self.chips.push(PromptChip::new(chip, Default::default()));
-    }
 }

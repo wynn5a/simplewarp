@@ -100,15 +100,6 @@ impl SessionContext {
             current_working_directory: None,
         }
     }
-
-    #[cfg(test)]
-    pub fn new_with_session_type_for_test(session_type: Option<SessionType>) -> Self {
-        SessionContext {
-            session_type,
-            shell: None,
-            current_working_directory: None,
-        }
-    }
 }
 
 pub enum BlocklistAIControllerEvent {
@@ -1151,11 +1142,6 @@ impl BlocklistAIController {
         });
         self.pending_auto_resume_handles
             .insert(conversation_id, handle);
-    }
-
-    #[cfg(test)]
-    pub fn get_ambient_agent_task_id(&self) -> Option<AmbientAgentTaskId> {
-        self.ambient_agent_task_id
     }
 
     fn start_new_conversation_for_request<'a>(

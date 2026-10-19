@@ -443,10 +443,6 @@ pub fn git_operation_in_progress(repo_path: &Path) -> bool {
         || git_dir.join("index.lock").exists()
 }
 
-/// Maximum number of characters of diff content to send to AI for commit
-/// message / PR title / PR description generation.
-const MAX_DIFF_CHARS_FOR_AI: usize = 16_000;
-
 /// Maximum number of bytes in a PR title passed to `gh pr create`. GitHub's
 /// hard limit is 256; we cap short of that to leave headroom for an
 /// ellipsis marker. Measured in bytes because it's fed to
@@ -739,47 +735,6 @@ pub fn is_gh_missing_error(error_msg: &str) -> bool {
             || lower.contains("not found")
             || lower.contains("cannot find")
             || lower.contains("could not find"))
-}
-
-/// PR-ready diff
-/// truncated for AI token limits.
-pub async fn get_diff_for_pr(repo_path: &Path) -> Result<String> {
-    let base = detect_main_branch(repo_path).await?;
-    let base = base.trim();
-    let current = detect_current_branch(repo_path).await?;
-    let remote_ref = format!("origin/{current}");
-
-    let end_ref = if run_git_command(repo_path, &["rev-parse", "--verify", &remote_ref])
-        .await
-        .is_ok()
-    {
-        remote_ref
-    } else {
-        "HEAD".to_string()
-    };
-
-    let range = format!("{base}..{end_ref}");
-    let mut diff = run_git_command(repo_path, &["diff", &range]).await?;
-    if diff.len() > MAX_DIFF_CHARS_FOR_AI {
-        diff = format!(
-            "{}\n... (diff truncated)",
-            truncate_on_char_boundary(&diff, MAX_DIFF_CHARS_FOR_AI)
-        );
-    }
-    Ok(diff)
-}
-
-/// Commit subject lines on the current branch since the default branch.
-pub async fn get_branch_commit_messages(repo_path: &Path) -> Result<Vec<String>> {
-    let base = detect_main_branch(repo_path).await?;
-    let base = base.trim();
-    let range = format!("{base}..HEAD");
-    let output = run_git_command(repo_path, &["log", &range, "--format=%s"]).await?;
-    Ok(output
-        .lines()
-        .filter(|l| !l.is_empty())
-        .map(|l| l.to_string())
-        .collect())
 }
 
 /// Creates a PR for the current branch (must already be pushed). Falls back
