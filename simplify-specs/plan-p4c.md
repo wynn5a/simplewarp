@@ -424,3 +424,79 @@ P4c-1 recorded (local `.cargo-home/` vendored registry, `app/src/features.rs:307
 
 Committed on master as `431ea9565` (code, 14 files) plus this log entry; not pushed.
 
+### P4c-4 — `allow(dead_code)` fixpoint (105 sites classified; 19 touched)
+
+All §2 plain annotations were pulled and the compiler classified every resulting warning; the 44
+pre-existing `cfg_attr` sites were left in place (no other-platform caller proved gone). Outcomes: 17
+annotations removed (10 stale, 5 cut with their item, 2 converted to `cfg(test)`) and 2 narrowed in
+place to `cfg_attr(not(test), …)`. Sites 105 → 88: 42 plain (incl. the 3 comment-text and 1
+inline-test-attr false positives) + 46 `cfg_attr` (incl. the 2 conversions). Diff: 23 files, +13/−95.
+
+Stale annotations, items alive (annotation deleted, nothing else):
+
+- `ambient_agents` `AmbientConversationStatus::Cancelled` — constructed in
+  `terminal_status_from_last_exchange` (rustfmt also collapsed the three single-field variants).
+- `call_mcp_tool` `CallMCPToolExecutor.terminal_view_id` — **survey correction**: §2 predicted
+  "written in the ctor, never read"; it is read in `should_autoexecute` (`:54`), so only the
+  annotation went.
+- `gutter_button` `CommentButton` — all variants constructed (`element.rs:1104/1106/1120`,
+  `default()` at `view.rs:475`).
+- `code/editor/view.rs` `DiffHunkContextAdded.line_range` — read at `code_review_view.rs:5352`.
+- `ui_components/buttons` `ButtonMode::Accent` — color/image arms (`:58-64`, `:142`), constructed
+  at `:221`.
+- `mcp` `TemplatableMCPServerInfo.is_authenticated_transport` — read by its accessor (`:45`).
+- `virtual_fs` `Stub::FileWithContent` — constructed in app tests; the enum is `pub` at a lib root,
+  so the annotation was inert.
+- `warp_terminal` `Cell::flags_mut` — callers at `grid/flat_storage/row_iterator.rs:148,153` and in
+  the app grid; annotation stale (the `TODO(visibility)` comment stays).
+- `warp_terminal` `Dimensions::visible_rows` — impls (`:28`, `:43`), the default `hidden_rows`
+  reader and `integration/src/test.rs` callers.
+- `warpui` mac `Device::Metal` — constructed/pattern-matched at `renderer.rs:40`,
+  `metal/renderer.rs:1061`, `wgpu/renderer.rs:40`, `renderer_manager.rs:35`.
+
+Test-only visibility (converted):
+
+- `ai/mcp` `items_to_hashmap` → `#[cfg(test)]` — **survey correction**: §2 called the annotation
+  stale ("callers at `mcp/mod.rs:277,282`"), but those callers sit inside `#[cfg(test)] fn
+  to_user_json`, so plain removal would still warn in non-test builds.
+- `display_map` `DisplayPoint::zero` → `#[cfg(test)]` (only caller: `cfg(test) fn text`).
+- `editor/view/model` `SkipUndoRedoRecord` → `#[cfg_attr(not(test), allow(dead_code))]`
+  (constructed only by tests).
+- `warpui_core/async` `SpawnedLocalStream.future` → `#[cfg_attr(not(test), allow(dead_code))]`
+  (read only by tests).
+
+Dead items, cut with cascades:
+
+- `agent_sdk/driver/terminal.rs` `current_directory` — fn + doc comment + `TODO(ben)`.
+- `warpui_core/radio_buttons` `RadioButtonState::new` — the temporary ctor, its `impl` block and
+  the explanatory comment.
+- `CLIAgentEvent.v` — field (`event/mod.rs`), the `v1::parse` initializer, the two synthetic events
+  (`listener/mod.rs`, `terminal/view.rs`), 14 test-literal initializers and 4 `notif.v` asserts.
+  Version dispatch is untouched: `parse_event` probes `VersionProbe.v` (`event/mod.rs:72-84`) and
+  `CLIAgentNotification.v` stays in `warp_core` (protocol field, also serialized by `new`).
+- `CLIAgentEventPayload.transcript_path` — app-side field, `v1::parse` initializer and the
+  `parse_stop_notification` assert; the wire struct in `warp_core::cli_agent_protocol` keeps the key
+  (the plugin still sends it into the now-ignored field).
+- `CLIAgentSessionsModelEvent` — `agent` on `Started`/`Ended`/`SessionUpdated`, the enum-level
+  annotation (its comment claimed the fields were "used for logging"; no subscriber read them) and
+  the three emit sites (`remove_session`, the `SessionUpdated` emit, `upsert_session`, whose
+  `session.agent`/`old.agent` reads went with the fields). `StatusChanged.agent` stays —
+  destructured at `terminal/view.rs:9068`.
+
+Untouched: the documented/test-infra keeps, handle-lifetime keeps and §5 decision items recorded in
+§2 (`C0`, `PaneBranch`/`PaneNode`, winit `Clipboard`/`ClipboardEvent`, `try_read_face_source`,
+`font_handle::data`, `spawned_futures`, `MenuItemFields.timestamp`, …) and the other-platform
+`default_terminal/mod.rs` module.
+
+Verification: `./script/format --check`, the three presubmit clippy gates (all `-D warnings`),
+`cargo check -p warp --all-targets`, `cargo check --workspace --all-targets`, `cargo check -p warp
+--features integration_tests --all-targets`, `cargo check -p warp --features test-util --all-targets`,
+`cargo check -p warpui_core`, and `cargo nextest run --no-fail-fast --workspace` (6340 run, 6338
+passed, 2 failed, 87 skipped). The two failures are the same pre-existing pair as P4c-1/P4c-2/P4c-3:
+`warp::terminal::view::open_in_warp::tests::test_single_code_file` (`app/src/bin/oss.rs` deleted at
+HEAD) and the integration clone-slash-command test under full-workspace parallel load (passes in
+isolation on this diff, 1/1 in ~5.7 s). `./script/check_no_inline_test_modules` still fails at HEAD
+for the two P4c-1 reasons (local `.cargo-home/` vendored registry, `app/src/features.rs:307`).
+
+Committed on master as `c39c316a8` (code, 23 files) plus this log entry; not pushed.
+
