@@ -375,3 +375,52 @@ same pre-existing pair as P4c-1: `warp::terminal::view::open_in_warp::tests::tes
 (`app/src/bin/oss.rs` deleted at HEAD) and the integration clone-slash-command test under
 full-workspace parallel load (passes in isolation, 1/1 in ~5.5 s here, same as the P4c-1 record).
 
+### P4c-3 — `app/src` candidates (all 21 items)
+
+All §1.2 items were re-verified zero-ref at HEAD (`14e457557`, every name exactly one definition-line
+hit) and deleted: 14 files, +1/−510. The §1.5 unregistered `crates/integration` history test was
+already deleted by P4c-2, so the table's 22nd item needed no work.
+
+Compiler-classified cascades:
+
+- `notebooks/editor`: `any_notebook_command_submodel_focused` → `notebook_command.rs` `is_dropdown_focused`
+  → `dropdown.rs` `Dropdown::is_focused` and its only reader, the `self_handle` field (plus its ctor
+  write and the `WeakViewHandle` import, both cut with it); `ChildModels::models` had the same deleted
+  fn as its only caller.
+- `util/git.rs` `MAX_DIFF_CHARS_FOR_AI` — its only readers were inside `get_diff_for_pr`
+  (`truncate_on_char_boundary` stays: `sanitize_pr_title` uses it).
+- `integration_testing/agent_mode/assertions.rs` — after the two pub fns went, every remaining item
+  (`ConversationTarget`, `check_for_api_error_in_latest_exchange`, `get_conversation`,
+  `exchange_succeeds_with_expected_output`, `get_exchange_output`, `get_exchange_index_from_conversation`,
+  `get_exchange_count`, the `TextAssertion`/`ActionAssertion` aliases) had callers only inside the file
+  → the whole file was deleted along with `mod assertions;` and `pub use assertions::*;`. Re-verified by
+  repo-wide name greps (`.rs` and non-Rust files).
+
+Direct orphan cut in the same commit: `notebooks/editor/model.rs` `set_window_id` — zero-ref at HEAD;
+its only mention was the doc comment of the deleted `new_unbound`.
+
+New always-None/always-Some follow-ups (compiler-invisible because the fields are still read;
+behavior-preserving cuts for a later round — not taken here):
+
+- `notebooks/editor/model.rs` `file_link_resolution_context`: the deleted setter was the only writer, so
+  the getter used by `notebooks/editor/view.rs:2141` always returns `None` and the file-path hover
+  resolution branch there is unreachable.
+- `notebooks/editor/model.rs` `rte_window_id`: the deleted `new_unbound` was the only `None` path
+  (`new_internal` now always receives `Some`), so the `let Some(window_id) = self.rte_window_id else`
+  guards at ~`:308/:400/:473` are vestigial.
+- `terminal/event_listener/testing.rs` `pty_bytes_read_tx` builder field: always `None` now; `build()`
+  falls back to `async_broadcast::broadcast(1)`.
+- `view_components/dismissible_toast.rs` `DismissibleToastText.keystroke`: the deleted `with_keystroke`
+  was the only setter; the render helper at ~`:380` is never taken.
+
+Verification: `./script/format --check`, the three presubmit clippy gates (all `-D warnings`),
+`cargo check -p warp --features integration_tests --all-targets`, `cargo check -p warp --features
+test-util --all-targets`, `cargo check --workspace --all-targets`, and `cargo nextest run --workspace`
+(6340 run, 6338 passed, 87 skipped). The two failures are the same pre-existing pair as P4c-1/P4c-2:
+`warp::terminal::view::open_in_warp::tests::test_single_code_file` (`app/src/bin/oss.rs` deleted at HEAD)
+and the integration clone-slash-command test under full-workspace parallel load (passes in isolation on
+this diff, 1/1 in ~5.4 s). `./script/check_no_inline_test_modules` fails at HEAD for the two reasons
+P4c-1 recorded (local `.cargo-home/` vendored registry, `app/src/features.rs:307`).
+
+Committed on master as `431ea9565` (code, 14 files) plus this log entry; not pushed.
+
