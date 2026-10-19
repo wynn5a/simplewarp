@@ -141,9 +141,10 @@ Already-checked actionables:
 - `app/src/ai/blocklist/action_model/execute/call_mcp_tool.rs:18 terminal_view_id` — written
   in the ctor, never read; the sole ctor caller is `execute.rs:234` → field + ctor param
   deletable together.
-- `crates/persistence/src/model.rs:441-458 PaneBranch` / `PaneNode` — the structs themselves
-  have no queries anywhere (only their defs and `NewPane*` insert structs); their unread
-  fields carry the annotations → decide: delete the row structs or keep.
+- `crates/persistence/src/model.rs:441-458 PaneBranch` / `PaneNode` — the structs' unread fields
+  carry the annotations → **keep (P4c-5)**: the original "no queries anywhere" note was wrong —
+  the `sqlite.rs` restore path reads saved pane trees with both structs as `Queryable` row types
+  (see §5 item 6).
 - `crates/virtual_fs/src/lib.rs:23 Stub::FileWithContent` — constructed in app tests; the
   enum is `pub` at a lib root, so the annotation is not doing anything → remove.
 - `crates/warp_terminal/src/model/grid/cell.rs:344 flags_mut` — callers exist
@@ -249,16 +250,30 @@ Per round: `./script/format`, the three presubmit clippy gates (`-p warp`, works
 `cargo check --features integration_tests` (P4-9d precedent). The compiler surfaces cascades
 after each cut; the sizings above are brace-matched bodies before cascades.
 
-## 5. Decisions needed before P4c-5
+## 5. Decisions — resolved, applied by P4c-5
 
-1. `release_bundle` — wire it into the flake, or delete the feature + 16 sites + `app/rust-embed`?
-2. `standalone` — delete, or keep for a future standalone CLI?
-3. `script/patch_font_with_warp_glyph` + `script/warp.svg` — delete or keep?
-4. `wayne5a-progress.md` — delete or move?
-5. Winit-only dead paths (`AppEvent::Clipboard`/`ClipboardEvent`, `try_read_face_source`,
-   `font_handle::data`, `create_system_clipboard`, `user_windowing_system`) — cut or keep the
-   platform backends untouched?
-6. Vocabulary keeps: `CommentButton`, `C0`, `PaneBranch`/`PaneNode` — trim or keep?
+1. `release_bundle` — **deleted**: the feature and all its sites, `flake.nix`'s inert
+   `buildFeatures`, and `app/rust-embed` (its only job was flipping
+   `rust-embed/debug-embed`). One consequence, approved as a behavior change: the
+   `login_item` guard goes, so the Settings login-item toggle works in local builds too
+   (the `WARP_INTEGRATION` guard stays).
+2. `standalone` — **deleted**: the three crate features and their three known sites, plus a
+   fourth found during execution (`app/build.rs` embedded `Info.plist` under
+   `CARGO_FEATURE_STANDALONE`).
+3. `script/patch_font_with_warp_glyph` + `script/warp.svg` — **deleted**.
+4. `wayne5a-progress.md` — **kept**.
+5. Winit-only dead paths — **trimmed**: `AppEvent::Clipboard`/`ClipboardEvent` + its
+   import/arm/handler, `font_handle::data`, and the whole `fontkit-rasterizer` feature path
+   including `try_read_face_source` (no build path ever enabled it;
+   `crates/warpui/src/fonts/font_kit.rs` stays — macOS uses it).
+   `create_system_clipboard`/`user_windowing_system` were already gone (P4c-2; that part of
+   the survey was drift).
+6. Vocabulary keeps — `CommentButton` **kept** (its annotation was already removed by
+   P4c-4); `C0` **kept whole**; `PaneBranch`/`PaneNode` **kept**: the §2 "no queries
+   anywhere" claim was wrong — the `sqlite.rs` restore path reads saved pane trees with both
+   as Diesel `Queryable` row types, so the row structs cannot go without taking out session
+   restore. The deletion was attempted, failed `cargo check`, and was reverted; closed as a
+   survey error (see the P4c-5 log entry).
 
 ## 6. Method / repro
 
@@ -616,4 +631,82 @@ parallel load, unchanged from P4c-1..P4c-4: it passes in isolation on this diff 
 previously-failing `test_single_code_file` is gone from the failure list (module 8/8 in isolation).
 
 Committed on master as `85b03cd38` (code, 20 files, +104/−635) plus this log entry; not pushed.
+
+### P4c-5 — decisions applied
+
+All six §5 rulings land here (item 6 is closed as a survey error, below) together with the §3
+`MenuItemFields.timestamp` chain. Code commit: 27 files, +20/−859 (including the four file
+deletions: the Windows service pair and the script pair).
+
+`release_bundle` (decision 1): the feature goes from `app` and `warp_core`;
+`ChannelState::is_release_bundle` is deleted; `features.rs` no longer applies `RELEASE_FLAGS` at
+runtime (the const stays — both settings generators read it). Sites cut: the Windows subsystem
+attribute (`bin/simplewarp.rs`), both startup-args forwarding blocks (`lib.rs`), the `profiling.rs`
+`cfg_if` (its `current_dir` branch stays), the Linux D-Bus forwarding function + error enum + both
+`From` impls + the orphaned `ExistingApplication` `#[proxy]` trait (+ its `proxy` import), all
+Windows single-instance code (with `service_impl.rs` and `single_instance_manager.rs` deleted), and
+`flake.nix`'s `buildFeatures` + `inherit`. `app/rust-embed` is deleted as ruled; execution found a
+second referencer the survey didn't list (`agent_mode_evals`'s `"rust-embed/debug-embed"`), removed
+with it. The approved behavior change: `login_item`'s `is_release_bundle` guard is gone, so the
+Settings login-item toggle actually registers in local builds now (the `WARP_INTEGRATION` guard stays
+first, unchanged — the integration harness sets it, so the suite still skips registration).
+
+Execution-found cascade: the deleted Windows code was `app`'s only `ipc` consumer (repo-wide grep:
+zero `ipc` references under `app/`), so `ipc.workspace = true` goes from `app/Cargo.toml` and the
+`ipc` edge leaves `Cargo.lock`. `crates/ipc` itself is now a workspace member with no dependents —
+new follow-up below, not acted on.
+
+`standalone` (decision 2): features deleted from `app`, `warp_core` and `warp_assets`;
+`paths.rs::bundled_resources_dir` keeps only the `.app` branch (doc sentence trimmed); the
+`warp_assets` `exclude = "async/**"` `cfg_attr` and the stale "Excludes take precedence" comment go;
+`lib.rs`'s CLI detection is just `WARP_CLI_MODE`. Fourth site found during execution: `app/build.rs`
+embedded `Info.plist` under `CARGO_FEATURE_STANDALONE` — dead in every real build, deleted. The
+`platform/mac.rs` doc comment that mentions the standalone binary stays: it explains the runtime
+background-only policy and has no cfg.
+
+Script pair deleted (decision 3); `wayne5a-progress.md` kept (decision 4).
+
+Winit trim (decision 5), all text-verified — that backend doesn't compile on macOS. Cut:
+`CustomEvent::Clipboard`, `ClipboardEvent` and the `ClipboardContent` import (`app.rs`); the
+event-loop import, match arm, `handle_clipboard_event` and — execution-found — the `StandardAction`
+import (its only use in the file); `font_handle::data`; and the whole `fontkit-rasterizer` path: the
+feature, the pending-raster font list (field + `take_fonts_loaded_since_last_raster` + the
+system-font-loop push), `try_read_face_source`, `load_font_kit_font` and the `font_kit_rasterizer`
+field, the two feature-gated `platform::FontDB` bodies (the `not(feature)` swash bodies stay
+byte-identical, only the attributes are dropped) and the `mod swash_rasterizer` gate. No build path
+ever enabled the feature; `crates/warpui/src/fonts/font_kit.rs` stays for macOS.
+
+`MenuItemFields.timestamp` chain (§3): the field, the five `timestamp: None` constructor lines, the
+copy in `with_different_on_select_action_type`, the nested render match collapsed to a plain
+key-shortcut `if let`, both render helpers (`render_right_aligned_time_estimation`,
+`render_time_estimation`) and `util::time_format::format_approx_duration_from_now_sentence_case` are
+gone; the `chrono` imports are trimmed. No render behavior changes — the `Some` branch was
+unreachable (every constructor wrote `None`).
+
+Survey correction — decision 6's `PaneBranch`/`PaneNode` deletion is **not** applied. The §2 claim
+("the structs themselves have no queries anywhere") was wrong: `app/src/persistence/sqlite.rs`'s
+`read_root_node`/`read_node` (reached from `sqlite::initialize` via `read_persisted_data` →
+`read_sqlite_data`) read saved pane trees with both structs as Diesel `Queryable` row types; the four
+unread fields keep their `#[allow(dead_code)]` annotations as before. Deleting the row structs would
+have deleted the session-restore path with them — a behavior change nobody approved. The deletion was
+attempted, failed `cargo check` (4× `E0412` plus inference cascades through `read_node`'s body), and
+was reverted; §2's bullet and §5 item 6 carry the correction. `CommentButton` needed no action (its
+annotation was already removed in P4c-4); `C0` stays whole as ruled.
+
+Verification: `./script/format --check` (exit 0); the three presubmit clippy gates, all `-D warnings`
+(exit 0); `cargo check -p warp --all-targets` (exit 0); `cargo test --doc` (exit 0, 3 passed /
+2 ignored); `./script/check_no_inline_test_modules` (exit 0); `cargo nextest run --no-fail-fast
+--workspace`: 6340 run, 6339 passed, 1 failed, 87 skipped. The single failure is the pre-existing
+integration clone-slash-command flake, settled with a control run: the same test also fails on
+unmodified HEAD (`git stash`, 2/3 attempts, always the identical ~15.26 s timeout signature; passing
+runs take ~5.4–5.6 s), and its launch path is untouched by this diff — the app binary's only runtime
+change is the login-item guard, which the harness's `WARP_INTEGRATION=1` short-circuits.
+`Cargo.lock` drops the `ipc` and `rust-embed` edges for the `warp` package (`rust-embed` stays in
+the graph via `warp_assets`).
+
+New follow-up, not taken: `crates/ipc` has no dependents since the `app` dependency removal — delete
+the crate (plus its `AGENTS.md` "Core Libraries" mention and the workspace entries) or keep it as
+infrastructure? Needs a ruling before a later round acts on it.
+
+Committed on master as `f901f7bee` (code, 27 files, +20/−859) plus this log entry; not pushed.
 
