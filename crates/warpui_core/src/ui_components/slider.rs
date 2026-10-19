@@ -148,31 +148,6 @@ impl Slider {
     /// the value (`(value - start) / (end - start)`) — this keeps
     /// non-step-aligned inputs from looking logarithmic. Takes precedence
     /// over [`Self::with_step`] when set.
-    pub fn with_snap_values(mut self, values: Vec<f32>) -> Self {
-        self.snap_values = Some(Arc::new(values));
-        self
-    }
-
-    pub fn with_thumb_size(mut self, thumb_size: f32) -> Self {
-        self.thumb_size = thumb_size;
-        self
-    }
-
-    pub fn with_thumb_fill(mut self, fill: Fill) -> Self {
-        self.thumb_fill = fill;
-        self
-    }
-
-    pub fn with_track_fill(mut self, fill: Fill) -> Self {
-        self.track_fill = fill;
-        self
-    }
-
-    pub fn with_track_height(mut self, height: f32) -> Self {
-        self.track_height = height;
-        self
-    }
-
     /// Sets the slider's value range. If set, values passed to the `on_change` callback are
     /// normalized to the given range.
     pub fn with_range(mut self, range: Range<f32>) -> Self {

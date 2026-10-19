@@ -218,11 +218,6 @@ impl Container {
         self
     }
 
-    pub fn with_overdraw_left(mut self, overdraw: f32) -> Self {
-        self.overdraw.left = overdraw;
-        self
-    }
-
     pub fn with_vertical_overdraw(mut self, overdraw: f32) -> Self {
         self.overdraw.top = overdraw;
         self.overdraw.bottom = overdraw;

@@ -182,14 +182,6 @@ impl EventHandler {
         self
     }
 
-    pub fn on_mouse_out<F>(mut self, callback: F) -> Self
-    where
-        F: 'static + FnMut(&mut EventContext, &AppContext, Vector2F) -> DispatchEventResult,
-    {
-        self.mouse_out = Some(RefCell::new(Box::new(callback)));
-        self
-    }
-
     pub fn on_mouse_dragged<F>(mut self, callback: F) -> Self
     where
         F: 'static + FnMut(&mut EventContext, &AppContext, Vector2F) -> DispatchEventResult,

@@ -101,10 +101,6 @@ impl UiComponentStyles {
         self.height = Some(height);
         self
     }
-    pub fn set_position(mut self, position: Coords) -> Self {
-        self.position = Some(position);
-        self
-    }
     pub fn set_background(mut self, background: Fill) -> Self {
         self.background = Some(background);
         self
@@ -115,10 +111,6 @@ impl UiComponentStyles {
     }
     pub fn set_border_width(mut self, border_width: f32) -> Self {
         self.border_width = Some(border_width);
-        self
-    }
-    pub fn set_border_style(mut self, border_style: BorderStyle) -> Self {
-        self.border_style = Some(border_style);
         self
     }
     pub fn set_border_radius(mut self, border_radius: CornerRadius) -> Self {

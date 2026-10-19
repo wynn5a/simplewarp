@@ -162,47 +162,6 @@ impl<'a, T: Entity> ModelContext<'a, T> {
             });
     }
 
-    pub fn unsubscribe_from_view<V>(&mut self, handle: &ViewHandle<V>)
-    where
-        V: View,
-        V::Event: 'static,
-    {
-        let target_entity = handle.id();
-
-        // If we're currently emitting events for this entity, defer the unsubscribe.
-        if let Some(ref mut pending) = self.app.pending_unsubscribes
-            && pending.entity_id == target_entity
-        {
-            pending.keys.insert(SubscriptionKey::Model(self.model_id));
-
-            // Remove subscriptions created earlier in this emission so subscribe-then-unsubscribe ordering is preserved.
-            if let std::collections::hash_map::Entry::Occupied(mut entry) =
-                self.app.subscriptions.entry(target_entity)
-            {
-                entry.get_mut().retain(|subscription| match subscription {
-                    Subscription::FromView { .. } | Subscription::FromApp { .. } => true,
-                    Subscription::FromModel { model_id, .. } => *model_id != self.model_id,
-                });
-
-                if entry.get().is_empty() {
-                    entry.remove();
-                }
-            }
-
-            return;
-        }
-
-        // Otherwise process immediately.
-        self.app
-            .subscriptions
-            .entry(target_entity)
-            .or_default()
-            .retain(|subscription| match subscription {
-                Subscription::FromView { .. } | Subscription::FromApp { .. } => true,
-                Subscription::FromModel { model_id, .. } => *model_id != self.model_id,
-            })
-    }
-
     pub fn emit(&mut self, payload: T::Event) {
         self.app.pending_effects.push_back(Effect::Event {
             entity_id: self.model_id,

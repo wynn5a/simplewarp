@@ -68,11 +68,6 @@ impl Matcher {
         }
     }
 
-    pub fn set_keymap(&mut self, keymap: Keymap) {
-        self.pending.clear();
-        self.keymap = keymap;
-    }
-
     /// Helper function to that returns [`Trigger`] with any [`Trigger::Custom`]s replaced by a
     /// [`Trigger::Keystrokes`].
     fn convert_custom_trigger_to_keystroke_trigger(

@@ -449,15 +449,6 @@ pub enum FitType {
     Stretch,
 }
 
-impl FitType {
-    pub fn should_retain_aspect_ratio(&self) -> bool {
-        match self {
-            FitType::Cover | FitType::Contain => true,
-            FitType::Stretch => false,
-        }
-    }
-}
-
 #[derive(Clone)]
 pub enum ImageType {
     Svg { svg: Rc<usvg::Tree> },

@@ -32,13 +32,10 @@ pub enum RadioButtonLayout {
 }
 
 /// A function from (is_disabled, is_selected, hovered) to a rendered element.
-type RichLabelFn<'a> = dyn FnOnce(bool, bool, bool) -> Box<dyn Element> + 'a;
-/// A function from (is_disabled, is_selected, hovered) to a rendered element.
 type CustomItemFn<'a> = dyn FnOnce(bool, bool, bool) -> Box<dyn Element> + 'a;
 
 pub enum Label<'a> {
     Text(Cow<'static, str>),
-    Rich(Box<RichLabelFn<'a>>),
     CustomItem(Box<CustomItemFn<'a>>),
 }
 
@@ -57,10 +54,6 @@ impl<'a> RadioButtonItem<'a> {
 
     pub fn text(label: impl Into<Cow<'static, str>>) -> Self {
         Self::new(Label::Text(label.into()))
-    }
-
-    pub fn rich_element(label: Box<RichLabelFn<'a>>) -> Self {
-        Self::new(Label::Rich(Box::new(label)))
     }
 
     pub fn custom_item(label: Box<CustomItemFn<'a>>) -> Self {
@@ -281,10 +274,7 @@ impl RadioButtonRenderer {
                                 .with_margin_left(LABEL_LEFT_MARGIN)
                                 .finish()
                         }
-                        Label::Rich(build_child) => {
-                            (build_child)(item.is_disabled, selected, state.is_hovered())
-                        }
-                        _ => Flex::row().finish(),
+                        Label::CustomItem(_) => Flex::row().finish(),
                     })
                     .with_cross_axis_alignment(if self.button_vertical_offset.is_some() {
                         CrossAxisAlignment::Start
@@ -436,11 +426,6 @@ impl<'a> RadioButtons<'a> {
 
     pub fn supports_unselected_state(mut self) -> Self {
         self.renderer.supports_unselected_state = true;
-        self
-    }
-
-    pub fn with_button_diameter(mut self, diameter: f32) -> Self {
-        self.renderer.button_diameter_override = Some(diameter);
         self
     }
 }

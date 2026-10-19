@@ -229,30 +229,6 @@ impl ClippedScrollable {
         )
     }
 
-    /// Like [`vertical`](Self::vertical), but passes the visible height as
-    /// the child's min-height constraint. This allows the child (e.g. wrapped
-    /// in [`Align`]) to center its content within the visible area while
-    /// still being scrollable when content overflows.
-    pub fn vertical_centered(
-        state: ClippedScrollStateHandle,
-        child: Box<dyn Element>,
-        scrollbar_size: ScrollbarWidth,
-        nonactive_scrollbar_thumb_background: Fill,
-        active_scrollbar_thumb_background: Fill,
-        scrollbar_track_background: Fill,
-    ) -> Scrollable {
-        let mut cs = ClippedScrollable::new(Axis::Vertical, child, state.clone());
-        cs.fill_min_main_axis = true;
-        Scrollable::vertical(
-            state.scrollable_data.clone(),
-            cs.finish_scrollable(),
-            scrollbar_size,
-            nonactive_scrollbar_thumb_background,
-            active_scrollbar_thumb_background,
-            scrollbar_track_background,
-        )
-    }
-
     /// Constructs a new [`Scrollable`] element that scrolls horizontally,
     /// using a [`ClippedScrollable`] as the concrete [`ScrollableElement`].
     pub fn horizontal(

@@ -95,11 +95,6 @@ impl<T> TextCache<T> {
         let mut curr_frame = self.curr_frame.write();
         curr_frame.insert(key, val);
     }
-
-    pub fn remove(&self, key: &dyn CacheKey) {
-        self.prev_frame.lock().remove(key);
-        self.curr_frame.write().remove(key);
-    }
 }
 
 pub struct LayoutCache {
@@ -124,14 +119,6 @@ impl LayoutCache {
     pub fn finish_frame(&self) {
         self.line_cache.finish_frame();
         self.text_frame_cache.finish_frame();
-    }
-
-    pub fn remove_line(&self, key: &dyn CacheKey) {
-        self.line_cache.remove(key);
-    }
-
-    pub fn remove_text_frame(&self, key: &dyn CacheKey) {
-        self.text_frame_cache.remove(key);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -696,47 +683,6 @@ impl TextFrame {
             max_width: 0.0,
             alignment: Default::default(),
         }
-    }
-
-    // Returns the absolute bounds of all hyperlinks in the frame. The position of each link is offset by the provided `origin.`
-    pub fn hyperlink_bounds(&self, origin: Vector2F) -> Vec<Vec<RectF>> {
-        let mut positions: Vec<Vec<RectF>> = Vec::new();
-        let mut height = origin.y();
-        let mut prev_hyperlink_id: Option<i32> = None;
-
-        // If the current rectangle is part of the previous hyperlink frame, just push it in a running vector. Otherwise create a new entry.
-        for line in &self.lines {
-            let mut width = origin.x() + self.line_x_offset(line);
-            for run in &line.runs {
-                if let Some(curr_hyperlink_id) = run.styles.hyperlink_id {
-                    let curr_rectangle = RectF::new(
-                        Vector2F::new(width, height),
-                        Vector2F::new(run.width, line.font_size * line.line_height_ratio),
-                    );
-
-                    let mut soft_wrapped = false;
-                    if let Some(prev_id) = prev_hyperlink_id
-                        && prev_id == curr_hyperlink_id
-                    {
-                        positions
-                            .last_mut()
-                            .expect("Positions should be non-empty")
-                            .push(curr_rectangle);
-                        soft_wrapped = true;
-                    }
-
-                    if !soft_wrapped {
-                        positions.push(vec![curr_rectangle]);
-                    }
-
-                    prev_hyperlink_id = Some(curr_hyperlink_id);
-                }
-                width += run.width;
-            }
-            height += line.font_size * line.line_height_ratio;
-        }
-
-        positions
     }
 
     /// We can't mark this as cfg(test) because we need this in the warp crate tests.

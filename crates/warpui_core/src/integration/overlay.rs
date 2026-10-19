@@ -108,10 +108,6 @@ pub fn get_overlay_log_mut(
     step_data_map.get_mut::<_, OverlayLog>(OVERLAY_LOG_KEY)
 }
 
-pub fn get_overlay_log(step_data_map: &super::step::StepDataMap) -> Option<&OverlayLog> {
-    step_data_map.get::<_, OverlayLog>(OVERLAY_LOG_KEY)
-}
-
 pub fn keystroke_display_text(keystroke: &crate::keymap::Keystroke) -> String {
     let mut s = String::new();
     if keystroke.ctrl {

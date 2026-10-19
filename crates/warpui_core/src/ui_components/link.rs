@@ -122,20 +122,6 @@ impl Link {
         self.styles.base
     }
 
-    pub fn with_hovered_style(mut self, hover_style: UiComponentStyles) -> Self {
-        if let Some(style) = &mut self.styles.hovered {
-            *style = style.merge(hover_style);
-        }
-        self
-    }
-
-    pub fn with_clicked_style(mut self, hover_style: UiComponentStyles) -> Self {
-        if let Some(style) = &mut self.styles.clicked {
-            *style = style.merge(hover_style);
-        }
-        self
-    }
-
     pub fn soft_wrap(mut self, soft_wrap: bool) -> Self {
         self.styles.soft_wrap = soft_wrap;
         self

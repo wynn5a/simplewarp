@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -367,16 +367,6 @@ pub fn save_captured_frame_as_png(frame: &CapturedFrame, path: &Path) -> anyhow:
     )?;
 
     Ok(())
-}
-
-/// Returns the directory where video recordings and screenshots should be
-/// written, creating it if necessary.
-pub fn output_dir() -> PathBuf {
-    let dir = std::env::var(VIDEO_DIR_ENV_VAR)
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir().join("warp_integration_video_captures"));
-    std::fs::create_dir_all(&dir).ok();
-    dir
 }
 
 /// Helper to retrieve a mutable reference to the recorder from a `StepDataMap`.

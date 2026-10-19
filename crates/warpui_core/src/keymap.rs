@@ -711,11 +711,6 @@ impl EditableBinding {
         self
     }
 
-    pub fn with_standard_action(mut self, binding: StandardAction) -> Self {
-        self.trigger = Trigger::Standard(binding);
-        self
-    }
-
     pub fn with_custom_action<C>(mut self, binding: C) -> Self
     where
         C: Into<CustomTag>,
@@ -835,10 +830,6 @@ impl Keystroke {
 
     pub fn is_unmodified_enter(&self) -> bool {
         (self.key == "enter" || self.key == "numpadenter") && self.is_unmodified()
-    }
-
-    pub fn is_shift_tab(&self) -> bool {
-        self.key == "tab" && self.shift && !self.ctrl && !self.alt && !self.cmd && !self.meta
     }
 
     /// Returns whether the `key` is the name of a valid special key. A key is considered "special"

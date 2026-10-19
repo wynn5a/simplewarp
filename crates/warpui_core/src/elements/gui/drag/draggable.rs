@@ -52,17 +52,6 @@ impl DraggableState {
         *self.inner.lock()
     }
 
-    /// Returns the cursor offset within the draggable element, if drag state is available.
-    pub fn cursor_offset_within_element(&self) -> Option<Vector2F> {
-        match self.read() {
-            DragState::None => None,
-            DragState::WaitingToDrag {
-                mouse_down_offset, ..
-            } => Some(-mouse_down_offset),
-            DragState::Dragging { mouse_offset, .. } => Some(-mouse_offset),
-        }
-    }
-
     /// Returns the actual mouse position while dragging an element.
     pub fn dragging_mouse_position(&self) -> Option<Vector2F> {
         match self.read() {
@@ -290,12 +279,6 @@ impl Draggable {
             drop_handler: None,
             use_copy_cursor_when_dragging_over_drop_target: false,
         }
-    }
-
-    /// Set a custom drag threshold, in pixels.
-    pub fn with_drag_threshold(mut self, threshold: f32) -> Self {
-        self.drag_threshold = threshold;
-        self
     }
 
     /// Set a custom drag axis.

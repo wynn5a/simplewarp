@@ -49,11 +49,6 @@ impl UserNotification {
         }
     }
 
-    pub fn with_data(mut self, data: impl Into<String>) -> Self {
-        self.data = Some(data.into());
-        self
-    }
-
     pub fn title(&self) -> &str {
         self.title.as_str()
     }

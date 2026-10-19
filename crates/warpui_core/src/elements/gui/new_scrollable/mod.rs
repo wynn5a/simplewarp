@@ -1294,16 +1294,6 @@ impl NewScrollable {
         self
     }
 
-    /// On a single-axis scrollable, remap a scroll-wheel event whose delta
-    /// lies only on the cross axis onto the scrollable's own axis. Lets a
-    /// vertical mouse wheel drive a horizontal-only scrollable (and vice
-    /// versa) without a modifier or horizontal trackpad swipe. No-op for
-    /// dual-axis scrollables.
-    pub fn with_remap_cross_axis_wheel_to_main_axis(mut self, remap: bool) -> Self {
-        self.remap_cross_axis_wheel_to_main_axis = remap;
-        self
-    }
-
     fn handle_event(
         &mut self,
         z_index: ZIndex,

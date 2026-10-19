@@ -379,18 +379,6 @@ impl Padding {
         self
     }
 
-    pub fn with_vertical(mut self, vertical: f32) -> Self {
-        self.top = vertical;
-        self.bottom = vertical;
-        self
-    }
-
-    pub fn with_horizontal(mut self, horizontal: f32) -> Self {
-        self.left = horizontal;
-        self.right = horizontal;
-        self
-    }
-
     pub fn top(&self) -> f32 {
         self.top
     }
@@ -483,16 +471,6 @@ impl Border {
 
     pub fn with_border_color(mut self, color: ColorU) -> Self {
         self.color = Fill::Solid(color);
-        self
-    }
-
-    pub fn with_horizontal_border_gradient(mut self, gradient: Gradient) -> Self {
-        self.color = Fill::Gradient {
-            start: vec2f(0.0, 0.0),
-            end: vec2f(1.0, 0.0),
-            start_color: gradient.start,
-            end_color: gradient.end,
-        };
         self
     }
 
@@ -661,10 +639,6 @@ impl RectFExt for RectF {
             Axis::Vertical => self.max_y(),
         }
     }
-}
-
-pub fn try_rect(origin: Option<Vector2F>, size: Option<Vector2F>) -> Option<RectF> {
-    origin.and_then(|origin| size.map(|size| RectF::new(origin, size)))
 }
 
 pub fn try_rect_with_z(origin: Option<Point>, size: Option<Vector2F>) -> Option<RectF> {

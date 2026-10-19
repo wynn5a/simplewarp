@@ -43,10 +43,6 @@ pub enum Weight {
 }
 
 impl Weight {
-    pub fn is_normal(&self) -> bool {
-        matches!(self, Self::Normal)
-    }
-
     pub fn from_custom_weight(custom_weight: Option<CustomWeight>) -> Weight {
         if let Some(custom_weight) = custom_weight {
             match custom_weight {
@@ -77,13 +73,6 @@ impl Weight {
             Weight::Black => Some(CustomWeight::Black),
         }
     }
-
-    pub fn matches_custom_weight(&self, custom_weight: Option<CustomWeight>) -> bool {
-        match custom_weight {
-            Some(custom_weight) => custom_weight.is_weight(*self),
-            None => self.is_normal(),
-        }
-    }
 }
 
 impl std::fmt::Display for Weight {
@@ -99,26 +88,6 @@ impl std::fmt::Display for Weight {
             Weight::ExtraBold => write!(f, "ExtraBold"),
             Weight::Black => write!(f, "Black"),
         }
-    }
-}
-
-pub trait CustomWeightConversion {
-    fn is_weight(&self, weight: Weight) -> bool;
-}
-
-impl CustomWeightConversion for CustomWeight {
-    fn is_weight(&self, weight: Weight) -> bool {
-        matches!(
-            (self, weight),
-            (CustomWeight::Thin, Weight::Thin)
-                | (CustomWeight::ExtraLight, Weight::ExtraLight)
-                | (CustomWeight::Light, Weight::Light)
-                | (CustomWeight::Medium, Weight::Medium)
-                | (CustomWeight::Semibold, Weight::Semibold)
-                | (CustomWeight::Bold, Weight::Bold)
-                | (CustomWeight::ExtraBold, Weight::ExtraBold)
-                | (CustomWeight::Black, Weight::Black)
-        )
     }
 }
 

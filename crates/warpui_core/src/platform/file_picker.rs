@@ -138,11 +138,6 @@ impl SaveFilePickerConfiguration {
         Self::default()
     }
 
-    pub fn with_default_filename(mut self, filename: String) -> Self {
-        self.default_filename = Some(filename);
-        self
-    }
-
     pub fn with_default_directory(mut self, directory: PathBuf) -> Self {
         self.default_directory = Some(directory);
         self

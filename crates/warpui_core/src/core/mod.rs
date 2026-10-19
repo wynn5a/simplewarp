@@ -660,12 +660,6 @@ pub enum RequestState<T> {
     RequestFailed(Error),
 }
 
-impl<T> RequestState<T> {
-    pub fn has_pending_retries(&self) -> bool {
-        matches!(self, RequestState::RequestFailedRetryPending(_))
-    }
-}
-
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod tests;

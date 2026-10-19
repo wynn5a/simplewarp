@@ -457,29 +457,6 @@ impl TableStateHandle {
         state.invalidate_row_height(row_idx);
     }
 
-    /// Invalidate the cached intrinsic width for a specific column.
-    ///
-    /// Call this when the content of cells in an `Intrinsic` width column changes
-    /// and you want the column to resize to fit the new content. Without calling
-    /// this, intrinsic column widths are cached and won't update automatically.
-    pub fn invalidate_intrinsic_width(&self, col_idx: usize) {
-        let mut state = self.inner.borrow_mut();
-        if col_idx < state.intrinsic_column_widths.len() {
-            state.intrinsic_column_widths[col_idx] = None;
-        }
-    }
-
-    /// Invalidate all intrinsic column widths.
-    ///
-    /// Call this when content changes across multiple `Intrinsic` width columns
-    /// and you want all columns to resize to fit their new content.
-    pub fn invalidate_all_intrinsic_widths(&self) {
-        let mut state = self.inner.borrow_mut();
-        for width in &mut state.intrinsic_column_widths {
-            *width = None;
-        }
-    }
-
     /// Scroll to a specific row with an optional offset.
     pub fn scroll_to_row(&self, row_idx: usize, offset_from_start: Option<Pixels>) {
         let mut state = self.inner.borrow_mut();

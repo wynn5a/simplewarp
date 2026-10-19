@@ -229,10 +229,6 @@ impl App {
         );
     }
 
-    pub fn last_active_timestamp() -> i64 {
-        LAST_USER_ACTION_UNIX_TIMESTAMP.load(Ordering::SeqCst)
-    }
-
     pub fn record_last_active_timestamp() {
         LAST_USER_ACTION_UNIX_TIMESTAMP.fetch_max(Utc::now().timestamp(), Ordering::SeqCst);
     }

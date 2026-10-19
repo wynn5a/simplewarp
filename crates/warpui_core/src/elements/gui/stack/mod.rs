@@ -111,11 +111,6 @@ impl Stack {
         self
     }
 
-    pub fn with_event_dispatch_mode(mut self, mode: EventDispatchMode) -> Self {
-        self.event_dispatch_mode = mode;
-        self
-    }
-
     /// Add a new child to the stack with a specific positioning.
     pub fn with_positioned_child(
         mut self,

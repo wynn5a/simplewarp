@@ -322,22 +322,6 @@ impl Hoverable {
         self
     }
 
-    pub fn on_back_click<F>(mut self, callback: F) -> Self
-    where
-        F: 'static + FnMut(&mut EventContext, &AppContext, Vector2F),
-    {
-        self.back_click_handler = Some(Box::new(callback));
-        self
-    }
-
-    pub fn on_forward_click<F>(mut self, callback: F) -> Self
-    where
-        F: 'static + FnMut(&mut EventContext, &AppContext, Vector2F),
-    {
-        self.forward_click_handler = Some(Box::new(callback));
-        self
-    }
-
     /// Sets a delay between the time that the mouse hovers
     /// over the element and the time that the mouse state is
     /// considered hovered via [`MouseState::hovered`], including
@@ -367,11 +351,6 @@ impl Hoverable {
     /// Change the mouse cursor when hovered
     pub fn with_cursor(mut self, cursor: Cursor) -> Self {
         self.hover_cursor = Some(cursor);
-        self
-    }
-
-    pub fn with_reset_cursor_after_click(mut self) -> Self {
-        self.reset_cursor_after_click = true;
         self
     }
 

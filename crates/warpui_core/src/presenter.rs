@@ -526,10 +526,6 @@ impl Presenter {
         self.highlighted_view = Some(view_id);
     }
 
-    pub fn clear_highlighted_view(&mut self) {
-        self.highlighted_view = None;
-    }
-
     pub fn text_layout_cache(&self) -> &LayoutCache {
         &self.text_layout_cache
     }
