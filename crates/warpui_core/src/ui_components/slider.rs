@@ -80,15 +80,13 @@ impl SliderStateHandle {
 /// value has changed.
 type OnValueChangedFn = dyn Fn(&mut EventContext, &AppContext, f32) + 'static;
 
-/// Shared track geometry and snapping configuration passed to every
+/// Shared value-range, step and snapping configuration passed to every
 /// slider callback registration function.
 #[derive(Clone)]
 struct SliderTrackConfig {
     track_position_id: String,
-    thumb_size: f32,
     value_range: Range<f32>,
     step: Option<f32>,
-    snap_values: Option<Arc<Vec<f32>>>,
     state_handle: SliderStateHandle,
 }
 
@@ -102,15 +100,10 @@ pub struct Slider {
     track_position_id: String,
     on_drag_callback: Option<Box<OnValueChangedFn>>,
     on_change_callback: Option<Arc<OnValueChangedFn>>,
-    thumb_size: f32,
-    track_height: f32,
-    track_fill: Fill,
-    thumb_fill: Fill,
     styles: UiComponentStyles,
     value_range: Range<f32>,
     default_value: Option<f32>,
     step: Option<f32>,
-    snap_values: Option<Arc<Vec<f32>>>,
 }
 
 impl Slider {
@@ -120,14 +113,9 @@ impl Slider {
             state_handle: slider_state_handle,
             on_drag_callback: None,
             on_change_callback: None,
-            thumb_size: DEFAULT_THUMB_SIZE,
-            track_height: DEFAULT_TRACK_HEIGHT,
-            track_fill: *DEFAULT_TRACK_FILL,
-            thumb_fill: *DEFAULT_THUMB_FILL,
             value_range: 0.0..1.,
             default_value: None,
             step: None,
-            snap_values: None,
             styles: UiComponentStyles {
                 ..Default::default()
             },
@@ -142,12 +130,6 @@ impl Slider {
         self
     }
 
-    /// Sets an explicit list of discrete values that the slider snaps to.
-    /// Drag/drop/click events snap to the nearest value in the list by
-    /// absolute distance, and the thumb is positioned **linearly** based on
-    /// the value (`(value - start) / (end - start)`) — this keeps
-    /// non-step-aligned inputs from looking logarithmic. Takes precedence
-    /// over [`Self::with_step`] when set.
     /// Sets the slider's value range. If set, values passed to the `on_change` callback are
     /// normalized to the given range.
     pub fn with_range(mut self, range: Range<f32>) -> Self {
@@ -193,13 +175,12 @@ impl Slider {
                 .expect("Track should be laid out by the time the slider is dragged.");
 
             let raw_offset_x = thumb_position.origin_x() - track_position.origin_x();
-            let draggable_width = draggable_width(track_position, config.thumb_size);
+            let draggable_width = draggable_width(track_position, DEFAULT_THUMB_SIZE);
             let (snapped_offset_x, _) = snap_offset_and_value(
                 raw_offset_x,
                 draggable_width,
                 &config.value_range,
                 config.step,
-                config.snap_values.as_deref().map(Vec::as_slice),
             );
 
             config.state_handle.store(SliderState {
@@ -233,13 +214,12 @@ impl Slider {
                 .expect("Track should be laid out by the time the slider is dragged.");
 
             let raw_offset_x = thumb_position.origin_x() - track_position.origin_x();
-            let draggable_width = draggable_width(track_position, config.thumb_size);
+            let draggable_width = draggable_width(track_position, DEFAULT_THUMB_SIZE);
             let (snapped_offset_x, snapped_value) = snap_offset_and_value(
                 raw_offset_x,
                 draggable_width,
                 &config.value_range,
                 config.step,
-                config.snap_values.as_deref().map(Vec::as_slice),
             );
 
             let delta = snapped_offset_x - raw_offset_x;
@@ -278,13 +258,12 @@ impl Slider {
                 .element_position_by_id(config.track_position_id.as_str())
                 .expect("Track should be laid out by the time the slider is dropped.");
             let raw_offset_x = thumb_position.origin_x() - track_position.origin_x();
-            let draggable_width = draggable_width(track_position, config.thumb_size);
+            let draggable_width = draggable_width(track_position, DEFAULT_THUMB_SIZE);
             let (snapped_offset_x, snapped_value) = snap_offset_and_value(
                 raw_offset_x,
                 draggable_width,
                 &config.value_range,
                 config.step,
-                config.snap_values.as_deref().map(Vec::as_slice),
             );
             config.state_handle.store(SliderState {
                 thumb_offset_x: Some(snapped_offset_x),
@@ -314,7 +293,7 @@ impl Slider {
             };
 
             let click_position_x = click_position.x();
-            let padding = config.thumb_size / 2.;
+            let padding = DEFAULT_THUMB_SIZE / 2.;
             let min_x = track_position.min_x() + padding;
             let max_x = track_position.max_x() - padding;
 
@@ -323,13 +302,12 @@ impl Slider {
             }
 
             let raw_offset_x = click_position_x - min_x;
-            let draggable_width = draggable_width(track_position, config.thumb_size);
+            let draggable_width = draggable_width(track_position, DEFAULT_THUMB_SIZE);
             let (snapped_offset_x, snapped_value) = snap_offset_and_value(
                 raw_offset_x,
                 draggable_width,
                 &config.value_range,
                 config.step,
-                config.snap_values.as_deref().map(Vec::as_slice),
             );
 
             config.state_handle.store(SliderState {
@@ -347,39 +325,18 @@ impl Slider {
 /// nearest discrete position, returning both the snapped pixel offset and
 /// the corresponding value.
 ///
-/// If `snap_values` is provided it takes precedence: the raw value (linearly
-/// derived from the pixel position and `value_range`) is snapped to the
-/// nearest entry in the list by absolute distance, and the returned pixel
-/// offset is positioned **linearly** by the snapped value — so positions
-/// along the slider always match the value scale. Otherwise `step` (if any)
-/// is used for linear stepping from `value_range.start`.
+/// `step` (if any) is used for linear stepping from `value_range.start`.
 fn snap_offset_and_value(
     raw_offset_x: f32,
     draggable_width: f32,
     value_range: &Range<f32>,
     step: Option<f32>,
-    snap_values: Option<&[f32]>,
 ) -> (f32, f32) {
     if draggable_width <= 0. {
         return (raw_offset_x, value_range.start);
     }
     let canonical = (raw_offset_x / draggable_width).clamp(0., 1.);
     let raw_value = canonical * (value_range.end - value_range.start) + value_range.start;
-
-    if let Some(values) = snap_values
-        && !values.is_empty()
-    {
-        // Snap to nearest value by absolute distance.
-        let snapped_value = values.iter().copied().fold(values[0], |best, v| {
-            if (v - raw_value).abs() < (best - raw_value).abs() {
-                v
-            } else {
-                best
-            }
-        });
-        let snapped_canonical = value_to_canonical_linear(snapped_value, value_range);
-        return (snapped_canonical * draggable_width, snapped_value);
-    }
 
     let Some(step) = step.filter(|s| *s > 0.) else {
         return (raw_offset_x, raw_value);
@@ -419,25 +376,16 @@ impl UiComponent for Slider {
             track_position_id: slider_track_position_id,
             on_drag_callback,
             on_change_callback,
-            thumb_size,
-            track_height,
-            track_fill,
-            thumb_fill,
             styles,
             value_range,
             default_value,
             step,
-            snap_values,
         } = self;
 
         let track_position_id = slider_track_position_id.clone();
         let mut slider_thumb = Draggable::new(
             state_handle.thumb_draggable_state.clone(),
-            render_thumb(
-                thumb_fill,
-                thumb_size,
-                state_handle.thumb_hoverable_state.clone(),
-            ),
+            render_thumb(state_handle.thumb_hoverable_state.clone()),
         )
         .with_drag_axis(DragAxis::HorizontalOnly)
         .with_drag_bounds_callback(move |position_cache, _| {
@@ -454,10 +402,8 @@ impl UiComponent for Slider {
 
         let config = SliderTrackConfig {
             track_position_id: slider_track_position_id.clone(),
-            thumb_size,
             value_range: value_range.clone(),
             step,
-            snap_values,
             state_handle: state_handle.clone(),
         };
 
@@ -470,7 +416,7 @@ impl UiComponent for Slider {
         );
 
         let track = Hoverable::new(state_handle.track_hoverable_state.clone(), |_| {
-            render_track(thumb_size, styles.width, track_height, track_fill)
+            render_track(styles.width)
         });
 
         let track = Self::register_on_click_callback(track, config, on_change_callback.clone());
@@ -525,33 +471,28 @@ impl UiComponent for Slider {
             track_position_id: self.track_position_id,
             on_drag_callback: self.on_drag_callback,
             on_change_callback: self.on_change_callback,
-            thumb_size: self.thumb_size,
-            track_height: self.track_height,
-            track_fill: self.track_fill,
-            thumb_fill: self.thumb_fill,
             value_range: self.value_range,
             default_value: self.default_value,
             step: self.step,
-            snap_values: self.snap_values,
             styles: self.styles.merge(styles),
         }
     }
 }
 
 /// Renders the slider 'track', along which the thumb can be dragged.
-fn render_track(thumb_size: f32, width: Option<f32>, height: f32, fill: Fill) -> Box<dyn Element> {
+fn render_track(width: Option<f32>) -> Box<dyn Element> {
     let mut track = ConstrainedBox::new(
         Container::new(
             Rect::new()
-                .with_background(fill)
+                .with_background(*DEFAULT_TRACK_FILL)
                 .with_corner_radius(CornerRadius::with_all(Radius::Percentage(50.)))
                 .finish(),
         )
-        .with_padding_left(thumb_size / 2.)
-        .with_padding_right(thumb_size / 2.)
+        .with_padding_left(DEFAULT_THUMB_SIZE / 2.)
+        .with_padding_right(DEFAULT_THUMB_SIZE / 2.)
         .finish(),
     )
-    .with_height(height);
+    .with_height(DEFAULT_TRACK_HEIGHT);
     if let Some(width) = width {
         track = track.with_width(width);
     }
@@ -559,7 +500,7 @@ fn render_track(thumb_size: f32, width: Option<f32>, height: f32, fill: Fill) ->
     // We add a container with extra padding to make the track
     // as tall (invisibly) as the thumb. This way, we can detect
     // clicks that are slightly above or below the track bar itself.
-    let vertical_padding = ((thumb_size - height) / 2.).max(0.);
+    let vertical_padding = ((DEFAULT_THUMB_SIZE - DEFAULT_TRACK_HEIGHT) / 2.).max(0.);
     Container::new(track.finish())
         .with_padding_top(vertical_padding)
         .with_padding_bottom(vertical_padding)
@@ -568,26 +509,26 @@ fn render_track(thumb_size: f32, width: Option<f32>, height: f32, fill: Fill) ->
 
 /// Renders the 'thumb' (handle) for the slider.
 ///
-/// The thumb is a circle with diameter set to `size`.
-fn render_thumb(fill: Fill, size: f32, state_handle: MouseStateHandle) -> Box<dyn Element> {
-    Hoverable::new(state_handle, move |hover_state| {
+/// The thumb is a circle with diameter set to [`DEFAULT_THUMB_SIZE`].
+fn render_thumb(state_handle: MouseStateHandle) -> Box<dyn Element> {
+    Hoverable::new(state_handle, |hover_state| {
         let thumb = Container::new(
             ConstrainedBox::new(
                 Rect::new()
-                    .with_background(fill)
+                    .with_background(*DEFAULT_THUMB_FILL)
                     .with_corner_radius(CornerRadius::with_all(Radius::Percentage(50.)))
                     .with_drop_shadow(*THUMB_DROP_SHADOW)
                     .finish(),
             )
-            .with_width(size)
-            .with_height(size)
+            .with_width(DEFAULT_THUMB_SIZE)
+            .with_height(DEFAULT_THUMB_SIZE)
             .finish(),
         )
         .finish();
         let mut stack = Stack::new();
 
         if hover_state.is_hovered() {
-            let hover_size = size + HOVER_BORDER_SIZE;
+            let hover_size = DEFAULT_THUMB_SIZE + HOVER_BORDER_SIZE;
             let mut hover_background = *DEFAULT_TRACK_COLOR;
             hover_background.a = HOVER_OPACITY;
 
@@ -613,12 +554,12 @@ fn render_thumb(fill: Fill, size: f32, state_handle: MouseStateHandle) -> Box<dy
                 OffsetPositioning::from_axes(
                     PositioningAxis::relative_to_parent(
                         ParentOffsetBounds::Unbounded,
-                        OffsetType::Pixel(-((hover_size - size) / 2.)),
+                        OffsetType::Pixel(-((hover_size - DEFAULT_THUMB_SIZE) / 2.)),
                         AnchorPair::new(XAxisAnchor::Left, XAxisAnchor::Left),
                     ),
                     PositioningAxis::relative_to_parent(
                         ParentOffsetBounds::Unbounded,
-                        OffsetType::Pixel(-((hover_size - size) / 2.)),
+                        OffsetType::Pixel(-((hover_size - DEFAULT_THUMB_SIZE) / 2.)),
                         AnchorPair::new(YAxisAnchor::Top, YAxisAnchor::Top),
                     ),
                 ),

@@ -54,7 +54,6 @@ pub struct EventHandler {
     back_mouse_down: Option<RefCell<Handler>>,
     mouse_in: Option<RefCell<Handler>>,
     mouse_in_behavior: MouseInBehavior,
-    mouse_out: Option<RefCell<Handler>>,
     mouse_dragged: Option<RefCell<Handler>>,
     scroll_wheel: Option<RefCell<ScrollHandler>>,
     keydown: Option<RefCell<KeyHandler>>,
@@ -82,7 +81,6 @@ impl EventHandler {
             forward_mouse_down: None,
             back_mouse_down: None,
             mouse_in: None,
-            mouse_out: None,
             mouse_dragged: None,
             scroll_wheel: None,
             keydown: None,
@@ -282,18 +280,12 @@ impl Element for EventHandler {
                 {
                     return true;
                 }
-                if self.dispatch_callback(self.mouse_out.as_ref(), ctx, *position, app) {
-                    return true;
-                }
             }
             Some(Event::LeftMouseDragged { position, .. }) => {
                 if self.dispatch_callback(self.mouse_dragged.as_ref(), ctx, *position, app) {
                     return true;
                 }
                 if self.dispatch_callback(self.mouse_in.as_ref(), ctx, *position, app) {
-                    return true;
-                }
-                if self.dispatch_callback(self.mouse_out.as_ref(), ctx, *position, app) {
                     return true;
                 }
             }

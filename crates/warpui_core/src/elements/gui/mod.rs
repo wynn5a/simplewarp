@@ -399,7 +399,6 @@ impl Padding {
 #[derive(Default)]
 pub struct Overdraw {
     top: f32,
-    left: f32,
     bottom: f32,
     right: f32,
 }

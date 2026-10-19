@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use async_channel::Sender;
 
 use super::ChannelEventListener;
@@ -8,7 +6,6 @@ use crate::terminal::event::Event as TerminalEvent;
 pub struct ChannelEventListenerBuilder {
     wakeups_tx: Option<Sender<()>>,
     events_tx: Option<Sender<TerminalEvent>>,
-    pty_bytes_read_tx: Option<async_broadcast::Sender<Arc<Vec<u8>>>>,
 }
 
 impl ChannelEventListenerBuilder {
@@ -16,7 +13,6 @@ impl ChannelEventListenerBuilder {
         ChannelEventListenerBuilder {
             wakeups_tx: None,
             events_tx: None,
-            pty_bytes_read_tx: None,
         }
     }
 
@@ -31,6 +27,7 @@ impl ChannelEventListenerBuilder {
     }
 
     pub fn build(self) -> ChannelEventListener {
+        let (pty_bytes_read_tx, _) = async_broadcast::broadcast(1);
         ChannelEventListener::new(
             self.wakeups_tx.unwrap_or_else(|| {
                 let (tx, _) = async_channel::unbounded();
@@ -40,10 +37,7 @@ impl ChannelEventListenerBuilder {
                 let (tx, _) = async_channel::unbounded();
                 tx
             }),
-            self.pty_bytes_read_tx.unwrap_or_else(|| {
-                let (tx, _) = async_broadcast::broadcast(1);
-                tx
-            }),
+            pty_bytes_read_tx,
         )
     }
 }

@@ -586,10 +586,6 @@ impl FileNotebookView {
             | EditorViewEvent::CmdEnter
             | EditorViewEvent::EscapePressed
             | EditorViewEvent::TextSelectionChanged => (),
-            EditorViewEvent::OpenFile { .. } => {
-                // We don't support opening files from the notebook view: file paths rely on a
-                // Session, which today is only set from the AI document view.
-            }
         }
     }
 

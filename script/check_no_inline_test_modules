@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 
 matches=$(
     find . \
-        \( -path './.git' -o -path './target' \) -prune -o \
+        \( -path './.git' -o -path './target' -o -path './.cargo-home' \) -prune -o \
         -type f \
         -name '*.rs' \
         -exec grep -nE '^[[:space:]]*mod[[:space:]]+tests[[:space:]]*\{' {} + || true

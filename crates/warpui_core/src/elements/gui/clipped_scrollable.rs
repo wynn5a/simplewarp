@@ -190,11 +190,6 @@ pub struct ClippedScrollable {
     state: ClippedScrollStateHandle,
     size: Option<Vector2F>,
     origin: Option<Point>,
-    /// When true, the child constraint's min on the main axis is set to the
-    /// incoming constraint's max on the main axis (if finite). This allows
-    /// the child (e.g. an [`Align`]) to know the visible height and center
-    /// content within the scrollable area.
-    fill_min_main_axis: bool,
 }
 
 impl ClippedScrollable {
@@ -205,7 +200,6 @@ impl ClippedScrollable {
             state,
             size: None,
             origin: None,
-            fill_min_main_axis: false,
         }
     }
 
@@ -332,20 +326,7 @@ impl Element for ClippedScrollable {
         // The child should only be constrained horizontally, and allowed to grow
         // as tall as it desires.  The height of the ClippedScrollable will still be
         // constrained by the incoming constraints.
-        let mut child_constraint = SizeConstraint::tight_on_cross_axis(self.axis, constraint);
-
-        // When fill_min_main_axis is set, pass the visible size along the main
-        // axis as the child's min constraint so centering elements (e.g. Align)
-        // can fill and center their content within the visible area.
-        if self.fill_min_main_axis {
-            let visible = constraint.max.along(self.axis);
-            if visible.is_finite() {
-                match self.axis {
-                    Axis::Vertical => child_constraint.min.set_y(visible),
-                    Axis::Horizontal => child_constraint.min.set_x(visible),
-                }
-            }
-        }
+        let child_constraint = SizeConstraint::tight_on_cross_axis(self.axis, constraint);
 
         let child_size = self.child.layout(child_constraint, ctx, app);
         let size = constraint.apply(child_size);

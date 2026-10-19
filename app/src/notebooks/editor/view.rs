@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::ops::Range;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use markdown_parser::{FormattedText, parse_html, parse_markdown};
@@ -16,7 +15,6 @@ use warp_editor::render::element::{
 };
 use warp_editor::render::model::{BlockItem, HitTestBlockType, Location, RenderState};
 use warp_editor::selection::{TextDirection, TextUnit};
-use warp_util::path::LineAndColumnArg;
 use warp_util::user_input::UserInput;
 use warpui::accessibility::{AccessibilityContent, ActionAccessibilityContent, WarpA11yRole};
 use warpui::actions::StandardAction;
@@ -35,7 +33,6 @@ use warpui::image_cache::ImageType;
 use warpui::keymap::{EditableBinding, FixedBinding, PerPlatformKeystroke};
 use warpui::platform::{Cursor, OperatingSystem};
 use warpui::presenter::ChildView;
-use warpui::text::word_boundaries::WordBoundariesPolicy;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::units::Pixels;
@@ -62,14 +59,8 @@ use crate::notebooks::file::MarkdownDisplayMode;
 use crate::notebooks::link::{LinkTarget, NotebookLinks, ResolveError};
 use crate::server::ids::SyncId;
 use crate::settings::{AppEditorSettings, FontSettings, SelectionSettings};
-use crate::terminal::grid_renderer::URL_COLOR;
-use crate::terminal::links::directly_open_link_keybinding_string;
 use crate::ui_components::icons::ICON_DIMENSIONS;
 use crate::util::bindings::CustomAction;
-use crate::util::link_detection::{DetectedLinkType, detect_file_paths, get_word_range_at_offset};
-use crate::util::tooltips::{
-    TooltipLink, TooltipRedaction, render_tooltip, should_show_open_in_warp_link,
-};
 use crate::view_components::DismissibleToast;
 use crate::workspace::WorkspaceAction;
 
@@ -806,8 +797,6 @@ pub enum EditorViewAction {
     BlockHovered {
         /// Starting offset of the block that was hovered over. If `None`, no block is hovered.
         block_start: Option<CharOffset>,
-        /// The character offset that was hovered over. If `None`, no character is hovered.
-        char_offset: Option<CharOffset>,
     },
     ShowCharacterPalette,
     ShowFindBar,
@@ -856,12 +845,6 @@ pub enum EditorViewAction {
     },
     RemoveEmbeddingAt(CharOffset),
     MiddleClickPaste,
-    /// Open a file. If open_in_warp is true, open in Warp's code editor; otherwise use external editor.
-    OpenFile {
-        path: PathBuf,
-        line_and_column_num: Option<LineAndColumnArg>,
-        force_open_in_warp: bool,
-    },
     /// Signal from a Mermaid toggle view that the user changed the display mode for a block.
     MermaidDisplayModeSelected {
         start_anchor: Anchor,
@@ -931,12 +914,6 @@ pub enum EditorViewEvent {
     /// Cmd/Ctrl+Enter was pressed (emitted in comment editor mode).
     CmdEnter,
     Navigate(NavigationKey),
-    /// Open a file in the preferred editor
-    OpenFile {
-        path: PathBuf,
-        line_and_column_num: Option<LineAndColumnArg>,
-        force_open_in_warp: bool,
-    },
     /// Emitted when the user runs a notebook workflow. The parent `NotebookView` is responsible
     /// for sending it to the active terminal.
     RunWorkflow(NotebookWorkflow),
@@ -987,20 +964,6 @@ impl Drop for LinkState {
     }
 }
 
-/// Represents a file path that has been hovered or selected by the user.
-#[derive(Clone)]
-struct SelectedFilePath {
-    range: Range<CharOffset>,
-    path: PathBuf,
-    line_and_column_num: Option<LineAndColumnArg>,
-}
-
-#[derive(Default)]
-struct FilePathMouseStateHandles {
-    open_file_handle: MouseStateHandle,
-    open_in_warp_handle: MouseStateHandle,
-}
-
 pub struct RichTextEditorView {
     pub(super) model: ModelHandle<NotebooksEditorModel>,
     display_state: DisplayStateHandle,
@@ -1024,10 +987,6 @@ pub struct RichTextEditorView {
 
     pub(super) find_bar: FindBarState,
     max_width: Option<Pixels>,
-
-    hovered_file_path: Option<SelectedFilePath>,
-    open_file_path: Option<SelectedFilePath>,
-    file_path_mouse_states: FilePathMouseStateHandles,
 
     // Whether the editor or it's children are focused.
     has_focus_within: bool,
@@ -1131,9 +1090,6 @@ impl RichTextEditorView {
             requested_block_insertion_menu_open: Default::default(),
             insertion_menu_state,
             pending_layout_affecting_asset_loads: Default::default(),
-            hovered_file_path: None,
-            open_file_path: None,
-            file_path_mouse_states: Default::default(),
             find_bar,
             max_width: config.max_width,
             has_focus_within: false,
@@ -1207,16 +1163,6 @@ impl RichTextEditorView {
                         self.requested_block_insertion_menu_open = false;
                     } else {
                         self.close_block_insertion_menu(ctx);
-                    }
-
-                    if self.hovered_file_path.is_some() {
-                        self.hovered_file_path = None;
-                        ctx.notify();
-                    }
-
-                    if self.open_file_path.is_some() {
-                        self.open_file_path = None;
-                        ctx.notify();
                     }
 
                     ctx.emit(EditorViewEvent::Edited)
@@ -1858,40 +1804,7 @@ impl RichTextEditorView {
         if !self.selection_is_single_cursor(ctx) {
             return;
         }
-        if self.maybe_open_file(offset, cmd, ctx) {
-            return;
-        }
-        // If no file was hovered, check if the user is hovering over a URL.
         self.maybe_open_url(offset, cmd, link_in_text, ctx);
-    }
-
-    /// If the user is hovering over a file path, select it. Otherwise, do nothing.
-    /// Returns whether a file was hovered at the given offset.
-    fn maybe_open_file(
-        &mut self,
-        offset: CharOffset,
-        cmd: bool,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        if let Some(hovered_file_path) = &self.hovered_file_path
-            && hovered_file_path.range.start <= offset
-            && offset <= hovered_file_path.range.end
-        {
-            // In read-only comment chips (Selectable), open the file directly
-            // on click instead of showing a tooltip.
-            if cmd || matches!(self.interaction_state(ctx), InteractionState::Selectable) {
-                ctx.emit(EditorViewEvent::OpenFile {
-                    path: hovered_file_path.path.clone(),
-                    line_and_column_num: hovered_file_path.line_and_column_num,
-                    force_open_in_warp: false,
-                });
-            } else {
-                self.open_file_path = Some(hovered_file_path.clone());
-                ctx.notify();
-            }
-            return true;
-        }
-        false
     }
 
     // If there is a link at the given offset, open the link. Otherwise do nothing.
@@ -2091,12 +2004,7 @@ impl RichTextEditorView {
         }
     }
 
-    fn block_hovered(
-        &mut self,
-        block_start: Option<CharOffset>,
-        char_offset: Option<CharOffset>,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn block_hovered(&mut self, block_start: Option<CharOffset>, ctx: &mut ViewContext<Self>) {
         if matches!(
             self.insertion_menu_state.open_at_source,
             Some(BlockInsertionSource::BlockInsertionButton)
@@ -2111,87 +2019,6 @@ impl RichTextEditorView {
             self.hovered_block = block_start;
             ctx.notify();
         }
-
-        let Some(char_offset) = char_offset else {
-            self.hovered_file_path = None;
-            return;
-        };
-
-        // Early return if char_offset is already on the hovered file path
-        if let Some(hovered) = &self.hovered_file_path
-            && hovered.range.start <= char_offset
-            && char_offset <= hovered.range.end
-        {
-            return;
-        }
-
-        self.hovered_file_path = None;
-
-        {
-            // Check for file paths at the hovered word, expanding to include the previous word
-            // to detect line ranges like "file.rs (16-30)" when hovering over "(16-30)"
-            let buffer = self.model.as_ref(ctx).content().as_ref(ctx);
-            let Some(current_word_range) = get_word_range_at_offset(
-                buffer,
-                char_offset,
-                Some(WordBoundariesPolicy::OnlyWhitespace),
-            ) else {
-                return;
-            };
-            let Some(file_link_resolution_context) =
-                self.model.as_ref(ctx).file_link_resolution_context()
-            else {
-                return;
-            };
-
-            // Get the previous word to include in our search context
-            // This allows us to detect "file.rs (16-30)" when hovering over "(16-30)"
-            let search_start = if current_word_range.start > CharOffset::from(1) {
-                // Try to get the word before the current word. Skip over expected space
-                let before_current = current_word_range.start - CharOffset::from(2);
-                get_word_range_at_offset(
-                    buffer,
-                    before_current,
-                    Some(WordBoundariesPolicy::OnlyWhitespace),
-                )
-                .map(|range| range.start)
-                .unwrap_or(current_word_range.start)
-            } else {
-                current_word_range.start
-            };
-
-            // Create expanded context range from previous word start to current word end
-            let context_range = search_start..current_word_range.end;
-
-            // Detect ALL file paths in the context (including line ranges)
-            let detected_links = detect_file_paths(
-                &file_link_resolution_context.working_directory,
-                buffer.text_in_range(context_range.clone()).as_str(),
-                file_link_resolution_context.shell_launch_data.as_ref(),
-            );
-
-            // Find which detected link (if any) contains the hovered char_offset
-            for (link_range, link_type) in detected_links {
-                // Adjust link_range which is relative to context_range to absolute buffer offsets
-                let absolute_range = search_start + CharOffset::from(link_range.start)
-                    ..search_start + CharOffset::from(link_range.end);
-                if absolute_range.contains(&char_offset)
-                    && let DetectedLinkType::FilePath {
-                        absolute_path,
-                        line_and_column_num,
-                    } = link_type
-                {
-                    self.hovered_file_path = Some(SelectedFilePath {
-                        range: absolute_range,
-                        path: absolute_path,
-                        line_and_column_num,
-                    });
-                    break;
-                }
-            }
-        }
-
-        ctx.notify();
     }
 
     /// Run the currently-selected command blocks.
@@ -2441,70 +2268,6 @@ impl RichTextEditorView {
         )
     }
 
-    /// Render tooltip shown when user hovers over a file path in the notebook.
-    fn render_file_path_tooltip(
-        &self,
-        selected_file_path: &SelectedFilePath,
-        appearance: &Appearance,
-        ctx: &AppContext,
-    ) -> Box<dyn Element> {
-        use warpui::EventContext;
-        type FilePathTooltipLinks = Vec<TooltipLink<Box<dyn Fn(&mut EventContext)>>>;
-
-        let path = selected_file_path.path.clone();
-        let line_and_column_num = selected_file_path.line_and_column_num;
-        let primary_text = if path.is_dir() {
-            "Open folder"
-        } else {
-            "Open file"
-        }
-        .to_string();
-        let show_open_in_warp = should_show_open_in_warp_link(&path, ctx);
-        let path_for_primary = path.clone();
-        let modifier = directly_open_link_keybinding_string();
-
-        let mut links: FilePathTooltipLinks = vec![TooltipLink {
-            text: primary_text,
-            on_click: Box::new(move |ctx: &mut EventContext| {
-                ctx.dispatch_typed_action(EditorViewAction::OpenFile {
-                    path: path_for_primary.clone(),
-                    line_and_column_num,
-                    force_open_in_warp: false,
-                });
-            }),
-            detail: Some(format!("[{modifier} Click]")),
-            mouse_state: self.file_path_mouse_states.open_file_handle.clone(),
-        }];
-
-        if show_open_in_warp {
-            let path_for_warp = path.clone();
-            links.push(TooltipLink {
-                text: "Open in Warp".to_string(),
-                on_click: Box::new(move |ctx: &mut EventContext| {
-                    ctx.dispatch_typed_action(EditorViewAction::OpenFile {
-                        path: path_for_warp.clone(),
-                        line_and_column_num,
-                        force_open_in_warp: true,
-                    });
-                }),
-                detail: None,
-                mouse_state: self.file_path_mouse_states.open_in_warp_handle.clone(),
-            });
-        }
-
-        let tooltip_content = render_tooltip(links, TooltipRedaction::NoRedaction, appearance);
-
-        let hoverable = Hoverable::new(Default::default(), move |_| tooltip_content)
-            .with_cursor(Cursor::PointingHand)
-            .finish();
-
-        Dismiss::new(hoverable)
-            .on_dismiss(|ctx, _app| {
-                ctx.dispatch_typed_action(EditorViewAction::DismissOpenLink);
-            })
-            .finish()
-    }
-
     /// Refresh all render-time decorations.
     ///
     /// Currently, we only decorate search results, but there may be more in the future (like
@@ -2631,11 +2394,6 @@ impl View for RichTextEditorView {
                 ChildView::new(&self.omnibar).finish(),
                 Omnibar::positioning(render_state.as_ref(app)),
             );
-        } else if let Some(selected_file_path) = &self.open_file_path {
-            stack.add_positioned_overlay_child(
-                self.render_file_path_tooltip(selected_file_path, appearance, app),
-                RichTextEditorView::link_tooltip_positioning(render_state.as_ref(app)),
-            )
         } else if let Some(link) = self.open_link.as_ref() {
             stack.add_positioned_overlay_child(
                 self.render_link_tooltip(link, appearance, app),
@@ -2747,7 +2505,6 @@ impl TypedActionView for RichTextEditorView {
             ),
             DismissOpenLink => {
                 self.open_link = None;
-                self.open_file_path = None;
                 ctx.notify();
             }
             CopyLink => {
@@ -2906,10 +2663,7 @@ impl TypedActionView for RichTextEditorView {
             }
             SelectionEnd => self.selection_end(ctx),
             SelectBlock { block_start } => self.select_block(*block_start, ctx),
-            BlockHovered {
-                block_start,
-                char_offset,
-            } => self.block_hovered(*block_start, *char_offset, ctx),
+            BlockHovered { block_start } => self.block_hovered(*block_start, ctx),
             ShowCharacterPalette => ctx.open_character_palette(),
             ShowFindBar => self.find_bar.show(ctx),
             Focus => self.focus(ctx),
@@ -2995,17 +2749,6 @@ impl TypedActionView for RichTextEditorView {
             MiddleClickPaste => self.middle_click_paste(ctx),
             OpenMermaidDiagramLightbox { block_start } => {
                 self.open_mermaid_lightbox(*block_start, ctx);
-            }
-            OpenFile {
-                path,
-                line_and_column_num,
-                force_open_in_warp,
-            } => {
-                ctx.emit(EditorViewEvent::OpenFile {
-                    path: path.clone(),
-                    line_and_column_num: *line_and_column_num,
-                    force_open_in_warp: *force_open_in_warp,
-                });
             }
         }
 
@@ -3226,7 +2969,6 @@ impl TypedActionView for RichTextEditorView {
             | EditorViewAction::EditWorkflow(_)
             | EditorViewAction::RunWorkflow(_)
             | EditorViewAction::RemoveEmbeddingAt(_)
-            | EditorViewAction::OpenFile { .. }
             | EditorViewAction::MermaidDisplayModeSelected { .. }
             | EditorViewAction::OpenMermaidDiagramLightbox { .. }
             | EditorViewAction::VimUserTyped(_) => ActionAccessibilityContent::Empty,
@@ -3265,32 +3007,7 @@ impl warp_editor::editor::EditorView for RichTextEditorView {
         _buffer_version: Option<BufferVersion>,
         _ctx: &'a AppContext,
     ) -> TextDecoration<'a> {
-        use rangemap::RangeMap;
-
-        let mut override_color_map = RangeMap::new();
-        let mut underline_map = RangeMap::new();
-
-        if let Some(hovered_file_path) = &self.hovered_file_path {
-            // Convert content model offsets to render model offsets (CLD-558)
-            let render_range =
-                (hovered_file_path.range.start - 1)..(hovered_file_path.range.end - 1);
-            override_color_map.insert(render_range.clone(), *URL_COLOR);
-            underline_map.insert(render_range, *URL_COLOR);
-        }
-
-        TextDecoration {
-            base_color_map: None,
-            override_color_map: if override_color_map.is_empty() {
-                None
-            } else {
-                Some(override_color_map)
-            },
-            underline_range: if underline_map.is_empty() {
-                None
-            } else {
-                Some(underline_map)
-            },
-        }
+        TextDecoration::default()
     }
 }
 
@@ -3474,25 +3191,9 @@ impl RichTextAction<RichTextEditorView> for EditorViewAction {
         _is_covered: bool,
         _ctx: &AppContext,
     ) -> Option<Self> {
-        let char_offset = location.as_ref().and_then(|loc| {
-            if let Location::Text {
-                char_offset,
-                clamped,
-                ..
-            } = loc
-            {
-                if !clamped { Some(*char_offset) } else { None }
-            } else {
-                None
-            }
-        });
-
         let block_start = location.map(|location| location.block_start());
 
-        Some(EditorViewAction::BlockHovered {
-            char_offset,
-            block_start,
-        })
+        Some(EditorViewAction::BlockHovered { block_start })
     }
 
     fn task_list_clicked(

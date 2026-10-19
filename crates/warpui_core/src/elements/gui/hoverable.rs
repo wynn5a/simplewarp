@@ -45,14 +45,11 @@ pub struct Hoverable {
     double_click_handler: Option<ClickHandler>,
     middle_click_handler: Option<ClickHandler>,
     right_click_handler: Option<ClickHandler>,
-    forward_click_handler: Option<ClickHandler>,
-    back_click_handler: Option<ClickHandler>,
     disabled: bool,
     hover_in_delay: Option<Duration>,
     hover_out_delay: Option<Duration>,
     skip_synthetic_hover_out: bool,
     hover_cursor: Option<Cursor>,
-    reset_cursor_after_click: bool,
     // This is a short-term solution for properly handling events on stacks. A stack will always
     // put its children on higher z-indexes than its origin, so a hit test using the standard
     // `z_index` method would always result in the event being covered (by the children of the
@@ -214,13 +211,10 @@ impl Hoverable {
             double_click_handler: None,
             middle_click_handler: None,
             right_click_handler: None,
-            forward_click_handler: None,
-            back_click_handler: None,
             hover_in_delay: None,
             hover_out_delay: None,
             skip_synthetic_hover_out: false,
             hover_cursor: None,
-            reset_cursor_after_click: false,
             disabled: false,
             child_max_z_index: None,
             suppress_drag: true,
@@ -619,20 +613,6 @@ impl Element for Hoverable {
                     return true;
                 }
             }
-            Event::BackMouseDown { position, .. } => {
-                if let Some(handler) = self.back_click_handler.as_mut() {
-                    handler(ctx, app, *position);
-                    ctx.notify();
-                    return true;
-                }
-            }
-            Event::ForwardMouseDown { position, .. } => {
-                if let Some(handler) = self.forward_click_handler.as_mut() {
-                    handler(ctx, app, *position);
-                    ctx.notify();
-                    return true;
-                }
-            }
             Event::RightMouseDown { position, .. } => {
                 if let Some(handler) = self.right_click_handler.as_mut() {
                     handler(ctx, app, *position);
@@ -682,10 +662,6 @@ impl Element for Hoverable {
                 // If the event occurs outside the element, don't handle it.
                 if !self.is_mouse_over_element(ctx, *position) {
                     return handled;
-                }
-
-                if self.reset_cursor_after_click {
-                    ctx.reset_cursor();
                 }
 
                 // The double-clicked handler takes precendence. However, we should still fall back to the single-click handler

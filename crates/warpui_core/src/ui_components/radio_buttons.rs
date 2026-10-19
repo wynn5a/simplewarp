@@ -123,15 +123,12 @@ struct RadioButtonRenderer {
     button_vertical_offset: Option<f32>,
     change_handler: Option<Rc<OnChangeFn>>,
     supports_unselected_state: bool,
-    button_diameter_override: Option<f32>,
 }
 
 impl RadioButtonRenderer {
     fn render_selection_circle(&self, selected: bool, is_disabled: bool) -> Box<dyn Element> {
         let mut stack = Stack::new();
-        let diameter = self
-            .button_diameter_override
-            .unwrap_or(RADIO_BUTTON_DIAMETER);
+        let diameter = RADIO_BUTTON_DIAMETER;
 
         let mut outer_circle_rect =
             Rect::new().with_corner_radius(CornerRadius::with_all(Radius::Percentage(50.)));
@@ -398,7 +395,6 @@ impl<'a> RadioButtons<'a> {
                 button_vertical_offset: None,
                 change_handler: None,
                 supports_unselected_state: false,
-                button_diameter_override: None,
             },
         }
     }

@@ -12,7 +12,6 @@ use crate::{AppContext, AssetProvider};
 pub struct App {
     callbacks: platform::app::AppCallbacks,
     assets: Box<dyn AssetProvider>,
-    query_microphone_access: bool,
 }
 
 impl App {
@@ -24,28 +23,20 @@ impl App {
         // Other platforms use the test_driver parameter to enable an alternative platform delegate implementation
         // in integration tests - that doesn't apply here.
         let _ = test_driver;
-        Self {
-            callbacks,
-            assets,
-            query_microphone_access: false,
-        }
+        Self { callbacks, assets }
     }
 
     pub(in crate::platform) fn run(
         self,
         init_fn: impl FnOnce(&mut AppContext, LocalBoxFuture<'static, crate::App>) + 'static,
     ) -> TerminationResult {
-        let App {
-            callbacks,
-            assets,
-            query_microphone_access,
-        } = self;
+        let App { callbacks, assets } = self;
 
         // Mark this thread as the main thread for DispatchDelegate checks.
         delegate::mark_current_thread_as_main();
         let (sender, receiver) = event_loop::channel();
 
-        let platform_delegate = Box::new(AppDelegate::new(sender.clone(), query_microphone_access));
+        let platform_delegate = Box::new(AppDelegate::new(sender.clone()));
         let window_manager = Box::new(WindowManager::new(sender.clone()));
         // Reuse the testing FontDB implementation, as no font features are needed in headless mode.
         let font_db: Box<dyn platform::FontDB> = Box::new(TestFontDB::new());

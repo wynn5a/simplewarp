@@ -2,29 +2,12 @@ use std::mem::ManuallyDrop;
 use std::sync::{Arc, OnceLock};
 use std::thread;
 
-#[cfg(target_os = "macos")]
-use objc2_av_foundation::{AVAuthorizationStatus, AVCaptureDevice, AVMediaTypeAudio};
 use parking_lot::Mutex;
 
 use super::event_loop::{AppEvent, EventSender};
 use crate::clipboard::InMemoryClipboard;
 use crate::notification::{NotificationSendError, RequestPermissionsOutcome};
 use crate::platform::{self, Cursor};
-
-#[cfg(target_os = "macos")]
-fn macos_microphone_access_state() -> platform::MicrophoneAccessState {
-    let media_type = unsafe { AVMediaTypeAudio };
-    let Some(media_type) = media_type else {
-        return platform::MicrophoneAccessState::NotDetermined;
-    };
-    let status = unsafe { AVCaptureDevice::authorizationStatusForMediaType(media_type) };
-    match status {
-        AVAuthorizationStatus::Restricted => platform::MicrophoneAccessState::Restricted,
-        AVAuthorizationStatus::Denied => platform::MicrophoneAccessState::Denied,
-        AVAuthorizationStatus::Authorized => platform::MicrophoneAccessState::Authorized,
-        _ => platform::MicrophoneAccessState::NotDetermined,
-    }
-}
 
 /// Stores the ID of the application's main thread, which we can reference
 /// to determine if a given thread is the main thread or not.
@@ -43,16 +26,14 @@ pub struct AppDelegate {
     clipboard: InMemoryClipboard,
     cursor_shape: Mutex<Cursor>,
     event_sender: EventSender,
-    query_microphone_access: bool,
 }
 
 impl AppDelegate {
-    pub(super) fn new(event_sender: EventSender, query_microphone_access: bool) -> Self {
+    pub(super) fn new(event_sender: EventSender) -> Self {
         Self {
             clipboard: InMemoryClipboard::default(),
             cursor_shape: Mutex::new(Cursor::Arrow),
             event_sender,
-            query_microphone_access,
         }
     }
 
@@ -201,17 +182,7 @@ impl platform::Delegate for AppDelegate {
     }
 
     fn microphone_access_state(&self) -> platform::MicrophoneAccessState {
-        if !self.query_microphone_access {
-            return platform::MicrophoneAccessState::Denied;
-        }
-        #[cfg(target_os = "macos")]
-        {
-            macos_microphone_access_state()
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            platform::MicrophoneAccessState::Authorized
-        }
+        platform::MicrophoneAccessState::Denied
     }
 
     fn is_headless(&self) -> bool {

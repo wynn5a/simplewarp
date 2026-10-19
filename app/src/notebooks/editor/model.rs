@@ -49,7 +49,6 @@ use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::editor::InteractionState;
 use crate::notebooks::editor::interaction_state_model::InteractionStateModelEvent;
 use crate::notebooks::file::MarkdownDisplayMode;
-use crate::terminal::ShellLaunchData;
 
 const DEBOUNCED_RESIZE_PERIOD: Duration = Duration::from_millis(5);
 
@@ -100,21 +99,10 @@ pub struct NotebooksEditorModel {
     active_text_style: TextStyles,
     active_block_type: BlockType,
     interaction_state: ModelHandle<InteractionStateModel>,
-    rte_window_id: Option<WindowId>, // Needed for rendering any subviews from the model directly. Set when pane is attached.
+    rte_window_id: WindowId, // Needed for rendering any subviews from the model directly.
     /// Channel for debounced viewport resizing.
     resize_tx: async_channel::Sender<()>,
-    /// Context used to generate clickable file path links for notebooks.
-    file_link_resolution_context: Option<FileLinkResolutionContext>,
     default_mermaid_display_mode: MarkdownDisplayMode,
-}
-
-#[derive(Clone)]
-/// Context used to generate clickable file path links for notebooks.
-pub struct FileLinkResolutionContext {
-    /// The working directory of the session that the editor is associated with.
-    pub working_directory: String,
-    /// The shell launch data of the session that the editor is associated with.
-    pub shell_launch_data: Option<ShellLaunchData>,
 }
 
 #[derive(PartialEq)]
@@ -158,12 +146,12 @@ impl NotebooksEditorModel {
         rte_window_id: WindowId,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        Self::new_internal(text_styles, Some(rte_window_id), ctx)
+        Self::new_internal(text_styles, rte_window_id, ctx)
     }
 
     fn new_internal(
         text_styles: RichTextStyles,
-        rte_window_id: Option<WindowId>,
+        rte_window_id: WindowId,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
         let content = ctx.add_model(|_| {
@@ -219,7 +207,6 @@ impl NotebooksEditorModel {
             interaction_state,
             rte_window_id,
             resize_tx,
-            file_link_resolution_context: None,
             default_mermaid_display_mode: MarkdownDisplayMode::Raw,
         }
     }
@@ -245,12 +232,6 @@ impl NotebooksEditorModel {
             .update(ctx, |interaction_state, ctx| {
                 interaction_state.set_interaction_state(new_state, ctx)
             });
-    }
-
-    /// Get the context for the session and working directory associated with this editor, if any.
-    /// Used to generate clickable file path links.
-    pub fn file_link_resolution_context(&self) -> Option<&FileLinkResolutionContext> {
-        self.file_link_resolution_context.as_ref()
     }
 
     pub fn set_default_mermaid_display_mode(
@@ -304,11 +285,8 @@ impl NotebooksEditorModel {
         event: &RenderEvent,
         ctx: &mut ModelContext<Self>,
     ) {
-        // Ignore render events until bound to a real window, and when the window is closed.
-        let Some(window_id) = self.rte_window_id else {
-            return;
-        };
-        if !ctx.is_window_open(window_id) {
+        // Ignore render events when the window is closed.
+        if !ctx.is_window_open(self.rte_window_id) {
             log::debug!("Ignoring render event for closed window");
             return;
         }
@@ -323,7 +301,7 @@ impl NotebooksEditorModel {
                     self.interaction_state.clone(),
                     self.content.clone(),
                     self.selection_model.clone(),
-                    window_id,
+                    self.rte_window_id,
                     self.default_mermaid_display_mode,
                     ctx,
                 );
@@ -397,9 +375,7 @@ impl NotebooksEditorModel {
     }
 
     fn handle_content_model_event(&mut self, event: &BufferEvent, ctx: &mut ModelContext<Self>) {
-        if let Some(window_id) = self.rte_window_id
-            && !ctx.is_window_open(window_id)
-        {
+        if !ctx.is_window_open(self.rte_window_id) {
             log::debug!("Ignoring content event for closed window");
             return;
         }
@@ -469,11 +445,8 @@ impl NotebooksEditorModel {
     }
 
     fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ModelContext<Self>) {
-        // Ignore cloud events until bound to a real window, and when the window is closed.
-        let Some(window_id) = self.rte_window_id else {
-            return;
-        };
-        if !ctx.is_window_open(window_id) {
+        // Ignore cloud events when the window is closed.
+        if !ctx.is_window_open(self.rte_window_id) {
             return;
         }
         match event {

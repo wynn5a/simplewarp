@@ -315,7 +315,6 @@ pub struct ToastLink<A: Action + Clone> {
     text: String,
     href: Option<String>,
     action: Option<A>,
-    keystroke: Option<Keystroke>,
     mouse_hover_state: MouseStateHandle,
 }
 
@@ -325,7 +324,6 @@ impl<A: Action + Clone> ToastLink<A> {
             text,
             href: None,
             action: None,
-            keystroke: None,
             mouse_hover_state: Default::default(),
         }
     }
@@ -366,14 +364,6 @@ impl<A: Action + Clone> ToastLink<A> {
                 .build()
                 .finish(),
         );
-
-        if let Some(keystroke) = &self.keystroke {
-            row.add_child(
-                Container::new(ui_builder.keyboard_shortcut(keystroke).build().finish())
-                    .with_margin_left(4.)
-                    .finish(),
-            );
-        }
 
         row.finish()
     }

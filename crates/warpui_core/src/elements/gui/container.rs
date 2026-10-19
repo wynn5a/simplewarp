@@ -291,8 +291,7 @@ impl Element for Container {
         self.origin = Some(Point::from_vec2f(origin, ctx.scene.z_index()));
         let size = self.size.unwrap() - self.margin_size()
             + vec2f(self.overdraw.right, self.overdraw.bottom);
-        let origin = origin + vec2f(self.margin.left, self.margin.top)
-            - vec2f(self.overdraw.left, self.overdraw.top);
+        let origin = origin + vec2f(self.margin.left, self.margin.top - self.overdraw.top);
 
         #[cfg(debug_assertions)]
         ctx.scene
@@ -308,9 +307,8 @@ impl Element for Container {
             rect.with_drop_shadow(drop_shadow);
         }
 
-        let mut child_origin = origin
-            + vec2f(self.overdraw.left, self.overdraw.top)
-            + vec2f(self.padding.left, self.padding.top);
+        let mut child_origin =
+            origin + vec2f(self.padding.left, self.padding.top + self.overdraw.top);
         if self.border.left {
             child_origin.set_x(child_origin.x() + self.border.width);
         }

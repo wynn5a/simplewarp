@@ -93,7 +93,7 @@ fn test_compound_command() {
 #[test]
 fn test_single_code_file() {
     let result = async_io::block_on(check_openable_in_warp(
-        "cat app/src/bin/oss.rs".to_string(),
+        "cat app/src/bin/simplewarp.rs".to_string(),
         Some(workspace_root().to_string_lossy().to_string()),
         TopLevelCommandCaseSensitivity::CaseInsensitive,
         EscapeChar::Backslash,
@@ -101,7 +101,7 @@ fn test_single_code_file() {
     assert_eq!(
         result,
         Some(OpenablePath {
-            path: workspace_root().join("app/src/bin/oss.rs"),
+            path: workspace_root().join("app/src/bin/simplewarp.rs"),
             file_type: OpenableFileType::Code,
         })
     );
