@@ -326,3 +326,7 @@ recorded evidence for staying. Commits, all on master:
 Still intentionally kept (evidence recorded above): `SkipUndoRedoRecord`, `background_executor`
 annotation, `SizeConstraintCondition` single-variant enum shape, the vendored-file doc comment on
 SSE. P4-9 closed except `wayne5a-progress.md` (user's personal log, untouched by decision).
+
+Post-P4b survey (2026-10-19): see `plan-p4c.md` — crates-side fixpoint candidates, a fresh
+`allow(dead_code)` triage, and the residue items (`release_bundle`/`standalone`, orphan script
+pair, machete rows). Survey only; no code changed.
