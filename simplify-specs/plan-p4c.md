@@ -242,6 +242,7 @@ provably gone.
 | P4c-3 | `app/src` (incl. the unregistered integration test) + cascade checks | 22 / ~247L |
 | P4c-4 | `allow(dead_code)` fixpoint: annotations out, compiler classifies, dead items cut | ~55 plain sites |
 | P4c-5 | Decisions applied: `release_bundle`/`standalone`, script+svg, `MenuItemFields.timestamp`, winit clipboard/font items, `C0`, `CommentButton`, `PaneBranch`/`PaneNode` | user rulings |
+| P4c-6 | HEAD red spots (2) + the always-None follow-ups recorded by P4c-1..P4c-3 (8 sites) | 20 files, +104/−635 |
 
 Per round: `./script/format`, the three presubmit clippy gates (`-p warp`, workspace excl.
 `warp_completer`, `-p warp_completer`), `cargo nextest run --workspace`; for gated items also
@@ -310,7 +311,8 @@ Kept with evidence:
   field cascade applies.
 
 New always-None follow-ups (fields whose only setter was deleted; compiler-invisible because the fields
-are still read). Behavior-preserving cuts for a later round — not taken here:
+are still read). Behavior-preserving cuts for a later round — not taken here, but all seven bullets
+(eight fields) were cut by P4c-6:
 
 - `event_handler` `mouse_out` (the two `dispatch_callback` reads in `MouseMoved`/`LeftMouseDragged`).
 - `hoverable` `back_click_handler`/`forward_click_handler` (`BackMouseDown`/`ForwardMouseDown` arms),
@@ -365,7 +367,7 @@ New always-None follow-ups (compiler-invisible because the fields are still read
 - `headless/delegate.rs` `query_microphone_access` is now only ever `false` (its only setter was
   the deleted `enable_microphone_access_query`), so `microphone_access_state` always returns
   `Denied` and its macOS query branch is unreachable; the ctor parameter (`app.rs:48`) can drop
-  with it. Behavior-preserving cut for a later round.
+  with it. Behavior-preserving cut for a later round — cut by P4c-6.
 
 Verification: `./script/format --check`, the three presubmit clippy gates (all `-D warnings`),
 `cargo check -p warp --features integration_tests --all-targets`, `cargo check --workspace
@@ -400,7 +402,7 @@ Direct orphan cut in the same commit: `notebooks/editor/model.rs` `set_window_id
 its only mention was the doc comment of the deleted `new_unbound`.
 
 New always-None/always-Some follow-ups (compiler-invisible because the fields are still read;
-behavior-preserving cuts for a later round — not taken here):
+behavior-preserving cuts for a later round — not taken here, but all four bullets were cut by P4c-6):
 
 - `notebooks/editor/model.rs` `file_link_resolution_context`: the deleted setter was the only writer, so
   the getter used by `notebooks/editor/view.rs:2141` always returns `None` and the file-path hover
@@ -410,7 +412,8 @@ behavior-preserving cuts for a later round — not taken here):
   guards at ~`:308/:400/:473` are vestigial.
 - `terminal/event_listener/testing.rs` `pty_bytes_read_tx` builder field: always `None` now; `build()`
   falls back to `async_broadcast::broadcast(1)`.
-- `view_components/dismissible_toast.rs` `DismissibleToastText.keystroke`: the deleted `with_keystroke`
+- `view_components/dismissible_toast.rs` `ToastLink.keystroke` (recorded as `DismissibleToastText.keystroke`
+  here at the time; no such type exists): the deleted `with_keystroke`
   was the only setter; the render helper at ~`:380` is never taken.
 
 Verification: `./script/format --check`, the three presubmit clippy gates (all `-D warnings`),
@@ -499,4 +502,118 @@ isolation on this diff, 1/1 in ~5.7 s). `./script/check_no_inline_test_modules` 
 for the two P4c-1 reasons (local `.cargo-home/` vendored registry, `app/src/features.rs:307`).
 
 Committed on master as `c39c316a8` (code, 23 files) plus this log entry; not pushed.
+
+### P4c-6 — HEAD red spots (2) + the always-None follow-ups from P4c-1..P4c-3 (8 sites)
+
+Both red spots were re-verified red at HEAD (`3013cf3f7`) before being fixed, and both now pass.
+
+Red spot 1 — `warp::terminal::view::open_in_warp::tests::test_single_code_file` referenced
+`app/src/bin/oss.rs`, deleted by `9b875bd3d` ("Remove the warp-oss profile"). Retargeted the command
+string and the expected path to `app/src/bin/simplewarp.rs`; that test passes again and the whole
+`open_in_warp` module runs 8/8 (`test_nonexistent_code_file` and the other six were already green).
+
+Red spot 2 — `app/src/features.rs` ended in an inline `#[cfg(test)] mod tests`, the one site
+`./script/check_no_inline_test_modules` still flagged at HEAD. Moved both tests (`jupyter_notebook_rendering_is_compiled_into_the_build`,
+`simplewarp_enables_the_local_feature_set`) verbatim into the new `app/src/features_tests.rs`, with the
+two per-test `use super::*;` statements replaced by one at the top of the file; `features.rs` now ends
+with the `#[path = "features_tests.rs"] mod tests;` convention.
+
+Red spot 3 (found while clearing red spot 2) — the check script pruned only `./.git` and `./target`, so
+the local `.cargo-home/` vendored registry (its own `registry/src/index.crates.io-…/` trees contain
+upstream inline test modules) produced hits the repo cannot fix. Added `-o -path './.cargo-home'` to the
+prune list; `.cargo-home` is in `.git/info/exclude`, so CI never saw it. The script now exits 0.
+
+Always-None cuts. Every site is a field the compiler could not flag because it is still read, whose only
+writer was deleted in P4c-1..P4c-3; each was re-grepped for writers at HEAD (`3013cf3f7`) before the cut,
+and each read site was resolved rather than stubbed. No behavior changes: the removed branches were
+unreachable, and every folded expression is the identity under the cut field's constant value.
+
+- `warpui_core/elements/gui/event_handler.rs` `mouse_out` — P4c-1 deleted its only setter
+  (`on_mouse_out`), so both `dispatch_callback(self.mouse_out.as_ref(), …)` reads (the `MouseMoved` and
+  `LeftMouseDragged` arms) always returned `false`; the two arms now fall through as they already did.
+- `warpui_core/elements/gui/hoverable.rs` `back_click_handler`/`forward_click_handler` — same pattern
+  (`on_back_click`/`on_forward_click` deleted by P4c-1); the `BackMouseDown`/`ForwardMouseDown` arms of
+  `handle_event` are gone. `reset_cursor_after_click` (also setter-less since P4c-1) went with the
+  `LeftMouseUp` click path.
+- `warpui_core/elements/gui/mod.rs` `Overdraw.left` + `container.rs` math — `with_overdraw_left` was
+  deleted by P4c-1, so the bounding-rect and `child_origin` computations fold to the expressions now in
+  place (`margin.top - overdraw.top`, `padding.top + overdraw.top`). `top`/`bottom` stay live:
+  `with_vertical_overdraw`/`with_overdraw_bottom` have app callers
+  (`ai/blocklist/block/view_impl/header.rs:185`, `terminal/view/inline_banner/mod.rs:375`, …).
+- `warpui_core/elements/gui/clipped_scrollable.rs` `fill_min_main_axis` — its setter was P4c-1's cut.
+  The main-axis `min` widening it gated never applied, so the child constraint is now unconditionally
+  the `tight_on_cross_axis` one.
+- `warpui_core/elements/gui/new_scrollable/mod.rs` `remap_cross_axis_wheel_to_main_axis` — setter cut by
+  P4c-1; the whole cross-axis remap in the mousewheel branch collapses to `self.state.mousewheel(*delta, …)`.
+- `warpui_core/ui_components/slider.rs` `snap_values` (plus the snap-to-nearest-list path in
+  `snap_offset_and_value` and all five call sites) and `thumb_size`/`track_height`/`track_fill`/
+  `thumb_fill` — P4c-1 deleted the `with_snap_values`/`with_thumb_size`/`with_track_height`/
+  `with_track_fill`/`with_thumb_fill` builders, so the fields were pinned at the `DEFAULT_*` constants.
+  `SliderTrackConfig` carries only the range/step now, and `render_track`/`render_thumb` take just
+  `styles.width` / the hover state handle and read the constants directly; the stranded doc comment that
+  described `snap_values` precedence was removed with it. `Slider::with_step` and the saved-value
+  plumbing are untouched.
+- `warpui_core/ui_components/radio_buttons.rs` `button_diameter_override` — setter cut by P4c-1; the
+  diameter is `RADIO_BUTTON_DIAMETER` directly.
+- `warpui/platform/headless/delegate.rs` `query_microphone_access` + `crates/warpui/src/platform/headless/app.rs`'s
+  field/ctor argument — P4c-2 predicted this when it deleted `enable_microphone_access_query`; the flag
+  was only ever `false`, so `microphone_access_state` is now the constant `Denied`. With the flag gone the
+  macOS branch was unreachable, so `macos_microphone_access_state` and its objc2 imports
+  (`objc2_av_foundation::{AVAuthorizationStatus, AVCaptureDevice, AVMediaTypeAudio}`) went too.
+- `app/src/notebooks/editor/model.rs` `file_link_resolution_context` (field, the `FileLinkResolutionContext`
+  struct, the getter and the `ShellLaunchData` import) — the setter was deleted in P4c-3, so the getter
+  always returned `None`. That made the editor's whole file-path feature dead, and the cascade was cut in
+  full (its event consumers were explicit no-ops, e.g. "We don't support opening files from the notebook
+  view"): `view.rs` lost `SelectedFilePath`, `FilePathMouseStateHandles`, `MouseStateHandle`s and
+  `hovered_file_path`/`open_file_path` state, `maybe_open_file` (and its call in the link-click path,
+  which now falls straight through to `maybe_open_url`), `render_file_path_tooltip` plus its
+  overlay/`DismissOpenLink` branches, the file-path half of `block_hovered` (and therefore
+  `BlockHovered.char_offset`, the `char_offset` computation in `EditorViewAction`'s `mouse_hovered`, the
+  `get_word_range_at_offset`/`detect_file_paths`/`WordBoundariesPolicy` imports and the
+  `LineAndColumnArg`/`PathBuf` ones),
+  `EditorViewAction::OpenFile` (variant + handler + a11y arm) and `EditorViewEvent::OpenFile`, and
+  `text_decorations` is now `TextDecoration::default()` (its only content was the file-path underline and
+  `URL_COLOR` override). The `EditorViewEvent::OpenFile` arms in `file/mod.rs` and `notebook.rs` went with
+  the variant; the `comment_editor.rs`/`comment_list_view.rs` matches used a wildcard and needed nothing.
+  Re-grepped afterwards: `hovered_file_path`, `SelectedFilePath`, `FilePathMouseStateHandles`,
+  `file_link_resolution_context`, `FileLinkResolutionContext` and both `OpenFile` variants have 0 hits
+  repo-wide. The deleted tooltip helpers' other consumers are untouched —
+  `util::link_detection::detect_file_paths`/`get_word_range_at_offset`,
+  `util::tooltips::{render_tooltip, TooltipRedaction, should_show_open_in_warp_link}` and
+  `terminal/grid_renderer::URL_COLOR` all still have live callers (terminal tooltips, the code editor,
+  `notebooks/link.rs`).
+- `app/src/notebooks/editor/model.rs` `rte_window_id` — P4c-3 deleted `new_unbound`, the only `None`
+  writer, so the three `let Some(window_id) = … else` guards (`handle_render_event`,
+  `handle_cloud_model_event` and — as `if let` — `handle_content_model_event`) were dead and the field is
+  a plain `WindowId`. Their comments now describe only the closed-window check, which stays.
+- `app/src/terminal/event_listener/testing.rs` `pty_bytes_read_tx` — the builder field (and the `Arc`
+  import) went; `build()` now calls `async_broadcast::broadcast(1)` directly, as the `None` fallback did.
+- `app/src/view_components/dismissible_toast.rs` `ToastLink.keystroke` — setter deleted by P4c-3; the
+  keystroke render block (`ui_builder.keyboard_shortcut`) is gone with the field. `Keystroke` stays in
+  scope: `is_expand_toggle_keystroke` and the keydown handler use it. (The P4c-3 entry misnamed this
+  field `DismissibleToastText.keystroke`; no such type exists, so that entry was corrected in place.)
+
+Kept with evidence: `Overdraw.right` is equally setter-less, but it was already dead before P4c-1 (no
+`with_overdraw_right`/`with_horizontal_overdraw` ever existed), so it is a pre-existing dead path of the
+same class as the §5 keeps rather than a cascade of this plan; recorded as a new follow-up below.
+
+New follow-up found while cutting (not taken here):
+
+- `Overdraw.right` — see above; cutting it folds only the `size` computation's `x` term.
+
+Recorded while cutting (no action): the headless `microphone_access_state` is now `Denied`-only, but
+`platform::MicrophoneAccessState`'s other variants stay live — the mac delegate queries AVFoundation
+directly (`Authorized`/`Restricted`/`NotDetermined`) and the winit/test delegates return
+`NotDetermined`, so the enum is not a headless residue.
+
+Verification: `./script/format`, the three presubmit clippy gates (`--workspace --exclude warp_completer`,
+`-p warp`, `-p warp_completer`, all `-D warnings`), `cargo check -p warp --all-targets`,
+`cargo check -p warpui_core --all-targets`, `./script/check_no_inline_test_modules` (exit 0),
+`cargo test --doc`, and `cargo nextest run --no-fail-fast --workspace` (6340 run, 6339 passed, 1 failed,
+87 skipped — run twice, before and after the last `slider.rs` tidy-up, with the same single failure).
+That remaining failure is the pre-existing integration clone-slash-command flake under full-workspace
+parallel load, unchanged from P4c-1..P4c-4: it passes in isolation on this diff (1/1, ~6.0 s), and the
+previously-failing `test_single_code_file` is gone from the failure list (module 8/8 in isolation).
+
+Committed on master as `85b03cd38` (code, 20 files, +104/−635) plus this log entry; not pushed.
 
