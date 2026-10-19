@@ -7,10 +7,6 @@ license.workspace = true
 
 [features]
 integration_tests = []
-release_bundle = []
-# Enabled when building the self-contained standalone CLI binary (see the bundle
-# script). Keep in sync with the `app` crate's `standalone` feature.
-standalone = []
 test-util = ["warp_features/test-util"]
 
 [dependencies]

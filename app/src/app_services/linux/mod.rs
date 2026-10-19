@@ -5,7 +5,7 @@ use itertools::Itertools as _;
 use warp_errors::report_if_error;
 use warpui::r#async::executor::BackgroundTask;
 use warpui::{AppContext, SingletonEntity};
-use zbus::{interface, proxy, zvariant};
+use zbus::{interface, zvariant};
 
 use crate::channel::ChannelState;
 
@@ -19,79 +19,6 @@ pub fn teardown(ctx: &mut AppContext) {
     DBusServiceHost::handle(ctx).update(ctx, |service_host, _| {
         service_host.terminate();
     });
-}
-
-/// Attempts to forward startup arguments to an existing instance of the
-/// application.
-///
-/// Returns Ok if an existing instance exists and was reachable.
-#[cfg(feature = "release_bundle")]
-pub fn pass_startup_args_to_existing_instance(
-    args: &warp_cli::AppArgs,
-) -> Result<(), StartupArgsForwardingError> {
-    warpui::r#async::block_on(async {
-        let conn = zbus::Connection::session().await?;
-        let proxy = ExistingApplicationProxy::builder(&conn)
-            .destination(DBusServiceHost::well_known_name())?
-            .path(DBusServiceHost::application_service_path())?
-            .build()
-            .await?;
-        let mut open_new_url;
-        let mut url_refs = args.urls.iter().map(AsRef::as_ref).collect_vec();
-        // If there are no URLs on the command line, send one to open a new
-        // window using the same current working directory as this process.
-        if url_refs.is_empty() {
-            open_new_url = format!("{}://action/new_window", ChannelState::url_scheme());
-            if let Ok(current_dir) = std::env::current_dir() {
-                open_new_url.push_str(&format!("?path={}", current_dir.display()));
-            }
-            url_refs.push(&open_new_url);
-        }
-        proxy.open(&url_refs, HashMap::new()).await?;
-
-        // Make sure we close the connection and clean up resources, to avoid
-        // leaving behind file descriptors that will interfere with the terminal
-        // server spawn process.
-        let _ = conn.close().await;
-
-        Ok(())
-    })
-}
-
-#[derive(Debug, thiserror::Error)]
-#[cfg(feature = "release_bundle")]
-pub enum StartupArgsForwardingError {
-    /// There's no instance of Warp already running.
-    #[error("no existing instance found to forward args to")]
-    NoExistingInstance,
-    /// An unknown D-Bus error occurred.
-    #[error("unknown dbus error")]
-    Unknown(zbus::Error),
-}
-
-#[cfg(feature = "release_bundle")]
-impl From<zbus::fdo::Error> for StartupArgsForwardingError {
-    fn from(value: zbus::fdo::Error) -> Self {
-        // While ServiceUnknown usually means that D-Bus doesn't know how to
-        // _launch_ something to handle your message, in our case, we're not
-        // registering a service, so this really means that Warp is not already
-        // running.
-        if matches!(value, zbus::fdo::Error::ServiceUnknown(_)) {
-            StartupArgsForwardingError::NoExistingInstance
-        } else {
-            StartupArgsForwardingError::Unknown(zbus::Error::FDO(Box::new(value)))
-        }
-    }
-}
-
-#[cfg(feature = "release_bundle")]
-impl From<zbus::Error> for StartupArgsForwardingError {
-    fn from(value: zbus::Error) -> Self {
-        match value {
-            zbus::Error::FDO(err) => (*err).into(),
-            err => StartupArgsForwardingError::Unknown(err),
-        }
-    }
 }
 
 enum ApplicationServiceEvent {
@@ -140,31 +67,6 @@ impl ApplicationService {
         let _ = self.tx.send(ApplicationServiceEvent::Open { uris }).await;
         Ok(())
     }
-}
-
-// A D-Bus client for connecting to an already-running instance of Warp and
-// invoking org.freedesktop.Application IPC methods.
-#[proxy(
-    interface = "org.freedesktop.Application",
-    default_service = "dev.simplewarp.SimpleWarp",
-    default_path = "/dev/simplewarp/SimpleWarp",
-    gen_blocking = false
-)]
-trait ExistingApplication {
-    fn activate(&self, platform_data: HashMap<&str, zvariant::Value<'_>>) -> zbus::fdo::Result<()>;
-
-    fn activate_action(
-        &self,
-        action_name: &str,
-        parameter: &[zvariant::Value<'_>],
-        platform_data: HashMap<&str, zvariant::Value<'_>>,
-    ) -> zbus::fdo::Result<()>;
-
-    fn open(
-        &self,
-        uris: &[&str],
-        platform_data: HashMap<&str, zvariant::Value<'_>>,
-    ) -> zbus::fdo::Result<()>;
 }
 
 /// A singleton model that is responsible for hosting all D-Bus services

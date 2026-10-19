@@ -2,7 +2,6 @@ use std::cell::OnceCell;
 use std::sync::Arc;
 use std::{fmt, vec};
 
-use chrono::{DateTime, Local};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::{Vector2F, vec2f};
@@ -32,7 +31,6 @@ use crate::safe_triangle::SafeTriangle;
 use crate::themes::theme::Fill;
 use crate::ui_components::buttons::icon_button_with_color;
 use crate::ui_components::icons;
-use crate::util::time_format::format_approx_duration_from_now_sentence_case;
 
 pub const CHEVRON_RIGHT_ALIGN_SVG_PATH: &str = "bundled/svg/chevron-right-align.svg";
 
@@ -359,7 +357,6 @@ impl<A> RightSideIconConfig<A> {
 #[derive(Clone, Default)]
 pub struct MenuItemFields<A: Action + Clone> {
     element: MenuItemLabel,
-    timestamp: Option<DateTime<Local>>,
     on_select_action: Option<A>,
     key_shortcut_label: Option<String>,
     has_submenu: bool,
@@ -412,7 +409,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
     pub fn new<T: Into<String>>(label: T) -> Self {
         MenuItemFields {
             element: MenuItemLabel::Text(label.into()),
-            timestamp: None,
             on_select_action: None,
             key_shortcut_label: None,
             disabled: false,
@@ -442,7 +438,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
     pub fn new_submenu<T: Into<String>>(label: T) -> Self {
         MenuItemFields {
             element: MenuItemLabel::Text(label.into()),
-            timestamp: None,
             on_select_action: None,
             key_shortcut_label: None,
             disabled: false,
@@ -475,7 +470,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
                 primary_text: text.into(),
                 secondary_text: label.into(),
             },
-            timestamp: None,
             on_select_action: None,
             key_shortcut_label: None,
             disabled: false,
@@ -509,7 +503,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
                 color: icon_color,
                 alt_text: icon_label,
             },
-            timestamp: None,
             on_select_action: None,
             key_shortcut_label: None,
             disabled: false,
@@ -539,7 +532,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
     pub fn new_with_custom_label(builder: CustomMenuItemLabelFn, label: Option<String>) -> Self {
         MenuItemFields {
             element: MenuItemLabel::Custom { builder, label },
-            timestamp: None,
             on_select_action: None,
             key_shortcut_label: None,
             disabled: false,
@@ -584,7 +576,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
         on_select_action: Option<B>,
     ) -> MenuItemFields<B> {
         MenuItemFields {
-            timestamp: self.timestamp,
             on_select_action,
             element: self.element,
             key_shortcut_label: self.key_shortcut_label,
@@ -947,44 +938,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
         .finish()
     }
 
-    fn render_right_aligned_time_estimation(
-        &self,
-        timestamp: &DateTime<Local>,
-        font_family: FamilyId,
-        font_size: f32,
-        text_background_color: Fill,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
-        Shrinkable::new(
-            1.,
-            Align::new(self.render_time_estimation(
-                timestamp,
-                font_family,
-                font_size,
-                text_background_color,
-                appearance,
-            ))
-            .right()
-            .finish(),
-        )
-        .finish()
-    }
-
-    pub fn render_time_estimation(
-        &self,
-        timestamp: &DateTime<Local>,
-        font_family: FamilyId,
-        font_size: f32,
-        text_background_color: Fill,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
-        let theme = appearance.theme();
-        let est_time_ago = format_approx_duration_from_now_sentence_case(*timestamp);
-        Text::new_inline(est_time_ago, font_family, font_size)
-            .with_color(theme.sub_text_color(text_background_color).into())
-            .finish()
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn render(
         &self,
@@ -1091,22 +1044,13 @@ impl<A: Action + Clone> MenuItemFields<A> {
                     Some(right_label) => {
                         label_row.add_child(right_label);
                     }
-                    _ => match self.render_key_shortcut(appearance, secondary_color.into()) {
-                        Some(key_shortcut) => {
+                    _ => {
+                        if let Some(key_shortcut) =
+                            self.render_key_shortcut(appearance, secondary_color.into())
+                        {
                             label_row.add_child(key_shortcut);
                         }
-                        _ => {
-                            if let Some(timestamp) = &self.timestamp {
-                                label_row.add_child(self.render_right_aligned_time_estimation(
-                                    timestamp,
-                                    font_family,
-                                    font_size,
-                                    text_background_color,
-                                    appearance,
-                                ));
-                            }
-                        }
-                    },
+                    }
                 }
             }
 

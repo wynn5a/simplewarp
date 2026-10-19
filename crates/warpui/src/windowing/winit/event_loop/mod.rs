@@ -22,12 +22,10 @@ use winit::window::WindowId as WinitWindowId;
 
 use self::key_events::convert_keyboard_input_event;
 use super::CustomEvent;
-use super::app::ClipboardEvent;
 use super::window::DEFAULT_TITLEBAR_HEIGHT;
 #[cfg(windows)]
 use super::windows::{WindowsNetworkConnectionPoint, add_network_connection_listener};
 use crate::Event::{ClearMarkedText, SetMarkedText, TypedCharacters};
-use crate::actions::StandardAction;
 use crate::r#async::Timer;
 use crate::event::ModifiersState;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
@@ -709,9 +707,6 @@ impl EventLoop {
                     let window = downcast_window(window.as_ref());
                     window.stop_requesting_user_attention();
                 });
-            }
-            Event::UserEvent(CustomEvent::Clipboard(clipboard_event)) => {
-                self.handle_clipboard_event(clipboard_event);
             }
             Event::UserEvent(CustomEvent::SetCursorShape(cursor)) => {
                 self.ui_app.update(|ctx| {
@@ -1663,20 +1658,6 @@ impl EventLoop {
                 if let Some(ws) = self.state.windows.get_mut(&window_id) {
                     ws.momentum_scroll_abort = Some(abort_handle);
                 }
-            }
-        }
-    }
-
-    fn handle_clipboard_event(&mut self, clipboard_event: ClipboardEvent) {
-        let Some(active_window_id) = self.ui_app.read(|ctx| ctx.windows().active_window()) else {
-            return;
-        };
-
-        match clipboard_event {
-            #[allow(unused_variables)]
-            ClipboardEvent::Paste(content) => {
-                self.ui_app
-                    .dispatch_standard_action(active_window_id, StandardAction::Paste);
             }
         }
     }

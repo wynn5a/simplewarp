@@ -456,9 +456,9 @@ pub fn run() -> Result<()> {
         }
     }
 
-    // If running as a standalone CLI binary, print help instead of launching
-    // the GUI app.
-    let is_cli_binary = cfg!(feature = "standalone") || std::env::var_os("WARP_CLI_MODE").is_some();
+    // If the WARP_CLI_MODE env var is set, print help instead of launching the
+    // GUI app.
+    let is_cli_binary = std::env::var_os("WARP_CLI_MODE").is_some();
     if is_cli_binary {
         warp_cli::Args::clap_command().print_help()?;
         return Ok(());
@@ -577,49 +577,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     // any children we spawn (like the terminal server) inherit our adjusted
     // rlimits.
     resource_limits::adjust_resource_limits();
-
-    #[cfg(all(
-        feature = "release_bundle",
-        any(target_os = "linux", target_os = "freebsd")
-    ))]
-    if let LaunchMode::App { .. } = launch_mode {
-        match app_services::linux::pass_startup_args_to_existing_instance(
-            launch_mode.args().as_ref(),
-        ) {
-            // If we were able to contact an existing application instance, quit -
-            // we only want to run a single instance of Warp at a time.
-            Ok(_) => std::process::exit(0),
-            // If Warp isn't already running, we're good to go.
-            Err(app_services::linux::StartupArgsForwardingError::NoExistingInstance) => {}
-            // If we were unable to perform the forwarding for an unknown reason,
-            // it's better to run a second instance than potentially end up in a
-            // state where Warp refuses to run even a first instance.
-            Err(err) => {
-                let err = anyhow::Error::from(err).context("Failed to forward startup args");
-                report_error!(&err);
-            }
-        }
-    }
-
-    #[cfg(all(feature = "release_bundle", windows))]
-    if let LaunchMode::App { .. } = launch_mode {
-        match app_services::windows::pass_startup_args_to_existing_instance(
-            launch_mode.args().as_ref(),
-        ) {
-            // If we were able to contact an existing application instance, quit -
-            // we only want to run a single instance of Warp at a time.
-            Ok(_) => std::process::exit(0),
-            // If Warp isn't already running, we're good to go.
-            Err(app_services::windows::StartupArgsForwardingError::NoExistingInstance) => {}
-            // If we were unable to perform the forwarding for an unknown reason,
-            // it's better to run a second instance than potentially end up in a
-            // state where Warp refuses to run even a first instance.
-            Err(err) => {
-                let err = anyhow::Error::from(err).context("Failed to forward startup args");
-                report_error!(&err);
-            }
-        }
-    }
 
     // Sets up a Job Object that we associate with the Warp process to handle
     // shared fate with its child processes. This should be called before we

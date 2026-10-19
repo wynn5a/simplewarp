@@ -17,8 +17,6 @@ harness = false
 # binary. The shaders are written to the temp directory during initialization of
 # a renderer to enable this, which could slow opening of the first window.
 enable-metal-frame-capture = []
-# Enables the font-kit rasterizer on Windows.
-fontkit-rasterizer = []
 traces = ["warpui_core/traces"]
 # Feature enabled only when app is compiled for integration tests.
 integration_tests = ["warpui_core/integration_tests"]

@@ -123,10 +123,6 @@
             zlib
           ];
 
-          buildFeatures = [
-            "release_bundle"
-          ];
-
           simplewarp = rustPlatform.buildRustPackage {
             pname = "simplewarp";
             inherit version;
@@ -157,7 +153,6 @@
               "--bin"
               "generate_settings_schema"
             ];
-            inherit buildFeatures;
 
             # The application test suite is large and GUI/integration-heavy; this
             # flake's package check is the Nix build plus a launch smoke test.

@@ -365,10 +365,7 @@ pub fn app_group_container_path() -> Option<PathBuf> {
 ///
 /// ## macOS
 /// For the `.app` bundle, the resources directory is `$APP_DIR/Contents/Resources`
-/// (e.g. `/Applications/Warp.app/Contents/Resources`). For the standalone CLI build
-/// (compiled with the `standalone` feature) the binary is not inside a `.app` bundle,
-/// and its resources live in a sibling `resources` directory next to the binary
-/// (e.g. `$INSTALL_DIR/resources`), matching the Linux/Windows layout.
+/// (e.g. `/Applications/Warp.app/Contents/Resources`).
 ///
 /// ## Linux
 /// The resources directory is `$INSTALL_DIR/resources`, where `$INSTALL_DIR` depends on the
@@ -380,20 +377,10 @@ pub fn app_group_container_path() -> Option<PathBuf> {
 pub fn bundled_resources_dir() -> Option<PathBuf> {
     cfg_if::cfg_if! {
         if #[cfg(target_os = "macos")] {
-            if cfg!(feature = "standalone") {
-                // Standalone CLI build: the binary is not inside a `.app` bundle, so
-                // its resources live in a sibling `resources` directory next to the
-                // binary (matching the Linux/Windows layout).
-                std::env::current_exe()
-                    .ok()
-                    .and_then(|executable| std::fs::canonicalize(executable).ok())
-                    .and_then(|executable| executable.parent().map(|parent| parent.join("resources")))
-            } else {
-                // Regular `.app` bundle: resources live in `Contents/Resources`.
-                crate::macos::get_bundle_path()
-                    .ok()
-                    .map(|bundle_path| PathBuf::from(bundle_path).join("Contents").join("Resources"))
-            }
+            // Resources live in `Contents/Resources` inside the `.app` bundle.
+            crate::macos::get_bundle_path()
+                .ok()
+                .map(|bundle_path| PathBuf::from(bundle_path).join("Contents").join("Resources"))
         } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
             std::env::current_exe()
                 .ok()

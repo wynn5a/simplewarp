@@ -91,11 +91,6 @@ impl FontHandle {
     pub(super) fn into_data(self) -> FontData {
         self.data
     }
-
-    #[allow(dead_code)]
-    pub(super) fn data(&self) -> &FontData {
-        &self.data
-    }
 }
 
 impl From<OwnedFace> for FontHandle {

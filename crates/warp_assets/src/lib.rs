@@ -9,11 +9,6 @@ use warpui_core::AssetProvider;
 #[include = "bundled/**"] // Should be kept in sync with BUNDLED_ASSETS_DIR.
 #[include = "async/**"]
 // Should be kept in sync with ASYNC_ASSETS_DIR.
-// Excludes take precedence.
-// Standalone CLI builds (the `oz` tarball) are headless and never render the
-// onboarding/theme imagery in `async/`, so we exclude those bytes from the
-// embedded asset set to keep the CLI binary small.
-#[cfg_attr(feature = "standalone", exclude = "async/**")]
 pub struct Assets;
 
 impl AssetProvider for Assets {

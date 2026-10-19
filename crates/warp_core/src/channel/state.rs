@@ -60,10 +60,6 @@ impl ChannelState {
         *CHANNEL_STATE.lock() = state;
     }
 
-    pub fn is_release_bundle() -> bool {
-        cfg!(feature = "release_bundle")
-    }
-
     pub fn enable_debug_features() -> bool {
         cfg!(debug_assertions)
     }

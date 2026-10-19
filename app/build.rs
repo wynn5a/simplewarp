@@ -91,22 +91,6 @@ fn main() -> Result<()> {
             // Clean up the source plugin directory after copying
             fs::remove_dir_all(plugin_src).expect("Failed to clean up plugin directory");
         }
-
-        // In standalone mode, embed the Info.plist file. We don't use embed_plist! for this
-        // because the plist file is dynamically generated.
-        if env::var("CARGO_FEATURE_STANDALONE").is_ok() {
-            // Don't fail if INFO_PLIST_PATH is unset, since CI runs clippy with --all-features.
-            if let Ok(info_plist_path) = env::var("INFO_PLIST_PATH") {
-                println!("cargo:rerun-if-env-changed=INFO_PLIST_PATH");
-                println!("cargo:rerun-if-changed={info_plist_path}");
-                println!("cargo:rustc-link-arg=-sectcreate");
-                println!("cargo:rustc-link-arg=__TEXT");
-                println!("cargo:rustc-link-arg=__info_plist");
-                println!("cargo:rustc-link-arg={info_plist_path}");
-            } else {
-                eprintln!("Expected INFO_PLIST_PATH to be set")
-            }
-        }
     }
 
     if target_os == "windows" {

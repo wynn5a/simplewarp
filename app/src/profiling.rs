@@ -206,13 +206,9 @@ fn write_pprof_report(report: pprof::Report) -> anyhow::Result<()> {
     feature = "pprof_cpu_profiling"
 ))]
 fn profile_output_dir() -> std::path::PathBuf {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "release_bundle")] {
-            warp_core::paths::secure_state_dir().unwrap_or(warp_core::paths::state_dir())
-        } else {
-            std::env::current_dir().ok().unwrap_or_else(|| {
-                dirs::home_dir().expect("Should not fail to compute both the current directory and the user's home directory")
-            })
-        }
-    }
+    std::env::current_dir().ok().unwrap_or_else(|| {
+        dirs::home_dir().expect(
+            "Should not fail to compute both the current directory and the user's home directory",
+        )
+    })
 }

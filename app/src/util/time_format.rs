@@ -18,12 +18,6 @@ pub fn format_approx_duration_from_now(datetime: DateTime<Local>) -> String {
     human_readable_approx_duration(Local::now().sub(datetime), false)
 }
 
-/// Subtract a given DateTime from now and format the duration is a concise, approximated,
-/// human-readable form. e.g. "Just now"
-pub fn format_approx_duration_from_now_sentence_case(datetime: DateTime<Local>) -> String {
-    human_readable_approx_duration(Local::now().sub(datetime), true)
-}
-
 /// Takes a time in UTC and determines roughly how long ago it occurred.
 pub fn format_approx_duration_from_now_utc(datetime: DateTime<Utc>) -> String {
     human_readable_approx_duration(Utc::now().sub(datetime), false)

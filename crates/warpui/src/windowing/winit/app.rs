@@ -6,7 +6,6 @@ use derivative::Derivative;
 use futures_util::future::LocalBoxFuture;
 
 use super::window::{IntegrationTestWindowManager, WindowManager};
-use crate::clipboard::ClipboardContent;
 use crate::integration::TestDriver;
 use crate::notification::RequestPermissionsOutcome;
 use crate::platform::{self, NotificationInfo, TerminationMode};
@@ -54,8 +53,6 @@ pub enum CustomEvent {
     StopRequestingUserAttention {
         window_id: WindowId,
     },
-    #[allow(dead_code)]
-    Clipboard(ClipboardEvent),
     SetCursorShape(platform::Cursor),
     ActiveCursorPositionUpdated,
     #[cfg_attr(not(any(target_os = "linux", target_os = "freebsd")), allow(dead_code))]
@@ -90,12 +87,6 @@ pub enum CustomEvent {
     MomentumScroll {
         window_id: winit::window::WindowId,
     },
-}
-
-#[derive(Debug)]
-#[allow(dead_code)]
-pub enum ClipboardEvent {
-    Paste(ClipboardContent),
 }
 
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]

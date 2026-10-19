@@ -1,6 +1,5 @@
 mod font_handle;
 mod str_index_map;
-#[cfg(not(feature = "fontkit-rasterizer"))]
 mod swash_rasterizer;
 mod text_layout;
 
@@ -388,21 +387,12 @@ pub struct TextLayoutSystem {
     font_id_map: RwLock<BiMap<FontId, fontdb::ID>>,
     font_selections: DashMap<(FamilyId, Properties), FontId>,
     loaded_fonts: DashMap<FontKey, FontId>,
-    #[cfg(feature = "fontkit-rasterizer")]
-    /// The set of loaded fonts since the last time we tried to rasterize. There's an unfortunate
-    /// dependency where we need to load fonts within the TextLayoutSystem since we load fallback
-    /// fonts while doing text layout. This means we need cache the fonts we loaded so we can read
-    /// it out at raster time and load any necessary fonts.
-    loaded_font_ids_since_last_raster: RwLock<Vec<FontId>>,
     #[cfg(not(target_os = "windows"))]
     fallback_fonts: DashMap<FontId, Vec<FontId>>,
 }
 
 pub struct FontDB {
     text_layout_system: TextLayoutSystem,
-    #[cfg(feature = "fontkit-rasterizer")]
-    font_kit_rasterizer: crate::fonts::font_kit::Rasterizer,
-    #[cfg(not(feature = "fontkit-rasterizer"))]
     swash_cache: RwLock<cosmic_text::SwashCache>,
 }
 
@@ -410,9 +400,6 @@ impl FontDB {
     pub fn new() -> Self {
         Self {
             text_layout_system: TextLayoutSystem::new(),
-            #[cfg(feature = "fontkit-rasterizer")]
-            font_kit_rasterizer: crate::fonts::font_kit::Rasterizer::new(),
-            #[cfg(not(feature = "fontkit-rasterizer"))]
             swash_cache: RwLock::new(cosmic_text::SwashCache::new()),
         }
     }
@@ -423,9 +410,6 @@ impl FontDB {
         let mut font_ids = Vec::with_capacity(font_family.fonts.len());
         for font in font_family.fonts {
             let font_id = self.text_layout_system.insert_font(font)?;
-
-            #[cfg(feature = "fontkit-rasterizer")]
-            self.load_font_kit_font(font_id)?;
 
             font_ids.push(font_id);
         }
@@ -441,39 +425,6 @@ impl FontDB {
             },
         );
         Ok(family_id)
-    }
-
-    #[cfg(feature = "fontkit-rasterizer")]
-    fn load_font_kit_font(&self, font_id: FontId) -> Result<()> {
-        let font_kit_font = self
-            .text_layout_system
-            .try_read_face_source(font_id, |source, index| {
-                match source {
-                    Source::Binary(bytes) => {
-                        // There's no easy way to convert from an `Arc<dyn AsRef<[u8]>` to a
-                        // `Vec<u8>`, which means we need to clone here. This is unfortunate
-                        // since internally the font source is actually represented as a `Vec`,
-                        // but there's no way of downcasting back to the concrete type.
-                        // TODO(alokedesai): Make refactors to fontdb and/or font-kit to make
-                        // this conversion more performant.
-                        font_kit::loader::Loader::from_bytes(
-                            Arc::new(bytes.as_ref().as_ref().to_vec()),
-                            index,
-                        )
-                    }
-                    Source::File(path) => font_kit::loader::Loader::from_path(path, index),
-                    Source::SharedFile(path, _) => font_kit::loader::Loader::from_path(path, index),
-                }
-            })
-            .ok_or_else(|| anyhow!("Unable to find font with given font ID"))?;
-
-        // We have to use an `Arc` with a non send / sync type since
-        // the font kit rasterizer is actually send + sync on Mac, which results
-        // in it being wrapped in an Arc.
-        #[allow(clippy::arc_with_non_send_sync)]
-        self.font_kit_rasterizer
-            .insert(font_id, Arc::new(font_kit_font?));
-        Ok(())
     }
 }
 
@@ -498,8 +449,6 @@ impl TextLayoutSystem {
             loaded_fonts: Default::default(),
             #[cfg(not(target_os = "windows"))]
             fallback_fonts: Default::default(),
-            #[cfg(feature = "fontkit-rasterizer")]
-            loaded_font_ids_since_last_raster: Default::default(),
         }
     }
 
@@ -612,21 +561,6 @@ impl TextLayoutSystem {
             })
     }
 
-    /// Returns the [`Source`] and corresponding font index of a font identified by
-    /// [`FontId`].
-    #[allow(dead_code)]
-    fn try_read_face_source<T, F: FnOnce(Source, u32) -> T>(
-        &self,
-        font_id: FontId,
-        face_source_callback: F,
-    ) -> Option<T> {
-        let internal_font_id = *self.font_id_map.read().get_by_left(&font_id)?;
-        let font_store = self.font_store.read();
-
-        let (source, index) = font_store.db().face_source(internal_font_id)?;
-        Some(face_source_callback(source, index))
-    }
-
     fn read_font_face_panic_data(
         &self,
         font_id: FontId,
@@ -645,15 +579,6 @@ impl TextLayoutSystem {
         format!(
             "Font(id={font_id:?}, internal={internal_id}, family={family_name}, loaded={font_loaded}"
         )
-    }
-
-    #[cfg(feature = "fontkit-rasterizer")]
-    fn take_fonts_loaded_since_last_raster(&self) -> Vec<FontId> {
-        let mut new_vec = vec![];
-        let mut loaded_fonts = self.loaded_font_ids_since_last_raster.write();
-
-        std::mem::swap(loaded_fonts.as_mut(), &mut new_vec);
-        new_vec
     }
 
     /// Inserts the font identified by the given [`FontHandle`] into the DB, returning the [`FontId`] identified by that
@@ -776,8 +701,6 @@ impl TextLayoutSystem {
             // FontID or else we will panic.
             let font_id = next_font_id();
             self.font_id_map.write().insert(font_id, id);
-            #[cfg(feature = "fontkit-rasterizer")]
-            self.loaded_font_ids_since_last_raster.write().push(font_id);
 
             if let Source::File(path) = &face_info.source {
                 self.loaded_fonts.insert(
@@ -1204,26 +1127,6 @@ impl platform::FontDB for FontDB {
             .glyph_typographic_bounds(font_id, glyph_id)
     }
 
-    #[cfg(feature = "fontkit-rasterizer")]
-    fn glyph_raster_bounds(
-        &self,
-        font_id: FontId,
-        size: f32,
-        glyph_id: GlyphId,
-        scale: Vector2F,
-        glyph_config: &GlyphConfig,
-    ) -> Result<RectI> {
-        let fonts = self
-            .text_layout_system
-            .take_fonts_loaded_since_last_raster();
-        for font in fonts {
-            self.load_font_kit_font(font)?
-        }
-        self.font_kit_rasterizer
-            .glyph_raster_bounds(font_id, size, glyph_id, scale, glyph_config)
-    }
-
-    #[cfg(not(feature = "fontkit-rasterizer"))]
     fn glyph_raster_bounds(
         &self,
         font_id: FontId,
@@ -1235,35 +1138,6 @@ impl platform::FontDB for FontDB {
         Self::glyph_raster_bounds(self, font_id, size, glyph_id, scale, glyph_config)
     }
 
-    #[cfg(feature = "fontkit-rasterizer")]
-    fn rasterize_glyph(
-        &self,
-        font_id: FontId,
-        size: f32,
-        glyph_id: GlyphId,
-        scale: Vector2F,
-        subpixel_alignment: SubpixelAlignment,
-        glyph_config: &GlyphConfig,
-        format: RasterFormat,
-    ) -> Result<RasterizedGlyph> {
-        let fonts = self
-            .text_layout_system
-            .take_fonts_loaded_since_last_raster();
-        for font in fonts {
-            self.load_font_kit_font(font)?
-        }
-        self.font_kit_rasterizer.rasterize_glyph(
-            font_id,
-            size,
-            glyph_id,
-            scale,
-            subpixel_alignment,
-            glyph_config,
-            format,
-        )
-    }
-
-    #[cfg(not(feature = "fontkit-rasterizer"))]
     fn rasterize_glyph(
         &self,
         font_id: FontId,
