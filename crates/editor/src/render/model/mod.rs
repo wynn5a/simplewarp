@@ -1361,11 +1361,6 @@ impl ColumnUnit {
         ColumnUnit::Pixels(Pixels::zero())
     }
 
-    /// Zero column in char units (TUI path).
-    pub fn chars_zero() -> Self {
-        ColumnUnit::Chars(0)
-    }
-
     /// Returns the element-wise max of two same-variant values.
     /// Variants must match; mixing Pixels and Chars is always a bug.
     pub fn col_max(self, other: ColumnUnit) -> ColumnUnit {
@@ -2690,15 +2685,6 @@ impl RenderState {
 
     pub fn layout_options(&self) -> RenderLayoutOptions {
         self.layout_options.clone()
-    }
-
-    pub fn set_render_mermaid_diagrams(&mut self, render_mermaid_diagrams: bool) -> bool {
-        if self.layout_options.render_mermaid_diagrams == render_mermaid_diagrams {
-            return false;
-        }
-
-        self.layout_options.render_mermaid_diagrams = render_mermaid_diagrams;
-        true
     }
 
     pub fn set_mermaid_render_offsets(&mut self, offsets: HashSet<CharOffset>) -> bool {
@@ -5432,18 +5418,6 @@ impl RenderedSelection {
             head,
             tail,
             cursor_bias: None,
-        }
-    }
-
-    pub fn new_with_cursor_bias(
-        head: CharOffset,
-        tail: CharOffset,
-        bias: RenderedSelectionBias,
-    ) -> Self {
-        Self {
-            head,
-            tail,
-            cursor_bias: Some(bias),
         }
     }
 

@@ -186,10 +186,6 @@ impl WarpTheme {
         self.disabled_text_color(self.surface_2())
     }
 
-    pub fn active_highlighted_text_color(&self) -> Fill {
-        self.main_text_color(self.accent())
-    }
-
     pub fn settings_import_config_hover_opacity(&self) -> Opacity {
         10
     }
@@ -257,16 +253,6 @@ impl WarpTheme {
     pub fn yellow_overlay_1(&self) -> Fill {
         let yellow: Fill = self.ui_yellow_color().into();
         yellow.with_opacity(10)
-    }
-
-    pub fn green_overlay_1(&self) -> Fill {
-        let green: Fill = self.ansi_fg_green().into();
-        green.with_opacity(10)
-    }
-
-    pub fn green_overlay_2(&self) -> Fill {
-        let green: Fill = self.ui_green_color().into();
-        green.with_opacity(50)
     }
 
     pub fn block_selection_color(&self) -> Fill {
@@ -394,16 +380,8 @@ impl WarpTheme {
         self.ansi_fg(AnsiColorIdentifier::Yellow.to_ansi_color(&self.terminal_colors().normal))
     }
 
-    pub fn ansi_bg_magenta(&self) -> ColorU {
-        self.ansi_bg(AnsiColorIdentifier::Magenta.to_ansi_color(&self.terminal_colors().normal))
-    }
-
     pub fn ansi_fg_magenta(&self) -> ColorU {
         self.ansi_fg(AnsiColorIdentifier::Magenta.to_ansi_color(&self.terminal_colors().normal))
-    }
-
-    pub fn ansi_bg_yellow(&self) -> ColorU {
-        self.ansi_bg(AnsiColorIdentifier::Yellow.to_ansi_color(&self.terminal_colors().normal))
     }
 
     pub fn ansi_fg_cyan(&self) -> ColorU {
@@ -431,14 +409,6 @@ pub mod internal_colors {
     /// Allows gradients so shouldn't be used for small elements.
     pub fn accent(warp_theme: &WarpTheme) -> Fill {
         warp_theme.accent()
-    }
-
-    /// Hover state for UI elements like buttons to which we want to call attention.
-    /// Allows gradients so shouldn't be used for small elements.
-    pub fn accent_hover(warp_theme: &WarpTheme) -> Fill {
-        warp_theme
-            .accent()
-            .blend(&warp_theme.foreground().with_opacity(40))
     }
 
     /// Pressed state for UI elements like buttons
@@ -547,15 +517,6 @@ pub mod internal_colors {
         warp_theme.foreground().with_opacity(60)
     }
 
-    pub fn fg_overlay_7(warp_theme: &WarpTheme) -> Fill {
-        warp_theme.foreground().with_opacity(90)
-    }
-
-    pub fn accent_bg_strong(warp_theme: &WarpTheme) -> Fill {
-        Fill::Solid(warp_theme.background().into_solid())
-            .blend(&warp_theme.accent().with_opacity(60))
-    }
-
     pub fn accent_bg(warp_theme: &WarpTheme) -> Fill {
         Fill::Solid(warp_theme.background().into_solid())
             .blend(&warp_theme.accent().with_opacity(40))
@@ -565,12 +526,6 @@ pub mod internal_colors {
         warp_theme
             .foreground()
             .blend(&warp_theme.accent().with_opacity(60))
-    }
-
-    pub fn accent_fg(warp_theme: &WarpTheme) -> Fill {
-        warp_theme
-            .foreground()
-            .blend(&warp_theme.accent().with_opacity(40))
     }
 
     pub fn accent_overlay_1(warp_theme: &WarpTheme) -> Fill {

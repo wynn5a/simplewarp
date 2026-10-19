@@ -157,11 +157,6 @@ impl Args {
     }
 
     /// Args for the main Warp application, if not running a subcommand.
-    pub fn app_args(&self) -> &AppArgs {
-        &self.args
-    }
-
-    /// Extract the main Warp application args.
     pub fn into_app_args(self) -> AppArgs {
         self.args
     }

@@ -240,11 +240,6 @@ impl Appearance {
         });
     }
 
-    #[cfg(feature = "test-util")]
-    pub fn set_monospace_font_size_test(&mut self, new_font_size: f32) {
-        self.monospace_font_size = new_font_size;
-    }
-
     pub fn set_line_height_ratio(
         &mut self,
         new_line_height_ratio: f32,

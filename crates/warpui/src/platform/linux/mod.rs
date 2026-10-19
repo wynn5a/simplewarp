@@ -2,9 +2,8 @@
 // for the linux platform.
 use super::AsInnerMut;
 use super::app::AppBackend;
-use crate::AppContext;
 pub use crate::windowing::winit::app::App;
-use crate::windowing::{self, WindowingSystem};
+use crate::{AppContext, windowing};
 
 /// An extension trait defining additional configurability for
 /// applications when running on Linux.
@@ -33,22 +32,6 @@ impl AppBuilderExt for super::AppBuilder {
             AppBackend::CurrentPlatform(app) => app.force_x11(force_x11),
             AppBackend::Headless(_) => (),
         }
-    }
-}
-
-/// Retrieves the windowing system that the user is running before the event loop is created.
-pub fn user_windowing_system() -> WindowingSystem {
-    // This mirrors winit's logic [here](https://github.com/rust-windowing/winit/blob/4cd6877e8e19e7e1ba957a409394dca1af4afcdd/src/platform_impl/linux/mod.rs#L735-L745).
-    if std::env::var("WAYLAND_DISPLAY")
-        .ok()
-        .filter(|var| !var.is_empty())
-        .or_else(|| std::env::var("WAYLAND_SOCKET").ok())
-        .filter(|var| !var.is_empty())
-        .is_some()
-    {
-        WindowingSystem::Wayland
-    } else {
-        WindowingSystem::X11
     }
 }
 

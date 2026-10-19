@@ -334,13 +334,6 @@ impl AnyMultilineString {
         }
     }
 
-    /// Create a new `AnyMultilineString` with the given text normalized via [`LineEnding::normalize`].
-    ///
-    /// This converts all line endings to `\n`.
-    pub fn normalize_to_linefeed(text: impl AsRef<str>) -> Self {
-        MultilineString::<LF>::apply(text).into()
-    }
-
     /// Create a new `AnyMultilineString` from individual lines and the desired line ending.
     pub fn from_lines<I: IntoIterator<Item = String>>(lines: I, line_ending: LineEnding) -> Self {
         let text = lines.into_iter().join(line_ending.as_str());

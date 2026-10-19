@@ -38,8 +38,8 @@ use super::selection::{Selection, TextStyleBias};
 use super::text::{
     BlockCount, BlockLineBreakBehavior, BlockType, BufferBlockItem, BufferBlockStyle,
     BufferSummary, BufferText, BufferTextStyle, Bytes, CodeBlockType, IndentBehavior, LineCount,
-    LinkCount, LinkMarker, MarkerDir, StyleSummary, SyntaxColorId, TextStyles,
-    TextStylesWithMetadata, TextSummary, inline_to_text,
+    LinkCount, LinkMarker, MarkerDir, StyleSummary, TextStyles, TextStylesWithMetadata,
+    TextSummary, inline_to_text,
 };
 use super::undo::{NonAtomicType, UndoActionType, UndoArg, UndoStack};
 use super::validation::validate_content;
@@ -642,13 +642,6 @@ impl Buffer {
         self
     }
 
-    pub fn set_embedded_item_conversion(
-        &mut self,
-        embedded_item_conversion: EmbeddedItemConversion,
-    ) {
-        self.embedded_item_conversion = Some(embedded_item_conversion);
-    }
-
     pub fn set_tab_indentation(&mut self, tab_indentation: TabIndentation) {
         self.tab_indentation = tab_indentation;
     }
@@ -656,10 +649,6 @@ impl Buffer {
     /// The line ending mode inferred from the buffer content.
     pub fn line_ending_mode(&self) -> LineEnding {
         self.line_ending_mode
-    }
-
-    pub fn set_line_ending_mode(&mut self, mode: LineEnding) {
-        self.line_ending_mode = mode;
     }
 
     pub fn set_session_platform(&mut self, platform: Option<SessionPlatform>) {
@@ -1088,86 +1077,6 @@ impl Buffer {
         }
     }
 
-    /// Return the character offset of the previous block marker of a certain block style. If there is no previous block marker for
-    /// such style, return None.
-    pub fn previous_block_marker_of_type(
-        &self,
-        offset: CharOffset,
-        style: BufferBlockStyle,
-    ) -> Option<CharOffset> {
-        let mut cursor = self.content.cursor::<CharOffset, BufferSummary>();
-
-        let summary = cursor.summary::<BufferSummary>(&offset, SeekBias::Right);
-        let mut target_marker_count = summary.block.block;
-
-        while target_marker_count > BlockCount::zero() {
-            let mut block_cursor = self.content.cursor::<BlockCount, CharOffset>();
-
-            let found = block_cursor.seek(&target_marker_count, SeekBias::Left);
-
-            if !found {
-                return None;
-            }
-
-            match block_cursor.item() {
-                Some(BufferText::BlockMarker { marker_type }) if *marker_type == style => {
-                    return Some(*block_cursor.start());
-                }
-                Some(BufferText::BlockMarker { .. }) | Some(BufferText::BlockItem { .. }) => {
-                    target_marker_count -= 1;
-                }
-                _ => {
-                    debug_assert!(false, "Encountering unexpected buffer text type. Breaking");
-                    return None;
-                }
-            }
-        }
-
-        None
-    }
-
-    /// Return the character offset of the next block marker of a certain block style. If there is no next block marker for
-    /// such style, return None.
-    pub fn next_block_marker_of_type(
-        &self,
-        offset: CharOffset,
-        style: BufferBlockStyle,
-    ) -> Option<CharOffset> {
-        let mut cursor = self.content.cursor::<CharOffset, BufferSummary>();
-
-        let summary = cursor.summary::<BufferSummary>(&offset, SeekBias::Right);
-        let mut target_marker_count = summary.block.block;
-
-        while target_marker_count > BlockCount::zero() {
-            let mut block_cursor = self.content.cursor::<BlockCount, CharOffset>();
-
-            let found = block_cursor.seek(&target_marker_count, SeekBias::Right);
-
-            if !found {
-                return None;
-            }
-
-            match block_cursor.item() {
-                Some(BufferText::BlockMarker { marker_type }) if *marker_type == style => {
-                    return Some(*block_cursor.start());
-                }
-                Some(BufferText::BlockMarker { .. }) | Some(BufferText::BlockItem { .. }) => {
-                    target_marker_count += 1;
-                }
-                None => return None,
-                other => {
-                    debug_assert!(
-                        false,
-                        "Encountering unexpected buffer text type {other:?}. Breaking"
-                    );
-                    return None;
-                }
-            }
-        }
-
-        None
-    }
-
     /// Validates that the buffer is internally consistent, panicking if not.
     pub(crate) fn validate(&self, anchors: &Anchors) {
         validate_content(&self.content);
@@ -1262,22 +1171,6 @@ impl Buffer {
         }
 
         Some(*cursor.start())
-    }
-
-    fn color_count_at_offset(&self, offset: CharOffset) -> Option<SyntaxColorId> {
-        let mut cursor = self.content.cursor::<CharOffset, SyntaxColorId>();
-
-        let summary = cursor.summary::<BufferSummary>(&offset, SeekBias::Right);
-        if !summary.style_summary().text_styles().is_colored() {
-            return None;
-        }
-
-        Some(*cursor.start())
-    }
-
-    pub fn color_at_offset(&self, offset: CharOffset) -> Option<ColorU> {
-        let color_clount = self.color_count_at_offset(offset)?;
-        self.content.color_at_color_count(&color_clount)
     }
 
     /// If the offset is in a link, return the offset of the first character in the link (inclusive).

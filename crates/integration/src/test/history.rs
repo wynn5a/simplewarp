@@ -255,60 +255,6 @@ pub fn test_command_search_loads_history() -> Builder {
         )
 }
 
-/// Tests that history commands are loaded from the shell's histfile.
-pub fn test_command_search_loads_history_from_nondefault_histfile_path() -> Builder {
-    new_builder()
-        .with_setup(|_utils| {
-            integration_testing::create_file_from_assets(
-                TEST_ONLY_ASSETS,
-                FAKE_HISTORY_SQLITE_FILE,
-                &integration_testing::persistence::database_file_path(),
-            );
-
-            let local_user = get_local_user();
-            let local_hostname = get_local_hostname().expect("Failed to retrieve system hostname.");
-            set_user_and_hostname_for_commands(local_user, local_hostname);
-
-            let base_dirs =
-                directories::BaseDirs::new().expect("should be able to determine home directory");
-
-            write_histfiles_for_test(
-                base_dirs.home_dir(),
-                vec![r#"echo "foo""#, r#"[[ -n "foo" ]]"#, r#"echo "bar""#],
-                [ShellType::Zsh, ShellType::Bash, ShellType::Fish],
-            );
-        })
-        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(
-            new_step_with_default_assertions("Open command search")
-                .with_keystrokes(&["ctrl-r"])
-                .add_named_assertion("Command search is open", assert_command_search_is_open()),
-        )
-        .with_step(
-            new_step_with_default_assertions("Select history filter")
-                .with_typed_characters(&["h"])
-                .with_keystrokes(&["tab"])
-                .add_named_assertion(
-                    "History filter is active",
-                    assert_history_filter_is_active(),
-                ),
-        )
-        .with_step(
-            new_step_with_default_assertions("Wait for history results").add_named_assertion(
-                "Command search has history results",
-                assert_command_search_has_results(),
-            ),
-        )
-        .with_step(
-            new_step_with_default_assertions("Loads history from sqlite")
-                .with_keystrokes(&["up", "up", "enter"])
-                .add_named_assertion(
-                    "Input contains selected history command",
-                    assert_input_editor_contents(0, r#"echo "foo""#),
-                ),
-        )
-}
-
 /// Tests that commands in the histfile are treated as the "source of truth" for shell history, and
 /// that the command rows persisted to the sqlite table are only used to join against the list of
 /// histfile commands, effectively "enriching" them with metadata.

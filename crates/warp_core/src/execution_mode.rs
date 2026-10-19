@@ -46,12 +46,6 @@ impl AppExecutionMode {
         self.is_app()
     }
 
-    /// Whether the app can sync agent conversations (tasks and cloud conversation metadata).
-    /// In CLI mode, we don't need this data since there's no user viewing it.
-    pub fn can_fetch_agent_runs_for_management(&self) -> bool {
-        self.is_app()
-    }
-
     /// If true, the app is running autonomously, without a user present.
     /// Wherever possible, prefer more targeted capability checks like
     /// [`Self::can_autostart_mcp_servers`].

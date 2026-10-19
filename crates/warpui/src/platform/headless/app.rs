@@ -31,10 +31,6 @@ impl App {
         }
     }
 
-    pub(in crate::platform) fn enable_microphone_access_query(&mut self) {
-        self.query_microphone_access = true;
-    }
-
     pub(in crate::platform) fn run(
         self,
         init_fn: impl FnOnce(&mut AppContext, LocalBoxFuture<'static, crate::App>) + 'static,

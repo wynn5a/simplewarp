@@ -3,14 +3,13 @@ use std::rc::Rc;
 
 use warpui_core::color::ColorU;
 use warpui_core::elements::{
-    ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable,
-    Icon, MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds,
-    Radius, Stack, Text,
+    ChildAnchor, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable, Icon,
+    MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius,
+    Stack, Text,
 };
 use warpui_core::fonts::{FamilyId, Properties, Weight};
-use warpui_core::geometry::vector::{Vector2F, vec2f};
+use warpui_core::geometry::vector::Vector2F;
 use warpui_core::keymap::Keystroke;
-use warpui_core::platform::Cursor;
 use warpui_core::ui_components::button::{Button, ButtonVariant};
 use warpui_core::ui_components::checkbox::Checkbox;
 use warpui_core::ui_components::components::{Coords, UiComponent, UiComponentStyles};
@@ -39,13 +38,9 @@ use super::theme::{Fill, WarpTheme};
 
 const CLOSE_SVG_PATH: &str = "bundled/svg/close.svg";
 const COPY_SVG_PATH: &str = "bundled/svg/copy.svg";
-const INFO_SVG_PATH: &str = "bundled/svg/info.svg";
 pub const CHECK_SVG_PATH: &str = "bundled/svg/check-thick.svg";
 const PLUS_SVG_PATH: &str = "bundled/svg/add.svg";
-const LEFT_CHEVRON_PATH: &str = "bundled/svg/chevron-left.svg";
-const HELP_SVG_PATH: &str = "bundled/svg/help-circle.svg";
 const ENTER_SVG_PATH: &str = "bundled/svg/enter.svg";
-const RETRY_SVG_PATH: &str = "bundled/svg/retry.svg";
 
 pub const MIN_FONT_SIZE: f32 = 5.;
 pub const DEFAULT_KEYBOARD_SHORTCUT_HEIGHT: f32 = 24.;
@@ -415,14 +410,6 @@ impl UiBuilder {
 
     pub fn progress_bar(&self, progress: f32) -> ProgressBar {
         ProgressBar::new(progress, self.default_progress_bar_styles())
-    }
-
-    pub fn custom_progress_bar(
-        &self,
-        progress: f32,
-        custom_styles: UiComponentStyles,
-    ) -> ProgressBar {
-        ProgressBar::new(progress, custom_styles)
     }
 
     pub fn tool_tip(&self, label: String) -> Tooltip {
@@ -921,34 +908,6 @@ impl UiBuilder {
         )
     }
 
-    pub fn retry_button(&self, size: f32, mouse_state: MouseStateHandle) -> Button {
-        self.animated_button(
-            mouse_state,
-            RETRY_SVG_PATH,
-            AnimatedButtonOptions {
-                size,
-                padding: None,
-                color: None,
-                with_accent_animations: false,
-                circular: false,
-            },
-        )
-    }
-
-    pub fn left_chevron_button(&self, size: f32, mouse_state: MouseStateHandle) -> Button {
-        self.animated_button(
-            mouse_state,
-            LEFT_CHEVRON_PATH,
-            AnimatedButtonOptions {
-                size,
-                padding: Some(3.),
-                color: None,
-                with_accent_animations: false,
-                circular: false,
-            },
-        )
-    }
-
     pub fn plus_button(&self, size: f32, mouse_state: MouseStateHandle) -> Button {
         self.animated_button(
             mouse_state,
@@ -1001,103 +960,6 @@ impl UiBuilder {
             None,
         )
         .with_icon_label(icon)
-    }
-
-    /// An info button with a tooltip that is rendered when the info button is hovered.
-    pub fn info_button_with_tooltip(
-        &self,
-        info_button_size: f32,
-        tooltip_contents: impl Into<String>,
-        mouse_state_handle: MouseStateHandle,
-    ) -> Hoverable {
-        self.icon_with_tooltip(
-            info_button_size,
-            INFO_SVG_PATH,
-            tooltip_contents,
-            mouse_state_handle,
-            None,
-        )
-    }
-
-    pub fn help_icon_with_tooltip(
-        &self,
-        help_icon_size: f32,
-        tooltip_contents: impl Into<String>,
-        mouse_state_handle: MouseStateHandle,
-        tooltip_styles: Option<UiComponentStyles>,
-    ) -> Hoverable {
-        self.icon_with_tooltip(
-            help_icon_size,
-            HELP_SVG_PATH,
-            tooltip_contents,
-            mouse_state_handle,
-            tooltip_styles,
-        )
-    }
-
-    fn icon_with_tooltip(
-        &self,
-        icon_size: f32,
-        icon_path: &'static str,
-        tooltip_contents: impl Into<String>,
-        mouse_state_handle: MouseStateHandle,
-        tooltip_styles: Option<UiComponentStyles>,
-    ) -> Hoverable {
-        let icon = Container::new(
-            ConstrainedBox::new(
-                Icon::new(icon_path, self.warp_theme.active_ui_text_color()).finish(),
-            )
-            .with_width(icon_size)
-            .with_height(icon_size)
-            .finish(),
-        )
-        .finish();
-
-        Hoverable::new(mouse_state_handle, |state| {
-            let mut stack = Stack::new().with_child(icon);
-            if state.is_hovered() {
-                let mut tool_tip = self.tool_tip(tooltip_contents.into());
-                if let Some(tooltip_styles) = tooltip_styles {
-                    tool_tip = tool_tip.with_style(tooltip_styles);
-                }
-                stack.add_positioned_child(
-                    tool_tip.build().finish(),
-                    OffsetPositioning::offset_from_parent(
-                        vec2f(0., -3.),
-                        ParentOffsetBounds::WindowByPosition,
-                        ParentAnchor::TopMiddle,
-                        ChildAnchor::BottomMiddle,
-                    ),
-                );
-            }
-            stack.finish()
-        })
-        .with_cursor(Cursor::PointingHand)
-    }
-
-    pub fn span_with_tooltip(
-        &self,
-        span: Span,
-        tooltip_contents: impl Into<String>,
-        mouse_state_handle: MouseStateHandle,
-    ) -> Hoverable {
-        Hoverable::new(mouse_state_handle, |state| {
-            let mut stack = Stack::new().with_child(span.build().finish());
-            if state.is_hovered() {
-                let tool_tip = self.tool_tip(tooltip_contents.into());
-                stack.add_positioned_child(
-                    tool_tip.build().finish(),
-                    OffsetPositioning::offset_from_parent(
-                        vec2f(0., 0.),
-                        ParentOffsetBounds::Unbounded,
-                        ParentAnchor::BottomRight,
-                        ChildAnchor::BottomLeft,
-                    ),
-                );
-            }
-            stack.finish()
-        })
-        .with_cursor(Cursor::PointingHand)
     }
 
     pub fn keyboard_shortcut(&self, keystroke: &Keystroke) -> KeyboardShortcut {
