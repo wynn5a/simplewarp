@@ -39,7 +39,6 @@ pub(super) fn parse(body: &str) -> Option<CLIAgentEvent> {
         .unwrap_or(CLIAgent::Unknown);
 
     Some(CLIAgentEvent {
-        v: raw.v.unwrap_or(1),
         agent,
         event,
         session_id: raw.session_id,
@@ -48,7 +47,6 @@ pub(super) fn parse(body: &str) -> Option<CLIAgentEvent> {
         payload: CLIAgentEventPayload {
             query: raw.query,
             response: raw.response,
-            transcript_path: raw.transcript_path,
             summary: raw.summary,
             tool_name: raw.tool_name,
             tool_input_preview,

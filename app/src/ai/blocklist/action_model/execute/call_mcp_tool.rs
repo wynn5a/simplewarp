@@ -15,7 +15,6 @@ use crate::terminal::model::session::active_session::ActiveSession;
 
 pub struct CallMCPToolExecutor {
     _active_session: ModelHandle<ActiveSession>,
-    #[allow(dead_code)]
     terminal_view_id: EntityId,
 }
 

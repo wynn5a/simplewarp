@@ -113,7 +113,6 @@ impl GutterButton for RevertHunkButton {
 }
 
 #[derive(Debug, Default, Clone, Copy)]
-#[allow(dead_code)]
 #[allow(clippy::enum_variant_names)]
 pub enum CommentButton {
     #[default]

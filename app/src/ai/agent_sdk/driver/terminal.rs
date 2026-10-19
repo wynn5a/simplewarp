@@ -353,15 +353,6 @@ impl TerminalDriver {
         })
     }
 
-    /// The current working directory of the active terminal session, if known.
-    #[allow(dead_code)]
-    pub fn current_directory(&self, ctx: &AppContext) -> Option<PathBuf> {
-        // TODO(ben): This should handle non-local paths.
-        self.terminal_view
-            .as_ref(ctx)
-            .active_session_path_if_local(ctx)
-    }
-
     /// Returns a future that resolves when the session has bootstrapped.
     ///
     /// The bootstrap result channel carries `Ok(())` on success or

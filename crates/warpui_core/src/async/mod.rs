@@ -69,7 +69,7 @@ impl SpawnedFutureHandle {
 }
 
 pub struct SpawnedLocalStream {
-    #[allow(dead_code)]
+    #[cfg_attr(not(test), allow(dead_code))]
     future: LocalBoxFuture<'static, ()>,
 }
 

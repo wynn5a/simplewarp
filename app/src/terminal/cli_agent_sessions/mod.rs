@@ -195,12 +195,10 @@ impl CLIAgentSession {
 }
 
 /// Events emitted by `CLIAgentSessionsModel` for subscribers (e.g., `AgentNotificationsModel`).
-#[allow(dead_code)] // `agent` fields on Started/Ended are used for logging and future subscribers.
 #[derive(Debug, Clone)]
 pub enum CLIAgentSessionsModelEvent {
     Started {
         terminal_view_id: EntityId,
-        agent: CLIAgent,
     },
     StatusChanged {
         terminal_view_id: EntityId,
@@ -210,13 +208,11 @@ pub enum CLIAgentSessionsModelEvent {
     },
     Ended {
         terminal_view_id: EntityId,
-        agent: CLIAgent,
     },
     /// The agent session has been updated. Subscribers may use this as a trigger for best-effort
     /// saving of state derived from the agent's session.
     SessionUpdated {
         terminal_view_id: EntityId,
-        agent: CLIAgent,
     },
 }
 
@@ -322,11 +318,8 @@ impl CLIAgentSessionsModel {
     }
 
     pub fn remove_session(&mut self, terminal_view_id: EntityId, ctx: &mut ModelContext<Self>) {
-        if let Some(session) = self.sessions.remove(&terminal_view_id) {
-            ctx.emit(CLIAgentSessionsModelEvent::Ended {
-                terminal_view_id,
-                agent: session.agent,
-            });
+        if self.sessions.remove(&terminal_view_id).is_some() {
+            ctx.emit(CLIAgentSessionsModelEvent::Ended { terminal_view_id });
         }
     }
 
@@ -364,10 +357,7 @@ impl CLIAgentSessionsModel {
                 | CLIAgentEventType::PromptSubmit
                 | CLIAgentEventType::ToolComplete
         ) {
-            ctx.emit(CLIAgentSessionsModelEvent::SessionUpdated {
-                terminal_view_id,
-                agent: session.agent,
-            });
+            ctx.emit(CLIAgentSessionsModelEvent::SessionUpdated { terminal_view_id });
         }
     }
 
@@ -377,18 +367,11 @@ impl CLIAgentSessionsModel {
         session: CLIAgentSession,
         ctx: &mut ModelContext<Self>,
     ) {
-        let agent = session.agent;
-        if let Some(old) = self.sessions.insert(terminal_view_id, session) {
-            ctx.emit(CLIAgentSessionsModelEvent::Ended {
-                terminal_view_id,
-                agent: old.agent,
-            });
+        if self.sessions.insert(terminal_view_id, session).is_some() {
+            ctx.emit(CLIAgentSessionsModelEvent::Ended { terminal_view_id });
         }
 
-        ctx.emit(CLIAgentSessionsModelEvent::Started {
-            terminal_view_id,
-            agent,
-        });
+        ctx.emit(CLIAgentSessionsModelEvent::Started { terminal_view_id });
     }
 }
 

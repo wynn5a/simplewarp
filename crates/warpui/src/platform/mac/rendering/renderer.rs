@@ -24,7 +24,6 @@ pub trait Renderer {
 /// Set of available physical graphics devices that can be used to render.
 #[allow(clippy::upper_case_acronyms)]
 pub enum Device {
-    #[allow(dead_code)]
     Metal(MetalDevice),
     #[cfg(wgpu)]
     WGPU(Box<crate::rendering::wgpu::Resources>),

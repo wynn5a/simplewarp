@@ -112,7 +112,6 @@ impl CodexSessionHandler {
         }
 
         Some(CLIAgentEvent {
-            v: 1,
             agent: CLIAgent::Codex,
             event: CLIAgentEventType::Stop,
             session_id: None,

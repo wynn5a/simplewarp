@@ -103,7 +103,6 @@ fn auggie_default_handler_skips_session_start() {
     let mut handler = DefaultSessionListener;
     let event = CLIAgentEvent {
         source: CLIAgentEventSource::RichPlugin,
-        v: 1,
         agent: CLIAgent::Auggie,
         event: CLIAgentEventType::SessionStart,
         session_id: None,
@@ -119,7 +118,6 @@ fn auggie_default_handler_forwards_stop() {
     let mut handler = DefaultSessionListener;
     let event = CLIAgentEvent {
         source: CLIAgentEventSource::RichPlugin,
-        v: 1,
         agent: CLIAgent::Auggie,
         event: CLIAgentEventType::Stop,
         session_id: None,
@@ -145,7 +143,6 @@ fn pi_default_handler_skips_session_start() {
     let mut handler = DefaultSessionListener;
     let event = CLIAgentEvent {
         source: CLIAgentEventSource::RichPlugin,
-        v: 1,
         agent: CLIAgent::Pi,
         event: CLIAgentEventType::SessionStart,
         session_id: None,
@@ -161,7 +158,6 @@ fn pi_default_handler_forwards_stop() {
     let mut handler = DefaultSessionListener;
     let event = CLIAgentEvent {
         source: CLIAgentEventSource::RichPlugin,
-        v: 1,
         agent: CLIAgent::Pi,
         event: CLIAgentEventType::Stop,
         session_id: None,
@@ -182,7 +178,6 @@ fn droid_default_handler_skips_session_start() {
     let mut handler = DefaultSessionListener;
     let event = CLIAgentEvent {
         source: CLIAgentEventSource::RichPlugin,
-        v: 1,
         agent: CLIAgent::Droid,
         event: CLIAgentEventType::SessionStart,
         session_id: None,
@@ -198,7 +193,6 @@ fn droid_default_handler_forwards_stop() {
     let mut handler = DefaultSessionListener;
     let event = CLIAgentEvent {
         source: CLIAgentEventSource::RichPlugin,
-        v: 1,
         agent: CLIAgent::Droid,
         event: CLIAgentEventType::Stop,
         session_id: None,
@@ -214,7 +208,6 @@ fn droid_default_handler_forwards_permission_request() {
     let mut handler = DefaultSessionListener;
     let event = CLIAgentEvent {
         source: CLIAgentEventSource::RichPlugin,
-        v: 1,
         agent: CLIAgent::Droid,
         event: CLIAgentEventType::PermissionRequest,
         session_id: None,

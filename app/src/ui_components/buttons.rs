@@ -12,7 +12,6 @@ const ICON_BUTTON_PADDING: f32 = 4.;
 #[derive(Copy, Clone)]
 enum ButtonMode {
     Base,
-    #[allow(dead_code)]
     Accent,
 }
 

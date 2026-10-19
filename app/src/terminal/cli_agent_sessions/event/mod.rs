@@ -33,12 +33,10 @@ pub enum CLIAgentEventSource {
 }
 
 /// Event-specific fields that vary by event type.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Default)]
 pub struct CLIAgentEventPayload {
     pub query: Option<String>,
     pub response: Option<String>,
-    pub transcript_path: Option<String>,
     pub summary: Option<String>,
     pub tool_name: Option<String>,
     pub tool_input_preview: Option<String>,
@@ -49,10 +47,8 @@ pub struct CLIAgentEventPayload {
 }
 
 /// A parsed event from a CLI agent plugin.
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct CLIAgentEvent {
-    pub v: u32,
     pub agent: CLIAgent,
     pub event: CLIAgentEventType,
     pub session_id: Option<String>,

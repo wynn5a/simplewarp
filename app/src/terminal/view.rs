@@ -9000,7 +9000,6 @@ impl TerminalView {
         };
         let notification = CLIAgentEvent {
             source: CLIAgentEventSource::RichPlugin,
-            v: 1,
             agent,
             event: CLIAgentEventType::SessionStart,
             session_id: None,

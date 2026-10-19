@@ -9,7 +9,6 @@ fn parse_stop_notification() {
     let body = r#"{"v":1,"agent":"claude","event":"stop","session_id":"abc","cwd":"/tmp/proj","project":"proj","query":"write a haiku","response":"Memory is safe","transcript_path":"/tmp/t.jsonl"}"#;
     let notif = parse_event(Some("warp://cli-agent"), body).unwrap();
 
-    assert_eq!(notif.v, 1);
     assert_eq!(notif.agent, CLIAgent::Claude);
     assert_eq!(notif.event, CLIAgentEventType::Stop);
     assert_eq!(notif.session_id.as_deref(), Some("abc"));
@@ -17,10 +16,6 @@ fn parse_stop_notification() {
     assert_eq!(notif.project.as_deref(), Some("proj"));
     assert_eq!(notif.payload.query.as_deref(), Some("write a haiku"));
     assert_eq!(notif.payload.response.as_deref(), Some("Memory is safe"));
-    assert_eq!(
-        notif.payload.transcript_path.as_deref(),
-        Some("/tmp/t.jsonl")
-    );
 }
 
 #[test]
@@ -144,7 +139,6 @@ fn handles_missing_optional_fields() {
     let body = r#"{"event":"stop"}"#;
     let notif = parse_event(Some("warp://cli-agent"), body).unwrap();
 
-    assert_eq!(notif.v, 1);
     assert_eq!(notif.agent, CLIAgent::Unknown);
     assert_eq!(notif.event, CLIAgentEventType::Stop);
     assert!(notif.session_id.is_none());
@@ -178,7 +172,6 @@ fn rejects_unsupported_schema_version() {
 fn defaults_to_v1_when_version_missing() {
     let body = r#"{"agent":"claude","event":"stop","query":"hi"}"#;
     let notif = parse_event(Some("warp://cli-agent"), body).unwrap();
-    assert_eq!(notif.v, 1);
     assert_eq!(notif.payload.query.as_deref(), Some("hi"));
 }
 
@@ -186,7 +179,6 @@ fn defaults_to_v1_when_version_missing() {
 fn explicit_v1_parses_correctly() {
     let body = r#"{"v":1,"agent":"claude","event":"stop","query":"test"}"#;
     let notif = parse_event(Some("warp://cli-agent"), body).unwrap();
-    assert_eq!(notif.v, 1);
     assert_eq!(notif.payload.query.as_deref(), Some("test"));
 }
 
@@ -262,7 +254,6 @@ fn session_start_sets_plugin_version() {
 
     let event = CLIAgentEvent {
         source: CLIAgentEventSource::RichPlugin,
-        v: 1,
         agent: CLIAgent::Claude,
         event: CLIAgentEventType::SessionStart,
         session_id: Some("abc".to_owned()),
@@ -292,7 +283,6 @@ fn session_start_without_plugin_version_leaves_none() {
 
     let event = CLIAgentEvent {
         source: CLIAgentEventSource::RichPlugin,
-        v: 1,
         agent: CLIAgent::Claude,
         event: CLIAgentEventType::SessionStart,
         session_id: Some("abc".to_owned()),
@@ -374,7 +364,6 @@ fn stop_clears_permission_scoped_state() {
 
     let event = CLIAgentEvent {
         source: CLIAgentEventSource::RichPlugin,
-        v: 1,
         agent: CLIAgent::Claude,
         event: CLIAgentEventType::Stop,
         session_id: Some("abc".to_owned()),
@@ -412,7 +401,6 @@ fn permission_replied_clears_permission_scoped_state() {
 
     let event = CLIAgentEvent {
         source: CLIAgentEventSource::RichPlugin,
-        v: 1,
         agent: CLIAgent::Claude,
         event: CLIAgentEventType::PermissionReplied,
         session_id: Some("abc".to_owned()),
@@ -440,7 +428,6 @@ fn prompt_submit_clears_permission_scoped_state() {
 
     let event = CLIAgentEvent {
         source: CLIAgentEventSource::RichPlugin,
-        v: 1,
         agent: CLIAgent::Claude,
         event: CLIAgentEventType::PromptSubmit,
         session_id: Some("abc".to_owned()),
@@ -476,7 +463,6 @@ fn tool_complete_clears_permission_scoped_state() {
 
     let event = CLIAgentEvent {
         source: CLIAgentEventSource::RichPlugin,
-        v: 1,
         agent: CLIAgent::Claude,
         event: CLIAgentEventType::ToolComplete,
         session_id: Some("abc".to_owned()),
@@ -509,7 +495,6 @@ fn permission_request_still_populates_summary_and_tool_fields() {
 
     let event = CLIAgentEvent {
         source: CLIAgentEventSource::RichPlugin,
-        v: 1,
         agent: CLIAgent::Claude,
         event: CLIAgentEventType::PermissionRequest,
         session_id: Some("abc".to_owned()),

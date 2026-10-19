@@ -113,7 +113,6 @@ pub enum CodeEditorEvent {
     DiffUpdated,
     /// Emitted when the plus icon is clicked to add diff hunk context
     DiffHunkContextAdded {
-        #[allow(dead_code)]
         line_range: Range<LineCount>,
     },
     /// Emitted when a diff hunk is reverted

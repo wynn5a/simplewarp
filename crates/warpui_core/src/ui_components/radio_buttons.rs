@@ -72,16 +72,6 @@ struct RadioButtonState {
     default_selected_item: Option<usize>,
 }
 
-impl RadioButtonState {
-    #[allow(dead_code)] // This is a temporary constructor that isn't used right now but will be used as soon as radio buttons are used.
-    pub fn new(default_selected_item: Option<usize>) -> Self {
-        RadioButtonState {
-            selected_item: None,
-            default_selected_item,
-        }
-    }
-}
-
 #[derive(Clone, Default)]
 pub struct RadioButtonStateHandle {
     inner: Rc<Mutex<RadioButtonState>>,

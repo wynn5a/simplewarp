@@ -116,7 +116,7 @@ fn items_from_hashmap<T: NameValuePair>(map: &HashMap<String, String>) -> Vec<T>
 }
 
 /// Converts a slice of name/value pair items to a HashMap.
-#[allow(dead_code)]
+#[cfg(test)]
 fn items_to_hashmap<T: NameValuePair>(items: &[T]) -> HashMap<String, String> {
     items
         .iter()

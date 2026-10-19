@@ -19,7 +19,6 @@ pub struct TemplatableMCPServerInfo {
     ///
     /// TODO(vorporeal): Use this to display a toast when server authentication and connection is complete, and
     /// to provide a "log out" button.
-    #[allow(dead_code)]
     is_authenticated_transport: bool,
 }
 

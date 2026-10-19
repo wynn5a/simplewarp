@@ -20,7 +20,6 @@ pub struct Dirs {
 }
 
 pub enum Stub<'a> {
-    #[allow(dead_code)]
     FileWithContent(&'a str, &'a str),
     FileWithContentToBeTrimmed(&'a str, &'a str),
     EmptyFile(&'a str),

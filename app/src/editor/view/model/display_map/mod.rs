@@ -367,7 +367,7 @@ impl DisplayPoint {
         Self(Point::new(row, column))
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn zero() -> Self {
         Self::new(0, 0)
     }

@@ -7,7 +7,6 @@ pub trait Dimensions {
     fn total_rows(&self) -> usize;
 
     /// Number of rows in the viewport
-    #[allow(dead_code)]
     fn visible_rows(&self) -> usize;
 
     /// Width of the terminal in columns.

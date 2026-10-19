@@ -53,16 +53,9 @@ impl FromStr for AmbientAgentTaskId {
 #[derive(Clone, Debug)]
 pub enum AmbientConversationStatus {
     Success,
-    Error {
-        error: RenderableAIError,
-    },
-    #[allow(dead_code)]
-    Cancelled {
-        reason: CancellationReason,
-    },
-    Blocked {
-        blocked_action: String,
-    },
+    Error { error: RenderableAIError },
+    Cancelled { reason: CancellationReason },
+    Blocked { blocked_action: String },
 }
 
 /// Derive an [`AmbientConversationStatus`] from the given conversation, if it has
