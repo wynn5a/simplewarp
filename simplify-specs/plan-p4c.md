@@ -335,3 +335,43 @@ fails at HEAD for two reasons unrelated to this round: the local `.cargo-home/` 
 the pre-existing inline `#[cfg(test)] mod tests` at `app/src/features.rs:307`.
 
 Committed on master as `3c75ce38a` (code, 31 files) plus this log entry; not pushed.
+
+### P4c-2 — `warp_core` + `editor` + `warpui` + `warp_completer` + `warp_cli` candidates (all 33 items + 1 unregistered test)
+
+All §1.3–§1.5 items were re-verified zero-ref at HEAD (`3c75ce38a`) and deleted, plus the
+unregistered `crates/integration` test from §1.5: 15 files, +7/−456. `crates/editor/test_data/
+test_rust_file.rs` `into_unique` was excluded per §1.6. Three names required disambiguation before
+deletion: `retry_button` (a `retry_button_mouse_state` field elsewhere), `for_char` (a same-name
+test fn) and `app_args` (an unrelated `into_app_args` caller) are all definition-line-only for the
+candidate itself.
+
+Compiler-classified cascades:
+
+- `warp_core/ui/builder.rs`: `icon_with_tooltip` (private helper) lost all three callers
+  (`info_button_with_tooltip`, `help_icon_with_tooltip`, `span_with_tooltip`) → deleted; the
+  four path constants only used by the deleted methods also went (`INFO_SVG_PATH`,
+  `LEFT_CHEVRON_PATH`, `HELP_SVG_PATH`, `RETRY_SVG_PATH` — note `bundled/svg/retry.svg` remains
+  as an asset). Imports trimmed: `ConstrainedBox`, `vec2f`, `platform::Cursor`.
+- `editor/content/buffer.rs`: `color_count_at_offset` lost its only caller (`color_at_offset`) →
+  deleted; `SyntaxColorId` import trimmed. (`ColorU` stays: three non-related uses.)
+- `warpui/platform/headless/app.rs`: `enable_microphone_access_query` lost its only caller
+  (`enable_headless_microphone_access_query`) → deleted; reachability of the `AppBackend::Headless`
+  arm in that public method wrapper no longer applies.
+- `warpui/platform/linux/mod.rs`: `windowing::WindowingSystem` import trimmed (only the deleted
+  `user_windowing_system` named the type; `windowing::System` matching stays).
+
+New always-None follow-ups (compiler-invisible because the fields are still read):
+
+- `headless/delegate.rs` `query_microphone_access` is now only ever `false` (its only setter was
+  the deleted `enable_microphone_access_query`), so `microphone_access_state` always returns
+  `Denied` and its macOS query branch is unreachable; the ctor parameter (`app.rs:48`) can drop
+  with it. Behavior-preserving cut for a later round.
+
+Verification: `./script/format --check`, the three presubmit clippy gates (all `-D warnings`),
+`cargo check -p warp --features integration_tests --all-targets`, `cargo check --workspace
+--all-targets` (covered the workspace's `integration_tests` feature unification), and
+`cargo nextest run --workspace` (6340 run, 6338 passed, 87 skipped). The two failures are the
+same pre-existing pair as P4c-1: `warp::terminal::view::open_in_warp::tests::test_single_code_file`
+(`app/src/bin/oss.rs` deleted at HEAD) and the integration clone-slash-command test under
+full-workspace parallel load (passes in isolation, 1/1 in ~5.5 s here, same as the P4c-1 record).
+
