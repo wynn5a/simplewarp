@@ -197,7 +197,7 @@ pub fn is_tab_config_toml(path: &Path) -> bool {
         .any(|dir| path.starts_with(dir))
 }
 
-/// Ensures `~/.warp/default_tab_configs/worktree.toml` exists, creating it
+/// Ensures `~/.simplewarp/default_tab_configs/worktree.toml` exists, creating it
 /// from the embedded template if missing. Returns the path to the file.
 pub(crate) fn ensure_default_worktree_config() -> PathBuf {
     let dir = default_tab_configs_dir();

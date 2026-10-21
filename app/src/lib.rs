@@ -561,6 +561,10 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
 
     timer.mark_interval_end("LOG_FILE_SETUP_COMPLETE");
 
+    // Move pre-SimpleWarp config (`.warp-oss`) before settings, keybindings, or user data are
+    // read from the current directory.
+    warp_core::paths::migrate_legacy_home_config_dir();
+
     // Claim a background-only process type before anything else can reach
     // AppKit, so a headless launch never acquires a Dock tile. See APP-2946.
     #[cfg(target_os = "macos")]

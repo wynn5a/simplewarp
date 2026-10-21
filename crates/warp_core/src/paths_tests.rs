@@ -8,7 +8,7 @@ fn test_data_dir_path() {
     // ChannelState, by default, is configured for Channel::SimpleWarp.
     cfg_if::cfg_if! {
         if #[cfg(target_os = "macos")] {
-            assert_eq!(data_dir(), home_dir.join(".warp-oss"));
+            assert_eq!(data_dir(), home_dir.join(".simplewarp"));
         } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
             assert_eq!(data_dir(), home_dir.join(".local/share/simplewarp"));
         } else if #[cfg(windows)] {
@@ -28,7 +28,7 @@ fn test_config_local_dir_path() {
     // ChannelState, by default, is configured for Channel::SimpleWarp.
     cfg_if::cfg_if! {
         if #[cfg(target_os = "macos")] {
-            assert_eq!(config_local_dir(), home_dir.join(".warp-oss"));
+            assert_eq!(config_local_dir(), home_dir.join(".simplewarp"));
         } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
             assert_eq!(config_local_dir(), home_dir.join(".config/simplewarp"));
         } else if #[cfg(windows)] {
@@ -47,27 +47,19 @@ fn test_config_local_dir_path() {
 fn test_macos_config_dir_name_scopes_to_data_profile() {
     assert_eq!(
         macos_config_dir_name_for(Channel::SimpleWarp, None),
-        ".warp-oss"
+        ".simplewarp"
     );
     assert_eq!(
         macos_config_dir_name_for(Channel::Integration, None),
-        ".warp-integration"
+        ".simplewarp-integration"
     );
 
     // Each development profile must get its own directory so shared config
     // (notably settings.toml) cannot leak between profiles.
     assert_eq!(
         macos_config_dir_name_for(Channel::SimpleWarp, Some("myprofile")),
-        ".warp-oss-myprofile"
+        ".simplewarp-myprofile"
     );
-}
-
-#[test]
-fn test_gui_app_id_maps_simplewarp_channel_to_legacy_gui() {
-    let gui_app_id =
-        gui_app_id_for_channel(Channel::SimpleWarp, AppId::new("dev", "warp", "WarpOther"));
-
-    assert_eq!(gui_app_id.to_string(), "dev.warp.WarpOss");
 }
 
 #[test]
@@ -77,13 +69,13 @@ fn test_gui_config_and_mcp_paths_resolve_explicit_sources() {
 
     cfg_if::cfg_if! {
         if #[cfg(target_os = "macos")] {
-            assert_eq!(gui_config_dir, home_dir.join(".warp-oss"));
+            assert_eq!(gui_config_dir, home_dir.join(".simplewarp"));
         } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
-            assert_eq!(gui_config_dir, home_dir.join(".config/warp-oss"));
+            assert_eq!(gui_config_dir, home_dir.join(".config/simplewarp"));
         } else if #[cfg(windows)] {
             assert_eq!(
                 gui_config_dir,
-                home_dir.join("AppData\\Local\\warp\\WarpOss\\config")
+                home_dir.join("AppData\\Local\\simplewarp\\SimpleWarp\\config")
             );
         } else {
             unimplemented!("Need to update tests for current platform!");
@@ -96,8 +88,8 @@ fn test_gui_config_and_mcp_paths_resolve_explicit_sources() {
 fn test_warp_home_config_dir_path() {
     let home_dir = home_dir().expect("Should be able to compute home directory");
     let expected_dir_name = match ChannelState::data_profile() {
-        Some(data_profile) => format!(".warp-oss-{data_profile}"),
-        None => ".warp-oss".to_string(),
+        Some(data_profile) => format!(".simplewarp-{data_profile}"),
+        None => ".simplewarp".to_string(),
     };
 
     assert_eq!(
@@ -214,4 +206,56 @@ fn test_project_path_for_oss_app_id() {
             unimplemented!("Need to update tests for current platform!");
         }
     }
+}
+
+#[test]
+fn test_migrate_config_dir_moves_legacy_contents() {
+    let temp_dir = tempfile::tempdir().expect("Should be able to create temp dir");
+    let legacy_dir = temp_dir.path().join(".warp-oss");
+    let current_dir = temp_dir.path().join(".simplewarp");
+    std::fs::create_dir_all(&legacy_dir).expect("Should be able to create legacy dir");
+    std::fs::write(legacy_dir.join("settings.toml"), "theme = \"dark\"")
+        .expect("Should be able to write settings");
+
+    migrate_config_dir(&legacy_dir, &current_dir);
+
+    assert!(!legacy_dir.exists());
+    assert_eq!(
+        std::fs::read_to_string(current_dir.join("settings.toml"))
+            .expect("Should be able to read migrated settings"),
+        "theme = \"dark\""
+    );
+}
+
+#[test]
+fn test_migrate_config_dir_keeps_existing_destination() {
+    let temp_dir = tempfile::tempdir().expect("Should be able to create temp dir");
+    let legacy_dir = temp_dir.path().join(".warp-oss");
+    let current_dir = temp_dir.path().join(".simplewarp");
+    std::fs::create_dir_all(&legacy_dir).expect("Should be able to create legacy dir");
+    std::fs::create_dir_all(&current_dir).expect("Should be able to create current dir");
+    std::fs::write(legacy_dir.join("settings.toml"), "legacy = true")
+        .expect("Should be able to write legacy settings");
+    std::fs::write(current_dir.join("settings.toml"), "current = true")
+        .expect("Should be able to write current settings");
+
+    migrate_config_dir(&legacy_dir, &current_dir);
+
+    assert!(legacy_dir.exists());
+    assert_eq!(
+        std::fs::read_to_string(current_dir.join("settings.toml"))
+            .expect("Should be able to read current settings"),
+        "current = true"
+    );
+}
+
+#[test]
+fn test_migrate_config_dir_ignores_missing_legacy() {
+    let temp_dir = tempfile::tempdir().expect("Should be able to create temp dir");
+    let legacy_dir = temp_dir.path().join(".warp-oss");
+    let current_dir = temp_dir.path().join(".simplewarp");
+
+    migrate_config_dir(&legacy_dir, &current_dir);
+
+    assert!(!current_dir.exists());
 }

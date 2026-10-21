@@ -402,7 +402,7 @@ fn test_update_file_based_servers_removes_unreferenced_servers() {
     });
 }
 
-/// A Warp-global installation detected from the managed `~/.warp*/.mcp.json`
+/// A Warp-global installation detected from the managed `~/.simplewarp*/.mcp.json`
 /// watcher uses the home directory as its logical root and still always
 /// auto-spawns.
 #[test]

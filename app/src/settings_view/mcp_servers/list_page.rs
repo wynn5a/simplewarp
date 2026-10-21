@@ -1117,9 +1117,10 @@ impl MCPServersListPageView {
             return Some("global".to_string());
         }
 
-        // If the path is the Warp data directory (e.g. ~/.warp or ~/.warp_dev), set the text to
-        // "global". The Warp provider stores its data directory as the root path rather than the
-        // home directory, unlike other providers that store the home directory directly.
+        // If the path is the data directory (e.g. ~/.simplewarp or ~/.simplewarp-<profile>), set
+        // the text to "global". The Warp provider stores its data directory as the root path
+        // rather than the home directory, unlike other providers that store the home directory
+        // directly.
         if root_path == &crate::warp_managed_paths_watcher::warp_data_dir() {
             return Some("global".to_string());
         }

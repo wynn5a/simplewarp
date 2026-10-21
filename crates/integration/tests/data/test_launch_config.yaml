@@ -7,7 +7,7 @@
 # This file defines your launch configuration
 # More on how to do so here: [link to docs]
 #
-# All launch configurations are stored under ~/.warp/launch_configurations/
+# All launch configurations are stored under ~/.simplewarp/launch_configurations/
 # Edit them anytime!
 
 ---

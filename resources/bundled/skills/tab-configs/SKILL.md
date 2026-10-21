@@ -7,9 +7,9 @@ description: Reference the Warp tab config schema, validation rules, and example
 
 This skill is the canonical reference for Warp tab config TOML files.
 
-Tab configs live under `~/.warp/tab_configs/` for standard Warp builds. Non-stable builds (e.g. Preview or pre-release channels) use a channel-specific variant such as `~/.warp-<channel>/tab_configs/`. Do NOT use `~/Library/Application Support/` — that is the wrong location.
+Tab configs live under `~/.simplewarp/tab_configs/`. Data profiles use a suffix such as `~/.simplewarp-<profile>/tab_configs/`. Do NOT use `~/Library/Application Support/` — that is the wrong location.
 
-To find the active data directory, inspect which `~/.warp*` directories exist on the user's machine. Each `.toml` file defines a single tab layout that appears in the `+` menu. When the user selects one, Warp opens a new tab with the configured pane layout and runs any specified commands.
+To find the active data directory, inspect which `~/.simplewarp*` directories exist on the user's machine. Each `.toml` file defines a single tab layout that appears in the `+` menu. When the user selects one, Warp opens a new tab with the configured pane layout and runs any specified commands.
 
 Use this skill as shared context:
 - `create-tab-config` should use it when authoring a new config.
@@ -222,7 +222,7 @@ commands = []
 ```
 
 ### With parameters
-Warp-generated worktree configs default to `~/.warp/worktrees/<repo-name>/<worktree-name>`. When writing a reusable config by hand, derive the repo-name segment at shell runtime with `$(basename {{repo}})`.
+Warp-generated worktree configs default to `~/.simplewarp/worktrees/<repo-name>/<worktree-name>`. When writing a reusable config by hand, derive the repo-name segment at shell runtime with `$(basename {{repo}})`.
 
 ```toml
 name = "New Worktree"
@@ -233,8 +233,8 @@ id = "main"
 type = "terminal"
 directory = "{{repo}}"
 commands = [
-  "git worktree add -b {{branch_name}} $HOME/.warp/worktrees/$(basename {{repo}})/{{branch_name}} {{base_branch}}",
-  "cd $HOME/.warp/worktrees/$(basename {{repo}})/{{branch_name}}",
+  "git worktree add -b {{branch_name}} $HOME/.simplewarp/worktrees/$(basename {{repo}})/{{branch_name}} {{base_branch}}",
+  "cd $HOME/.simplewarp/worktrees/$(basename {{repo}})/{{branch_name}}",
 ]
 
 [params.repo]

@@ -15,7 +15,7 @@ User customizations live at:
 {{keybindings_file_path}}
 ```
 
-This is the exact path Warp reads at launch — it is platform- and channel-specific (e.g. under `~/.warp*/` on macOS, under XDG config dirs like `~/.config/warp-terminal/` on Linux, and under `%LocalAppData%` on Windows). Use this path verbatim — do not infer a different one from the user's home directory layout. Create the file (and any missing parent directories) if it does not exist.
+This is the exact path the app reads at launch — it is platform- and profile-specific (e.g. under `~/.simplewarp*/` on macOS, under XDG config dirs like `~/.config/simplewarp/` on Linux, and under `%LocalAppData%` on Windows). Use this path verbatim — do not infer a different one from the user's home directory layout. Create the file (and any missing parent directories) if it does not exist.
 
 ## File format
 

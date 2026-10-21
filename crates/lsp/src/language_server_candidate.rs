@@ -41,7 +41,7 @@ pub trait LanguageServerCandidate: Send + Sync {
         self.is_installed_on_path(executor).await
     }
 
-    /// Attempts to install the server into the `.warp/` directory.
+    /// Attempts to install the server into the `.simplewarp/` directory.
     ///
     /// The executor provides the user's PATH environment variable, which may be needed
     /// for servers that rely on external tools (e.g. gopls needs `go`).

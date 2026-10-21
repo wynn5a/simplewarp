@@ -1,9 +1,9 @@
 # Default worktree tab config
-# Stored in ~/.warp/default_tab_configs/ — you can customize this file!
+# Stored in ~/.simplewarp/default_tab_configs/ — you can customize this file!
 # Any customizations will apply for any new worktree configs going forward that are created from the "New worktree config" flow
 #
 # This config is used by the "Worktree in" submenu to quickly create
-# worktrees under ~/.warp/worktrees/<repo-name>/<worktree-name> for your
+# worktrees under ~/.simplewarp/worktrees/<repo-name>/<worktree-name> for your
 # known repositories.
 
 name = "Worktree"

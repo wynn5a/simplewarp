@@ -269,7 +269,7 @@ impl FileBasedMCPManager {
     /// config location.
     ///
     /// "Global" means the installation was detected outside of a user repository:
-    /// - For `MCPProvider::Warp`: the logical root for `~/.warp*/.mcp.json`.
+    /// - For `MCPProvider::Warp`: the logical root for `~/.simplewarp*/.mcp.json`.
     /// - For any other provider: the user's home directory (e.g. `~/.claude.json`).
     ///
     /// Project-scoped installations (those detected inside a repo) are not considered
@@ -288,7 +288,7 @@ impl FileBasedMCPManager {
     }
 
     /// Returns `true` if the server identified by `hash` is referenced from the global
-    /// Warp config (`~/.warp/.mcp.json`). Global Warp servers always auto-spawn.
+    /// Warp config (`~/.simplewarp/.mcp.json`). Global Warp servers always auto-spawn.
     fn is_global_warp_server(&self, hash: u64) -> bool {
         self.file_based_servers_by_root
             .iter()
@@ -518,11 +518,11 @@ impl FileBasedMCPManager {
     /// when its config does not specify `working_directory`.
     ///
     /// The spawn root is the directory the config was discovered in, with one
-    /// exception: global Warp installs are discovered in `~/.warp*/`, which
+    /// exception: global Warp installs are discovered in `~/.simplewarp*/`, which
     /// isn't a useful cwd for spawned processes, so they are remapped to the
     /// home directory instead.
     /// - Project-scoped installations: the repo root.
-    /// - Global installations (`~/.warp/.mcp.json`, `~/.claude.json`, etc.): the
+    /// - Global installations (`~/.simplewarp/.mcp.json`, `~/.claude.json`, etc.): the
     ///   home directory.
     ///
     /// If the installation is referenced from multiple roots, the lexicographically
@@ -538,7 +538,7 @@ impl FileBasedMCPManager {
             .sorted()
             .next()?;
 
-        // Global Warp installs live under `~/.warp*/`, which is internal Warp
+        // Global Warp installs live under `~/.simplewarp*/`, which is internal Warp
         // state rather than a meaningful working directory. Map them to the
         // home dir so all global installs (Warp and third-party) share a
         // consistent cwd.
