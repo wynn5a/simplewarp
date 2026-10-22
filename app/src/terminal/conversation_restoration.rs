@@ -4,8 +4,8 @@
 //! Restoration first rebuilds persisted command blocks in the terminal model, filters the
 //! conversation down to agent exchanges that should be visible, and determines where each
 //! exchange belongs relative to those command blocks. The resulting
-//! [`ConversationBlockRestorationPlan`] lets GUI and TUI consumers create their own agent-block
-//! views without duplicating command restoration or placement logic.
+//! [`ConversationBlockRestorationPlan`] lets the view layer create agent-block views without
+//! duplicating command restoration or placement logic.
 
 use chrono::{DateTime, Local};
 

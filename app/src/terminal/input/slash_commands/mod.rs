@@ -77,10 +77,9 @@ pub enum SlashCommandSelectionBehavior {
 
 /// Shared menu-selection policy for static slash commands.
 ///
-/// GUI and TUI both first decide whether accepting a menu row should insert the
-/// slash command text for further argument entry, or execute the command
-/// immediately. Surface-specific execution remains in `Input::execute_slash_command`
-/// for GUI and in `TuiTerminalSessionView::execute_tui_slash_command` for TUI.
+/// Accepting a menu row first decides whether to insert the slash command text
+/// for further argument entry or execute the command immediately. Execution
+/// remains in `Input::execute_slash_command`.
 pub fn slash_command_selection_behavior(command: &StaticCommand) -> SlashCommandSelectionBehavior {
     if command
         .argument
@@ -105,7 +104,7 @@ pub fn should_close_slash_command_menu_for_exact_match(
     result_count < 2 || argument_started
 }
 
-/// Records a static slash command accepted from either the GUI or TUI surface.
+/// Records an accepted static slash command.
 pub fn record_static_slash_command_accepted(
     _command_name: &str,
     _is_in_agent_view: bool,
@@ -113,7 +112,7 @@ pub fn record_static_slash_command_accepted(
 ) {
 }
 
-/// Records a saved prompt accepted from either the GUI or TUI slash menu.
+/// Records an accepted saved prompt.
 pub fn record_saved_prompt_accepted(_is_in_agent_view: bool, _ctx: &mut AppContext) {}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

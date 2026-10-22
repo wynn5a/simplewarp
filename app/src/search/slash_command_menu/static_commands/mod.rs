@@ -80,11 +80,11 @@ pub enum SlashCommandKind {
     CopyDebuggingId,
 }
 
-/// The application surfaces on which a static slash command is implemented.
+/// The application surface on which a static slash command is implemented.
 ///
-/// This field is required on every [`StaticCommand`] so new commands must explicitly declare
-/// whether they are GUI-only, TUI-only, or shared by both front-ends. GUI-capable variants also
-/// require the icon path used to render the command in GUI menus.
+/// This field is required on every [`StaticCommand`] so new commands must
+/// explicitly declare the surface they support. The GUI variant also carries
+/// the icon path used to render the command in menus.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SlashCommandSurfaces {
     GuiOnly { icon_path: &'static str },

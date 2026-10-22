@@ -736,9 +736,7 @@ impl TemplatableMCPServerManager {
             }
 
             // Prepend our PATH to the static env vars, in case the user has
-            // specified a custom PATH in the MCP server settings. TUI processes
-            // instead inherit their launching environment without converting
-            // an OsString PATH into a persisted GUI setting.
+            // specified a custom PATH in the MCP server settings.
             if let Some(execution_path) = execution_path {
                 cli_server.static_env_vars.insert(
                     0,

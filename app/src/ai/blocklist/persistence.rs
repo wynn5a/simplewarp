@@ -104,10 +104,6 @@ impl TryFrom<PersistedAIInputType> for AIAgentInput {
 
 /// Builds the persistence-writer event for a query-bearing exchange update.
 ///
-/// GUI panes and TUI sessions both consume the global history model, so the
-/// serialization and filtering rules must stay shared even though each
-/// frontend writes to its own persistence scope.
-///
 /// Returns `None` when the event is irrelevant to this terminal surface or the
 /// exchange should not be persisted.
 pub fn maybe_build_ai_query_upsert_event(

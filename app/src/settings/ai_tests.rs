@@ -163,7 +163,6 @@ fn ai_autodetection_setting_can_be_toggled_on_and_off() {
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
 
-        // Mirrors what `/enable-natural-language-detection` does in the TUI.
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
             settings
                 .ai_autodetection_enabled_internal
@@ -175,7 +174,6 @@ fn ai_autodetection_setting_can_be_toggled_on_and_off() {
             assert!(settings.is_ai_autodetection_enabled());
         });
 
-        // Mirrors what `/disable-natural-language-detection` does in the TUI.
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
             settings
                 .ai_autodetection_enabled_internal

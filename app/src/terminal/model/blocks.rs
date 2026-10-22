@@ -2316,16 +2316,7 @@ impl BlockList {
                 )
             })
             .collect::<HashMap<EntityId, BlockHeight>>();
-        self.update_rich_content_heights_in_lines(&updated_heights);
-    }
-
-    /// Updates rich-content heights already measured in the canonical line unit
-    /// (used by the TUI, whose layout is row-based).
-    pub fn update_rich_content_heights_in_lines(
-        &mut self,
-        updated_heights: &HashMap<EntityId, BlockHeight>,
-    ) {
-        self.update_blocks_and_sumtree(None, Some(updated_heights), |_| {}, |_| {});
+        self.update_blocks_and_sumtree(None, Some(&updated_heights), |_| {}, |_| {});
     }
 
     pub fn set_show_in_band_command_blocks(&mut self, should_show_in_band_command_blocks: bool) {

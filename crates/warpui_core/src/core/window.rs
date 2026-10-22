@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::view::AnyViewHandle;
 use crate::core::{AnyView, BlurContext, FocusContext};
-use crate::{AccessibilityData, AppContext, CursorInfo, EntityId, EntityIdMap, keymap};
+use crate::{AccessibilityData, AppContext, CursorInfo, Element, EntityId, EntityIdMap, keymap};
 
 /// A unique identifier for a window.
 ///
@@ -51,13 +51,9 @@ pub(super) struct Window {
 
 /// A type-erased view stored in a window's view registry.
 ///
-/// GUI views ([`AnyView`]) and TUI views ([`AnyTuiView`], additive behind the
-/// `tui` feature) share the same registry, keyed by the same [`EntityId`]s, so
-/// all of the neutral machinery (handles + ref counts, focus, the responder
-/// chain, typed actions, subscriptions/observations, drop/transfer) flows
-/// through the same paths for both. The inherent methods below delegate the
-/// neutral hook subset; render and the GUI-only hooks are matched exhaustively
-/// at their call sites.
+/// The inherent methods below delegate to the inner view so the neutral
+/// machinery (handles + ref counts, focus, the responder chain, typed actions,
+/// subscriptions/observations, drop/transfer) can operate on erased views.
 pub(crate) enum StoredView {
     Gui(Box<dyn AnyView>),
 }
@@ -78,6 +74,12 @@ impl StoredView {
     pub fn ui_name(&self) -> &'static str {
         match self {
             StoredView::Gui(view) => view.ui_name(),
+        }
+    }
+
+    pub fn render(&self, app: &AppContext) -> Box<dyn Element> {
+        match self {
+            StoredView::Gui(view) => view.render(app),
         }
     }
 

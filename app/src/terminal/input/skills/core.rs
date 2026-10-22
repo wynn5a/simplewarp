@@ -7,7 +7,7 @@ use warpui::{AppContext, SingletonEntity as _};
 
 use crate::ai::skills::SkillManager;
 
-/// Surface-neutral skill selection result shared by GUI and TUI menus.
+/// Skill selection result shared by skill menus.
 #[derive(Clone)]
 pub struct SelectableSkill {
     pub name: String,

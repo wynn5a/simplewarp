@@ -47,8 +47,8 @@ pub trait PtyIntentEvent {
 /// A terminal frontend surface driven by `TerminalManager`.
 ///
 /// Each surface defines how its own event type collapses into a PTY/session intent.
-/// This is bounded by [`Entity`] instead of [`View`](warpui::View) so the same
-/// manager can drive both GUI views and TUI views.
+/// This is bounded by [`Entity`] instead of [`View`](warpui::View) to keep the
+/// manager independent of the view layer.
 pub trait TerminalSurface: Entity + 'static
 where
     <Self as Entity>::Event: PtyIntentEvent,

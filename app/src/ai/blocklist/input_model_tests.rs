@@ -282,7 +282,7 @@ fn build_input_model(
 #[test]
 fn initial_config_comes_from_policy() {
     App::test((), |mut app| async move {
-        // A locked-AI initial config sticks — a TUI-style policy is not subject
+        // A locked-AI initial config sticks — an inert policy is not subject
         // to any GUI gating.
         let (input_model, _) = build_input_model(&mut app, StubPolicy::inert(AI_LOCKED));
         input_model.read(&app, |model, _| {

@@ -44,8 +44,8 @@ pub struct SettingSchemaEntry {
     /// `None` means unlimited depth.
     pub max_table_depth: Option<u32>,
 
-    /// Returns which surfaces (GUI, TUI, ...) this setting applies to. Used to
-    /// filter which settings are emitted into a given surface's default file.
+    /// Returns which surfaces this setting applies to. Used to filter which
+    /// settings are emitted into a given surface's default file.
     pub surfaces_fn: fn() -> crate::SettingSurfaces,
 }
 

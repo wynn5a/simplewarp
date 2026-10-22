@@ -33,13 +33,10 @@ fn log_state(base_directory: &Path, frontend: LogFrontend, logfile_name: &str) -
 fn frontend_resolves_directory_and_rotation_policy() {
     let base = PathBuf::from("/tmp/warp-logs");
     let gui = log_state(&base, LogFrontend::Gui, "warp_dev.log");
-    let tui = log_state(&base, LogFrontend::Tui, "warp_dev.log");
     let cli = log_state(&base, LogFrontend::Cli, "warp_dev.log");
 
     assert_eq!(gui.log_directory, base);
     assert_eq!(gui.max_rotation, MAX_FILES_IN_GUI_ROTATION);
-    assert_eq!(tui.log_directory, PathBuf::from("/tmp/warp-logs/warp-cli"));
-    assert_eq!(tui.max_rotation, MAX_FILES_IN_CLI_ROTATION);
     assert_eq!(
         cli.log_directory,
         PathBuf::from("/tmp/warp-logs/simplewarp")
@@ -48,21 +45,21 @@ fn frontend_resolves_directory_and_rotation_policy() {
 }
 
 #[test]
-fn tui_bundle_uses_resolved_state_and_ignores_legacy_oz_logs() {
+fn bundle_uses_resolved_state_and_ignores_files_outside_the_log_directory() {
     let tmp = tempfile::tempdir().unwrap();
-    let state = log_state(tmp.path(), LogFrontend::Tui, "warp_preview.log");
+    let state = log_state(tmp.path(), LogFrontend::Cli, "warp_preview.log");
     fs::create_dir(&state.log_directory).unwrap();
     write_bytes(
         &state.log_directory.join("warp_preview.log"),
-        b"active tui session",
+        b"active cli session",
     );
     write_bytes(
         &state.log_directory.join("warp_preview.log.old.0"),
-        b"previous tui session",
+        b"previous cli session",
     );
     write_bytes(
         &state.log_directory.join("warp_preview.log.in_session.0"),
-        b"mid-session tui chunk",
+        b"mid-session cli chunk",
     );
     let legacy = tmp.path().join("oz");
     fs::create_dir(&legacy).unwrap();
@@ -301,14 +298,9 @@ fn remove_nested_chunks_deletes_every_chunk_of_the_target_slot() {
 fn resolved_active_paths_use_frontend_directory_and_channel_name() {
     let base = PathBuf::from("/tmp/warp-logs");
     let gui = log_state(&base, LogFrontend::Gui, "warp_dev.log");
-    let tui = log_state(&base, LogFrontend::Tui, "warp_local.log");
     let cli = log_state(&base, LogFrontend::Cli, "warp_preview.log");
 
     assert_eq!(gui.log_file_path(), base.join("warp_dev.log"));
-    assert_eq!(
-        tui.log_file_path(),
-        base.join("warp-cli").join("warp_local.log")
-    );
     assert_eq!(
         cli.log_file_path(),
         base.join("simplewarp").join("warp_preview.log")
@@ -316,14 +308,14 @@ fn resolved_active_paths_use_frontend_directory_and_channel_name() {
 }
 
 #[test]
-fn crash_recovery_paths_use_channel_name_in_tui_directory() {
-    let tui_dir = PathBuf::from("/tmp/warp-logs/warp-cli");
+fn crash_recovery_paths_use_channel_name() {
+    let log_dir = PathBuf::from("/tmp/warp-logs/simplewarp");
     assert_eq!(
-        temp_log_file_path(&tui_dir, "warp_dev.log"),
-        tui_dir.join("warp_dev.log.old.temp")
+        temp_log_file_path(&log_dir, "warp_dev.log"),
+        log_dir.join("warp_dev.log.old.temp")
     );
     assert_eq!(
-        crash_recovery_process_log_file_path(&tui_dir, "warp_dev.log"),
-        tui_dir.join("warp_dev.log.recovery")
+        crash_recovery_process_log_file_path(&log_dir, "warp_dev.log"),
+        log_dir.join("warp_dev.log.recovery")
     );
 }

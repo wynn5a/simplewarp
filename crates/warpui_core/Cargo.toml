@@ -90,12 +90,6 @@ simplelog.workspace = true
 # Enable the `test-util` feature for our own package when running tests.
 warpui_core = { path = ".", features = ["test-util"] }
 
-# The TUI terminal color probe (`runtime/terminal_probe.rs`) needs
-# non-blocking, deadline-bounded reads from stdin (fcntl/poll/read): std has
-# no non-blocking stdin API and crossterm never surfaces OSC replies.
-[target.'cfg(unix)'.dependencies]
-libc.workspace = true
-
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))'.dependencies]
 arboard = { workspace = true, features = ["image-data"] }
 

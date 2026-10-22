@@ -17,7 +17,6 @@ use crate::{LogConfig, LogDestination, LogFrontend};
 const MAX_FILES_IN_GUI_ROTATION: usize = 5;
 const MAX_FILES_IN_CLI_ROTATION: usize = 10;
 const CLI_LOG_SUBDIRECTORY: &str = "simplewarp";
-const TUI_LOG_SUBDIRECTORY: &str = "warp-cli";
 const TEMP_LOG_FILE_SUFFIX: &str = "old.temp";
 
 /// Runtime logging state, computed from `LogConfig` during initialization.
@@ -40,7 +39,6 @@ impl LogFrontend {
     fn log_directory(self, base_directory: PathBuf) -> PathBuf {
         match self {
             LogFrontend::Gui => base_directory,
-            LogFrontend::Tui => base_directory.join(TUI_LOG_SUBDIRECTORY),
             LogFrontend::Cli => base_directory.join(CLI_LOG_SUBDIRECTORY),
         }
     }
@@ -48,7 +46,7 @@ impl LogFrontend {
     fn max_rotation(self) -> usize {
         match self {
             LogFrontend::Gui => MAX_FILES_IN_GUI_ROTATION,
-            LogFrontend::Tui | LogFrontend::Cli => MAX_FILES_IN_CLI_ROTATION,
+            LogFrontend::Cli => MAX_FILES_IN_CLI_ROTATION,
         }
     }
 }

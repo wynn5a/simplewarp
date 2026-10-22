@@ -1,20 +1,18 @@
-//! Surface-owned storage and the shared persistence flow for `RequestFileEdits`
-//! diffs.
+//! Storage and the shared persistence flow for `RequestFileEdits` diffs.
 //!
-//! Every surface that stores pending diffs — the GUI `CodeDiffView` and the
-//! up-stack TUI diff storage — implements [`DiffStorage`], a required-methods-
-//! only contract: an accept-time snapshot of per-file state plus the
-//! surface-specific write kickoff. The shared save-completion flow is
+//! The GUI `CodeDiffView` stores pending diffs and implements [`DiffStorage`], a
+//! required-methods-only contract: an accept-time snapshot of per-file state
+//! plus the write kickoff. The shared save-completion flow is
 //! [`DiffStorageHelper`], blanket-implemented for every `DiffStorage` so no
-//! surface can override it: it joins the per-file save futures, computes each
-//! file's result diff, and assembles the final [`RequestFileEditsResult`], so
-//! every surface produces results through the same code.
+//! implementation can override it: it joins the per-file save futures, computes
+//! each file's result diff, and assembles the final [`RequestFileEditsResult`],
+//! so all diffs produce results through the same code.
 //!
-//! The executor knows surfaces only through [`RegisteredDiffStorage`], a small
-//! object-safe handle trait, because GUI `ViewHandle`s and model `ModelHandle`s
-//! share no common handle type. Each surface's handle type implements it
-//! directly, delegating to its entity's [`DiffStorageHelper`] flow. Every
-//! surface must register its storage before the action's diffs resolve
+//! The executor knows the storage only through [`RegisteredDiffStorage`], a
+//! small object-safe handle trait, because GUI `ViewHandle`s and model
+//! `ModelHandle`s share no common handle type. The handle type implements it
+//! directly, delegating to its entity's [`DiffStorageHelper`] flow. The storage
+//! must be registered before the action's diffs resolve
 //! (`register_requested_edits`); preprocess and execute assume a registered
 //! storage.
 use std::collections::HashMap;
@@ -40,12 +38,12 @@ const APPLY_DIFF_RESULT_CONTEXT_LINES: usize = 10;
 /// Resolves with the outcome of one file's dispatched save.
 pub type SaveFuture = BoxFuture<'static, Result<(), Arc<FileSaveError>>>;
 
-/// A surface that stores pending file-edit diffs and persists them on accept.
+/// A store of pending file-edit diffs that persists them on accept.
 ///
 /// This trait is only ever implemented, never imported for its methods: every
 /// method is required — the accept-time snapshot (the fields live on each
-/// impl, since traits cannot hold state) plus the surface-specific write
-/// kickoff ([`Self::start_saving`]). The shared save-completion flow lives on
+/// impl, since traits cannot hold state) plus the write kickoff
+/// ([`Self::start_saving`]). The shared save-completion flow lives on
 /// [`DiffStorageHelper`]; callers drive an accept solely through
 /// [`DiffStorageHelper::accept_and_save`].
 pub trait DiffStorage {
@@ -58,10 +56,9 @@ pub trait DiffStorage {
     /// Kicks off persistence for every pending file, returning each
     /// dispatched save's completion future.
     ///
-    /// The surface-specific hook invoked by
-    /// [`DiffStorageHelper::accept_and_save`] — never called directly by
-    /// callers. The GUI saves through its editor buffers; surfaces without
-    /// editor buffers dispatch writes to `FileModel`.
+    /// The hook invoked by [`DiffStorageHelper::accept_and_save`] — never
+    /// called directly by callers. `CodeDiffView` saves through its editor
+    /// buffers.
     fn start_saving(&mut self, app: &mut AppContext) -> Vec<SaveFuture>;
 }
 
@@ -71,7 +68,7 @@ pub trait DiffStorage {
 /// `DiffStorage` so implementations cannot errantly override it (the same
 /// convention as `AIBlockModelHelper`).
 pub trait DiffStorageHelper {
-    /// The entry point for accepting a surface's diffs: snapshots per-file
+    /// The entry point for accepting the stored diffs: snapshots per-file
     /// state, persists every file, and resolves with the assembled result
     /// once every save completes.
     fn accept_and_save(

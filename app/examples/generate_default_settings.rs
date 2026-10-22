@@ -8,7 +8,7 @@
 //! per-generator registration list to keep in sync.
 //!
 //! Usage:
-//!   cargo run --example generate_default_settings -- --surface gui|tui [--channel dev|preview|stable] <output_path>
+//!   cargo run --example generate_default_settings -- --surface gui [--channel dev|preview|stable] <output_path>
 //!
 //! Example:
 //!   cargo run --example generate_default_settings -- --surface gui ./default_settings.toml
@@ -77,7 +77,7 @@ fn main() {
                 if i < args.len() {
                     surface = Some(&args[i]);
                 } else {
-                    eprintln!("Missing value for --surface (expected 'gui' or 'tui')");
+                    eprintln!("Missing value for --surface (expected 'gui')");
                     std::process::exit(1);
                 }
             }
@@ -94,7 +94,7 @@ fn main() {
 
     let Some(output_path) = output_path else {
         eprintln!(
-            "Usage: generate_default_settings --surface gui|tui [--channel dev|preview|stable] <output_path>"
+            "Usage: generate_default_settings --surface gui [--channel dev|preview|stable] <output_path>"
         );
         std::process::exit(1);
     };
