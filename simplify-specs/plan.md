@@ -1357,6 +1357,40 @@ PersonalCloud, `autosync_plans_to_warp_drive`,
 `Icon::Warp`, the app_state WarpDrive tombstone), the
 enable-candidate flags above, and the `AgentHarness` flag (enabled in the simplewarp set).
 
+**Post-P4c cleanup (2026-10-22): test fixtures, orphan crate, docs/TUI residue.** Three commits
+on top of `f1fb1c11f`, no behavior changes:
+
+- `3d16fa47f` — terminal ref-test fixtures 65 MB → 1.5 MB: deleted the never-registered
+  `row_reset/` directory (18.1 MB, no `ref_tests!` entry) and stored the 39 registered
+  `grid.json` files gzipped (`ref_test` decodes them with flate2, already an app dependency);
+  `.gitattributes` marks `*.json.gz` binary. The warpui example `rustyrain.gif` was re-encoded
+  from 18.2 MB (2400×1318, 50 frames) to 1.3 MB (480×263, 25 frames) with the workspace `image`
+  crate. Checkout 197 MB → 117 MB; all 39 ref tests pass.
+- `5cd97d82c` — deleted `crates/ipc` (1,099 lines; no dependent since P4c-5), which also drops
+  `interprocess`/`intmap`/`spinning`/`to_method` from `Cargo.lock`, plus nine unreferenced
+  `[workspace.dependencies]` entries (`integration`, `ashpd`, `fs4`, `globset`,
+  `objc2-core-graphics`, `tower`, `tower-http`, `parquet`) and `integration`'s unused
+  `directories` dependency. `cargo machete` now reports only the known macro/attribute false
+  positives.
+- `79b01b2ea` — moved `wayne5a-progress.md` to `simplify-specs/progress-log.md` and added
+  `simplify-specs/README.md` indexing current vs historical records. TUI residue: dropped the
+  `warp_tui`-only re-export from `app/src/editor/mod.rs`, gated `CodeEditorModel::new_tui` and
+  `tui_stub_text_styles` behind `cfg(test)`, deleted `KeystrokeWithDetails::to_pty_bytes` and
+  its two C0 helpers (test-only since the TUI went), and reworded every comment that treated
+  the deleted crate as live. `CLIAgent::WarpTui` detection is unchanged: it matches a running
+  `warp` binary, not this repo's front-end.
+
+Left open: the editor's char-cell layout engine (`CharCellState`, `CharCellTextIndex`,
+`CharCellTemporaryBlock`, `DisplayLattice`, `LayoutMode::CharCell`, the `char_cell_*` helpers,
+the 415-line test module and `benches/char_cell_bench.rs`) has no production caller now that
+`new_tui` is test-only — roughly 2.4k lines, all reached from tests/bench. Deletion is the
+obvious next round; it needs the same compiler-guided pass because `RenderState` branches on
+`layout_mode` in several places.
+
+Verification: format and the three clippy gates clean; `cargo nextest run --workspace` 6,341
+run, 6,340 passed, 1 failed, 87 skipped — the known clone-slash-command integration flake,
+passing 2/2 in isolation (~5.8 s), the same signature recorded in P4c.
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the
