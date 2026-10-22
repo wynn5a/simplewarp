@@ -9,7 +9,6 @@ use warpui::{AppContext, Element, SingletonEntity};
 
 use super::HistoryEntry;
 use crate::appearance::Appearance;
-use crate::input_suggestions::AIQueryHistoryEntryDetails;
 use crate::ui_components::icons::Icon as UiIcon;
 use crate::util::time_format::{format_approx_duration_from_now, human_readable_precise_duration};
 
@@ -106,50 +105,6 @@ pub fn render_rich_history(entry: &HistoryEntry, ctx: &AppContext) -> Box<dyn El
     }
 
     flex_column.finish()
-}
-
-pub(crate) fn render_ai_query_rich_history(
-    entry: &AIQueryHistoryEntryDetails,
-    ctx: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(ctx);
-
-    let mut details_column = Flex::column()
-        .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-        .with_child(render_row_with_icon_and_paragraph(
-            entry.output_status.icon().into(),
-            entry.output_status.display_text(),
-            appearance,
-        ));
-
-    if let Some(working_directory) = &entry.working_directory {
-        details_column.add_child(
-            Container::new(render_row_with_icon_and_paragraph(
-                UiIcon::Folder.into(),
-                working_directory.clone(),
-                appearance,
-            ))
-            .with_margin_top(DETAILS_PARAGRAPH_SPACING)
-            .finish(),
-        );
-    }
-
-    details_column.add_child(
-        Container::new(
-            appearance
-                .ui_builder()
-                .paragraph(format!(
-                    "Ran {}",
-                    format_approx_duration_from_now(entry.start_time)
-                ))
-                .build()
-                .finish(),
-        )
-        .with_margin_top(DETAILS_PARAGRAPH_SPACING)
-        .finish(),
-    );
-
-    details_column.finish()
 }
 
 pub(crate) fn render_row_with_icon_and_paragraph(

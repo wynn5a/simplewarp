@@ -107,10 +107,6 @@ impl InputSuggestionsModeModel {
         matches!(self.mode, InputSuggestionsMode::Closed)
     }
 
-    pub fn is_history_up(&self) -> bool {
-        matches!(self.mode, InputSuggestionsMode::HistoryUp { .. })
-    }
-
     pub fn is_completion_suggestions(&self) -> bool {
         matches!(
             self.mode,

@@ -106,12 +106,11 @@ gets its own round.
 **C2 — input, completions, history, workflows** — 16 flags, 84 refs (**done 2026-10-22**):
 `AllowIgnoringInputSuggestions`, `ClassicCompletions`, `ClearAutosuggestionOnEscape`, `CommandCorrectionKey`, `CommandCorrectionsHistoryRule`, `CycleNextCommandSuggestion`, `DynamicWorkflowEnums`, `ForceClassicCompletions`, `InlineHistoryMenu`, `InlineMenuHeaders`, `NativeShellCompletions`, `NldPromptHistoryMatch`, `PartialNextCommandSuggestions`, `RemoveAutosuggestionDuringTabCompletions`, `ValidateAutosuggestions`, `WorkflowAliases`.
 
-**C2b — dead `HistoryUp` suggestions mode (follow-up of C2)** — with `InlineHistoryMenu` always on,
-up-arrow on a closed menu opens the inline history menu, and every open menu handles up-arrow
-itself, so nothing reaches the `InputSuggestionsMode::HistoryUp` construction in
-`Input::editor_up` any more. Delete the mode, its arms across `input.rs` / `classic.rs` /
-`common.rs`, `InputSuggestions::set_history_matches` / `history_prefix_search` if nothing else
-uses them, and `HistorySearchMode` if it goes with it. Check each before deleting; not mechanical.
+**C2b — `HistoryUp` suggestions mode (follow-up of C2)** (**done 2026-10-22**) — the plan said
+nothing reaches `InputSuggestionsMode::HistoryUp` any more; that was not quite true. Up-arrow with a
+completion or workflow-argument menu open, the session's history not yet queryable (right after
+bootstrap, before the histfile loads) and the cursor on the first row still switched to it. User
+ruling: delete the mode and open the inline history menu in that case, as with no menu open.
 
 **C3 — tabs, workspace, settings, search** — 30 flags, 316 refs:
 `AlacrittySettingsImport`, `AllowOpeningFileLinksUsingEditorEnv`, `AvatarInTabBar`, `CommandPaletteFileSearch`, `ConfigurableToolbar`, `CreateProjectFlow`, `DirectoryTabColors`, `FileTree`, `FullScreenZenMode`, `GetStartedTab`, `GlobalSearch`, `GroupedTabs`, `IncrementalAutoReload`, `InlineProfileSelector`, `InlineRepoMenu`, `MinimalistUI`, `MultiProfile`, `NewTabStyling`, `PinnedTabs`, `PluggableNotifications`, `ProfilesDesignRevamp`, `Projects`, `SettingsFile`, `TabCloseButtonOnLeft`, `TabConfigs`, `UIZoom`, `UndoClosedPanes`, `UseTantivySearch`, `VerticalTabs`, `VerticalTabsSummaryMode`.

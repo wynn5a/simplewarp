@@ -7,52 +7,35 @@ use async_channel::Sender;
 use chrono::{DateTime, Local};
 use fuzzy_match::match_indices;
 use itertools::Itertools;
-use pathfinder_geometry::vector::vec2f;
 use warp_command_signatures::IconType;
 use warp_completer::completer::{
     MatchType, PathSeparators, PreparedSuggestion, Suggestion, SuggestionResults, SuggestionType,
 };
-use warp_core::ui::theme::AnsiColorIdentifier;
 use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
 use warpui::elements::{
-    Align, AnchorPair, Border, ChildAnchor, ConstrainedBox, Container, CornerRadius,
-    CrossAxisAlignment, DispatchEventResult, DropShadow, Element, Empty, EventHandler, Expanded,
-    Flex, Highlight, Hoverable, Icon, MouseStateHandle, OffsetPositioning, OffsetType,
-    ParentAnchor, ParentElement, ParentOffsetBounds, PositionedElementOffsetBounds,
-    PositioningAxis, Radius, SavePosition, ScrollStateHandle, Scrollable, ScrollableElement,
-    ScrollbarWidth, Shrinkable, SizeConstraintCondition, SizeConstraintSwitch, Stack, Text,
-    UniformList, UniformListState, XAxisAnchor, YAxisAnchor,
+    Align, AnchorPair, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
+    DispatchEventResult, DropShadow, Element, Empty, EventHandler, Flex, Highlight, Icon,
+    OffsetPositioning, OffsetType, ParentElement, PositionedElementOffsetBounds, PositioningAxis,
+    Radius, SavePosition, ScrollStateHandle, Scrollable, ScrollableElement, ScrollbarWidth,
+    Shrinkable, SizeConstraintCondition, SizeConstraintSwitch, Stack, Text, UniformList,
+    UniformListState, XAxisAnchor, YAxisAnchor,
 };
-use warpui::fonts::{Cache, Properties, Weight};
+use warpui::fonts::{Properties, Weight};
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
     AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, WeakViewHandle,
 };
 
-use crate::ai::blocklist::{AIQueryHistory, AIQueryHistoryOutputStatus, render_ai_agent_mode_icon};
+use crate::ai::blocklist::AIQueryHistory;
 use crate::appearance::Appearance;
 use crate::terminal::HistoryEntry;
-use crate::terminal::history::LinkedWorkflowData;
 use crate::terminal::model::session::SessionId;
-use crate::terminal::rich_history::{render_ai_query_rich_history, render_rich_history};
-use crate::ui_components::icons::Icon as UIComponentsIcon;
-use crate::util::time_format::format_approx_duration_from_now;
 
 /// This enum allows the parent view to indicate which type of details panel is shown.
 #[derive(Clone, Debug)]
 pub enum DetailContent {
-    /// The details panel for a rich history item. Boxed to prevent a size imbalance between
-    /// variants.
-    RichHistory(Box<HistoryEntry>),
     /// A details panel for a simple string.
     Description(String),
-    AIQueryHistory(Box<AIQueryHistoryEntryDetails>),
-}
-
-impl From<HistoryEntry> for DetailContent {
-    fn from(entry: HistoryEntry) -> Self {
-        DetailContent::RichHistory(Box::new(entry))
-    }
 }
 
 impl From<String> for DetailContent {
@@ -75,10 +58,6 @@ pub struct Item {
     icon_type: Option<ItemIconType>,
     /// How precisely this items matches the search term.
     match_type: MatchType,
-    /// True if this Item represents a query sent to an AI model.
-    is_ai_query: bool,
-    /// True if this Item represents a history item.
-    is_history_item: bool,
 }
 
 impl Item {
@@ -93,8 +72,6 @@ impl Item {
             match_type: MatchType::Prefix {
                 is_case_sensitive: true,
             },
-            is_ai_query: false,
-            is_history_item: false,
         }
     }
 
@@ -110,19 +87,6 @@ impl Item {
     pub fn match_type(&self) -> MatchType {
         self.match_type
     }
-
-    /// Returns LinkedWorkflowData for this `Item`, if the `Item` is a history command that was
-    /// created using a workflow.
-    pub fn linked_workflow_data(&self) -> Option<LinkedWorkflowData> {
-        match self.details.as_ref() {
-            Some(DetailContent::RichHistory(history_entry)) => history_entry.linked_workflow_data(),
-            _ => None,
-        }
-    }
-
-    pub fn is_ai_query(&self) -> bool {
-        self.is_ai_query
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -133,7 +97,6 @@ pub enum ItemIconType {
     File,
     Folder,
     GitBranch,
-    AIQuery,
 }
 
 impl ItemIconType {
@@ -145,7 +108,6 @@ impl ItemIconType {
             ItemIconType::File => FILE_ICON_PATH,
             ItemIconType::Folder => FOLDER_ICON_PATH,
             ItemIconType::GitBranch => GIT_BRANCH_ICON_PATH,
-            ItemIconType::AIQuery => UIComponentsIcon::AgentMode.into(),
         }
     }
 
@@ -207,12 +169,6 @@ pub struct InputSuggestions {
     visible_items: Option<Range<usize>>,
 
     visible_items_tx: Sender<Range<usize>>,
-
-    /// Mouse state handles for X buttons, one per history item
-    ignore_button_handles: Vec<MouseStateHandle>,
-
-    /// Mouse state handles for row hover state, one per item
-    row_mouse_state_handles: Vec<MouseStateHandle>,
 }
 
 pub enum Event {
@@ -224,13 +180,8 @@ pub enum Event {
         suggestion: String,
         match_type: MatchType,
     },
-    CloseSuggestion {
-        should_restore_buffer_before_history_up: bool,
-    },
+    CloseSuggestion,
     Select(Item),
-    IgnoreItem {
-        item: Item,
-    },
 }
 
 const SUGGESTIONS_LIST_POSITION_ID: &str = "InputSuggestionsList";
@@ -251,7 +202,6 @@ const GIT_BRANCH_ICON_PATH: &str = "bundled/svg/completion-gitbranch.svg";
 
 const DETAILS_MIN_WIDTH: f32 = 180.;
 const DESCRIPTION_PANEL_WIDTH: f32 = 300.;
-pub const HISTORY_DETAILS_PANEL_WIDTH: f32 = 256.;
 pub const DETAILS_PANEL_PADDING: f32 = 12.;
 pub const DETAILS_PANEL_MARGIN: f32 = 4.;
 
@@ -265,7 +215,6 @@ pub enum SelectAction {
 #[derive(Debug)]
 pub enum InputSuggestionsAction {
     SelectAndConfirm(usize),
-    IgnoreItem(usize),
 }
 
 fn filter_tab_suggestions(
@@ -293,8 +242,6 @@ fn items_from_prepared_suggestions(
             matches: Some(suggestion.matching_indices),
             icon_type: Some(icon_type(&suggestion.suggestion)),
             match_type: suggestion.match_type,
-            is_ai_query: false,
-            is_history_item: false,
         })
         .collect::<Vec<_>>()
 }
@@ -328,8 +275,6 @@ impl InputSuggestions {
             cycle: false,
             visible_items: None,
             visible_items_tx,
-            ignore_button_handles: vec![],
-            row_mouse_state_handles: vec![],
         }
     }
 
@@ -431,8 +376,6 @@ impl InputSuggestions {
                                 matches: Some(result.matched_indices),
                                 icon_type: None,
                                 match_type: MatchType::Fuzzy,
-                                is_ai_query: false,
-                                is_history_item: false,
                             },
                         )
                     })
@@ -458,8 +401,6 @@ impl InputSuggestions {
                 matches: None,
                 icon_type: None,
                 match_type: MatchType::Other,
-                is_ai_query: false,
-                is_history_item: false,
             })
             .collect();
 
@@ -472,60 +413,11 @@ impl InputSuggestions {
         ctx.notify();
     }
 
-    /// Filters down the set of options to those that have the given prefix. If prefix is only
-    /// whitespace, then the input suggestions are simply all the options.
-    pub(crate) fn history_prefix_search<'a, I: IntoIterator<Item = HistoryInputSuggestion<'a>>>(
-        prefix: &str,
-        options: I,
-    ) -> Vec<Item> {
-        let trimmed_prefix = prefix.trim();
-        options
-            .into_iter()
-            .filter_map(|entry| {
-                if entry.text().starts_with(trimmed_prefix) {
-                    Some(Item {
-                        text: entry.text().trim().to_string(),
-                        display: None,
-                        details: entry.details(),
-                        matches: Some((0..trimmed_prefix.len()).collect()),
-                        icon_type: entry.icon_type(),
-                        match_type: MatchType::Prefix {
-                            is_case_sensitive: true,
-                        },
-                        is_ai_query: entry.is_ai_query(),
-                        is_history_item: true,
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-
-    /// Given a filtered list of matched items, set the items and ensure the last one is selected.
-    pub fn set_history_matches(&mut self, matches: Vec<Item>, ctx: &mut ViewContext<Self>) {
-        self.set_items(matches);
-
-        // Select the last item with side effects of notifying
-        // view context, to ensure the buffer gets populated
-        self.select_last_item(ctx);
-        self.cycle = false;
-        ctx.notify();
-    }
-
     /// Sets the items within the suggestions list
     pub fn set_items(&mut self, items: Vec<Item>) {
         // Reset state after items have been replaced.
         self.list_state = UniformListState::default();
         self.items = items;
-
-        self.ignore_button_handles = (0..self.items.len())
-            .map(|_| MouseStateHandle::new(Default::default()))
-            .collect();
-
-        self.row_mouse_state_handles = (0..self.items.len())
-            .map(|_| MouseStateHandle::new(Default::default()))
-            .collect();
     }
 
     fn select_first_item(&mut self, ctx: &mut ViewContext<Self>) {
@@ -562,15 +454,8 @@ impl InputSuggestions {
     fn get_selected_item_a11y_description(&self) -> Option<String> {
         self.get_selected_item()
             .and_then(|item| item.details.as_ref())
-            .and_then(|details| match details {
-                DetailContent::RichHistory(entry) => entry
-                    .start_ts
-                    .map(|ts| format!("Last ran {}", format_approx_duration_from_now(ts))),
-                DetailContent::Description(desc) => Some(desc.clone()),
-                DetailContent::AIQueryHistory(entry) => Some(format!(
-                    "Last ran {}",
-                    format_approx_duration_from_now(entry.start_time)
-                )),
+            .map(|details| match details {
+                DetailContent::Description(desc) => desc.clone(),
             })
     }
 
@@ -585,7 +470,7 @@ impl InputSuggestions {
                     (selected_index + 1) % self.items.len()
                 } else if selected_index + 1 >= self.items.len() {
                     // If user hits down at the bottom of the history menu, it should be closed.
-                    self.exit(true, ctx);
+                    self.exit(ctx);
                     return;
                 } else {
                     selected_index + 1
@@ -637,9 +522,7 @@ impl InputSuggestions {
                 match_type: item.match_type,
             });
         } else {
-            ctx.emit(Event::CloseSuggestion {
-                should_restore_buffer_before_history_up: true,
-            });
+            ctx.emit(Event::CloseSuggestion);
             return;
         }
 
@@ -658,31 +541,16 @@ impl InputSuggestions {
                 match_type: item.match_type,
             });
         } else {
-            ctx.emit(Event::CloseSuggestion {
-                should_restore_buffer_before_history_up: true,
-            });
+            ctx.emit(Event::CloseSuggestion);
         }
     }
 
-    pub fn exit(
-        &mut self,
-        should_restore_buffer_before_history_up: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    pub fn exit(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.emit_a11y_content(AccessibilityContent::new_without_help(
             "Closed suggestions.",
             WarpA11yRole::UserAction,
         ));
-        ctx.emit(Event::CloseSuggestion {
-            should_restore_buffer_before_history_up,
-        });
-    }
-
-    pub fn em_width(&self, font_cache: &Cache, appearance: &Appearance) -> f32 {
-        font_cache.em_width(
-            appearance.monospace_font_family(),
-            appearance.monospace_font_size(),
-        )
+        ctx.emit(Event::CloseSuggestion);
     }
 
     /// Renders the details of the item at index, if it is visible and has details.
@@ -690,7 +558,6 @@ impl InputSuggestions {
         &self,
         index: usize,
         appearance: &Appearance,
-        ctx: &AppContext,
     ) -> Option<Box<dyn Element>> {
         if !self.visible_items.as_ref()?.contains(&index) {
             return None;
@@ -698,18 +565,8 @@ impl InputSuggestions {
 
         let item = self.get_item(index)?;
         let details = match item.details.as_ref()? {
-            DetailContent::RichHistory(entry) => {
-                ConstrainedBox::new(render_rich_history(entry, ctx))
-                    .with_max_width(HISTORY_DETAILS_PANEL_WIDTH)
-                    .finish()
-            }
             DetailContent::Description(description) => {
                 self.render_descriptions_box(item.text.clone(), description.clone(), appearance)
-            }
-            DetailContent::AIQueryHistory(entry) => {
-                ConstrainedBox::new(render_ai_query_rich_history(entry, ctx))
-                    .with_max_width(HISTORY_DETAILS_PANEL_WIDTH)
-                    .finish()
             }
         };
 
@@ -748,7 +605,6 @@ impl InputSuggestions {
             .finish();
         }
         let handle = self.handle.clone();
-        let em_width = self.em_width(ctx.font_cache(), appearance);
 
         let list = UniformList::new(
             self.list_state.clone(),
@@ -780,47 +636,28 @@ impl InputSuggestions {
                         let description_text = theme.hint_text_color(background_color).into_solid();
                         let font_size = appearance.monospace_font_size() - 1.;
 
-                        let row_mouse_state =
-                            input_suggestions.row_mouse_state_handles[index].clone();
-
-                        let row_element = Hoverable::new(row_mouse_state.clone(), |mouse_state| {
+                        let row_element = {
                             let mut row =
                                 Flex::row().with_cross_axis_alignment(CrossAxisAlignment::End);
 
                             if let Some(icon_type) = item.icon_type.as_ref() {
-                                let icon_container = if let ItemIconType::AIQuery = icon_type {
-                                    Container::new(render_ai_agent_mode_icon(
-                                        app,
-                                        if is_selected {
-                                            theme.background()
-                                        } else {
-                                            AnsiColorIdentifier::Yellow
-                                                .to_ansi_color(&theme.terminal_colors().normal)
-                                                .into()
-                                        },
-                                    ))
-                                    .with_padding_right(6. * (em_width / 6.))
-                                    .with_padding_left(icon_type.left_padding())
-                                    .finish()
-                                } else {
-                                    let icon_width = font_size
-                                        * icon_type.width_font_size_multiplication_factor();
-                                    Container::new(
-                                        ConstrainedBox::new(
-                                            Icon::new(
-                                                icon_type.icon_path(),
-                                                theme.main_text_color(background_color),
-                                            )
-                                            .finish(),
+                                let icon_width =
+                                    font_size * icon_type.width_font_size_multiplication_factor();
+                                let icon_container = Container::new(
+                                    ConstrainedBox::new(
+                                        Icon::new(
+                                            icon_type.icon_path(),
+                                            theme.main_text_color(background_color),
                                         )
-                                        .with_width(icon_width)
-                                        .with_height(icon_width)
                                         .finish(),
                                     )
-                                    .with_padding_left(icon_type.left_padding())
-                                    .with_padding_right(icon_type.right_padding())
-                                    .finish()
-                                };
+                                    .with_width(icon_width)
+                                    .with_height(icon_width)
+                                    .finish(),
+                                )
+                                .with_padding_left(icon_type.left_padding())
+                                .with_padding_right(icon_type.right_padding())
+                                .finish();
 
                                 row.add_child(icon_container);
                             }
@@ -874,66 +711,6 @@ impl InputSuggestions {
                                 );
                             }
 
-                            if item.is_history_item && (mouse_state.is_hovered() || is_selected) {
-                                // Add an empty spacer so that the actual ignore button appears
-                                // right justified.
-                                row.add_child(Expanded::new(1., Empty::new().finish()).finish());
-
-                                let ignore_button_mouse_state =
-                                    input_suggestions.ignore_button_handles[index].clone();
-
-                                // This matches the behavior of `render_ai_agent_mode_icon`; the heights of both the AM
-                                // icon and the X button need to be the same to avoid jittering in the history menu.
-                                let line_height = app.font_cache().line_height(
-                                    appearance.monospace_font_size(),
-                                    appearance.line_height_ratio(),
-                                );
-
-                                let ignore_button = appearance
-                                    .ui_builder()
-                                    .close_button(line_height, ignore_button_mouse_state.clone())
-                                    .build()
-                                    .on_click(move |ctx, _, _| {
-                                        ctx.dispatch_typed_action(
-                                            InputSuggestionsAction::IgnoreItem(index),
-                                        );
-                                    })
-                                    .finish();
-
-                                let ignore_button_with_tooltip =
-                                    Hoverable::new(ignore_button_mouse_state, |state| {
-                                        if state.is_hovered() {
-                                            let mut stack = Stack::new().with_child(ignore_button);
-
-                                            let tooltip_element = appearance
-                                                .ui_builder()
-                                                .tool_tip("Ignore this suggestion".to_string())
-                                                .build()
-                                                .finish();
-
-                                            stack.add_positioned_overlay_child(
-                                                tooltip_element,
-                                                OffsetPositioning::offset_from_parent(
-                                                    vec2f(0., -4.),
-                                                    ParentOffsetBounds::WindowByPosition,
-                                                    ParentAnchor::TopRight,
-                                                    ChildAnchor::BottomRight,
-                                                ),
-                                            );
-                                            stack.finish()
-                                        } else {
-                                            ignore_button
-                                        }
-                                    })
-                                    .finish();
-
-                                row.add_child(
-                                    Container::new(ignore_button_with_tooltip)
-                                        .with_margin_left(8.)
-                                        .finish(),
-                                );
-                            }
-
                             let mut container =
                                 Container::new(row.finish()).with_uniform_padding(LABEL_PADDING);
 
@@ -953,10 +730,10 @@ impl InputSuggestions {
                                     DispatchEventResult::StopPropagation
                                 })
                                 .finish()
-                        });
+                        };
 
                         SavePosition::new(
-                            row_element.finish(),
+                            row_element,
                             &InputSuggestions::position_id_at_index(index),
                         )
                         .finish()
@@ -989,8 +766,7 @@ impl InputSuggestions {
 
         // Render the overflow detail panel if the there is a visible, selected item with details.
         if let Some(selected_index) = self.selected_index
-            && let Some(details_box) =
-                self.render_visible_item_details(selected_index, appearance, ctx)
+            && let Some(details_box) = self.render_visible_item_details(selected_index, appearance)
         {
             stack.add_positioned_child(
                 SizeConstraintSwitch::new(
@@ -1084,11 +860,6 @@ impl TypedActionView for InputSuggestions {
                 self.select(&SelectAction::Index(*index), ctx);
                 self.confirm(ctx);
             }
-            InputSuggestionsAction::IgnoreItem(index) => {
-                if let Some(item) = self.items.get(*index).cloned() {
-                    ctx.emit(Event::IgnoreItem { item });
-                }
-            }
         }
     }
 }
@@ -1176,26 +947,6 @@ impl HistoryInputSuggestion<'_> {
         self.text().trim()
     }
 
-    /// Which type of detail panel to show for this suggestion, if any.
-    fn details(&self) -> Option<DetailContent> {
-        match self {
-            HistoryInputSuggestion::Command { entry } => {
-                entry.has_metadata().then(|| ((*entry).clone()).into())
-            }
-            HistoryInputSuggestion::AIQuery { entry } => Some(DetailContent::AIQueryHistory(
-                Box::new(AIQueryHistoryEntryDetails::from(entry)),
-            )),
-        }
-    }
-
-    /// Which input suggestion icon to use for this suggestion, if any.
-    fn icon_type(&self) -> Option<ItemIconType> {
-        match self {
-            HistoryInputSuggestion::Command { .. } => None,
-            HistoryInputSuggestion::AIQuery { .. } => Some(ItemIconType::AIQuery),
-        }
-    }
-
     /// True if this history item is for an AI query.
     pub(crate) fn is_ai_query(&self) -> bool {
         match self {
@@ -1242,28 +993,6 @@ impl HistoryInputSuggestion<'_> {
                 HistoryOrder::DifferentSession
             }
             HistoryInputSuggestion::AIQuery { entry } => entry.history_order,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct AIQueryHistoryEntryDetails {
-    /// The time the input was sent.
-    pub(crate) start_time: DateTime<Local>,
-
-    /// The status of the output streaming from the AI API.
-    pub(crate) output_status: AIQueryHistoryOutputStatus,
-
-    /// The working directory when the AI query was submitted.
-    pub(crate) working_directory: Option<String>,
-}
-
-impl From<&AIQueryHistory> for AIQueryHistoryEntryDetails {
-    fn from(value: &AIQueryHistory) -> Self {
-        Self {
-            start_time: value.start_time,
-            output_status: value.output_status.clone(),
-            working_directory: value.working_directory.clone(),
         }
     }
 }

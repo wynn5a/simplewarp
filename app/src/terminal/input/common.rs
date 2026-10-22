@@ -203,23 +203,6 @@ pub(super) fn add_input_suggestions_overlays(
     app: &AppContext,
 ) {
     match input.suggestions_mode_model().as_ref(app).mode() {
-        InputSuggestionsMode::HistoryUp { .. } => {
-            stack.add_positioned_overlay_child(
-                input.render_history_up_menu(appearance, menu_positioning),
-                OffsetPositioning::from_axes(
-                    PositioningAxis::relative_to_parent(
-                        ParentOffsetBounds::WindowByPosition,
-                        OffsetType::Pixel(0.),
-                        AnchorPair::new(XAxisAnchor::Left, XAxisAnchor::Left),
-                    ),
-                    PositioningAxis::relative_to_parent(
-                        ParentOffsetBounds::Unbounded,
-                        menu_positioning.history_y_offset(),
-                        menu_positioning.history_y_anchor(),
-                    ),
-                ),
-            );
-        }
         InputSuggestionsMode::CompletionSuggestions { menu_position, .. } => {
             let relative_position_id = menu_position.to_position_id(input.editor.id());
             stack.add_positioned_overlay_child(

@@ -117,7 +117,7 @@ use super::view::{
     ExecuteCommandEvent, PADDING_LEFT as TERMINAL_VIEW_PADDING_LEFT, SyncInputType, TerminalAction,
 };
 use super::warpify::SubshellSource;
-use super::{History, HistoryEntry, SizeInfo, TerminalModel, UpArrowHistoryConfig, prompt};
+use super::{History, HistoryEntry, SizeInfo, TerminalModel, prompt};
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{AIAgentContext, AIAgentExchangeId, CancellationReason, EntrypointType};
 use crate::ai::agent_conversations_model::{
@@ -177,8 +177,7 @@ use crate::editor::{
 use crate::env_vars::EnvVarCollectionExt;
 use crate::features::FeatureFlag;
 use crate::input_suggestions::{
-    Event as InputSuggestionsEvent, HistoryInputSuggestion, InputSuggestions,
-    TabCompletionsPreselectOption,
+    Event as InputSuggestionsEvent, InputSuggestions, TabCompletionsPreselectOption,
 };
 use crate::network::NetworkStatus;
 use crate::pane_group::PaneGroupAction;
@@ -384,8 +383,6 @@ const START_NEW_CONVERSATION_KEYBINDING_NAME: &str = "input:start_new_agent_conv
 const COMPLETIONS_START_OF_REPLACEMENT_SPAN_POSITION_ID: &str =
     "start_of_completions_replacement_span";
 
-const HISTORY_DETAILS_VIEW_WIDTH_REQUIREMENT: f32 = 1100.;
-
 const MIN_BUFFER_LEN_TO_SHOW_COMPLETIONS_WHILE_TYPING: usize = 2;
 
 const AI_COMMAND_SEARCH_TRIGGER: &str = "#";
@@ -440,32 +437,6 @@ lazy_static! {
     };
 }
 
-#[derive(PartialEq, Eq, Copy, Clone, Serialize)]
-pub enum TelemetryInputSuggestionsMode {
-    HistoryFuzzySearch,
-    CompletionSuggestions,
-    HistoryUp,
-    NaturalLanguageCommandSearch,
-    StaticWorkflowEnumSuggestions,
-    DynamicWorkflowEnumSuggestions,
-    AIContextMenu,
-    SlashCommands,
-    ConversationMenu,
-    ModelSelector,
-    ProfileSelector,
-    SkillMenu,
-    InlineHistoryMenu,
-    IndexedReposMenu,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum HistorySearchMode {
-    /// Prefix match commands.
-    Prefix,
-    /// Fuzzy match commands.
-    Fuzzy,
-}
-
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum TabCompletionsMenuPosition {
     /// The menu should be positioned at the last cursor.
@@ -506,20 +477,6 @@ impl BufferState {
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum InputSuggestionsMode {
-    /// Mode used when arrow-up is pressed.
-    HistoryUp {
-        /// Text in the buffer when arrow-up is pressed (possibly empty).
-        original_buffer: String,
-        /// Cursor point when arrow-up is pressed.
-        /// This is None when there are > 1 active selections when HistoryUp is invoked.
-        /// TODO: eventually, we should support saving/resetting _many_ cursors rather than a single one.
-        original_cursor_point: Option<BufferPoint>,
-        search_mode: HistorySearchMode,
-        /// The AI input mode when arrow-up is pressed.
-        original_input_type: InputType,
-        /// The AI input's lock status when the arrow-up is pressed.
-        original_input_was_locked: bool,
-    },
     CompletionSuggestions {
         /// Stores the byte index of the beginning of the text we are replacing
         replacement_start: usize,
@@ -750,29 +707,6 @@ fn render_prompt_chip_shell_command(
     }
 }
 
-#[derive(PartialEq, Eq, Copy, Clone)]
-pub enum HistoryUpMode {
-    // Show prefixed results.
-    Prefixed,
-    // Show all results with no query.
-    RegularNoQuery,
-    // Show all results with query.
-    RegularWithQuery,
-    // Used for ConfirmSuggestion event.
-    NotApplicable,
-}
-
-impl HistoryUpMode {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            HistoryUpMode::Prefixed => "prefixed history up",
-            HistoryUpMode::RegularNoQuery => "regular history up (no query)",
-            HistoryUpMode::RegularWithQuery => "regular history up (with query)",
-            HistoryUpMode::NotApplicable => "history up",
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InputEmptyStateChangeReason {
     /// The buffer transitioned between empty and non-empty due to a regular edit.
@@ -943,17 +877,6 @@ pub enum MenuPositioning {
 impl MenuPositioning {
     fn completion_suggestions_y_anchor(&self) -> AnchorPair<YAxisAnchor> {
         self.y_anchor()
-    }
-
-    fn history_y_anchor(&self) -> AnchorPair<YAxisAnchor> {
-        self.y_anchor()
-    }
-
-    fn history_y_offset(&self) -> OffsetType {
-        match *self {
-            MenuPositioning::AboveInputBox => OffsetType::Pixel(0.),
-            MenuPositioning::BelowInputBox => OffsetType::Pixel(-11.),
-        }
     }
 
     fn command_xray_y_anchor(&self) -> AnchorPair<YAxisAnchor> {
@@ -1906,7 +1829,7 @@ impl Input {
                     );
                 }
                 AgentInputFooterEvent::ModelSelectorOpened => {
-                    me.close_overlays(false, ctx);
+                    me.close_overlays(ctx);
                 }
                 AgentInputFooterEvent::ModelSelectorClosed => {
                     me.focus_input_box(ctx);
@@ -3494,7 +3417,7 @@ impl Input {
         initial_tab: InlineModelSelectorTab,
         ctx: &mut ViewContext<Self>,
     ) {
-        self.close_overlays(false, ctx);
+        self.close_overlays(ctx);
         let has_input = !self.editor.as_ref(ctx).buffer_text(ctx).is_empty();
         let should_clear_prompt_for_search =
             has_input && FeatureFlag::RestorePromptOnInlineModelSelectorSearch.is_enabled();
@@ -4252,7 +4175,7 @@ impl Input {
                 if *open {
                     // Close any open input suggestion menus (history, Ctrl+R, etc.) when chip menus
                     // are opened to prevent overlapping menus in UDI
-                    self.close_overlays(false, ctx);
+                    self.close_overlays(ctx);
                     ctx.notify();
                 } else {
                     self.focus_input_box(ctx);
@@ -4733,7 +4656,7 @@ impl Input {
                 self.set_ai_context_menu_open(*open, ctx);
             }
             UniversalDeveloperInputButtonBarEvent::ModelSelectorOpened => {
-                self.close_overlays(false, ctx);
+                self.close_overlays(ctx);
             }
             UniversalDeveloperInputButtonBarEvent::ModelSelectorClosed => {
                 // When the model selector menu closes (model was selected), focus the input field
@@ -5721,7 +5644,7 @@ impl Input {
         // Only highlight an argument and show enum suggestions if history suggestions are not active
         if !matches!(
             self.suggestions_mode_model.as_ref(ctx).mode(),
-            InputSuggestionsMode::HistoryUp { .. } | InputSuggestionsMode::InlineHistoryMenu { .. },
+            InputSuggestionsMode::InlineHistoryMenu { .. },
         ) {
             self.highlight_selected_workflow_argument(
                 self.get_text_style_ranges_for_workflow(ctx),
@@ -6027,56 +5950,12 @@ impl Input {
                     WarpA11yRole::UserAction,
                 ));
             }
-            InputSuggestionsEvent::CloseSuggestion {
-                should_restore_buffer_before_history_up,
-            } => {
-                self.close_input_suggestions_and_restore_buffer(
-                    true,
-                    *should_restore_buffer_before_history_up,
-                    ctx,
-                );
+            InputSuggestionsEvent::CloseSuggestion => {
+                self.close_input_suggestions(/*should_focus_input=*/ true, ctx);
             }
             InputSuggestionsEvent::Select(selected_item) => {
                 let mode = self.suggestions_mode_model.as_ref(ctx).mode().clone();
                 match &mode {
-                    InputSuggestionsMode::HistoryUp { .. } => {
-                        if let Some((workflow_type, workflow_source)) = selected_item
-                            .linked_workflow_data()
-                            .and_then(|linked_workflow_data| {
-                                linked_workflow_data.linked_workflow(ctx)
-                            })
-                        {
-                            // TODO(ben): We should include the chosen env vars in the history
-                            // entry.
-                            let env_vars = workflow_type.as_workflow().default_env_vars();
-                            self.insert_workflow_into_input(
-                                workflow_type,
-                                workflow_source,
-                                None,
-                                Some(selected_item.text()),
-                                env_vars,
-                                /*should_show_more_info_view=*/ false,
-                                ctx,
-                            );
-                        } else {
-                            self.editor.update(ctx, |editor, ctx| {
-                                editor.set_buffer_text_ignoring_undo(selected_item.text(), ctx);
-                            });
-                        }
-
-                        self.ai_input_model.update(ctx, |ai_input_model, ctx| {
-                            let input_type = if selected_item.is_ai_query() {
-                                InputType::AI
-                            } else {
-                                InputType::Shell
-                            };
-                            ai_input_model.set_input_type(
-                                input_type,
-                                Some(InputTypeAutoDetectionSource::HistorySelection),
-                                ctx,
-                            );
-                        });
-                    }
                     InputSuggestionsMode::CompletionSuggestions {
                         replacement_start, ..
                     } => {
@@ -6135,42 +6014,6 @@ impl Input {
                     }
                 }
             }
-            InputSuggestionsEvent::IgnoreItem { item } => {
-                let command_text = item.text();
-                let suggestion_type = if item.is_ai_query() {
-                    SuggestionType::AIQuery
-                } else {
-                    SuggestionType::ShellCommand
-                };
-
-                IgnoredSuggestionsModel::handle(ctx).update(ctx, |model, ctx| {
-                    model.add_ignored_suggestion(command_text.to_string(), suggestion_type, ctx);
-                });
-
-                // Refresh the history suggestions menu and keep it open
-                if matches!(
-                    self.suggestions_mode_model.as_ref(ctx).mode(),
-                    InputSuggestionsMode::HistoryUp { .. }
-                ) {
-                    let history = self.collate_ai_and_command_history(ctx);
-                    let original_buffer = if let InputSuggestionsMode::HistoryUp {
-                        original_buffer,
-                        ..
-                    } = self.suggestions_mode_model.as_ref(ctx).mode()
-                    {
-                        original_buffer.clone()
-                    } else {
-                        String::new()
-                    };
-
-                    let matches =
-                        InputSuggestions::history_prefix_search(&original_buffer, history);
-                    self.input_suggestions
-                        .update(ctx, move |input_suggestions, ctx| {
-                            input_suggestions.set_history_matches(matches, ctx);
-                        });
-                }
-            }
         }
     }
 
@@ -6208,7 +6051,7 @@ impl Input {
     }
 
     /// Handles suggestion confirmation behaviour in editor and returns true if suggestions menu should be closed
-    /// For CompletionSuggestions, inserts suggestion into editor. For HistoryUp, no action since "select" populates buffer.
+    /// For CompletionSuggestions, inserts suggestion into editor.
     /// Closed branch should never be executed (does not use the input suggestions panel).
     fn confirm_suggestion_internal(
         &mut self,
@@ -6218,7 +6061,6 @@ impl Input {
     ) -> bool {
         match self.suggestions_mode_model.as_ref(ctx).mode() {
             InputSuggestionsMode::Closed => false,
-            InputSuggestionsMode::HistoryUp { .. } => true,
             InputSuggestionsMode::CompletionSuggestions {
                 replacement_start, ..
             } => {
@@ -6286,50 +6128,6 @@ impl Input {
                 false
             }
         }
-    }
-
-    pub fn close_input_suggestions_and_restore_buffer(
-        &mut self,
-        should_focus_input: bool,
-        should_restore_buffer_before_history_up: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if should_restore_buffer_before_history_up
-            && let InputSuggestionsMode::HistoryUp {
-                original_buffer,
-                original_cursor_point,
-                original_input_was_locked,
-                original_input_type,
-                ..
-            } = self.suggestions_mode_model.as_ref(ctx).mode()
-        {
-            let original_buffer = original_buffer.clone();
-            let original_cursor_point = *original_cursor_point;
-            let original_input_was_locked = *original_input_was_locked;
-            let original_input_type = *original_input_type;
-            // If the user closes the input suggestions menu, we want to reset the AI input mode
-            // to the exact same state it was originally, which includes the mode itself and
-            // whether it was locked to that mode.
-            self.ai_input_model.update(ctx, |ai_input_model, ctx| {
-                ai_input_model.set_input_config(
-                    InputConfig {
-                        input_type: original_input_type,
-                        is_locked: original_input_was_locked,
-                    },
-                    original_buffer.is_empty(),
-                    Some(InputTypeAutoDetectionSource::RestoreSavedConfig),
-                    ctx,
-                );
-            });
-
-            self.editor.update(ctx, |editor, ctx| {
-                editor.set_buffer_text_ignoring_undo(&original_buffer, ctx);
-                if let Some(original_cursor_point) = original_cursor_point {
-                    editor.reset_selections_to_point(&original_cursor_point, ctx);
-                }
-            });
-        }
-        self.close_input_suggestions(/*should_focus_input=*/ should_focus_input, ctx);
     }
 
     pub fn close_input_suggestions(
@@ -6433,18 +6231,9 @@ impl Input {
     }
 
     /// Close all overlays managed by the input view. Does not change what is focused.
-    /// If should_restore_buffer_before_history_up is true, the buffer will be restored to the state it was in before the history up menu was opened.
-    pub fn close_overlays(
-        &mut self,
-        should_restore_buffer_before_history_up: bool,
-        ctx: &mut ViewContext<Input>,
-    ) {
+    pub fn close_overlays(&mut self, ctx: &mut ViewContext<Input>) {
         self.close_voltron(ctx);
-        self.close_input_suggestions_and_restore_buffer(
-            false,
-            should_restore_buffer_before_history_up,
-            ctx,
-        );
+        self.close_input_suggestions(/*should_focus_input=*/ false, ctx);
         self.clear_selected_workflow(ctx);
     }
 
@@ -6540,8 +6329,7 @@ impl Input {
                 });
                 true
             }
-            InputSuggestionsMode::HistoryUp { .. }
-            | InputSuggestionsMode::CompletionSuggestions { .. }
+            InputSuggestionsMode::CompletionSuggestions { .. }
             | InputSuggestionsMode::StaticWorkflowEnumSuggestions { .. }
             | InputSuggestionsMode::DynamicWorkflowEnumSuggestions { .. }
             | InputSuggestionsMode::Closed => false,
@@ -6560,40 +6348,9 @@ impl Input {
         }
 
         // Otherwise, check if the cursor is on the first row and open the
-        // history up menu.
-        let editor = self.editor.as_ref(ctx);
-        if editor.single_cursor_on_first_row(ctx) {
-            if self.suggestions_mode_model.as_ref(ctx).is_closed() {
-                self.open_inline_history_menu(ctx);
-                return;
-            }
-
-            let history = self.collate_ai_and_command_history(ctx);
-            let original_buffer = self.editor.as_ref(ctx).buffer_text(ctx);
-
-            let matches = InputSuggestions::history_prefix_search(&original_buffer, history);
-            self.input_suggestions
-                .update(ctx, move |input_suggestions, ctx| {
-                    input_suggestions.set_history_matches(matches, ctx);
-                });
-
-            let original_cursor_point = self.editor.as_ref(ctx).single_cursor_to_point(ctx);
-            let original_input_type = self.ai_input_model.as_ref(ctx).input_type();
-            let original_input_was_locked = self.ai_input_model.as_ref(ctx).is_input_type_locked();
-            self.suggestions_mode_model.update(ctx, |m, ctx| {
-                m.set_mode(
-                    InputSuggestionsMode::HistoryUp {
-                        original_buffer,
-                        original_cursor_point,
-                        search_mode: HistorySearchMode::Prefix,
-                        original_input_type,
-                        original_input_was_locked,
-                    },
-                    ctx,
-                );
-            });
-
-            ctx.notify();
+        // inline history menu.
+        if self.editor.as_ref(ctx).single_cursor_on_first_row(ctx) {
+            self.open_inline_history_menu(ctx);
             return;
         }
         // Finally, if we're neither scrolling through an existing suggestion
@@ -6634,11 +6391,10 @@ impl Input {
                 || context_model.pending_context_selected_text().is_some()
         };
         let should_escape_vim_before_dismissing = vim_mode == Some(VimMode::Insert)
-            && (self.suggestions_mode_model.as_ref(ctx).is_history_up()
-                || self
-                    .suggestions_mode_model
-                    .as_ref(ctx)
-                    .is_inline_history_menu());
+            && self
+                .suggestions_mode_model
+                .as_ref(ctx)
+                .is_inline_history_menu();
 
         if should_escape_vim_before_dismissing {
             self.editor.update(ctx, |editor, editor_ctx| {
@@ -6672,7 +6428,7 @@ impl Input {
         } else if self.suggestions_mode_model.as_ref(ctx).is_visible() {
             self.input_suggestions
                 .update(ctx, |input_suggestions, ctx| {
-                    input_suggestions.exit(true, ctx);
+                    input_suggestions.exit(ctx);
                 });
         } else if self.workflows_state.selected_workflow_state.is_some() {
             self.clear_current_workflow(ctx);
@@ -6802,8 +6558,7 @@ impl Input {
                 });
                 true
             }
-            InputSuggestionsMode::HistoryUp { .. }
-            | InputSuggestionsMode::CompletionSuggestions { .. }
+            InputSuggestionsMode::CompletionSuggestions { .. }
             | InputSuggestionsMode::StaticWorkflowEnumSuggestions { .. }
             | InputSuggestionsMode::DynamicWorkflowEnumSuggestions { .. }
             | InputSuggestionsMode::InlineHistoryMenu { .. }
@@ -6826,7 +6581,7 @@ impl Input {
         if self.suggestions_mode_model.as_ref(ctx).is_visible() {
             if self.input_suggestions.as_ref(ctx).is_empty() {
                 // arrow down on an empty suggestions means we should close it.
-                self.close_input_suggestions_and_restore_buffer(true, true, ctx);
+                self.close_input_suggestions(/*should_focus_input=*/ true, ctx);
             } else {
                 self.input_suggestions.update(ctx, |suggestions, ctx| {
                     suggestions.select_next(ctx);
@@ -7826,33 +7581,6 @@ impl Input {
                             self.close_input_suggestions(/*should_focus_input=*/ true, ctx);
                         }
                     }
-                    InputSuggestionsMode::HistoryUp { .. } => {
-                        // In HistoryUp mode, we replace the buffer as options
-                        // are selected.
-                        // We also dismiss the suggestion menu if the buffer
-                        // is edited such that it doesn't exactly match
-                        // the selected suggestion.
-
-                        if let Some(selected_text) =
-                            self.input_suggestions.as_ref(ctx).get_selected_item_text()
-                        {
-                            if *selected_text.to_string()
-                                == self.editor.as_ref(ctx).buffer_text(ctx)
-                            {
-                                return;
-                            }
-
-                            let has_active_ai_block =
-                                self.model.lock().block_list().has_active_ai_block(ctx);
-                            // We only focus the input if there is no active AI
-                            // block. Otherwise, the input is incorrectly focused
-                            // when executing an AI query from the history menu.
-                            self.close_input_suggestions(
-                                !has_active_ai_block, /*should_focus_input=*/
-                                ctx,
-                            );
-                        }
-                    }
                     InputSuggestionsMode::Closed => {
                         if !self.can_query_history(ctx) {
                             return;
@@ -7947,7 +7675,7 @@ impl Input {
                     self.close_input_suggestions(/*should_focus_input=*/ true, ctx);
                 } else {
                     match &mode {
-                        InputSuggestionsMode::HistoryUp { .. } | InputSuggestionsMode::Closed => {}
+                        InputSuggestionsMode::Closed => {}
                         InputSuggestionsMode::CompletionSuggestions {
                             replacement_start,
                             buffer_text_original,
@@ -8053,7 +7781,7 @@ impl Input {
                 self.input_suggestions
                     .update(ctx, |input_suggestions, ctx| {
                         // We should not restore the buffer to the old state since we're accepting an autosuggestion from the new state.
-                        input_suggestions.exit(false, ctx);
+                        input_suggestions.exit(ctx);
                     });
                 match autosuggestion_type {
                     AutosuggestionType::Command {
@@ -8836,23 +8564,6 @@ impl Input {
     /// to Ctrl-D. If successful, the session is terminated.
     fn ctrl_d(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.emit(Event::CtrlD);
-    }
-
-    /// Returns a collection of history entries that are user AI queries or shell commands in order
-    /// from oldest to most recent.
-    fn collate_ai_and_command_history<'a>(
-        &'a self,
-        ctx: &'a ViewContext<Self>,
-    ) -> Vec<HistoryInputSuggestion<'a>> {
-        let input_config = self.ai_input_model.as_ref(ctx).input_config();
-        let config = UpArrowHistoryConfig::for_input_config(&input_config);
-
-        History::as_ref(ctx).up_arrow_suggestions_for_terminal_view(
-            self.terminal_view_id,
-            self.active_block_session_id(),
-            config,
-            ctx,
-        )
     }
 
     fn update_last_word_insertion_state(&mut self) {
@@ -9741,15 +9452,6 @@ impl Input {
                 if let Some(index) = current_argument {
                     info_view.selected_workflow_state.set_argument_index(index);
                 }
-                // If we were in history suggestion mode, select the first argument
-                else if matches!(
-                    self.suggestions_mode_model.as_ref(ctx).mode(),
-                    InputSuggestionsMode::HistoryUp { .. }
-                ) {
-                    info_view
-                        .selected_workflow_state
-                        .set_argument_index(0.into());
-                }
                 // Otherwise, continue to cycle arguments
                 else {
                     info_view.selected_workflow_state.increment_argument_index();
@@ -10328,7 +10030,6 @@ impl Input {
         let mode = self.suggestions_mode_model.as_ref(ctx).mode().clone();
         match &mode {
             InputSuggestionsMode::CompletionSuggestions { .. }
-            | InputSuggestionsMode::HistoryUp { .. }
                 // If FeatureFlag::AgentView is enabled, cmd-enter should unconditionally enter the
                 // agent view with the current buffer contents as agent input.
                 //
@@ -11617,7 +11318,7 @@ impl Input {
     ) {
         // If input suggestions are opened we should close them when opening voltron
         if self.suggestions_mode_model.as_ref(ctx).is_visible() {
-            self.close_input_suggestions_and_restore_buffer(true, true, ctx);
+            self.close_input_suggestions(/*should_focus_input=*/ true, ctx);
         }
         let active_session_path_if_local = self.active_session_path_if_local(ctx);
         let menu_positioning = self.menu_positioning(ctx);

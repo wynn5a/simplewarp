@@ -4647,7 +4647,7 @@ pub fn test_cmd_enter() -> Builder {
                 input_view.read(app, |view, ctx| {
                     let history_menu_open = matches!(
                         view.suggestions_mode_model().as_ref(ctx).mode(),
-                        InputSuggestionsMode::HistoryUp { .. }
+                        InputSuggestionsMode::InlineHistoryMenu { .. }
                     );
                     let buffer_text_is_last_executed_command = view.buffer_text(ctx) == *"touch test1";
 

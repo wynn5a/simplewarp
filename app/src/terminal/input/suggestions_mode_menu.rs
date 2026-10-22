@@ -1,15 +1,13 @@
 //! Rendering logic for the input suggestions menu.
 //!
 //! This module contains all rendering functions for the various input suggestion modes:
-//! - HistoryUp
 //! - CompletionSuggestions
 //! - StaticWorkflowEnumSuggestions
 //! - DynamicWorkflowEnumSuggestions
 
 use warpui::elements::{
     Align, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DragBarSide,
-    DropShadow, Element, Empty, Flex, ParentElement, Radius, Resizable, Shrinkable,
-    SizeConstraintCondition, SizeConstraintSwitch, Text,
+    DropShadow, Element, Flex, ParentElement, Radius, Resizable, Shrinkable, Text,
 };
 use warpui::presenter::ChildView;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
@@ -18,82 +16,18 @@ use super::{
     DYNAMIC_ENUM_FAILURE_MESSAGE, DYNAMIC_ENUM_GENERATE_MESSAGE,
     DYNAMIC_ENUM_HORIZONTAL_TEXT_PADDING, DYNAMIC_ENUM_MENU_HEIGHT_OFFSET,
     DYNAMIC_ENUM_MENU_PADDING, DYNAMIC_ENUM_NO_RESULTS_MESSAGE, DYNAMIC_ENUM_PENDING_MESSAGE,
-    DYNAMIC_ENUM_RUN_MESSAGE, DynamicEnumSuggestionStatus, HISTORY_DETAILS_VIEW_WIDTH_REQUIREMENT,
-    Input, InputAction, MenuPositioning, RUN_DYNAMIC_ENUM_COMMAND_KEYSTROKE,
-    TERMINAL_VIEW_PADDING_LEFT,
+    DYNAMIC_ENUM_RUN_MESSAGE, DynamicEnumSuggestionStatus, Input, InputAction, MenuPositioning,
+    RUN_DYNAMIC_ENUM_COMMAND_KEYSTROKE,
 };
 use crate::appearance::Appearance;
-use crate::input_suggestions::{
-    DETAILS_PANEL_MARGIN, DETAILS_PANEL_PADDING, HISTORY_DETAILS_PANEL_WIDTH,
-    LABEL_PADDING as InputSuggestionsLabelPadding,
-};
 use crate::themes::theme::WarpTheme;
 
 enum SuggestionsResizeConfig {
     WidthAndHeight,
     WidthOnly,
-    HeightOnly,
 }
 
 impl Input {
-    pub(super) fn render_history_up_menu(
-        &self,
-        appearance: &Appearance,
-        menu_positioning: MenuPositioning,
-    ) -> Box<dyn Element> {
-        let theme = appearance.theme();
-        let radius = Radius::Pixels(6.);
-
-        let corner_radius = match menu_positioning {
-            MenuPositioning::AboveInputBox => CornerRadius::with_top(radius),
-            MenuPositioning::BelowInputBox => CornerRadius::with_bottom(radius),
-        };
-
-        let input_suggestions_border = 2.0;
-        let margin =
-            *TERMINAL_VIEW_PADDING_LEFT - input_suggestions_border - InputSuggestionsLabelPadding;
-
-        let content = ChildView::new(&self.input_suggestions).finish();
-
-        SizeConstraintSwitch::new(
-            Flex::row()
-                .with_children([
-                    Shrinkable::new(
-                        1.,
-                        self.render_suggestions_container(
-                            margin,
-                            corner_radius,
-                            theme,
-                            SuggestionsResizeConfig::HeightOnly,
-                            menu_positioning,
-                            content,
-                        ),
-                    )
-                    .finish(),
-                    ConstrainedBox::new(Empty::new().finish())
-                        .with_width(
-                            HISTORY_DETAILS_PANEL_WIDTH
-                                + DETAILS_PANEL_MARGIN * 2.
-                                + DETAILS_PANEL_PADDING * 2.,
-                        )
-                        .finish(),
-                ])
-                .finish(),
-            vec![(
-                SizeConstraintCondition::WidthLessThan(HISTORY_DETAILS_VIEW_WIDTH_REQUIREMENT),
-                self.render_suggestions_container(
-                    margin,
-                    corner_radius,
-                    theme,
-                    SuggestionsResizeConfig::HeightOnly,
-                    menu_positioning,
-                    ChildView::new(&self.input_suggestions).finish(),
-                ),
-            )],
-        )
-        .finish()
-    }
-
     pub(super) fn render_completion_suggestions_menu(
         &self,
         appearance: &Appearance,
@@ -226,7 +160,6 @@ impl Input {
                 })
                 .finish()
             }
-            SuggestionsResizeConfig::HeightOnly => inner_container,
         };
 
         // Apply height resizing based on config
@@ -234,7 +167,7 @@ impl Input {
         // to see the entire command they are about to execute.
         let resizable_element = match resize_config {
             SuggestionsResizeConfig::WidthOnly => horizontal_resizable,
-            SuggestionsResizeConfig::WidthAndHeight | SuggestionsResizeConfig::HeightOnly => {
+            SuggestionsResizeConfig::WidthAndHeight => {
                 let dragbar_side = match menu_positioning {
                     MenuPositioning::AboveInputBox => DragBarSide::Top,
                     MenuPositioning::BelowInputBox => DragBarSide::Bottom,

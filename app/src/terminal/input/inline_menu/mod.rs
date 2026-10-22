@@ -82,7 +82,6 @@ impl InlineMenuType {
             }
             InputSuggestionsMode::IndexedReposMenu => Some(InlineMenuType::IndexedReposMenu),
             InputSuggestionsMode::Closed
-            | InputSuggestionsMode::HistoryUp { .. }
             | InputSuggestionsMode::CompletionSuggestions { .. }
             | InputSuggestionsMode::StaticWorkflowEnumSuggestions { .. }
             | InputSuggestionsMode::DynamicWorkflowEnumSuggestions { .. }

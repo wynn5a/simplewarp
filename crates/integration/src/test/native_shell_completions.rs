@@ -366,7 +366,7 @@ pub fn test_command_runs_cleanly_after_native_shell_completion() -> Builder {
                 .with_action(|app, window_id, _| {
                     let input = single_input_view_for_tab(app, window_id, 0);
                     input.update(app, |input, ctx| {
-                        input.close_overlays(false, ctx);
+                        input.close_overlays(ctx);
                         input.clear_buffer_and_reset_undo_stack(ctx);
                     });
                 })

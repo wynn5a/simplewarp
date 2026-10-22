@@ -43,7 +43,7 @@ use crate::ai::skills::SkillManager;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::context_chips::prompt::Prompt;
 use crate::editor::{DisplayPoint, EditorAction, Point, TextStyleOperation};
-use crate::input_suggestions::{HistoryOrder, Item};
+use crate::input_suggestions::{HistoryInputSuggestion, HistoryOrder, Item};
 use crate::network::NetworkStatus;
 use crate::search::files::model::FileSearchModel;
 use crate::search::slash_command_menu::static_commands::commands;
@@ -2390,7 +2390,7 @@ fn test_tab_completion_with_spaces() {
             assert_eq!(input.buffer_text(ctx), "cd A\\ d");
         });
         suggestions.update(&mut app, |suggestions, ctx| {
-            suggestions.exit(true, ctx);
+            suggestions.exit(ctx);
         });
         input.read(&app, |input, ctx| {
             assert_eq!(
@@ -2638,7 +2638,7 @@ fn test_tab_completion() {
             assert_eq!(input.buffer_text(ctx), "cd Do");
         });
         suggestions.update(&mut app, |suggestions, ctx| {
-            suggestions.exit(true, ctx);
+            suggestions.exit(ctx);
         });
         input.read(&app, |input, ctx| {
             assert_eq!(

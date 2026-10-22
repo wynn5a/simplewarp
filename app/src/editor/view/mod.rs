@@ -4254,7 +4254,7 @@ impl EditorView {
         });
     }
 
-    // Replaces the current editor buffer with temporary contents (e.g. commands from history up).
+    // Replaces the current editor buffer with temporary contents (e.g. commands selected from the inline history menu).
     // This will not create new undo items in the undo/redo stack.
     pub fn set_buffer_text_ignoring_undo(&mut self, content: &str, ctx: &mut ViewContext<Self>) {
         self.edit(

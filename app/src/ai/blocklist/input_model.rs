@@ -39,7 +39,7 @@ pub enum InputTypeAutoDetectionSource {
     HistoryMatch,
     /// Input matched the natural-language follow-up allowlist after a preceding AI block.
     NaturalLanguageAgentFollowUpAllowList,
-    /// Inline history menu / history-up suggestion selection set the input type.
+    /// Inline history menu selection set the input type.
     HistorySelection,
     /// Inserting a workflow into the input set the input type based on workflow kind.
     WorkflowInsertion,

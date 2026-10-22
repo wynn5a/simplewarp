@@ -4,8 +4,8 @@ use warp_core::features::FeatureFlag;
 use warpui::{AppContext, EntityId, SingletonEntity};
 
 use super::History;
+use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::ai::blocklist::history_model::AIQueryHistory;
-use crate::ai::blocklist::{BlocklistAIHistoryModel, InputConfig};
 use crate::input_suggestions::HistoryInputSuggestion;
 use crate::settings::AISettings;
 use crate::suggestions::ignored_suggestions_model::{IgnoredSuggestionsModel, SuggestionType};
@@ -16,25 +16,6 @@ use crate::terminal::model::session::SessionId;
 pub struct UpArrowHistoryConfig {
     pub include_commands: bool,
     pub include_prompts: bool,
-}
-
-impl UpArrowHistoryConfig {
-    /// Derives the config from the current input config.
-    /// When the input is locked to a specific type, only that type is included.
-    /// When unlocked (auto-detection), both types are included.
-    pub fn for_input_config(input_config: &InputConfig) -> Self {
-        if input_config.is_locked {
-            Self {
-                include_commands: input_config.is_shell(),
-                include_prompts: input_config.is_ai(),
-            }
-        } else {
-            Self {
-                include_commands: true,
-                include_prompts: true,
-            }
-        }
-    }
 }
 
 fn sort_and_dedupe_suggestions<'a>(

@@ -109,8 +109,8 @@ preferred route; D2 dropped the common-skills lock (user ruling). H4 was wrong a
 
 **Leftovers survey (2026-10-22):** queued in [plan-p5.md](plan-p5.md) — A `cargo machete` ignore
 lists (no real unused deps), B "GUI" names left from the two-front-end design, C the 132 always-on
-feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c and C2 done (see the round log);
-C2b, C3–C7 next.
+feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c, C2 and C2b done (see the round log);
+C3–C7 next.
 
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
@@ -1657,6 +1657,31 @@ Verification: format and all three clippy gates clean; `cargo nextest run --work
 (−6 deleted), 6,267 passed, 1 failed (the clone-slash-command flake), 86 skipped. `cargo run`
 smoke: the app starts with no errors in `simplewarp.log`; completion and history were not exercised
 by hand.
+
+### Round: C2b — `HistoryUp` suggestions mode (2026-10-22)
+
+- The plan said C2 had left `InputSuggestionsMode::HistoryUp` unreachable; one path was still
+  live. Up-arrow with a completion or workflow-argument menu open, the session's history not yet
+  queryable (after bootstrap, before the histfile loads) and the cursor on the first row switched
+  to it. User ruling: delete the mode; that case now opens the inline history menu, as up-arrow
+  does with no menu open. This is the round's only behavior change.
+- Gone with the mode: `HistorySearchMode`, the unused `TelemetryInputSuggestionsMode` and
+  `HistoryUpMode` enums, `render_history_up_menu`, `history_prefix_search`,
+  `set_history_matches`, `collate_ai_and_command_history`, `UpArrowHistoryConfig::for_input_config`,
+  `MenuPositioning::history_y_*`, the HeightOnly resize config, and the
+  restore-buffer-before-history-up plumbing (`close_input_suggestions_and_restore_buffer`, the flag
+  on `close_overlays`, `InputSuggestions::exit` and `Event::CloseSuggestion`).
+- `InputSuggestions` lost what only served history items: the ignore-suggestion button
+  (`IgnoreItem` action and event, its mouse handles), the row hover state, the rich-history and
+  AI-query detail panels (`DetailContent::RichHistory` / `AIQueryHistory`,
+  `AIQueryHistoryEntryDetails`, `render_ai_query_rich_history`), the AI-query icon,
+  `Item::linked_workflow_data` / `is_ai_query` / `is_history_item` and `em_width`.
+- Tests: call sites only; the ignored integration test `test_cmd_enter` now asserts the inline
+  history menu (not run).
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,268 run,
+6,267 passed, 1 failed (the clone-slash-command flake), 86 skipped. `cargo run` smoke: the app
+starts with no errors in `simplewarp.log`; up-arrow was not exercised by hand.
 
 ## Risks
 

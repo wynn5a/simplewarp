@@ -11438,7 +11438,7 @@ impl TerminalView {
         self.close_find_bar(ctx);
 
         self.input.update(ctx, |input, ctx| {
-            input.close_overlays(true, ctx);
+            input.close_overlays(ctx);
         });
     }
 

@@ -298,7 +298,7 @@ fn test_unchanged_preselect_option() {
         });
 
         suggestions.update(&mut app, |input_suggestions, ctx| {
-            input_suggestions.exit(true, ctx);
+            input_suggestions.exit(ctx);
         });
 
         suggestions.update(&mut app, |input_suggestions, ctx| {
