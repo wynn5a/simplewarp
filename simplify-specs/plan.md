@@ -1486,6 +1486,9 @@ Verification: format and all three clippy gates clean; `cargo nextest run --work
 test). `NO_LICENSES=1 script/bundle_simplewarp --debug` produces `bundled/skills`,
 `bundled/mcp_skills` and `settings_schema.json` (173 settings) in the `.app`;
 `generate_default_settings --surface gui` writes 173.
+With `cargo about` 0.8.4 installed, the full `script/bundle_simplewarp --debug` also writes
+`THIRD_PARTY_LICENSES.txt` (1.1 MB, the appended non-Cargo licences included). Still unexercised:
+the Linux/Windows release jobs (needs a `workflow_dispatch` dry run).
 
 ## Risks
 
