@@ -1488,8 +1488,12 @@ test). `NO_LICENSES=1 script/bundle_simplewarp --debug` produces `bundled/skills
 `bundled/mcp_skills` and `settings_schema.json` (173 settings) in the `.app`;
 `generate_default_settings --surface gui` writes 173.
 With `cargo about` 0.8.4 installed, the full `script/bundle_simplewarp --debug` also writes
-`THIRD_PARTY_LICENSES.txt` (1.1 MB, the appended non-Cargo licences included). Still unexercised:
-the Linux/Windows release jobs (needs a `workflow_dispatch` dry run).
+`THIRD_PARTY_LICENSES.txt` (1.1 MB, the appended non-Cargo licences included). CI: the Release
+workflow passed on all three platforms, both on the master push (run 39715789591) and on a
+`workflow_dispatch` dry run (39721651898); each job's log shows the licence file, `bundled/` and
+the schema prepared (173 settings on macOS/Windows, 174 on Linux, whose platform-only setting is
+registered there). The artifacts were not downloaded and inspected, because downloading from this
+machine hung.
 
 **Single-implementation collapse (2026-10-22).** The four leftovers of the two-front-end design,
 no behavior change:
