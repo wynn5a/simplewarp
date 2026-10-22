@@ -1,32 +1,32 @@
 ---
 name: remove-feature-flag
-description: Remove a feature flag after it has been rolled out and stabilized in the Warp codebase.
+description: Remove a feature flag after it has been rolled out and stabilized in the SimpleWarp codebase.
 ---
 
 # remove-feature-flag
 
-Remove a feature flag after it has been rolled out and stabilized in the Warp codebase.
+Remove a feature flag after it has been rolled out and stabilized in the SimpleWarp codebase.
 
 ## Overview
 
-After a feature flag has been enabled for all users and has stabilized in production, the flag should be removed to reduce technical debt and simplify the codebase. This involves removing the flag definition and all conditional checks.
+After a feature flag has shipped in the `simplewarp` feature set and has stabilized, the flag should be removed to reduce technical debt and simplify the codebase. This involves removing the flag definition and all conditional checks.
 
 ## When to Remove
 
 Remove a feature flag when:
-- The feature has been enabled in `default` features in `app/Cargo.toml`
-- The feature has been stable in production for a reasonable period
+- The feature is in the `simplewarp` feature set in `app/Cargo.toml`
+- The feature has been stable for a reasonable period
 - There are no plans to disable the feature or provide configuration options
-- The team agrees the feature is permanent
+- The feature is considered permanent
 
 ## Steps
 
 ### 1. Remove from app/Cargo.toml
-Remove the feature from both the `[features]` section and the `default` array:
+Remove the feature from both the `[features]` section and the `simplewarp` set:
 
 ```toml
 [features]
-default = [
+simplewarp = [
     # Remove "your_feature_name" from here
 ]
 
@@ -35,7 +35,7 @@ default = [
 ```
 
 ### 2. Remove from FeatureFlag enum
-Remove the variant from the `FeatureFlag` enum in `warp_core/src/features.rs`:
+Remove the variant from the `FeatureFlag` enum in `crates/warp_features/src/lib.rs`:
 
 ```rust
 #[derive(Sequence)]
@@ -44,17 +44,19 @@ pub enum FeatureFlag {
 }
 ```
 
-### 3. Remove from app/src/lib.rs
-Remove the conditional compilation directive:
+### 3. Remove from app/src/features.rs
+Remove the cargo-feature mapping in `enabled_features()`:
 
 ```rust
 // Remove these lines:
 // #[cfg(feature = "your_feature_name")]
-// YourFeatureName,
+// FeatureFlag::YourFeatureName,
 ```
 
-### 4. Remove from DOGFOOD_FLAGS/PREVIEW_FLAGS/RELEASE_FLAGS
-If the flag was listed in any of these arrays in `features.rs`, remove it:
+Also remove any pin for the flag in `app/src/features_tests.rs`.
+
+### 4. Remove from RELEASE_FLAGS / DOGFOOD_FLAGS / PREVIEW_FLAGS
+If the flag was listed in any of these generator-only arrays in `crates/warp_features/src/lib.rs`, remove it:
 
 ```rust
 pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
@@ -79,9 +81,9 @@ if FeatureFlag::YourFeatureName.is_enabled() {
 // new behavior (unconditionally enabled)
 ```
 
-Use ripgrep to find all occurrences. The shared `FeatureFlag` may be used from the headless TUI, so search `crates/warp_tui/` (and other non-`app/` crates), not just `app/` and `warp_core/`:
+The shared `FeatureFlag` enum is used from library crates too, so search the whole workspace, not just `app/`:
 ```bash
-rg "YourFeatureName" app/ warp_core/ crates/warp_tui/
+rg "YourFeatureName" app/ crates/
 ```
 
 ### 6. Remove keybinding predicates
@@ -109,7 +111,7 @@ EditableBinding::new(
 ```
 
 ### 7. Clean up dead code branches
-Remove any code paths that were only executed when the feature was disabled (the `else` branches in feature checks). These are now dead code.
+Remove any code paths that were only executed when the feature was disabled (the `else` branches in feature checks). These are now dead code. If the flag gated a Command Palette enable/disable entry or a context flag, remove those too.
 
 ### 8. Run tests and validation
 After removing the flag:
@@ -117,35 +119,34 @@ After removing the flag:
 ```bash
 # Format and lint
 ./script/format
-cargo clippy --workspace --all-targets --all-features --tests -- -D warnings
+cargo clippy --workspace --exclude warp_completer --all-targets --tests -- -D warnings
+cargo clippy -p warp --all-targets --tests -- -D warnings
+cargo clippy -p warp_completer --all-targets --tests -- -D warnings
 
 # Run tests
 cargo nextest run --no-fail-fast --workspace
 
-# Build the GUI app
+# Build and run the app
 cargo run
-
-# Also validate the headless TUI if the flag was used there
-./script/run-tui
 ```
 
 ## Best Practices
 
 - Remove feature flags promptly after they're no longer needed to reduce technical debt
 - When removing a flag, remove ALL related code (checks, dead branches, keybinding predicates)
-- Use grep/ripgrep to ensure you've found all occurrences
+- Use ripgrep to ensure you've found all occurrences
 - Test thoroughly after removal to ensure no regressions
 - Consider doing flag removal in a separate PR for easier review
 
 ## Example Search Commands
 
 ```bash
-# Find all occurrences of the flag name (include the TUI and other non-app crates)
-rg "YourFeatureName" app/ warp_core/ crates/warp_tui/
+# Find all occurrences of the flag name across the workspace
+rg "YourFeatureName" app/ crates/
 
 # Find feature flag checks
-rg "FeatureFlag::YourFeatureName" app/ crates/warp_tui/
+rg "FeatureFlag::YourFeatureName" app/ crates/
 
 # Find cfg attributes
-rg 'cfg\(feature = "your_feature_name"\)' app/
+rg 'cfg\(feature = "your_feature_name"\)' app/ crates/
 ```

@@ -5,7 +5,7 @@ description: GUI desktop app only. Catalog of guidelines for writing UI code in 
 
 # gui-ui-guidelines
 
-**Scope — GUI desktop app only.** This skill applies to Warp's **GUI** desktop front-end (the `app/` crate on the WarpUI pixel/GPU framework). It does **not** apply to the headless **TUI** front-end (`crates/warp_tui`; cell-grid `TuiElement` library under `crates/warpui_core/src/elements/tui`), which has its own components, tests, and change-verification workflow. For TUI work, see the `tui-ui-guidelines`, `tui-testing`, and `tui-verify-change` skills instead.
+**Scope — the GUI desktop app** (the `app/` crate on the WarpUI pixel/GPU framework), SimpleWarp's only front-end.
 
 This skill is a growing catalog of guidelines for working on Warp's UI code. Each guideline captures a lesson that would otherwise be re-learned through review — typically because an agent or contributor reinvented a component, drifted from the design system, or bypassed a shared abstraction.
 

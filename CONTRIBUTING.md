@@ -8,8 +8,8 @@ bots or CLA. Open an issue or a pull request on this repository.
 
 Anything that needs a Warp-hosted service (login, Drive, cloud agents, sharing, telemetry) is out
 of scope. A change should keep the app working offline, with the AI provider as the only network
-destination. Cleanup of what upstream's server owned is tracked in
-[simplify-specs/plan-p2.md](simplify-specs/plan-p2.md).
+destination. The simplification is recorded in
+[simplify-specs/plan.md](simplify-specs/plan.md).
 
 ## Setup and checks
 
@@ -19,7 +19,8 @@ cargo run            # builds the simplewarp bin with the app's default (only) f
 ./script/presubmit   # fmt, clippy, and tests
 ```
 
-- `./script/format --check` and `cargo clippy --workspace --all-targets --all-features --tests -- -D warnings` must pass.
+- `./script/format --check` and the clippy runs in `./script/presubmit` must pass (they do not use
+  `--all-features`).
 - Run unit tests with `cargo nextest run`. Bug fixes should come with a regression test.
 - User-facing flows can be covered under [`crates/integration/`](crates/integration/).
 - See [AGENTS.md](AGENTS.md) for the full style guide, including WarpUI patterns and terminal

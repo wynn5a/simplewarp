@@ -37,8 +37,7 @@ Escalate to a higher level when any of these hold:
 Where to go instead:
 
 - `gui-integration-test` — GUI end-to-end behavior, terminal and shell integration, settings and keybinding wiring.
-- `tui-testing` — TUI element and screen rendering.
-- `gui-integration-test-video` or `computer_use` — when the real question is visual and someone needs to look at it.
+- `gui-integration-test-video` (`.warp/skills/`) — when the real question is visual and someone needs to look at it.
 
 Before escalating, try splitting the problem. Most "untestable" code is a thin shell of IO wrapped around logic that tests fine once separated: extract the decision-making into a pure function, unit test that, and let an integration test cover the thin shell that remains. That is usually cheaper than either a heavily stubbed unit test or a full app-boot test.
 
@@ -178,9 +177,6 @@ fn example() {
 }
 ```
 
-## TUI element tests
-Tests for the headless TUI render an element tree to text lines rather than drawing pixels. Use `warpui_core::elements::tui::test_support::render_to_lines` and `TuiBuffer::to_lines`, and keep them in `*_tests.rs` files next to the source in `crates/warp_tui` and `crates/warpui_core/src/elements/tui`. They are plain unit tests and do NOT use the GUI integration / real-display / `computer_use` framework. See the `tui-testing` skill for details. The `warpui::App::test` harness above still applies to shared model logic that both front-ends use.
-
 ## Common helpers to use
 - Terminal model shortcuts: `TerminalModel::mock(..)`, `.simulate_block(..)`, `.finish_block()`, `.simulate_cmd(..)`.
 - Builders for focused tests: `terminal::model::test_utils::{TestBlockListBuilder, TestBlockBuilder}`.
@@ -228,7 +224,9 @@ cargo test --doc
 Run before submitting changes:
 ```bash
 ./script/format
-cargo clippy --workspace --all-targets --all-features --tests -- -D warnings
+cargo clippy --workspace --exclude warp_completer --all-targets --tests -- -D warnings
+cargo clippy -p warp --all-targets --tests -- -D warnings
+cargo clippy -p warp_completer --all-targets --tests -- -D warnings
 ```
 
 For a full local check before a PR, you can also run:

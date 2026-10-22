@@ -21,9 +21,21 @@ that pointed the client at a local warp-server instance is gone, along with its 
 ### Linting and Formatting
 - `./script/presubmit` - Run all presubmit checks (fmt, clippy, tests)
 - `./script/format` - Format code
-- `cargo clippy --workspace --all-targets --all-features --tests -- -D warnings` - Run clippy
+- `cargo clippy --workspace --exclude warp_completer --all-targets --tests -- -D warnings`, then
+  `cargo clippy -p warp --all-targets --tests -- -D warnings` and
+  `cargo clippy -p warp_completer --all-targets --tests -- -D warnings` - Run clippy the way
+  `./script/presubmit` and CI do (no `--all-features`: `warp_completer` has feature-gated WIP code)
 - `./script/run-clang-format.py -r --extensions 'c,h,cpp,m' ./crates/warpui/src/ ./app/src/` - Format C/C++/Obj-C code
 - `find . -name "*.wgsl" -exec wgslfmt --check {} +` - Check WGSL shader formatting
+
+### Agent tooling
+- `.agents/skills/` holds this repo's own skills (`.claude/skills` is a symlink to it); `.warp/skills/`
+  carries the Warp-client copy of the integration-test video skill.
+- `.claude/settings.json` installs a `PreToolUse` hook, `.claude/hooks/cargo-disk-guard.sh`, that
+  prunes stale `target/*/incremental` caches before any `cargo` command and removes `target/`
+  outright when less than 10 GB of disk is free.
+- `.codegraph/` is a CodeGraph index of the workspace: `codegraph explore "<symbols or question>"`
+  returns the relevant source and call paths in one call.
 
 ### Platform Setup
 - `./script/bootstrap` - Platform-specific setup plus common agent skill installation from `skills-lock.json`; prompts for project/global when an install or update is needed unless a target flag or environment override is provided.
@@ -44,6 +56,15 @@ that pointed the client at a local warp-server instance is gone, along with its 
 ## Architecture Overview
 
 This is a Rust-based terminal emulator with a custom UI framework called **WarpUI**.
+
+### Specs and the simplification ledger
+
+`specs/SPEC.md` is the goal-and-requirements spec and `specs/architecture/SPEC.md` the architecture
+spec; each spec'd boundary has its own `SPEC.md` (`app/SPEC.md`, `app/src/ai/SPEC.md`,
+`app/src/terminal/SPEC.md`, `crates/<crate>/SPEC.md`). Keep the relevant `SPEC.md` in step with a
+change that moves a boundary. `simplify-specs/plan.md` is the decision ledger of the Warp to
+SimpleWarp simplification (decisions, phase status, per-round results): record removal rounds
+there, and treat the other files under `simplify-specs/` as history.
 
 ### Front-end: the GUI desktop app
 
@@ -76,7 +97,6 @@ call-out are surface-agnostic.
 - Terminal emulation and shell management (`terminal/`)
 - AI integration including Agent Mode (`ai/`)
 - Workflow editor components (`drive/workflows/`) and the cloud-object store they persist through (`cloud_object/`)
-- Authentication and user management (`auth/`)
 - Settings and preferences (`settings/`)
 - Workspace and session management (`workspace/`)
 
@@ -89,14 +109,14 @@ call-out are surface-agnostic.
 
 1. **Entity-Handle System**: Views reference other views via handles, not direct ownership
 2. **Modular Structure**: Workspace contains multiple workspace configurations, each with terminals, notebooks, etc.
-3. **Cross-Platform**: Native implementations for macOS, Windows, Linux, plus WASM target
+3. **Cross-Platform**: Native implementations for macOS, Windows, and Linux
 4. **AI Integration**: Built-in AI assistant with context awareness and codebase indexing
 5. **Local object store**: Notebooks, workflows, environments and similar objects persist locally in a SQLite-backed store shaped like the cloud object model (`crates/cloud_objects`, `app/src/cloud_object/`)
 
 ### Development Guidelines
 
 **Workspace Structure**:
-- This is a Cargo workspace with 60+ member crates
+- This is a Cargo workspace: `app` plus every crate under `crates/` (about 50 members)
 - Main binary is in `app/`, UI framework in `crates/warpui/`
 - Platform-specific code is conditionally compiled
 - Integration tests are in `crates/integration/`
@@ -179,20 +199,15 @@ for itself.
   - Opening new pull requests
   - Pushing new commits to existing PR branches
   - Any branch updates that will be reviewed
- - When opening PRs, use the PR template at `.github/pull_request_template.md`
- - Add changelog entries when appropriate using the format at the bottom of the PR template. Use the following prefixes (without the `{{}}` brackets):
-   - `CHANGELOG-NEW-FEATURE:` for new, relatively sizable features (use sparingly - these may get marketing/docs)
-   - `CHANGELOG-IMPROVEMENT:` for new functionality of existing features
-   - `CHANGELOG-BUG-FIX:` for fixes related to known bugs or regressions
-   - `CHANGELOG-IMAGE:` for GCP-hosted image URLs
-   - Leave changelog lines blank or remove them if no changelog entry is needed
+- There is no PR template and no changelog convention: keep each PR to one logical change and
+  explain what changed and why in the PR body, as `CONTRIBUTING.md` describes.
 
 **Database**:
 - Uses Diesel ORM with SQLite
 - Migrations in `crates/persistence/migrations/`
 - Schema defined in `crates/persistence/src/schema.rs`
 
-**GraphQL**: there is no GraphQL client. The old `crates/graphql` crate (cynic client + schema SDL around the login flow) is gone; its two locally-used types live on in `crates/cloud_objects` (`ServerTimestamp`) and `crates/ai` (`AgentTaskState`, `AgentHarness`).
+**GraphQL**: there is no GraphQL client. The old `crates/graphql` crate (cynic client + schema SDL around the login flow) is gone; its locally-used types live on in `crates/cloud_objects` (`ServerTimestamp`) and `crates/ai` (`AgentTaskState`).
 
 ### Feature Flags
 
@@ -203,10 +218,11 @@ How to add a feature flag:
   `warp_core::features`)
 - Gate code paths with `FeatureFlag::YourFlag.is_enabled()`
 - To turn it on in a build, add a cargo feature in `app/Cargo.toml` that `app/src/features.rs`
-  maps to the flag (and list it in the `simplewarp` feature set to ship it), or list it in
-  `RELEASE_FLAGS` (release bundles only). `DOGFOOD_FLAGS` / `PREVIEW_FLAGS` are Warp's channel
-  lists: no SimpleWarp bin enables them (only the settings schema / default-settings generators'
-  `--channel` switch reads them).
+  maps to the flag, and list it in the `simplewarp` feature set to ship it. That mapping is the
+  only runtime source of enabled flags: `ChannelState::additional_features` is empty in the
+  `simplewarp` bin except for `DEBUG_FLAGS` in debug builds. `RELEASE_FLAGS` / `DOGFOOD_FLAGS` /
+  `PREVIEW_FLAGS` are Warp's channel lists; nothing applies them at runtime, and only the settings
+  schema and default-settings generators' `--channel` switch reads them.
 
 Best practices:
 - **Prefer runtime checks over cfg directives**: Prefer `FeatureFlag::YourFlag.is_enabled()` over `#[cfg(...)]` compile-time directives so flags can be toggled without recompilation and are easier to clean up later. Use `#[cfg(...)]` only when the code cannot compile without them (for example, platform-specific code or dependencies that do not exist when the feature is disabled).
@@ -216,15 +232,25 @@ Best practices:
 
 Example:
 ```rust
+// crates/warp_features/src/lib.rs
 #[derive(Sequence)]
 pub enum FeatureFlag {
     YourNewFeature,
 }
+```
 
-// Default-on for release bundles
-pub const RELEASE_FLAGS: &[FeatureFlag] = &[
-    FeatureFlag::YourNewFeature,
-];
+```toml
+# app/Cargo.toml
+your_new_feature = []
+simplewarp = [
+    "your_new_feature",
+]
+```
+
+```rust
+// app/src/features.rs
+#[cfg(feature = "your_new_feature")]
+FeatureFlag::YourNewFeature,
 
 // Use in code
 if FeatureFlag::YourNewFeature.is_enabled() {

@@ -153,14 +153,14 @@ report_error!(
 
 ## Throttling with ReportErrorLogMode::OncePerRun
 
-Sites that can fire repeatedly (hot loops, per-frame paths, enum-fallback conversions from GraphQL/protobuf) should report only once per app run so they don't flood the log. Default is `EveryTime`.
+Sites that can fire repeatedly (hot loops, per-frame paths, enum-fallback conversions from persisted or wire data) should report only once per app run so they don't flood the log. Default is `EveryTime`.
 ```rust
 use warp_errors::ReportErrorLogMode;
 
 report_error!(err, ReportErrorLogMode::OncePerRun);
 // with a static message + incidental data:
 report_error!(
-    "Invalid LlmProvider; update client GraphQL types",
+    "Invalid LlmProvider; update the provider enum",
     extra: { "provider" => %value },
     ReportErrorLogMode::OncePerRun
 );

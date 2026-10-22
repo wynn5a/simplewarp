@@ -5,7 +5,7 @@ description: GUI desktop app only. Writes, runs, and debugs Warp integration tes
 
 # Warp Integration Tests
 
-**Scope — GUI desktop app only.** This skill applies to Warp's **GUI** desktop front-end (the `app/` crate on the WarpUI pixel/GPU framework). It does **not** apply to the headless **TUI** front-end (`crates/warp_tui`; cell-grid `TuiElement` library under `crates/warpui_core/src/elements/tui`), which has its own components, tests, and change-verification workflow. For TUI work, see the `tui-ui-guidelines`, `tui-testing`, and `tui-verify-change` skills instead.
+**Scope — the GUI desktop app** (the `app/` crate on the WarpUI pixel/GPU framework), SimpleWarp's only front-end.
 
 Use this skill for Rust integration tests in Warp's custom framework under `crates/integration/`.
 
@@ -25,8 +25,7 @@ Do **not** reach for an integration test when:
 
 - The logic is deterministic and reachable in-process. Push it into a unit test (`rust-unit-tests`); it will run in milliseconds and point straight at the failure.
 - You are re-covering branch logic a unit test already covers. This harness is for the seams between components, not for re-testing conditionals at full app-boot cost.
-- You only need TUI rendering. That is `tui-testing` — this harness does not drive the TUI at all.
-- What you actually want is a screenshot or a manual look. Use `computer_use` or the `gui-integration-test-video` skill instead of attaching weak assertions to a full app boot.
+- What you actually want is a screenshot or a manual look. Run the app and look, or use the `gui-integration-test-video` skill (`.warp/skills/`) for a recorded run, instead of attaching weak assertions to a full app boot.
 
 If a behavior is hard to reach from a unit test *only* because of how the code is structured, prefer fixing the structure over writing a slow test around it.
 
