@@ -6,9 +6,9 @@
 # as a real `.app` bundle (with code signing, plist updates, etc.). On Linux
 # and Windows it invokes `cargo run` directly for the appropriate binary.
 #
-# This script owns all cross-platform setup (argument parsing, common skill
-# installation, and the bin choice), so platform-specific scripts can
-# assume those values are already provided via environment variables.
+# This script owns all cross-platform setup (argument parsing and the bin
+# choice), so platform-specific scripts can assume those values are already
+# provided via environment variables.
 
 set -e
 
@@ -18,9 +18,6 @@ cd "${REPO_ROOT}"
 OS_TYPE="$(uname -s)"
 
 FEATURES="simplewarp"
-INSTALL_COMMON_SKILLS=1
-FORCE_COMMON_SKILLS=0
-COMMON_SKILLS_TARGET="${WARP_COMMON_SKILLS_INSTALL_TARGET:-}"
 
 WARP_BIN_NAME="simplewarp"
 
@@ -47,10 +44,6 @@ while (( "$#" )); do
         exit 1
       fi
       ;;
-    --install-common-skills)
-      FORCE_COMMON_SKILLS=1
-      shift
-      ;;
     --release)
       CARGO_PARAMS+=("$1")
       MAC_ARGS+=("$1")
@@ -74,33 +67,6 @@ while (( "$#" )); do
       ;;
   esac
 done
-
-install_common_skills_or_continue() {
-  if ! ./script/resolve_common_skills install_common_skills -- --repo-root "${REPO_ROOT}" "$@"; then
-    echo "error: unable to install common skills; continuing without them." >&2
-  fi
-}
-if [[ "$INSTALL_COMMON_SKILLS" -eq 1 ]]; then
-  COMMON_SKILLS_ARGS=()
-  if [[ "${COMMON_SKILLS_TARGET}" = "project" || "${COMMON_SKILLS_TARGET}" = "global" ]]; then
-    COMMON_SKILLS_ARGS=("--${COMMON_SKILLS_TARGET}")
-  fi
-  if [[ "${WARP_SKIP_COMMON_SKILLS_INSTALL:-}" = "1" ]]; then
-    :
-  elif [[ "$FORCE_COMMON_SKILLS" -eq 1 ]]; then
-    if [[ "${#COMMON_SKILLS_ARGS[@]}" -gt 0 ]]; then
-      install_common_skills_or_continue "${COMMON_SKILLS_ARGS[@]}" --force
-    else
-      install_common_skills_or_continue --force --prompt-for-target
-    fi
-  else
-    if [[ "${#COMMON_SKILLS_ARGS[@]}" -gt 0 ]]; then
-      install_common_skills_or_continue "${COMMON_SKILLS_ARGS[@]}" --if-needed --quiet
-    else
-      install_common_skills_or_continue --if-needed --prompt-for-target --quiet
-    fi
-  fi
-fi
 
 export FEATURES
 export WARP_BIN_NAME

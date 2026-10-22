@@ -168,7 +168,6 @@
               let
                 installDir = "$out/opt/simplewarp";
                 resourcesDir = "${installDir}/resources";
-                releaseChannel = "stable";
                 libraryPath = lib.makeLibraryPath linuxRuntimeLibraries;
                 executablePath = lib.makeBinPath (with pkgs; [ xdg-utils ]);
               in
@@ -176,18 +175,13 @@
                 install -Dm755 "$out/bin/simplewarp" "${installDir}/simplewarp"
                 rm -f "$out/bin/simplewarp"
 
-                patchShebangs \
-                  ./script/prepare_bundled_resources \
-                  ./script/copy_conditional_skills
+                patchShebangs ./script/prepare_bundled_resources
 
                 SKIP_SETTINGS_SCHEMA=1 ./script/prepare_bundled_resources \
                   "${resourcesDir}" \
-                  "${releaseChannel}" \
                   release
 
-                "$out/bin/generate_settings_schema" \
-                  --channel "${releaseChannel}" \
-                  "${resourcesDir}/settings_schema.json"
+                "$out/bin/generate_settings_schema" "${resourcesDir}/settings_schema.json"
                 rm -f "$out/bin/generate_settings_schema"
 
                 install -Dm644 \

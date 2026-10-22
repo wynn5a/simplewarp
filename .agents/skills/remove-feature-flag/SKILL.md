@@ -45,7 +45,7 @@ pub enum FeatureFlag {
 ```
 
 ### 3. Remove from app/src/features.rs
-Remove the cargo-feature mapping in `enabled_features()`:
+Remove the cargo-feature mapping in `compiled_features()`:
 
 ```rust
 // Remove these lines:
@@ -55,16 +55,7 @@ Remove the cargo-feature mapping in `enabled_features()`:
 
 Also remove any pin for the flag in `app/src/features_tests.rs`.
 
-### 4. Remove from RELEASE_FLAGS / DOGFOOD_FLAGS / PREVIEW_FLAGS
-If the flag was listed in any of these generator-only arrays in `crates/warp_features/src/lib.rs`, remove it:
-
-```rust
-pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
-    // Remove FeatureFlag::YourFeatureName,
-];
-```
-
-### 5. Remove all runtime checks and dead code
+### 4. Remove all runtime checks and dead code
 Find and remove all `FeatureFlag::YourFeatureName.is_enabled()` checks throughout the codebase:
 
 **Before:**
@@ -86,7 +77,7 @@ The shared `FeatureFlag` enum is used from library crates too, so search the who
 rg "YourFeatureName" app/ crates/
 ```
 
-### 6. Remove keybinding predicates
+### 5. Remove keybinding predicates
 If the feature flag was used in keybinding enabled predicates, remove the predicate:
 
 **Before:**
@@ -110,10 +101,10 @@ EditableBinding::new(
 .with_key_binding("cmdorctrl-key")
 ```
 
-### 7. Clean up dead code branches
+### 6. Clean up dead code branches
 Remove any code paths that were only executed when the feature was disabled (the `else` branches in feature checks). These are now dead code. If the flag gated a Command Palette enable/disable entry or a context flag, remove those too.
 
-### 8. Run tests and validation
+### 7. Run tests and validation
 After removing the flag:
 
 ```bash

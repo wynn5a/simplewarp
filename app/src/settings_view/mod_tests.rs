@@ -41,10 +41,6 @@ fn subpage_display_names_are_correct() {
         "Third party CLI agents"
     );
     assert_eq!(
-        SettingsSection::CodeIndexing.to_string(),
-        "Indexing and projects"
-    );
-    assert_eq!(
         SettingsSection::EditorAndCodeReview.to_string(),
         "Editor and Code Review"
     );
@@ -68,7 +64,6 @@ const ALL_SECTIONS: &[SettingsSection] = &[
     SettingsSection::AgentMCPServers,
     SettingsSection::Knowledge,
     SettingsSection::ThirdPartyCLIAgents,
-    SettingsSection::CodeIndexing,
     SettingsSection::EditorAndCodeReview,
 ];
 
@@ -87,7 +82,6 @@ fn all_sections_list_is_exhaustive() {
             | SettingsSection::AgentMCPServers
             | SettingsSection::Knowledge
             | SettingsSection::ThirdPartyCLIAgents
-            | SettingsSection::CodeIndexing
             | SettingsSection::EditorAndCodeReview => section,
         };
         ALL_SECTIONS.contains(&known)
@@ -155,10 +149,6 @@ fn from_slug_accepts_legacy_spellings() {
         Some(SettingsSection::ThirdPartyCLIAgents)
     );
     assert_eq!(
-        SettingsSection::from_slug("CodeIndexing"),
-        Some(SettingsSection::CodeIndexing)
-    );
-    assert_eq!(
         SettingsSection::from_slug("EditorAndCodeReview"),
         Some(SettingsSection::EditorAndCodeReview)
     );
@@ -176,8 +166,16 @@ fn from_slug_maps_superseded_page_names_to_the_page_that_replaced_them() {
     );
     assert_eq!(
         SettingsSection::from_slug("Code"),
-        Some(SettingsSection::CodeIndexing)
+        Some(SettingsSection::EditorAndCodeReview)
     );
+    // `Indexing and projects` named a codebase-indexing page that never got a view; its slugs
+    // land on the remaining Code page.
+    for slug in ["Indexing and projects", "CodeIndexing"] {
+        assert_eq!(
+            SettingsSection::from_slug(slug),
+            Some(SettingsSection::EditorAndCodeReview)
+        );
+    }
     assert_eq!(
         SettingsSection::from_slug("MCP Servers"),
         Some(SettingsSection::AgentMCPServers)

@@ -235,7 +235,6 @@ pub enum SettingsSection {
     Knowledge,
     ThirdPartyCLIAgents,
     // ── Code umbrella subpages ──
-    CodeIndexing,
     EditorAndCodeReview,
 }
 
@@ -252,7 +251,6 @@ impl Display for SettingsSection {
             SettingsSection::AgentMCPServers => write!(f, "MCP servers"),
             SettingsSection::Knowledge => write!(f, "Knowledge"),
             SettingsSection::ThirdPartyCLIAgents => write!(f, "Third party CLI agents"),
-            SettingsSection::CodeIndexing => write!(f, "Indexing and projects"),
             SettingsSection::EditorAndCodeReview => write!(f, "Editor and Code Review"),
             _ => write!(f, "{self:?}"),
         }
@@ -285,7 +283,6 @@ impl SettingsSection {
             Self::AgentMCPServers => "MCP servers",
             Self::Knowledge => "Knowledge",
             Self::ThirdPartyCLIAgents => "Third party CLI agents",
-            Self::CodeIndexing => "Indexing and projects",
             Self::EditorAndCodeReview => "Editor and Code Review",
         }
     }
@@ -317,9 +314,11 @@ impl SettingsSection {
             "MCP servers" | "MCP Servers" | "AgentMCPServers" => Self::AgentMCPServers,
             "Knowledge" => Self::Knowledge,
             "Third party CLI agents" | "ThirdPartyCLIAgents" => Self::ThirdPartyCLIAgents,
-            // "Code" named the combined page before it split in two.
-            "Indexing and projects" | "CodeIndexing" | "Code" => Self::CodeIndexing,
             "Editor and Code Review" | "EditorAndCodeReview" => Self::EditorAndCodeReview,
+            // "Indexing and projects" named a codebase-indexing page that was never built in
+            // SimpleWarp, and "Code" the combined page before it split in two; both are kept as
+            // tombstones landing on the remaining Code page.
+            "Indexing and projects" | "CodeIndexing" | "Code" => Self::EditorAndCodeReview,
             // "Oz Cloud API Keys" named a cloud-platform page; like "Account",
             // it fell with the account and is kept as a tombstone.
             "Oz Cloud API Keys" | "OzCloudAPIKeys" => Self::WarpAgent,

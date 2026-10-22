@@ -101,47 +101,12 @@ branding → SimpleWarp **rebranded** (4ic); enable-candidates **all enabled** (
 notification plugin **keeps** its one-time GitHub fetch (no change). Nothing left under Next;
 Phase 3b is done too (MCP tool support landed in plan-p3 §10).
 
-**Harness-audit queue (2026-10-22), OPEN.** Found while auditing AGENTS.md and the project skills
-(`ad6c4a9a2`); verified against the tree, not yet cleaned. Do the packaging gap first.
+**Harness-audit queue (2026-10-22): done** (results at the end of the round log, "Harness-audit
+cleanup"). P0 release bundles now carry their resources; H1, H2, H3, H5 deleted; D1 took the
+preferred route; D2 dropped the common-skills lock (user ruling). H4 was wrong and is kept:
+`warp_util::path::warp_shell_path()` reads `WARP_SHELL_PATH` in the local shell starter, so
+`.warp/workflows/run_warp_with_shell.yaml` is a working dev convenience.
 
-- **P0 — release bundles ship no resources.** `release.yml` runs `script/bundle_simplewarp` on
-  macOS and a bare `cargo build --release --bin simplewarp` on Linux/Windows; none of them calls
-  `script/prepare_bundled_resources`. The shipped app therefore has no
-  `resources/bundled/skills`, `mcp_skills`, `settings_schema.json` or third-party licence file,
-  and `bundled.rs` finds nothing at `bundled_resources_dir()`. Only `script/macos/run` (dev) and
-  `flake.nix` run the full pipeline. Fix: call `prepare_bundled_resources` from
-  `bundle_simplewarp` and the Linux/Windows release jobs (a `resources/` dir next to the binary).
-- **H1 — channel-gated skills pipeline, never reached.** `script/copy_conditional_skills`,
-  `resources/channel-gated-skills/` (only `dogfood/triage-vulnerabilities`, a Warp-infra
-  GCP/Dependabot triage skill; plan-p3 §9 already marked the dogfood skills for deletion) and the
-  channel branch of `prepare_bundled_resources`. Skills copy only for channel `local|dev`;
-  `script/macos/run` passes no channel and `flake.nix` passes `stable`. Delete all three.
-- **H2 — `DOGFOOD_FLAGS` / `PREVIEW_FLAGS`.** Nothing applies them at runtime
-  (`ChannelState::additional_features` is empty apart from `DEBUG_FLAGS` in debug builds);
-  `PREVIEW_FLAGS` is already `&[]`. Delete both lists, the `#[ignore]`d
-  `test_all_preview_flags_have_a_description`, and `FeatureFlag::flag_description()` (4 entries,
-  Preview-changelog only, no other caller). `RELEASE_FLAGS` and `DEBUG_FLAGS` stay (generators,
-  debug builds).
-- **H3 — `SettingsSection::CodeIndexing`.** No page view, not in the nav, no arm in
-  `should_render_page`; only `from_slug` produces it (`"Indexing and projects" | "CodeIndexing" |
-  "Code"`). Turn the slugs into a tombstone onto `EditorAndCodeReview` (as `"Account"` is) and
-  delete the variant.
-- **H4 — `.warp/workflows/run_warp_with_shell.yaml`.** Sets `WARP_SHELL_PATH`, which no non-test
-  code reads (only a string fixture in `command_parser_tests.rs`). Delete.
-- **H5 — `.dockerignore`.** No root Dockerfile (`app/tests/ssh/Dockerfile` uses its own context);
-  the file still lists the long-gone `app/Carthage` paths. Delete.
-- **D1 (decision) — generator `--channel dev|preview|stable`.** `generate_settings_schema` and
-  `app/examples/generate_default_settings.rs` compute active flags from the upstream three-channel
-  lists, but the real `Channel` enum is `SimpleWarp | Integration` and `stable` yields only the two
-  `RELEASE_FLAGS`. Harmless today (the one flag-gated setting, `QueueSlashCommand`, is in the
-  `simplewarp` set) but wrong in principle. Preferred: derive active flags from the
-  `app/src/features.rs` cargo-feature mapping and drop the switch and the lists (folds H2 and
-  `RELEASE_FLAGS` into it).
-- **D2 (decision) — `skills-lock.json` / warpdotdev common-skills.** 25 upstream skills are locked
-  but installed nowhere (neither `.agents/skills` nor `~/.agents/skills`); `script/run` and
-  `script/bootstrap` still fetch the installer from GitHub on every run. Keep, or drop the lock,
-  `script/resolve_common_skills`, the bootstrap/run flags and the Platform Setup paragraph in
-  AGENTS.md together.
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
 `CloudAgent` / `ScheduledAmbientAgent` shapes, `crates/isolation_platform` (local detection) and
@@ -1491,6 +1456,36 @@ again in isolation, then passed on the next isolated run).
 Next candidates: `StoredView` and `SlashCommandSurfaces` are now single-variant enums, and
 `SlashCommandDataSource`/`TerminalSurface` have one production impl each; all four are the same
 shape of collapse as `ColumnUnit` if a further structural round is wanted.
+
+**Harness-audit cleanup (2026-10-22).** The queue recorded under Next, in one commit:
+
+- P0: release bundles now ship their resources. `script/bundle_simplewarp` runs
+  `script/prepare_bundled_resources` into `Contents/Resources` (cargo profile `release`, or `dev`
+  with `--debug`); the Linux and Windows release jobs prepare `dist/simplewarp/resources` next to
+  the binary and archive the directory. All three jobs set `install_release_deps` for
+  `cargo about`; the Windows prepare step repeats the build env so the schema generator reuses the
+  build. Locally, `NO_LICENSES=1` skips the licence file.
+- H1: deleted `script/copy_conditional_skills`, `resources/channel-gated-skills/` and the channel
+  argument of `prepare_bundled_resources` (now `<dest> [cargo_profile]`); `flake.nix` follows.
+- D1 (folds H2): `app/src/features.rs` splits out `pub fn compiled_features()`, the cargo-feature
+  mapping; `enabled_features()` adds `ChannelState::additional_features` on top. Both generators
+  read `compiled_features()` and lost `--channel`. Deleted `DOGFOOD_FLAGS`, `PREVIEW_FLAGS`,
+  `RELEASE_FLAGS`, `FeatureFlag::flag_description()` and the ignored preview-description test
+  (`warp_features/src/features_tests.rs`). `DEBUG_FLAGS` stays.
+- H3: deleted `SettingsSection::CodeIndexing`; its slugs (`Indexing and projects`, `CodeIndexing`,
+  `Code`) are tombstones onto `EditorAndCodeReview`.
+- H5: deleted `.dockerignore` (the SSH test Dockerfile copies nothing).
+- D2 (user ruling: drop): deleted `skills-lock.json` and `script/resolve_common_skills`, the
+  common-skills flags and env in `script/bootstrap`, `script/run` and
+  `script/windows/bootstrap.ps1`, and the AGENTS.md Platform Setup paragraph.
+- H4 not done: the audit was wrong, `WARP_SHELL_PATH` is read by the local shell starter.
+- Docs: AGENTS.md feature-flag section, the add/remove-feature-flag skills, README bundling note.
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,290 run,
+6,289 passed, 1 failed (the known clone-slash-command flake), 86 skipped (−1, the deleted ignored
+test). `NO_LICENSES=1 script/bundle_simplewarp --debug` produces `bundled/skills`,
+`bundled/mcp_skills` and `settings_schema.json` (173 settings) in the `.app`;
+`generate_default_settings --surface gui` writes 173.
 
 ## Risks
 

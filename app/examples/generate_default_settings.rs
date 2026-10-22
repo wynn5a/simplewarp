@@ -8,17 +8,16 @@
 //! per-generator registration list to keep in sync.
 //!
 //! Usage:
-//!   cargo run --example generate_default_settings -- --surface gui [--channel dev|preview|stable] <output_path>
+//!   cargo run --example generate_default_settings -- --surface gui <output_path>
 //!
 //! Example:
 //!   cargo run --example generate_default_settings -- --surface gui ./default_settings.toml
 
-use std::collections::HashSet;
 use std::path::PathBuf;
 
 use settings::SettingsMode;
 use settings::schema::SettingSchemaEntry;
-use warp_core::features::{DEBUG_FLAGS, DOGFOOD_FLAGS, FeatureFlag, PREVIEW_FLAGS, RELEASE_FLAGS};
+use warp::features::compiled_features;
 use warpui_extras::user_preferences::UserPreferences as _;
 use warpui_extras::user_preferences::toml_backed::TomlBackedUserPreferences;
 
@@ -33,45 +32,16 @@ fn ensure_settings_linked() {
     let _ = std::hint::black_box(warp::settings::RESTORE_SESSION);
 }
 
-fn active_flags_for_channel(channel: &str) -> HashSet<FeatureFlag> {
-    let mut flags = HashSet::new();
-
-    let flag_lists: &[&[FeatureFlag]] = match channel {
-        "stable" => &[RELEASE_FLAGS],
-        "preview" => &[RELEASE_FLAGS, PREVIEW_FLAGS],
-        "dev" => &[RELEASE_FLAGS, PREVIEW_FLAGS, DOGFOOD_FLAGS, DEBUG_FLAGS],
-        other => {
-            eprintln!("Unknown channel '{other}', defaulting to dev");
-            &[RELEASE_FLAGS, PREVIEW_FLAGS, DOGFOOD_FLAGS, DEBUG_FLAGS]
-        }
-    };
-
-    for list in flag_lists {
-        for flag in *list {
-            flags.insert(*flag);
-        }
-    }
-
-    flags
-}
-
 fn main() {
     ensure_settings_linked();
 
     let args: Vec<String> = std::env::args().collect();
 
-    let mut channel = "dev";
     let mut surface: Option<&str> = None;
     let mut output_path: Option<PathBuf> = None;
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
-            "--channel" => {
-                i += 1;
-                if i < args.len() {
-                    channel = &args[i];
-                }
-            }
             "--surface" => {
                 i += 1;
                 if i < args.len() {
@@ -93,13 +63,11 @@ fn main() {
     }
 
     let Some(output_path) = output_path else {
-        eprintln!(
-            "Usage: generate_default_settings --surface gui [--channel dev|preview|stable] <output_path>"
-        );
+        eprintln!("Usage: generate_default_settings --surface gui <output_path>");
         std::process::exit(1);
     };
 
-    let active_flags = active_flags_for_channel(channel);
+    let active_flags = compiled_features();
 
     // Only emit settings that apply to the target surface. Required (with no
     // default) so a typo or a missing value never silently generates the wrong
@@ -132,7 +100,7 @@ fn main() {
             continue;
         }
 
-        // Skip settings whose feature flag is not active for this channel.
+        // Skip settings whose feature flag is not compiled into this build.
         if let Some(flag) = entry.feature_flag
             && !active_flags.contains(&flag)
         {

@@ -430,8 +430,7 @@ pub enum FeatureFlag {
     /// Gates NLD input classification matching the buffer against agent
     /// prompt history (in addition to shell command history). Still in
     /// development; currently disabled on all channels as a mitigation for
-    /// misclassification bug reports (see PR #12586). Re-enable via
-    /// `DOGFOOD_FLAGS` once the underlying issues are resolved.
+    /// misclassification bug reports (see PR #12586).
     NldPromptHistoryMatch,
 
     /// Enables state-mutating recovery for abnormal terminal lifecycle sequences.
@@ -459,45 +458,6 @@ static FEATURES_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 /// Features used in debugging.
 pub const DEBUG_FLAGS: &[FeatureFlag] = &[FeatureFlag::DebugMode];
-
-/// Features enabled for the development team.  The expectation is that, over
-/// time, these will move on to PREVIEW_FLAGS before being launched.
-pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
-    FeatureFlag::ToggleBootstrapBlock,
-    FeatureFlag::RemoveAutosuggestionDuringTabCompletions,
-    FeatureFlag::ResizeFix,
-    FeatureFlag::AgentModeWorkflows,
-    FeatureFlag::SshDragAndDrop,
-    FeatureFlag::ImeMarkedText,
-    FeatureFlag::MSYS2Shells,
-    FeatureFlag::RunGeneratorsWithCmdExe,
-    FeatureFlag::Projects,
-    FeatureFlag::FileGlobV2Warnings,
-    FeatureFlag::EditableMarkdownMermaid,
-    FeatureFlag::CodeReviewScrollPreservation,
-    FeatureFlag::RememberFastForwardState,
-    FeatureFlag::LocalDockerSandbox,
-    FeatureFlag::RestorePromptOnInlineModelSelectorSearch,
-    FeatureFlag::TerminalLifecycleRecovery,
-    FeatureFlag::JupyterNotebookRendering,
-    FeatureFlag::McpJsonTreeView,
-    FeatureFlag::BoxDrawingGlyphs,
-];
-
-/// Features enabled for feature preview build users (e.g.: Friends of Warp).
-/// All PREVIEW_FLAGS are also automatically added to dogfood builds (WarpDev).
-pub const PREVIEW_FLAGS: &[FeatureFlag] = &[];
-
-/// Features enabled for all release builds (i.e.: everything but WarpLocal).
-/// NOTE: if you are promoting a feature from Preview to launch, you'll likely
-/// want to enable the feature by default in app/Cargo.toml, rather than add it to RELEASE_FLAGS.
-pub const RELEASE_FLAGS: &[FeatureFlag] = &[
-    // Marked text is currently only supported on MacOS.
-    #[cfg(target_os = "macos")]
-    FeatureFlag::ImeMarkedText,
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
-    FeatureFlag::DragTabsToWindows,
-];
 
 impl FeatureFlag {
     pub fn is_enabled(&self) -> bool {
@@ -540,36 +500,6 @@ impl FeatureFlag {
     #[cfg(feature = "test-util")]
     pub fn override_enabled(self, enabled: bool) -> overrides::OverrideGuard {
         overrides::override_flag(self, enabled)
-    }
-
-    pub fn flag_description(&self) -> Option<&'static str> {
-        use FeatureFlag::*;
-
-        // Note: many feature flags are purposefully omitted from this list, in order to avoid blowing up
-        // the Preview changelog. Features below which are enabled for Preview via PREVIEW_FLAGS, will be added to the changelog.
-        // Features which are added to Stable should ideally have their feature flag removed entirely, but at the
-        // very least, the feature flag should be removed from the Preview changelog by removing it from PREVIEW_FLAGS.
-        // ** ONLY Preview-exclusive features should be added to this list! **
-        match self {
-            CodeReviewFind => Some("Enables the find bar in the code review pane."),
-            BlocklistMarkdownImages => {
-                Some("Enables rendering markdown images inline in AI block list responses.")
-            }
-            GlobalSearch => Some("Enables global search in the left panel"),
-            BlocklistMarkdownTableRendering => {
-                Some("Enables rendering markdown tables inline in AI block list responses.")
-            }
-            MarkdownTables => {
-                Some("Enables rendering and interaction support for markdown tables in notebooks.")
-            }
-            SettingsFile => Some(
-                "Enables configuring Warp via a user-editable `settings.toml` file, with hot reload and error reporting for invalid values.",
-            ),
-            GitOperationsInCodeReview => Some(
-                "Enables commit, push, and create-PR actions directly from the code review panel.",
-            ),
-            _ => None,
-        }
     }
 }
 
@@ -660,7 +590,3 @@ mod overrides {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "features_tests.rs"]
-mod tests;

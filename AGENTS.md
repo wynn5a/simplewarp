@@ -38,20 +38,9 @@ that pointed the client at a local warp-server instance is gone, along with its 
   returns the relevant source and call paths in one call.
 
 ### Platform Setup
-- `./script/bootstrap` - Platform-specific setup plus common agent skill installation from `skills-lock.json`; prompts for project/global when an install or update is needed unless a target flag or environment override is provided.
-- `./script/bootstrap --skip-common-skills` - Platform setup without installing or updating common agent skills.
-- `./script/bootstrap --install-common-skills` - Explicitly install common agent skills from `skills-lock.json`; this is the default behavior.
-- `./script/bootstrap --install-common-skills-in-repo` - Platform setup plus common agent skill installation in this checkout's `.agents/skills`.
-- `./script/bootstrap --install-common-skills-globally` - Platform setup plus common agent skill installation in `~/.agents/skills`.
-- `../common-skills/scripts/install_common_skills --repo-root "$PWD" --project --if-needed` - Install or refresh shared agent skills in this checkout's `.agents/skills`.
-- `../common-skills/scripts/install_common_skills --repo-root "$PWD" --global --if-needed` - Install or refresh shared agent skills in `~/.agents/skills`.
-- `../common-skills/scripts/remove_common_skills --repo-root "$PWD"` - Remove shared agent skills listed in `skills-lock.json` from this checkout's `.agents/skills`.
-- `../common-skills/scripts/remove_common_skills --repo-root "$PWD" --global` - Remove shared agent skills listed in `skills-lock.json` from `~/.agents/skills`.
-- `../common-skills/scripts/remove_common_skills --repo-root "$PWD" --clear-lock` - Remove shared agent skills from this checkout and delete `skills-lock.json`.
+- `./script/bootstrap` - Platform-specific setup (`-y` / `--yes` skips the prompts before root steps)
 - `./script/install_cargo_build_deps` - Install Cargo build dependencies
 - `./script/install_cargo_test_deps` - Install Cargo test dependencies
-
-`skills-lock.json` is the standard project lock file managed by `npx skills`. `warpdotdev/common-skills/scripts/install_common_skills` requires an explicit install target before restoring: pass `--project`, pass `--global`, set `WARP_COMMON_SKILLS_INSTALL_TARGET`, or answer the interactive prompt from bootstrap. Non-interactive flows fail if no target is explicit. The installer creates `skills-lock.json` from `warpdotdev/common-skills` if it is missing, uses global as the recommended interactive default, errors if common skills are present in both project and global locations, prevents a global install pinned to one lock from being silently overwritten by another checkout pinned to a different lock, and verifies installed skills against the lock after successful install or skip paths. `script/run` and `script/bootstrap` execute this installer with `script/resolve_common_skills`, which uses `WARP_COMMON_SKILLS_SCRIPTS_DIR` only when explicitly set and otherwise runs the raw script from `warpdotdev/common-skills`. To test a remote common-skills branch, set `WARP_COMMON_SKILLS_REF=<branch>`. Cloud setup should use `common-skills/scripts/install_common_skills --repo-root <warp-checkout> --project --if-needed --non-interactive` or set `WARP_COMMON_SKILLS_INSTALL_TARGET=project` to avoid the prompt. To update the locked common skills, run `npx --yes skills@1.5.6 update -p -y` and commit the resulting `skills-lock.json` changes.
 
 ## Architecture Overview
 
@@ -219,10 +208,9 @@ How to add a feature flag:
 - Gate code paths with `FeatureFlag::YourFlag.is_enabled()`
 - To turn it on in a build, add a cargo feature in `app/Cargo.toml` that `app/src/features.rs`
   maps to the flag, and list it in the `simplewarp` feature set to ship it. That mapping is the
-  only runtime source of enabled flags: `ChannelState::additional_features` is empty in the
-  `simplewarp` bin except for `DEBUG_FLAGS` in debug builds. `RELEASE_FLAGS` / `DOGFOOD_FLAGS` /
-  `PREVIEW_FLAGS` are Warp's channel lists; nothing applies them at runtime, and only the settings
-  schema and default-settings generators' `--channel` switch reads them.
+  only source of enabled flags (`compiled_features()`): `ChannelState::additional_features` adds
+  nothing in the `simplewarp` bin except `DEBUG_FLAGS` in debug builds, and the settings schema and
+  default-settings generators read the same mapping.
 
 Best practices:
 - **Prefer runtime checks over cfg directives**: Prefer `FeatureFlag::YourFlag.is_enabled()` over `#[cfg(...)]` compile-time directives so flags can be toggled without recompilation and are easier to clean up later. Use `#[cfg(...)]` only when the code cannot compile without them (for example, platform-specific code or dependencies that do not exist when the feature is disabled).

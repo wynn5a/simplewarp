@@ -1,20 +1,26 @@
 #!/usr/bin/env bash
 #
 # Build and bundle the SimpleWarp app: builds the `simplewarp` bin, wraps it in a
-# minimal .app (so it gets a Dock icon and can be Finder-launched), and compiles
+# minimal .app (so it gets a Dock icon and can be Finder-launched), installs the
+# bundled resources (skills, settings schema, third-party licences) and compiles
 # in the real Warp icon.
 #
 # Usage: script/bundle_simplewarp [--debug]
+#
+# The licence step needs `cargo about` (script/install_cargo_release_deps); set
+# NO_LICENSES=1 to skip it for a local bundle.
 
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 PROFILE=release
+CARGO_PROFILE=release
 CARGO_ARGS=(--release)
 for arg in "$@"; do
   case "$arg" in
     --debug)
       PROFILE=debug
+      CARGO_PROFILE=dev
       CARGO_ARGS=()
       ;;
     *)
@@ -68,6 +74,7 @@ cat > "$APP/Contents/Info.plist" <<EOF
 </plist>
 EOF
 
+script/prepare_bundled_resources "$APP/Contents/Resources" "$CARGO_PROFILE"
 script/compile_icon stable "$APP"
 codesign --force --deep -s - "$APP"
 

@@ -2,17 +2,16 @@
 //!
 //! Usage:
 //! ```
-//! cargo run --bin generate_settings_schema -- [--channel dev|preview|stable] [output_path]
+//! cargo run --bin generate_settings_schema -- [output_path]
 //! ```
 
-use std::collections::HashSet;
 use std::io::Write;
 
 use schemars::SchemaGenerator;
 use serde_json::{Map, Value};
 use settings::schema::SettingSchemaEntry;
 use settings::{SettingSurfaces, SettingsMode};
-use warp_core::features::{DEBUG_FLAGS, DOGFOOD_FLAGS, FeatureFlag, PREVIEW_FLAGS, RELEASE_FLAGS};
+use warp::features::compiled_features;
 
 /// Ensures all `inventory::submit!` registrations from the app crate's
 /// dependency tree are linked into the binary.
@@ -85,28 +84,6 @@ fn strip_empty_enum_entries(value: &mut Value) {
     }
 }
 
-fn active_flags_for_channel(channel: &str) -> HashSet<FeatureFlag> {
-    let mut flags = HashSet::new();
-
-    let flag_lists: &[&[FeatureFlag]] = match channel {
-        "stable" => &[RELEASE_FLAGS],
-        "preview" => &[RELEASE_FLAGS, PREVIEW_FLAGS],
-        "dev" => &[RELEASE_FLAGS, PREVIEW_FLAGS, DOGFOOD_FLAGS, DEBUG_FLAGS],
-        other => {
-            eprintln!("Unknown channel '{other}', defaulting to dev");
-            &[RELEASE_FLAGS, PREVIEW_FLAGS, DOGFOOD_FLAGS, DEBUG_FLAGS]
-        }
-    };
-
-    for list in flag_lists {
-        for flag in *list {
-            flags.insert(*flag);
-        }
-    }
-
-    flags
-}
-
 /// Creates intermediate hierarchy objects so that a setting at e.g.
 /// `appearance.text` is nested under `properties.appearance.properties.text.properties`.
 fn ensure_hierarchy<'a>(
@@ -152,29 +129,16 @@ fn main() {
 
     let args: Vec<String> = std::env::args().collect();
 
-    let mut channel = "dev";
     let mut output_path: Option<&str> = None;
-    let mut i = 1;
-    while i < args.len() {
-        match args[i].as_str() {
-            "--channel" => {
-                i += 1;
-                if i < args.len() {
-                    channel = &args[i];
-                }
-            }
-            arg if !arg.starts_with('-') => {
-                output_path = Some(arg);
-            }
-            other => {
-                eprintln!("Unknown argument: {other}");
-                std::process::exit(1);
-            }
+    for arg in &args[1..] {
+        if arg.starts_with('-') {
+            eprintln!("Unknown argument: {arg}");
+            std::process::exit(1);
         }
-        i += 1;
+        output_path = Some(arg);
     }
 
-    let active_flags = active_flags_for_channel(channel);
+    let active_flags = compiled_features();
     let mut generator = SchemaGenerator::default();
     let mut root_properties = Map::new();
     let mut entry_count = 0;
@@ -249,7 +213,7 @@ fn main() {
     root.insert(
         "description".to_string(),
         Value::String(format!(
-            "JSON Schema for Warp settings ({channel} channel, {entry_count} settings)"
+            "JSON Schema for Warp settings ({entry_count} settings)"
         )),
     );
     root.insert("type".to_string(), Value::String("object".to_string()));

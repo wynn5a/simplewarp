@@ -14,10 +14,14 @@ pub fn init_feature_flags() {
 
 /// Returns all feature flags which should be enabled in the current channel.
 fn enabled_features() -> HashSet<FeatureFlag> {
-    // Enable features overridden for the given channel.
     let mut flags = ChannelState::additional_features();
+    flags.extend(compiled_features());
+    flags
+}
 
-    flags.extend([
+/// Returns the feature flags turned on by this build's cargo features, independent of the channel.
+pub fn compiled_features() -> HashSet<FeatureFlag> {
+    HashSet::from([
         #[cfg(feature = "run_generators_with_cmd_exe")]
         FeatureFlag::RunGeneratorsWithCmdExe,
         #[cfg(feature = "ligatures")]
@@ -293,9 +297,7 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::RememberFastForwardState,
         #[cfg(feature = "toggle_bootstrap_block")]
         FeatureFlag::ToggleBootstrapBlock,
-    ]);
-
-    flags
+    ])
 }
 
 #[cfg(test)]

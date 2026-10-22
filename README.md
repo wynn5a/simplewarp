@@ -11,7 +11,9 @@ crash reporting or auto-update. The only network traffic goes to the AI provider
 cargo run            # builds the simplewarp bin with the app's default (only) feature set
 ```
 
-`script/bundle_simplewarp` builds a macOS `.app` (ad-hoc signed, not notarized).
+`script/bundle_simplewarp` builds a macOS `.app` (ad-hoc signed, not notarized) with its bundled
+resources; it needs `cargo about` (`script/install_cargo_release_deps`), or `NO_LICENSES=1` to skip
+the licence file.
 
 ## Develop it
 

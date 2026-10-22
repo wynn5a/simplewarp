@@ -11,7 +11,7 @@ Add a new feature flag to gate code changes in the SimpleWarp codebase.
 
 Feature flags are compile-time cargo features with a small runtime plumbing layer: a cargo feature in `app/Cargo.toml` maps to a `FeatureFlag` variant in `app/src/features.rs`, and code checks `FeatureFlag::X.is_enabled()` at runtime. The `simplewarp` feature set (the app's only feature set; `default` forwards to it) decides what ships.
 
-The only runtime source of enabled flags is that mapping. `ChannelState::additional_features` is empty in the `simplewarp` bin apart from `DEBUG_FLAGS` in debug builds, and the `RELEASE_FLAGS` / `DOGFOOD_FLAGS` / `PREVIEW_FLAGS` lists in `crates/warp_features/src/lib.rs` are read only by the settings schema and default-settings generators' `--channel` switch. Do not add a flag to those lists expecting it to turn on.
+That mapping (`compiled_features()`) is the only source of enabled flags: `ChannelState::additional_features` adds nothing in the `simplewarp` bin apart from `DEBUG_FLAGS` in debug builds, and the settings schema and default-settings generators read the same mapping to decide which flag-gated settings to emit.
 
 ## Steps
 
@@ -34,7 +34,7 @@ pub enum FeatureFlag {
 ```
 
 ### 3. Map the cargo feature to the flag
-Add the pair to the list in `enabled_features()` in `app/src/features.rs`:
+Add the pair to the list in `compiled_features()` in `app/src/features.rs`:
 
 ```rust
 #[cfg(feature = "your_feature_name")]

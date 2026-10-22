@@ -2,18 +2,17 @@
 #
 # Prepares bundled resources for distribution.
 #
-# This script copies resources that should be bundled with Warp into a
-# destination directory. It is used by macOS and Linux build scripts.
+# This script copies resources that should be bundled with SimpleWarp into a
+# destination directory. It is used by every bundling path: the macOS .app
+# scripts, the Linux/Windows release jobs and the Nix package.
 #
 # Usage:
-#   prepare_bundled_resources <destination_directory> [channel] [cargo_profile]
+#   prepare_bundled_resources <destination_directory> [cargo_profile]
 #
 # Arguments:
 #   destination_directory:  The directory where resources should be installed.
 #                           Resources will be copied to subdirectories within
 #                           this path (e.g., $DEST_DIR/skills).
-#   channel:                (Optional) Release channel (local, dev, preview,
-#                           stable). Used to include channel-gated skills.
 #   cargo_profile:          (Optional) Cargo build profile to use when
 #                           generating the settings schema. Reusing the same
 #                           profile as the main build avoids recompiling deps.
@@ -27,19 +26,18 @@
 #                          and saves a copy to this path; subsequent invocations
 #                          copy from the cache instead of regenerating. This
 #                          avoids redundant compilations when bundling multiple
-#                          package formats for the same channel.
+#                          package formats.
 
 set -e
 
-if [ $# -lt 1 ] || [ $# -gt 3 ]; then
-  echo "Error: Expected 1-3 arguments but received $#" >&2
-  echo "Usage: $0 <destination_directory> [channel] [cargo_profile]" >&2
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+  echo "Error: Expected 1-2 arguments but received $#" >&2
+  echo "Usage: $0 <destination_directory> [cargo_profile]" >&2
   exit 1
 fi
 
 DEST_DIR="$1"
-CHANNEL="${2:-}"
-CARGO_PROFILE="${3:-}"
+CARGO_PROFILE="${2:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 RESOURCES_SRC="$REPO_ROOT/resources"
@@ -69,18 +67,6 @@ if [ -n "$GIT_RELEASE_TAG" ]; then
   echo "Writing bundled Warp version metadata to $VERSION_METADATA_PATH"
   mkdir -p "$VERSION_METADATA_DIR"
   printf '{\n  "warp_version": "%s"\n}\n' "$GIT_RELEASE_TAG" > "$VERSION_METADATA_PATH"
-fi
-
-# Copy channel-gated skills matching the current release channel.
-GATED_SRC="$REPO_ROOT/resources/channel-gated-skills"
-DEST_SKILLS="$DEST_DIR/bundled/skills"
-
-if [ -n "$CHANNEL" ] && [ -d "$GATED_SRC" ]; then
-  echo "Copying channel-gated skills for channel '$CHANNEL'..."
-  "$SCRIPT_DIR/copy_conditional_skills" \
-    "$CHANNEL" \
-    "$GATED_SRC" \
-    "$DEST_SKILLS"
 fi
 
 # Generate third-party license attribution.
@@ -140,11 +126,7 @@ if [ "${SKIP_SETTINGS_SCHEMA:-}" != "1" ]; then
     if [ -n "$CARGO_PROFILE" ]; then
       SCHEMA_CMD+=(--profile "$CARGO_PROFILE")
     fi
-    SCHEMA_CMD+=(--manifest-path "$REPO_ROOT/Cargo.toml" --bin generate_settings_schema --)
-    if [ -n "$CHANNEL" ]; then
-      SCHEMA_CMD+=(--channel "$CHANNEL")
-    fi
-    SCHEMA_CMD+=("$SCHEMA_OUTPUT")
+    SCHEMA_CMD+=(--manifest-path "$REPO_ROOT/Cargo.toml" --bin generate_settings_schema -- "$SCHEMA_OUTPUT")
 
     "${SCHEMA_CMD[@]}"
 

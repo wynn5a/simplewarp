@@ -45,6 +45,7 @@ jobs:
         with:
           target_os: macos
           is_self_hosted: 'false'
+          install_release_deps: 'true'
       - name: Determine version
         id: version
         shell: bash
@@ -77,6 +78,7 @@ jobs:
         with:
           target_os: linux
           is_self_hosted: 'false'
+          install_release_deps: 'true'
       - name: Determine version
         id: version
         shell: bash
@@ -87,11 +89,15 @@ jobs:
       - name: Build
         shell: bash
         run: cargo build --release --bin simplewarp
+      - name: Prepare bundled resources
+        shell: bash
+        run: script/prepare_bundled_resources dist/simplewarp/resources release
       - name: Package
         shell: bash
         run: |
           strip target/release/simplewarp
-          tar -czf "SimpleWarp-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz" -C target/release simplewarp
+          cp target/release/simplewarp dist/simplewarp/
+          tar -czf "SimpleWarp-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz" -C dist simplewarp
       - uses: actions/upload-artifact@v4
         with:
           name: linux
@@ -107,6 +113,7 @@ jobs:
         with:
           target_os: windows
           is_self_hosted: 'false'
+          install_release_deps: 'true'
       - name: Determine version
         id: version
         shell: bash
@@ -121,11 +128,20 @@ jobs:
           WARP_APP_NAME: SimpleWarp
           GIT_RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: cargo build --release --bin simplewarp
+      - name: Prepare bundled resources
+        shell: bash
+        # Same env as the build, so the settings-schema generator reuses its artifacts.
+        env:
+          CARGO_BIN_NAME: stable
+          WARP_APP_NAME: SimpleWarp
+          GIT_RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: script/prepare_bundled_resources dist/simplewarp/resources release
       - name: Package
         shell: pwsh
         run: |
           $v = "${{ steps.version.outputs.version }}"
-          Compress-Archive -Path target/release/simplewarp.exe -DestinationPath "SimpleWarp-$v-windows-x86_64.zip"
+          Copy-Item target/release/simplewarp.exe dist/simplewarp/
+          Compress-Archive -Path dist/simplewarp -DestinationPath "SimpleWarp-$v-windows-x86_64.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: windows
