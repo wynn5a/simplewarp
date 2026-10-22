@@ -44,7 +44,7 @@ use warp_editor::editor::TextDecoration;
 use warp_editor::model::{CoreEditorModel, PlainTextEditorModel};
 use warp_editor::multiline::{AnyMultilineString, LF, MultilineString};
 use warp_editor::render::model::{
-    AutoScrollMode, BlockItem, ColumnUnit, Decoration, LineCount, LineDecoration, RenderEvent,
+    AutoScrollMode, BlockItem, Decoration, LineCount, LineDecoration, RenderEvent,
     RenderLineLocation, RenderState, RichTextStyles, StyleUpdateAction,
     UpdateDecorationAfterLayout, WidthSetting,
 };
@@ -332,77 +332,17 @@ impl CodeEditorModel {
             buffer.set_session_platform(session_platform);
         });
 
-        Self::from_content(
-            content,
-            true,        // show_current_line_highlights
-            lazy_layout, // lazy_layout_enabled
-            false,       // lazy_layout_initialized
-            ctx,
-            |hidden_lines, ctx| {
-                ctx.add_model(|ctx| {
-                    RenderState::new(text_styles, lazy_layout, Some(hidden_lines.clone()), ctx)
-                        .with_width_setting(WidthSetting::InfiniteWidth)
-                })
-            },
-        )
+        Self::from_content(content, text_styles, lazy_layout, ctx)
     }
 
-    /// Constructs a `CodeEditorModel` in TUI char-cell mode (test-only).
-    ///
-    /// Identical to `new` but creates the `RenderState` with
-    /// [`LayoutMode::CharCell`] so all soft-wrap positions use monospace
-    /// character-count arithmetic rather than font-aware pixel layout. It gives
-    /// the char-cell consumer all of `CodeEditorModel`'s features (vim, syntax,
-    /// diff, hidden lines) for free while sharing no GUI-rendering
-    /// infrastructure.
-    ///
-    /// Like `new`, this reads syntax-highlight colors from the `Appearance`
-    /// singleton, so callers must register `Appearance` (a real one for the
-    /// runtime, `Appearance::mock()` for tests) before constructing the model.
-    #[cfg(test)]
-    pub fn new_tui(terminal_width: u16, ctx: &mut ModelContext<Self>) -> Self {
-        let content = ctx.add_model(|_| Buffer::new(Box::new(|_, _| IndentBehavior::Ignore)));
-
-        Self::from_content(
-            content,
-            false, // show_current_line_highlights: no GPU rendering in TUI
-            false, // lazy_layout_enabled: no lazy layout in TUI
-            true,  // lazy_layout_initialized: no lazy layout in TUI
-            ctx,
-            |hidden_lines, ctx| {
-                let hidden_lines = hidden_lines.clone();
-                // CharCell layout consumes the configured tab size; RenderState
-                // retains the remaining styles for API compatibility with pixel layout.
-                ctx.add_model(|ctx| {
-                    RenderState::new_tui(
-                        terminal_width,
-                        Self::tui_stub_text_styles(),
-                        hidden_lines,
-                        ctx,
-                    )
-                })
-            },
-        )
-    }
-
-    /// Shared construction for [`Self::new`] and [`Self::new_tui`]. The two modes
-    /// differ only in how the backing `content` buffer and the `RenderState` are
-    /// built (GUI pixel layout vs. TUI char-cell layout) plus a few flags; all
-    /// other sub-models (selection, syntax tree, diff, hidden lines, comments)
-    /// and event subscriptions are identical and wired up here.
-    ///
-    /// `build_render_state` receives the freshly-created `hidden_lines` handle so
-    /// both paths can attach it to their `RenderState`.
+    /// Wires up the sub-models (selection, syntax tree, diff, hidden lines,
+    /// comments) and event subscriptions that surround `content` and its render
+    /// state.
     fn from_content(
         content: ModelHandle<Buffer>,
-        show_current_line_highlights: bool,
-        lazy_layout_enabled: bool,
-        lazy_layout_initialized: bool,
+        text_styles: RichTextStyles,
+        lazy_layout: bool,
         ctx: &mut ModelContext<Self>,
-        build_render_state: impl FnOnce(
-            &ModelHandle<HiddenLinesModel>,
-            &mut ModelContext<Self>,
-        ) -> ModelHandle<RenderState>,
     ) -> Self {
         ctx.subscribe_to_model(&content, |me, _, event, ctx| {
             me.handle_content_model_event(event, ctx);
@@ -427,7 +367,10 @@ impl CodeEditorModel {
         let hidden_lines =
             ctx.add_model(|_| HiddenLinesModel::new(content.clone(), selection_model.clone()));
 
-        let render_state = build_render_state(&hidden_lines, ctx);
+        let render_state = ctx.add_model(|ctx| {
+            RenderState::new(text_styles, lazy_layout, Some(hidden_lines.clone()), ctx)
+                .with_width_setting(WidthSetting::InfiniteWidth)
+        });
         ctx.subscribe_to_model(&render_state, |me, _, event, ctx| {
             me.handle_render_state_model_event(event, ctx);
         });
@@ -457,98 +400,15 @@ impl CodeEditorModel {
             hidden_lines,
             diff_navigation_state: DiffNavigationState::Collapsed,
             interaction_state: InteractionState::Editable,
-            show_current_line_highlights,
+            show_current_line_highlights: true,
             delay_rendering: None,
             vim_visual_tails: vec![],
             hovered_symbol_range: None,
             hide_lines_outside_of_active_diff: None,
             recalculate_hidden_lines_after_diff: None,
-            lazy_layout_enabled,
-            lazy_layout_initialized,
+            lazy_layout_enabled: lazy_layout,
+            lazy_layout_initialized: false,
             pending_syntax_tree_bootstrap: false,
-        }
-    }
-
-    /// A minimal [`RichTextStyles`] for the test-only char-cell editor path.
-    ///
-    /// [`RenderState::new_tui`] consumes the base paragraph's tab size and
-    /// retains the remaining styles for API compatibility. This stub lives here
-    /// so the core editor crate doesn't carry a TUI-specific dependency.
-    #[cfg(test)]
-    fn tui_stub_text_styles() -> RichTextStyles {
-        use warp_editor::render::model::{
-            BlockSpacings, BrokenLinkStyle, CheckBoxStyle, HorizontalRuleStyle, InlineCodeStyle,
-            ParagraphStyles, TableStyle,
-        };
-        use warpui::elements::{Border, Fill};
-        use warpui::fonts::{FamilyId, Weight};
-
-        const TRANSPARENT: warpui::color::ColorU = warpui::color::ColorU {
-            r: 0,
-            g: 0,
-            b: 0,
-            a: 0,
-        };
-        let paragraph = |fixed_width_tab_size| ParagraphStyles {
-            font_family: FamilyId(0),
-            font_size: 10.,
-            font_weight: Weight::Normal,
-            line_height_ratio: 1.,
-            text_color: TRANSPARENT,
-            baseline_ratio: 0.7,
-            fixed_width_tab_size,
-        };
-        RichTextStyles {
-            base_text: paragraph(Some(4)),
-            code_text: paragraph(Some(4)),
-            code_background: Fill::None,
-            embedding_background: Fill::None,
-            embedding_text: paragraph(None),
-            code_border: Border::new(0.),
-            placeholder_color: TRANSPARENT,
-            selection_fill: Fill::None,
-            cursor_fill: Fill::None,
-            inline_code_style: InlineCodeStyle {
-                font_family: FamilyId(0),
-                background: TRANSPARENT,
-                font_color: TRANSPARENT,
-            },
-            check_box_style: CheckBoxStyle {
-                border_width: 0.,
-                border_color: TRANSPARENT,
-                icon_path: "",
-                background: TRANSPARENT,
-                hover_background: TRANSPARENT,
-            },
-            horizontal_rule_style: HorizontalRuleStyle {
-                rule_height: 0.,
-                color: TRANSPARENT,
-            },
-            broken_link_style: BrokenLinkStyle {
-                icon_path: "",
-                icon_color: TRANSPARENT,
-            },
-            block_spacings: BlockSpacings::default(),
-            minimum_paragraph_height: None,
-            show_placeholder_text_on_empty_block: false,
-            cursor_width: 0.,
-            highlight_urls: false,
-            table_style: TableStyle {
-                border_color: TRANSPARENT,
-                header_background: TRANSPARENT,
-                cell_background: TRANSPARENT,
-                alternate_row_background: None,
-                text_color: TRANSPARENT,
-                header_text_color: TRANSPARENT,
-                scrollbar_nonactive_thumb_color: TRANSPARENT,
-                scrollbar_active_thumb_color: TRANSPARENT,
-                font_family: FamilyId(0),
-                font_size: 10.,
-                cell_padding: 0.,
-                outer_border: false,
-                column_dividers: false,
-                row_dividers: false,
-            },
         }
     }
 
@@ -1938,8 +1798,6 @@ impl CodeEditorModel {
         self.backspace(ctx);
     }
 
-    // ── Char-cell (TUI) visual-row kill ──────────────────────────────────────
-
     pub fn reset_content(&mut self, state: InitialBufferState, ctx: &mut ModelContext<Self>) {
         self.set_base(state.text, false, ctx);
         // Line ending is now inferred automatically by Buffer::reset.
@@ -2645,7 +2503,7 @@ impl CodeEditorModel {
             if let Some(existing) = self.selection().as_ref(ctx).goal_xs.as_ref() {
                 existing
                     .iter()
-                    .map(|col| col.as_pixels().as_f32().round() as u32)
+                    .map(|col| col.as_f32().round() as u32)
                     .collect()
             } else {
                 current_selections
@@ -2686,11 +2544,11 @@ impl CodeEditorModel {
         if let Ok(new_selections) = Vec1::try_from_vec(new_selections_vec) {
             self.vim_set_selections(new_selections, AutoScrollBehavior::Selection, ctx);
 
-            // Update goal_xs to the desired columns (stored as ColumnUnit::Pixels for
-            // consistency with the GUI SelectionModel pixel path)
+            // Update goal_xs to the desired columns, matching the selection model's
+            // pixel-based goal column.
             let goal_pixels: Vec<_> = goal_cols
                 .into_iter()
-                .map(|c| ColumnUnit::Pixels((c as usize).into_pixels()))
+                .map(|c| (c as usize).into_pixels())
                 .collect();
             self.selection().update(ctx, |selection, _| {
                 selection.goal_xs = Vec1::try_from_vec(goal_pixels).ok();
@@ -3997,14 +3855,6 @@ impl CoreEditorModel for CodeEditorModel {
         self.hidden_lines.update(ctx, |hidden_lines_model, ctx| {
             hidden_lines_model.materialize_hidden_range_offsets(buffer_version, ctx);
         });
-        // In TUI char-cell mode the async font-shaping pipeline is bypassed entirely (the
-        // LayoutAction::BufferEdit arm is a no-op for CharCell). We must therefore refresh the
-        // char-cell line index synchronously here so that offset_to_softwrap_point, max_line,
-        // and all cursor-positioning queries see up-to-date data in the same frame.
-        if let Some(char_cell) = self.render_state.as_ref(ctx).char_cell() {
-            let text = self.content.as_ref(ctx).text().into_string();
-            char_cell.update_text(&text);
-        }
     }
 
     fn content(&self) -> &ModelHandle<Buffer> {

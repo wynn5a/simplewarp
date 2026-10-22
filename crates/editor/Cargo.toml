@@ -44,10 +44,7 @@ serde_yaml.workspace = true
 string-offset.workspace = true
 sum_tree.workspace = true
 thiserror.workspace = true
-unicode-linebreak.workspace = true
 pathfinder_color = "0.5.0"
-unicode-segmentation.workspace = true
-unicode-width.workspace = true
 vec1.workspace = true
 warpui_core.workspace = true
 warp_core.workspace = true
@@ -71,7 +68,3 @@ criterion = { version = "0.5.1", features = ["html_reports"] }
 name = "buffer_bench"
 harness = false
 
-[[bench]]
-name = "char_cell_bench"
-harness = false
-required-features = ["test-util"]
