@@ -2735,7 +2735,7 @@ impl TerminalView {
             Self::handle_legacy_passive_suggestions_event,
         );
 
-        let find_model = ctx.add_model(|ctx| TerminalFindModel::new(model.clone(), ctx));
+        let find_model = ctx.add_model(|_| TerminalFindModel::new(model.clone()));
 
         ctx.subscribe_to_model(
             &TerminalSettings::handle(ctx),
@@ -8642,11 +8642,8 @@ impl TerminalView {
                 }
 
                 let existing_find_options = match mode {
-                    TerminalMode::AltScreen => self
-                        .find_model
-                        .as_ref(ctx)
-                        .block_list_find_run()
-                        .map(|run| run.options()),
+                    // The block list's async find query is not carried into the alt screen.
+                    TerminalMode::AltScreen => None,
                     TerminalMode::BlockList => self
                         .find_model
                         .as_ref(ctx)

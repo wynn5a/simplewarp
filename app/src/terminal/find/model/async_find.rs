@@ -134,8 +134,7 @@ pub struct AbsoluteMatch {
     pub end: AbsolutePoint,
     /// `true` if this match lies in an output row hidden by an active block
     /// filter. Only ever set for Output-grid matches; command/AI matches are
-    /// never filtered. Mirrors `BlockGridMatch::is_filtered` on the sync path.
-    /// Filtered matches are treated as if they don't exist for search (excluded
+    /// never filtered. Filtered matches are treated as if they don't exist for search (excluded
     /// from the count, focus traversal, and highlight rendering).
     pub is_filtered: bool,
 }
@@ -269,8 +268,8 @@ pub struct AsyncBlockGridMatch {
 
 /// A focused match in a rich content (AI) block.
 ///
-/// Mirrors the data carried by `BlockListMatch::RichContent` in the sync path,
-/// so callers can synthesize a `BlockListMatch` from either path.
+/// Mirrors the data carried by `BlockListMatch::RichContent`, so callers can synthesize a
+/// `BlockListMatch` from it.
 ///
 /// This is a snapshot of the controller's state at the time it was produced.
 /// `match_id` is the most volatile field: `AIBlock::run_find` regenerates all
@@ -282,7 +281,7 @@ pub struct AsyncBlockGridMatch {
 /// into an existing AI block. Callers should still consume the value inline
 /// and not hold it across `process_message` deliveries.
 ///
-/// TODO(vkodithala): This mirrors `BlockListMatch::RichContent` in the sync path. Both
+/// TODO(vkodithala): This mirrors `BlockListMatch::RichContent`. Both
 /// derive `Clone` even though their contents are short-lived; explore removing
 /// `Clone` from both in a future PR to enforce the snapshot contract in the
 /// type system.
@@ -321,9 +320,8 @@ impl BlockFindResults {
     /// Returns the total number of *visible* matches across all blocks.
     ///
     /// Output matches hidden by an active block filter (`is_filtered`) are
-    /// excluded so the count matches the sync path, where filtered rows are
-    /// treated as if they don't exist for search. Command and AI matches are
-    /// never filtered.
+    /// excluded: filtered rows are treated as if they don't exist for search. Command and AI
+    /// matches are never filtered.
     fn total_match_count(&self) -> usize {
         let terminal_count: usize = self
             .terminal_matches
@@ -1088,8 +1086,7 @@ impl AsyncFindController {
         }
     }
 
-    /// Recomputes `is_filtered` for the Output-grid matches of `block_index`,
-    /// mirroring the sync path's `update_matches_for_filtered_block`: an output
+    /// Recomputes `is_filtered` for the Output-grid matches of `block_index`: an output
     /// match is filtered out when its row is hidden by an active block filter.
     /// Command and AI matches are never filtered. When no filter is active,
     /// `is_displayed_row` returns `true` for every row, so nothing is filtered.
@@ -1252,9 +1249,8 @@ impl AsyncFindController {
         ctx.spawn_stream_local(
             result_rx,
             move |me, msg, ctx| {
-                if let Some(controller) = &mut me.async_find_controller
-                    && controller.generation == generation
-                {
+                let controller = &mut me.async_find_controller;
+                if controller.generation == generation {
                     controller.process_message(msg, ctx);
                 }
             },

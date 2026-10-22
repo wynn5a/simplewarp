@@ -109,8 +109,8 @@ preferred route; D2 dropped the common-skills lock (user ruling). H4 was wrong a
 
 **Leftovers survey (2026-10-22):** queued in [plan-p5.md](plan-p5.md) — A `cargo machete` ignore
 lists (no real unused deps), B "GUI" names left from the two-front-end design, C the 132 always-on
-feature flags in seven batches. No behavior change in any of them. A + B and C1 done (see the round log);
-C1b, C1c, C2–C7 next.
+feature flags in seven batches. No behavior change in any of them. A + B, C1 and C1b done (see the round log);
+C1c, C2–C7 next.
 
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
@@ -1581,6 +1581,33 @@ Verification: format and all three clippy gates clean; `cargo nextest run --work
 (−8 deleted), 6,280 passed, 1 failed (the clone-slash-command flake), 86 skipped. `cargo run`
 smoke: the debug app starts, spawns its terminal server, no errors in `simplewarp.log`; the
 batch's features were not exercised by hand.
+
+**P5 C1b — AsyncFind (2026-10-22).** The terminal find model is async-only: `TerminalFindModel`
+always owns an `AsyncFindController` (no longer an `Option`) and the synchronous block-list find
+engine is gone — `BlockListFindRun`, `run_find_on_block_list` and its helpers (`block_list.rs` is
+down to the `BlockGridMatch` / `BlockListMatch` types), `block_list_tests.rs`, the `Sync` arm of
+`BlockFindRenderData` (now a struct) and every `else` sync branch in `find/model.rs`. Also deleted:
+the hidden `AsyncFindWidget`, `FeaturesPageAction::ToggleAsyncFind`, the inert
+`experimental.async_find_enabled` setting and `render_beta_chip`. `TerminalFindModel::new` lost its
+unused `ctx`.
+
+- Tests: the four sync-count view tests (`test_find_in_blocks`, `..._inverted_blocklist`,
+  `test_case_sensitive_find`, `test_find_bar_prefix_search`) now wait for the background scan
+  between steps (`find_step` helper); the two async tests that used the sync engine as an oracle
+  assert the values it produced, frozen from the passing HEAD run
+  (`test_async_find_matches_every_block_grid`, `test_async_focused_order_most_recent_{last,first}`);
+  7 sync-engine unit tests deleted with `block_list_tests.rs`.
+- No behavior change. `view.rs` used `block_list_find_run()` to carry the block-list find query
+  into the alt screen; that was always `None` on the async path, so the arm is now `None` outright.
+- Found, not fixed (pre-existing in the shipped app): (1) the block-list query is not carried into
+  the alt screen (above); (2) with find-within-block on and no block selected, the scan has no
+  blocks to search and the controller stays `Scanning` forever (no `Done` is sent).
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,274 run
+(−7 deleted), 6,272 passed, 2 failed: the clone-slash-command flake and
+`test_zsh_native_completions_without_compinit_use_filepaths`, a 31 s timeout under load that
+passed twice when rerun alone. All 102 find-related unit tests pass. `cargo run` smoke: the app
+starts with no errors in `simplewarp.log`; find was not exercised by hand.
 
 ## Risks
 

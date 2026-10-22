@@ -32,13 +32,11 @@ use super::keybindings::KeyBindingModifyingState;
 use super::settings_page::{
     AdditionalInfo, CONTENT_FONT_SIZE, Category, HEADER_PADDING, MatchData, PageType,
     SettingsPageMeta, SettingsPageViewHandle, SettingsWidget, TOGGLE_BUTTON_RIGHT_PADDING,
-    ToggleState, add_setting, build_reset_button, build_toggle_element, render_body_item,
-    render_body_item_label, render_dropdown_item, render_dropdown_item_label,
-    render_sub_sub_header,
+    ToggleState, add_setting, build_reset_button, render_body_item, render_body_item_label,
+    render_dropdown_item, render_dropdown_item_label, render_sub_sub_header,
 };
 use super::{
     DisplayCount, SettingsAction, SettingsSection, ToggleSettingActionPair, features, flags,
-    render_beta_chip,
 };
 use crate::appearance::Appearance;
 use crate::default_terminal::DefaultTerminal;
@@ -739,7 +737,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 #[derive(Clone, Debug, PartialEq)]
 pub enum FeaturesPageAction {
     ToggleCopyOnSelect,
-    ToggleAsyncFind,
     ToggleNotifications,
     ToggleRestoreSession,
     ToggleAutocompleteSymbols,
@@ -1645,15 +1642,6 @@ impl TypedActionView for FeaturesPageView {
                     ctx.notify();
                 });
             }
-            ToggleAsyncFind => {
-                TerminalSettings::handle(ctx).update(ctx, |terminal_settings, ctx| {
-                    report_if_error!(
-                        terminal_settings
-                            .async_find_enabled
-                            .toggle_and_save_value(ctx)
-                    );
-                });
-            }
         }
     }
 }
@@ -2196,11 +2184,6 @@ impl FeaturesPageView {
         if DefaultTerminal::can_warp_become_default() {
             general_widgets.push(Box::new(DefaultTerminalWidget::default()));
         }
-
-        // The widget is the opt-in surface for channels where `FeatureFlag::AsyncFind`
-        // is off. Channels with the flag on force the feature on and hide the toggle
-        // entirely; see `TerminalSettings::is_async_find_enabled`.
-        general_widgets.push(Box::new(AsyncFindWidget::default()));
 
         let app_editor_settings = AppEditorSettings::as_ref(ctx);
 
@@ -6517,66 +6500,5 @@ impl SettingsWidget for GraphicsBackendWidget {
             );
         }
         col.finish()
-    }
-}
-
-#[derive(Default)]
-struct AsyncFindWidget {
-    switch_state: SwitchStateHandle,
-}
-
-impl SettingsWidget for AsyncFindWidget {
-    type View = FeaturesPageView;
-
-    fn search_terms(&self) -> &str {
-        "async asynchronous fast find search"
-    }
-
-    fn should_render(&self, _app: &AppContext) -> bool {
-        // Here, the feature flag being enabled means the feature is force-enabled,
-        // so we don't need to render the toggle.
-        !FeatureFlag::AsyncFind.is_enabled()
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let ui_builder = appearance.ui_builder();
-
-        let label = render_body_item_label::<FeaturesPageAction>(
-            "Asynchronous find".into(),
-            None,
-            None,
-            ToggleState::Enabled,
-            appearance,
-        );
-
-        let label_with_chip = Flex::row()
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(label)
-            .with_child(render_beta_chip(appearance))
-            .finish();
-
-        let switch = ui_builder
-            .switch(self.switch_state.clone())
-            .check(*TerminalSettings::as_ref(app).async_find_enabled)
-            .build()
-            .on_click(move |ctx, _, _| {
-                ctx.dispatch_typed_action(FeaturesPageAction::ToggleAsyncFind);
-            })
-            .finish();
-
-        build_toggle_element(
-            label_with_chip,
-            switch,
-            appearance,
-            Some(
-                "Use an improved implementation of find to keep the UI responsive while searching for matches on large outputs."
-                    .into(),
-            ),
-        )
     }
 }

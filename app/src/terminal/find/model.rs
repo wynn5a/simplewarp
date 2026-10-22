@@ -11,8 +11,7 @@ use std::sync::Arc;
 
 use alt_screen::{AltScreenFindRun, run_find_on_alt_screen};
 pub use async_find::{AsyncFindController, AsyncFindStatus};
-use block_list::run_find_on_block_list;
-pub use block_list::{BlockGridMatch, BlockListFindRun, BlockListMatch};
+pub use block_list::{BlockGridMatch, BlockListMatch};
 use parking_lot::FairMutex;
 use rich_content::FindableRichContentHandle;
 pub use rich_content::{FindableRichContentView, RichContentMatchId};
@@ -26,57 +25,32 @@ use crate::terminal::model::TerminalModel;
 use crate::terminal::model::grid::grid_handler::GridHandler;
 use crate::terminal::model::index::Point;
 use crate::terminal::model::terminal_model::BlockIndex;
-use crate::terminal::settings::TerminalSettings;
 use crate::view_components::find::{FindDirection, FindEvent, FindModel};
 
 /// Pre-computed find data for rendering a single block.
 ///
-/// This struct provides a unified interface for both sync (`BlockListFindRun`) and async
-/// (`AsyncFindController`) find paths, allowing the rendering code to work with either.
-///
-/// Stores references to the underlying data source and provides methods to create iterators
-/// on demand (since iterators can only be consumed once).
-pub enum BlockFindRenderData<'a> {
-    /// Data from the synchronous find path.
-    Sync {
-        run: &'a BlockListFindRun,
-        block_index: BlockIndex,
-    },
-    /// Data from the asynchronous find path.
-    ///
-    /// For the async path, we pre-compute and store converted matches since they use
-    /// absolute coordinates internally and need conversion to relative Points.
-    Async {
-        /// Pre-converted command grid matches (filtered for truncation).
-        command_matches: Vec<RangeInclusive<Point>>,
-        /// Pre-converted output grid matches (filtered for truncation).
-        output_matches: Vec<RangeInclusive<Point>>,
-        /// Focused range in command grid, if any.
-        focused_command_range: Option<RangeInclusive<Point>>,
-        /// Focused range in output grid, if any.
-        focused_output_range: Option<RangeInclusive<Point>>,
-    },
+/// Matches are pre-converted from the async controller's absolute coordinates to relative
+/// `Point`s, with matches truncated from scrollback dropped.
+pub struct BlockFindRenderData {
+    /// Command grid matches.
+    command_matches: Vec<RangeInclusive<Point>>,
+    /// Output grid matches.
+    output_matches: Vec<RangeInclusive<Point>>,
+    /// Focused range in the command grid, if any.
+    focused_command_range: Option<RangeInclusive<Point>>,
+    /// Focused range in the output grid, if any.
+    focused_output_range: Option<RangeInclusive<Point>>,
 }
 
-impl<'a> BlockFindRenderData<'a> {
-    /// Creates render data from the sync `BlockListFindRun`.
-    pub fn from_sync(run: &'a BlockListFindRun, block_index: BlockIndex) -> Self {
-        Self::Sync { run, block_index }
-    }
-
-    /// Creates render data from the async `AsyncFindController`.
-    ///
-    /// This pre-converts matches from absolute to relative coordinates, filtering out
-    /// any matches that have been truncated from scrollback.
-    pub fn from_async(
-        controller: &'a AsyncFindController,
+impl BlockFindRenderData {
+    fn new(
+        controller: &AsyncFindController,
         block_index: BlockIndex,
         command_grid: Option<&GridHandler>,
         output_grid: Option<&GridHandler>,
     ) -> Self {
-        // Convert command grid matches. Highlights are rendered in *original*
-        // grid coordinates (the renderer maps them to displayed positions
-        // itself), matching the sync path.
+        // Highlights are rendered in *original* grid coordinates (the renderer maps them to
+        // displayed positions itself).
         let command_matches = command_grid
             .and_then(|grid| {
                 controller
@@ -118,7 +92,7 @@ impl<'a> BlockFindRenderData<'a> {
             .filter(|m| m.block_index == block_index && m.grid_type == GridType::Output)
             .and_then(|m| output_grid.and_then(|grid| m.range.to_original_range(grid)));
 
-        Self::Async {
+        Self {
             command_matches,
             output_matches,
             focused_command_range,
@@ -127,52 +101,21 @@ impl<'a> BlockFindRenderData<'a> {
     }
 
     /// Returns an iterator over match ranges for the command grid.
-    pub fn command_grid_matches(
-        &self,
-    ) -> Option<Box<dyn Iterator<Item = &RangeInclusive<Point>> + '_>> {
-        match self {
-            Self::Sync { run, block_index } => {
-                Some(run.matches_for_block_grid(*block_index, GridType::PromptAndCommand))
-            }
-            Self::Async {
-                command_matches, ..
-            } => Some(Box::new(command_matches.iter())),
-        }
+    pub fn command_grid_matches(&self) -> impl Iterator<Item = &RangeInclusive<Point>> {
+        self.command_matches.iter()
     }
 
     /// Returns an iterator over match ranges for the output grid.
-    pub fn output_grid_matches(
-        &self,
-    ) -> Option<Box<dyn Iterator<Item = &RangeInclusive<Point>> + '_>> {
-        match self {
-            Self::Sync { run, block_index } => {
-                Some(run.matches_for_block_grid(*block_index, GridType::Output))
-            }
-            Self::Async { output_matches, .. } => Some(Box::new(output_matches.iter())),
-        }
+    pub fn output_grid_matches(&self) -> impl Iterator<Item = &RangeInclusive<Point>> {
+        self.output_matches.iter()
     }
 
     /// Returns the focused match range if it's in the specified grid.
     pub fn focused_range_for_grid(&self, grid_type: GridType) -> Option<RangeInclusive<Point>> {
-        match self {
-            Self::Sync { run, block_index } => run.focused_match().and_then(|m| match m {
-                BlockListMatch::CommandBlock(grid_match)
-                    if grid_match.block_index == *block_index
-                        && grid_match.grid_type == grid_type =>
-                {
-                    Some(grid_match.range.clone())
-                }
-                _ => None,
-            }),
-            Self::Async {
-                focused_command_range,
-                focused_output_range,
-                ..
-            } => match grid_type {
-                GridType::PromptAndCommand => focused_command_range.clone(),
-                GridType::Output => focused_output_range.clone(),
-                _ => None,
-            },
+        match grid_type {
+            GridType::PromptAndCommand => self.focused_command_range.clone(),
+            GridType::Output => self.focused_output_range.clone(),
+            _ => None,
         }
     }
 }
@@ -186,14 +129,11 @@ pub struct TerminalFindModel {
     /// The most recent find "run" on the alt screen, if any.
     alt_screen_find_run: Option<AltScreenFindRun>,
 
-    /// The most recent find "run" on the block list, if any (sync path).
-    block_list_find_run: Option<BlockListFindRun>,
-
     /// `true` if the find bar is open.
     is_find_bar_open: bool,
 
-    /// Controller for async find operations.
-    pub(crate) async_find_controller: Option<AsyncFindController>,
+    /// Runs find over the block list on a background thread.
+    pub(crate) async_find_controller: AsyncFindController,
 }
 
 impl FindModel for TerminalFindModel {
@@ -202,12 +142,8 @@ impl FindModel for TerminalFindModel {
             self.alt_screen_find_run
                 .as_ref()
                 .and_then(|run| run.focused_match_index())
-        } else if let Some(controller) = &self.async_find_controller {
-            controller.focused_match_index()
         } else {
-            self.block_list_find_run
-                .as_ref()
-                .and_then(|run| run.focused_match_index())
+            self.async_find_controller.focused_match_index()
         }
     }
 
@@ -217,13 +153,8 @@ impl FindModel for TerminalFindModel {
                 .as_ref()
                 .map(|run| run.matches().len())
                 .unwrap_or(0)
-        } else if let Some(controller) = &self.async_find_controller {
-            controller.match_count()
         } else {
-            self.block_list_find_run
-                .as_ref()
-                .map(|run| run.matches().count())
-                .unwrap_or(0)
+            self.async_find_controller.match_count()
         }
     }
 
@@ -241,20 +172,13 @@ impl FindModel for TerminalFindModel {
 }
 
 impl TerminalFindModel {
-    pub fn new(terminal_model: Arc<FairMutex<TerminalModel>>, ctx: &AppContext) -> Self {
-        let async_find_controller = if TerminalSettings::as_ref(ctx).is_async_find_enabled() {
-            Some(AsyncFindController::new(terminal_model.clone()))
-        } else {
-            None
-        };
-
+    pub fn new(terminal_model: Arc<FairMutex<TerminalModel>>) -> Self {
         Self {
+            async_find_controller: AsyncFindController::new(terminal_model.clone()),
             terminal_model,
             rich_content_views: HashMap::new(),
             alt_screen_find_run: None,
-            block_list_find_run: None,
             is_find_bar_open: false,
-            async_find_controller,
         }
     }
     pub fn register_findable_rich_content_view<T: FindableRichContentView>(
@@ -264,10 +188,8 @@ impl TerminalFindModel {
         let view_id = view_handle.id();
         let boxed_handle: Box<dyn FindableRichContentHandle> = Box::new(view_handle.clone());
 
-        // Register with async find controller if enabled.
-        if let Some(controller) = &mut self.async_find_controller {
-            controller.register_rich_content_view(view_id, Box::new(view_handle));
-        }
+        self.async_find_controller
+            .register_rich_content_view(view_id, Box::new(view_handle));
 
         self.rich_content_views.insert(view_id, boxed_handle);
     }
@@ -287,14 +209,7 @@ impl TerminalFindModel {
         self.alt_screen_find_run.as_ref()
     }
 
-    /// Returns the last find run for the blocklist.
-    pub(crate) fn block_list_find_run(&self) -> Option<&BlockListFindRun> {
-        self.block_list_find_run.as_ref()
-    }
-
     /// Returns the currently focused match as a `BlockListMatch`.
-    ///
-    /// This works for both sync and async find paths.
     pub(crate) fn focused_block_list_match(&self) -> Option<BlockListMatch> {
         let model = self.terminal_model.lock();
         if model.is_alt_screen_active() {
@@ -302,107 +217,72 @@ impl TerminalFindModel {
             return None;
         }
 
-        if let Some(controller) = &self.async_find_controller {
-            // Async path: the focused match is either a terminal match or an
-            // AI match (or neither). Try each in turn and synthesize the
-            // corresponding `BlockListMatch` variant so consumers don't need
-            // to know which path produced the focus.
-            if let Some(async_match) = controller.focused_terminal_match() {
-                let block = model.block_list().block_at(async_match.block_index)?;
-                let grid = match async_match.grid_type {
-                    GridType::PromptAndCommand => block.prompt_and_command_grid().grid_handler(),
-                    GridType::Output => block.output_grid().grid_handler(),
-                    _ => return None,
-                };
-                let range = async_match.range.to_range(grid)?;
-                return Some(BlockListMatch::CommandBlock(BlockGridMatch {
-                    block_index: async_match.block_index,
-                    grid_type: async_match.grid_type,
-                    range,
-                    is_filtered: false,
-                }));
-            }
-            if let Some(ai_match) = controller.focused_ai_match() {
-                return Some(BlockListMatch::RichContent {
-                    match_id: ai_match.match_id,
-                    view_id: ai_match.view_id,
-                    index: ai_match.total_index,
-                });
-            }
-            None
-        } else {
-            // Sync path: get from block_list_find_run.
-            self.block_list_find_run
-                .as_ref()
-                .and_then(|run| run.focused_match())
-                .cloned()
+        // The focused match is either a terminal match or an AI match (or neither).
+        let controller = &self.async_find_controller;
+        if let Some(async_match) = controller.focused_terminal_match() {
+            let block = model.block_list().block_at(async_match.block_index)?;
+            let grid = match async_match.grid_type {
+                GridType::PromptAndCommand => block.prompt_and_command_grid().grid_handler(),
+                GridType::Output => block.output_grid().grid_handler(),
+                _ => return None,
+            };
+            let range = async_match.range.to_range(grid)?;
+            return Some(BlockListMatch::CommandBlock(BlockGridMatch {
+                block_index: async_match.block_index,
+                grid_type: async_match.grid_type,
+                range,
+                is_filtered: false,
+            }));
         }
+        controller
+            .focused_ai_match()
+            .map(|ai_match| BlockListMatch::RichContent {
+                match_id: ai_match.match_id,
+                view_id: ai_match.view_id,
+                index: ai_match.total_index,
+            })
     }
 
     /// Returns the focused rich content (AI) match id, if any.
     ///
-    /// This works for both sync and async find paths and is used by AI block
-    /// rendering to apply the focused-match highlight color.
+    /// AI block rendering uses this to apply the focused-match highlight color.
     pub(crate) fn focused_rich_content_match_id(&self) -> Option<RichContentMatchId> {
         if self.terminal_model.lock().is_alt_screen_active() {
             return None;
         }
 
-        if let Some(controller) = &self.async_find_controller {
-            controller.focused_ai_match().map(|m| m.match_id)
-        } else {
-            self.block_list_find_run
-                .as_ref()
-                .and_then(|run| run.focused_match())
-                .and_then(|m| match m {
-                    BlockListMatch::RichContent { match_id, .. } => Some(*match_id),
-                    _ => None,
-                })
-        }
+        self.async_find_controller
+            .focused_ai_match()
+            .map(|m| m.match_id)
     }
 
     /// Returns find render data for a specific block, if find is active.
-    ///
-    /// This works for both sync and async find paths.
     ///
     /// Note: This method does NOT check if alt screen is active. It is intended
     /// for use during blocklist rendering where the caller has already determined
     /// that we are not in alt screen mode. Callers who need alt screen checking
     /// should do so before calling this method.
     ///
-    /// For async find, the grid handlers are needed to convert from absolute to
-    /// relative coordinates and filter truncated matches.
+    /// The grid handlers are needed to convert from absolute to relative coordinates and filter
+    /// truncated matches.
     pub(crate) fn find_render_data_for_block(
         &self,
         block_index: BlockIndex,
         command_grid: Option<&GridHandler>,
         output_grid: Option<&GridHandler>,
-    ) -> Option<BlockFindRenderData<'_>> {
-        if let Some(controller) = &self.async_find_controller {
-            if !controller.has_active_find() {
-                return None;
-            }
-            Some(BlockFindRenderData::from_async(
-                controller,
-                block_index,
-                command_grid,
-                output_grid,
-            ))
-        } else {
-            self.block_list_find_run
-                .as_ref()
-                .map(|run| BlockFindRenderData::from_sync(run, block_index))
-        }
+    ) -> Option<BlockFindRenderData> {
+        let controller = &self.async_find_controller;
+        controller
+            .has_active_find()
+            .then(|| BlockFindRenderData::new(controller, block_index, command_grid, output_grid))
     }
 
     /// Returns `FindOptions` applied to the active find run, if any.
     pub fn active_find_options(&self) -> Option<&FindOptions> {
         if self.terminal_model.lock().is_alt_screen_active() {
             self.alt_screen_find_run.as_ref().map(|run| run.options())
-        } else if let Some(controller) = &self.async_find_controller {
-            controller.find_options()
         } else {
-            self.block_list_find_run.as_ref().map(|run| run.options())
+            self.async_find_controller.find_options()
         }
     }
 
@@ -423,26 +303,12 @@ impl TerminalFindModel {
             .value()
             .block_sort_direction();
 
-        // Use async find if the feature flag is enabled.
-        if let Some(controller) = &mut self.async_find_controller {
-            log::trace!(
-                "[async_find] Starting async find with query: {:?}",
-                options.query
-            );
-            controller.start_find(&options, block_sort_direction, ctx);
-            ctx.emit(FindEvent::RanFind);
-            return;
-        }
-
-        // Synchronous path.
-        let _ = self.block_list_find_run.take();
-        self.block_list_find_run = Some(run_find_on_block_list(
-            options,
-            self.terminal_model.lock().block_list(),
-            &self.rich_content_views,
-            block_sort_direction,
-            ctx,
-        ));
+        log::trace!(
+            "[async_find] Starting async find with query: {:?}",
+            options.query
+        );
+        self.async_find_controller
+            .start_find(&options, block_sort_direction, ctx);
         ctx.emit(FindEvent::RanFind);
     }
 
@@ -458,80 +324,41 @@ impl TerminalFindModel {
             return;
         }
 
-        // Handle async find path.
-        if let Some(controller) = &self.async_find_controller {
-            if !controller.has_active_find() {
-                return;
-            }
-
-            // Get the active block index and dirty range info.
-            // We use active_block_index() (not last_non_hidden_block_by_index) because
-            // the active block is where output is being written, even if it's still
-            // "empty" and would be filtered out by the default BlockFilter.
-            let mut model = self.terminal_model.lock();
-            let active_block_index = model.block_list().active_block_index();
-
-            // Consume dirty ranges from both grids. We need mutable access
-            // because take_find_dirty_rows_range is destructive.
-            let active_block = model.block_list_mut().active_block_mut();
-            let output_dirty_info =
-                active_block
-                    .grid_of_type_mut(GridType::Output)
-                    .and_then(|grid| {
-                        let dirty = grid.grid_handler_mut().take_find_dirty_rows_range()?;
-                        let truncated = grid.grid_handler().num_lines_truncated();
-                        Some((dirty, GridType::Output, truncated))
-                    });
-            let command_dirty_info = active_block
-                .grid_of_type_mut(GridType::PromptAndCommand)
-                .and_then(|grid| {
-                    let dirty = grid.grid_handler_mut().take_find_dirty_rows_range()?;
-                    let truncated = grid.grid_handler().num_lines_truncated();
-                    Some((dirty, GridType::PromptAndCommand, truncated))
-                });
-
-            // Drop the model lock before emitting events.
-            drop(model);
-
-            self.invalidate_async_find_block(active_block_index, output_dirty_info, ctx);
-            if let Some(info) = command_dirty_info {
-                self.invalidate_async_find_block(active_block_index, Some(info), ctx);
-            }
+        if !self.async_find_controller.has_active_find() {
             return;
         }
 
-        // Sync find path.
-        // Find the last block index. This is the only block whose state may change.
-        let last_block_index = self
-            .terminal_model
-            .lock()
-            .block_list()
-            .last_non_hidden_block_by_index()
-            .unwrap_or_default();
+        // Get the active block index and dirty range info.
+        // We use active_block_index() (not last_non_hidden_block_by_index) because
+        // the active block is where output is being written, even if it's still
+        // "empty" and would be filtered out by the default BlockFilter.
+        let mut model = self.terminal_model.lock();
+        let active_block_index = model.block_list().active_block_index();
 
-        // Call find on the the last block's command and output grids.
-        // If the block is a new finished block, the matches are inserted at a new key, the block's index in the blocklist.
-        // If the block is an active, running block, its matches are overwritten in the terminal's block_matches.
-        if let Some(block) = self
-            .terminal_model
-            .lock()
-            .block_list()
-            .block_at(last_block_index)
-        {
-            let block_sort_direction = InputModeSettings::handle(ctx)
-                .as_ref(ctx)
-                .input_mode
-                .value()
-                .block_sort_direction();
+        // Consume dirty ranges from both grids. We need mutable access
+        // because take_find_dirty_rows_range is destructive.
+        let active_block = model.block_list_mut().active_block_mut();
+        let output_dirty_info = active_block
+            .grid_of_type_mut(GridType::Output)
+            .and_then(|grid| {
+                let dirty = grid.grid_handler_mut().take_find_dirty_rows_range()?;
+                let truncated = grid.grid_handler().num_lines_truncated();
+                Some((dirty, GridType::Output, truncated))
+            });
+        let command_dirty_info = active_block
+            .grid_of_type_mut(GridType::PromptAndCommand)
+            .and_then(|grid| {
+                let dirty = grid.grid_handler_mut().take_find_dirty_rows_range()?;
+                let truncated = grid.grid_handler().num_lines_truncated();
+                Some((dirty, GridType::PromptAndCommand, truncated))
+            });
 
-            if let Some(old_find_run) = self.block_list_find_run.take() {
-                self.block_list_find_run = Some(old_find_run.rerun_on_block(
-                    block,
-                    last_block_index,
-                    block_sort_direction,
-                ));
-                ctx.emit(FindEvent::RanFind);
-            }
+        // Drop the model lock before emitting events.
+        drop(model);
+
+        self.invalidate_async_find_block(active_block_index, output_dirty_info, ctx);
+        if let Some(info) = command_dirty_info {
+            self.invalidate_async_find_block(active_block_index, Some(info), ctx);
         }
     }
 
@@ -548,15 +375,8 @@ impl TerminalFindModel {
             if let Some(alt_screen_find_run) = self.alt_screen_find_run.as_mut() {
                 alt_screen_find_run.focus_next_match(find_direction);
             }
-        } else if let Some(controller) = &mut self.async_find_controller {
-            controller.focus_next_match(find_direction);
-        } else if let Some(block_list_find_run) = self.block_list_find_run.as_mut() {
-            let block_sort_direction = InputModeSettings::as_ref(ctx)
-                .input_mode
-                .value()
-                .block_sort_direction();
-
-            block_list_find_run.focus_next_match(find_direction, block_sort_direction);
+        } else {
+            self.async_find_controller.focus_next_match(find_direction);
         }
         ctx.emit(FindEvent::UpdatedFocusedMatch);
     }
@@ -567,8 +387,7 @@ impl TerminalFindModel {
     ///
     /// Callers that just need stale highlights to disappear (e.g.
     /// `close_find_bar`) must use this rather than [`Self::clear_matches`].
-    /// On the async path, `clear_matches` routes through
-    /// `AsyncFindController::clear_results`, which also drops
+    /// `clear_matches` routes through `AsyncFindController::clear_results`, which also drops
     /// `current_find_options` — losing the query that `open_find_bar` later
     /// reads back via [`Self::active_find_options`] to restore the previous
     /// search.
@@ -584,13 +403,8 @@ impl TerminalFindModel {
             if let Some(run) = self.alt_screen_find_run.take() {
                 self.alt_screen_find_run = Some(run.cleared());
             }
-        } else if let Some(controller) = &mut self.async_find_controller {
-            controller.clear_results(ctx);
-        } else if let Some(run) = self.block_list_find_run.take() {
-            for (_, rich_content_view) in self.rich_content_views.iter() {
-                rich_content_view.clear_matches(ctx);
-            }
-            self.block_list_find_run = Some(run.cleared());
+        } else {
+            self.async_find_controller.clear_results(ctx);
         }
         ctx.emit(FindEvent::RanFind);
     }
@@ -606,41 +420,17 @@ impl TerminalFindModel {
         block_index: BlockIndex,
         ctx: &mut ModelContext<Self>,
     ) {
-        // On the async path, recompute which matches are hidden by the
-        // (already-applied) block filter and treat filtered rows as if they do
-        // not exist for search — mirroring the sync path below. This keeps the
-        // match count, focus traversal, and highlights consistent with sync.
-        if let Some(controller) = self.async_find_controller.as_mut() {
-            controller.recompute_filtered_for_block(block_index);
-            ctx.emit(FindEvent::RanFind);
-            return;
-        }
-
-        let terminal_model = self.terminal_model.lock();
-        if let (Some(block_list_find_run), Some(filtered_block)) = (
-            self.block_list_find_run.as_mut(),
-            terminal_model.block_list().block_at(block_index),
-        ) {
-            let block_sort_direction = InputModeSettings::as_ref(ctx)
-                .input_mode
-                .value()
-                .block_sort_direction();
-
-            block_list_find_run.update_matches_for_filtered_block(
-                filtered_block,
-                block_index,
-                block_sort_direction,
-            );
-            ctx.emit(FindEvent::RanFind);
-        }
+        // Recompute which matches are hidden by the (already-applied) block filter and treat
+        // filtered rows as if they do not exist for search, which keeps the match count, focus
+        // traversal and highlights consistent.
+        self.async_find_controller
+            .recompute_filtered_for_block(block_index);
+        ctx.emit(FindEvent::RanFind);
     }
 
     /// Returns true if an async find operation is currently scanning.
     pub fn is_async_find_scanning(&self) -> bool {
-        self.async_find_controller
-            .as_ref()
-            .map(|c| c.is_scanning())
-            .unwrap_or(false)
+        self.async_find_controller.is_scanning()
     }
 
     /// Invalidates results for a specific block in async find.
@@ -658,11 +448,8 @@ impl TerminalFindModel {
         dirty_info: Option<(RangeInclusive<usize>, GridType, u64)>,
         ctx: &mut ModelContext<Self>,
     ) {
-        if let Some(controller) = self.async_find_controller.as_mut() {
-            controller.invalidate_block(block_index, dirty_info);
-        } else {
-            return;
-        }
+        self.async_find_controller
+            .invalidate_block(block_index, dirty_info);
         ctx.emit(FindEvent::RanFind);
     }
 
@@ -676,18 +463,8 @@ impl TerminalFindModel {
         block_index: BlockIndex,
         ctx: &mut ModelContext<Self>,
     ) {
-        if self.async_find_controller.is_none() {
-            return;
-        }
-
         // Check if there's an active find before acquiring the lock.
-        let has_active_find = self
-            .async_find_controller
-            .as_ref()
-            .map(|c| c.has_active_find())
-            .unwrap_or(false);
-
-        if !has_active_find {
+        if !self.async_find_controller.has_active_find() {
             return;
         }
 
@@ -717,9 +494,9 @@ impl TerminalFindModel {
         self.invalidate_async_find_block(block_index, dirty_info, ctx);
     }
 
-    /// Returns the async find controller, if enabled.
-    pub fn async_find_controller(&self) -> Option<&AsyncFindController> {
-        self.async_find_controller.as_ref()
+    /// Returns the async find controller.
+    pub fn async_find_controller(&self) -> &AsyncFindController {
+        &self.async_find_controller
     }
 }
 
@@ -781,7 +558,6 @@ impl std::fmt::Debug for TerminalFindModel {
                 &self.rich_content_views.keys().collect::<Vec<_>>(),
             )
             .field("alt_screen_find_run", &self.alt_screen_find_run)
-            .field("block_list_find_run", &self.block_list_find_run)
             .field("is_find_bar_open", &self.is_find_bar_open)
             .finish()
     }

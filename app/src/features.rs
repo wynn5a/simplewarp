@@ -207,8 +207,6 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::InlineRepoMenu,
         #[cfg(feature = "pluggable_notifications")]
         FeatureFlag::PluggableNotifications,
-        #[cfg(feature = "async_find")]
-        FeatureFlag::AsyncFind,
         #[cfg(feature = "list_skills")]
         FeatureFlag::ListSkills,
         #[cfg(feature = "inline_profile_selector")]

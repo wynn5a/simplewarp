@@ -86,7 +86,7 @@ One commit per batch, smallest blast radius first; the two largest flags go alon
 `AsyncFind` moved to C1b):
 `AsyncFind`, `BoxDrawingGlyphs`, `ITermImages`, `ImeMarkedText`, `KittyKeyboardProtocol`, `Ligatures`, `OscHyperlinks`, `ProgramStatusProtocol`, `RectSelection`, `ResizeFix`, `SelectablePrompt`, `ShellSelector`, `SshDragAndDrop`, `TerminalLifecycleRecovery`, `ToggleBootstrapBlock`, `TrimTrailingBlankLines`, `WarpifyFooter`.
 
-**C1b — AsyncFind (alone, needs review)** — pulled out of C1. With the flag on, the find model
+**C1b — AsyncFind (alone, needs review)** — **done 2026-10-22.** Pulled out of C1. With the flag on, the find model
 always has an `AsyncFindController`, so the sync block-list find path (`block_list_find_run` and
 the `else` arms in `find/model.rs`) is dead in the app. Four view tests (`test_case_sensitive_find`,
 `test_find_in_blocks`, `test_find_in_blocks_inverted_blocklist`, `test_find_bar_prefix_search`)

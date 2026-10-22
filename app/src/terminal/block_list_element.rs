@@ -2154,12 +2154,9 @@ impl BlockListElement {
 
             // Update grid_origin and draw command.
             let command_grid_properties = Properties::default();
-            let command_focused_range =
-                find_render_data
-                    .as_ref()
-                    .and_then(|data: &BlockFindRenderData<'_>| {
-                        data.focused_range_for_grid(GridType::PromptAndCommand)
-                    });
+            let command_focused_range = find_render_data
+                .as_ref()
+                .and_then(|data| data.focused_range_for_grid(GridType::PromptAndCommand));
             block.prompt_and_command_grid().draw(
                 command_origin,
                 element_origin,
@@ -2174,7 +2171,7 @@ impl BlockListElement {
                 hovered_secret,
                 find_render_data
                     .as_ref()
-                    .and_then(|data: &BlockFindRenderData<'_>| data.command_grid_matches()),
+                    .map(BlockFindRenderData::command_grid_matches),
                 command_focused_range.as_ref(),
                 command_grid_properties,
                 block_grid_params,
@@ -2256,12 +2253,9 @@ impl BlockListElement {
 
             let output_grid_properties =
                 Properties::default().weight(block_grid_params.grid_render_params.font_weight);
-            let output_focused_range =
-                find_render_data
-                    .as_ref()
-                    .and_then(|data: &BlockFindRenderData<'_>| {
-                        data.focused_range_for_grid(GridType::Output)
-                    });
+            let output_focused_range = find_render_data
+                .as_ref()
+                .and_then(|data| data.focused_range_for_grid(GridType::Output));
             block.output_grid().draw(
                 *grid_origin,
                 viewport_origin,
@@ -2277,7 +2271,7 @@ impl BlockListElement {
                 // Render find matches in output grid.
                 find_render_data
                     .as_ref()
-                    .and_then(|data: &BlockFindRenderData<'_>| data.output_grid_matches()),
+                    .map(BlockFindRenderData::output_grid_matches),
                 output_focused_range.as_ref(),
                 output_grid_properties,
                 block_grid_params,
