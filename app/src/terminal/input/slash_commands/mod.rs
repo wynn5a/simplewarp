@@ -95,7 +95,7 @@ pub fn slash_command_selection_behavior(command: &StaticCommand) -> SlashCommand
 /// Whether an already-open slash command menu should close after the input becomes an exact
 /// static-command or skill match.
 ///
-/// This preserves the GUI's existing behavior: exact input stays visible while multiple prior
+/// This preserves the existing behavior: exact input stays visible while multiple prior
 /// results remain, but a unique match or the start of argument entry closes the menu.
 pub fn should_close_slash_command_menu_for_exact_match(
     result_count: usize,

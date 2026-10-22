@@ -185,7 +185,7 @@ impl TerminalManager {
                     .map(|wsl_name_or_shell_starter| wsl_name_or_shell_starter.name())
                     .unwrap_or(ShellName::LessDescriptive("Shell".to_owned())),
             },
-            BlockSpacing::for_gui(ctx),
+            BlockSpacing::new(ctx),
             ctx,
         );
         let colors = model.colors();

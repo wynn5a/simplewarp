@@ -63,27 +63,10 @@ fn test_macos_config_dir_name_scopes_to_data_profile() {
 }
 
 #[test]
-fn test_gui_config_and_mcp_paths_resolve_explicit_sources() {
-    let home_dir = home_dir().expect("Should be able to compute home directory");
-    let gui_config_dir = gui_config_local_dir().expect("GUI config path should resolve");
-
-    cfg_if::cfg_if! {
-        if #[cfg(target_os = "macos")] {
-            assert_eq!(gui_config_dir, home_dir.join(".simplewarp"));
-        } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
-            assert_eq!(gui_config_dir, home_dir.join(".config/simplewarp"));
-        } else if #[cfg(windows)] {
-            assert_eq!(
-                gui_config_dir,
-                home_dir.join("AppData\\Local\\simplewarp\\SimpleWarp\\config")
-            );
-        } else {
-            unimplemented!("Need to update tests for current platform!");
-        }
-    }
-
-    assert_eq!(gui_mcp_config_file_path(), warp_home_mcp_config_file_path());
+fn test_app_mcp_config_file_path_matches_warp_home() {
+    assert_eq!(app_mcp_config_file_path(), warp_home_mcp_config_file_path());
 }
+
 #[test]
 fn test_warp_home_config_dir_path() {
     let home_dir = home_dir().expect("Should be able to compute home directory");

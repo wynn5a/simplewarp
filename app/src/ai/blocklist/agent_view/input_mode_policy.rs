@@ -1,4 +1,4 @@
-//! GUI implementation of [`InputModePolicy`].
+//! The terminal view's [`InputModePolicy`].
 
 use warp_core::features::FeatureFlag;
 use warpui::{AppContext, ModelHandle, SingletonEntity};
@@ -10,17 +10,17 @@ use super::super::{BlocklistAIContextModel, ConversationSelectionHandle};
 use super::AgentViewEntryOrigin;
 use crate::settings::{AISettings, AISettingsChangedEvent};
 
-/// GUI input-mode policy. The surface is either a fullscreen agent view or a
+/// The terminal view's input-mode policy. The surface is either a fullscreen agent view or a
 /// top-level terminal (when `FeatureFlag::AgentView` is enabled), each with its
 /// own autodetection setting, and AI input may only be locked inside an agent
 /// view or an open CLI-agent rich input session.
-pub(crate) struct GuiInputModePolicy {
+pub(crate) struct AgentViewInputModePolicy {
     conversation_selection: ConversationSelectionHandle,
     ai_context_model: ModelHandle<BlocklistAIContextModel>,
 }
 
-impl GuiInputModePolicy {
-    /// Creates the GUI policy for a terminal view.
+impl AgentViewInputModePolicy {
+    /// Creates the policy for a terminal view.
     pub(crate) fn new(
         conversation_selection: ConversationSelectionHandle,
         ai_context_model: ModelHandle<BlocklistAIContextModel>,
@@ -32,7 +32,7 @@ impl GuiInputModePolicy {
     }
 }
 
-impl InputModePolicy for GuiInputModePolicy {
+impl InputModePolicy for AgentViewInputModePolicy {
     fn initial_config(&self, app: &AppContext) -> InputConfig {
         let is_autodetection_enabled = if FeatureFlag::AgentView.is_enabled() {
             AISettings::as_ref(app).is_nld_in_terminal_enabled()

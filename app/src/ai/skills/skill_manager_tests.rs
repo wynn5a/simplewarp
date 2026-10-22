@@ -407,22 +407,14 @@ fn test_build_bundled_skill_context() {
     let skill_dir = resources_dir.join("bundled/skills/test-skill");
     let context = build_bundled_skill_context(resources_dir, &skill_dir);
 
-    assert_eq!(context.len(), 8);
+    assert_eq!(context.len(), 7);
     assert!(context.contains_key("warp_cli_binary_name"));
     assert!(context.contains_key("warp_url_scheme"));
     assert!(context.contains_key("settings_file_path"));
     assert!(context.contains_key("keybindings_file_path"));
     assert_eq!(
-        context.get("gui_settings_file_path").unwrap(),
-        &warp_core::paths::gui_config_local_dir()
-            .map(|path| path.join("settings.toml"))
-            .unwrap_or_default()
-            .display()
-            .to_string()
-    );
-    assert_eq!(
-        context.get("gui_mcp_config_file_path").unwrap(),
-        &warp_core::paths::gui_mcp_config_file_path()
+        context.get("mcp_config_file_path").unwrap(),
+        &warp_core::paths::app_mcp_config_file_path()
             .unwrap_or_default()
             .display()
             .to_string()

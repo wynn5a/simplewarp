@@ -191,7 +191,7 @@ impl SlashCommandDataSource {
         availability
     }
 
-    /// View-related availability bits for the GUI's legacy terminal-view and agent-view
+    /// View-related availability bits for the legacy terminal-view and agent-view
     /// modalities. When the AgentView feature flag is disabled, both bits are set so either
     /// requirement is satisfied.
     fn view_availability(is_agent_view_active: bool) -> Availability {

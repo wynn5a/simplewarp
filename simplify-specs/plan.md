@@ -109,7 +109,8 @@ preferred route; D2 dropped the common-skills lock (user ruling). H4 was wrong a
 
 **Leftovers survey (2026-10-22):** queued in [plan-p5.md](plan-p5.md) — A `cargo machete` ignore
 lists (no real unused deps), B "GUI" names left from the two-front-end design, C the 132 always-on
-feature flags in seven batches. No behavior change in any of them.
+feature flags in seven batches. No behavior change in any of them. A + B done (see the round log);
+C1–C7 next.
 
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
@@ -1534,6 +1535,24 @@ renamed parameter.
 
 Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,289 run,
 6,288 passed, 1 failed (the clone-slash-command flake), 86 skipped — unchanged from the last round.
+
+**P5 A + B — machete ignores and "GUI" names (2026-10-22).** No behavior change.
+
+- A: `[package.metadata.cargo-machete] ignored` lists in `http_client`, `warp_core`,
+  `warpui_core`, `cloud_object_models` and `app` for the ten known false positives; `cargo machete`
+  now reports nothing.
+- B: `GuiInputModePolicy` → `AgentViewInputModePolicy` (`agent_view/input_mode_policy.rs`),
+  `classify_gui_list_entry` → `classify_list_entry` (tests `list_policy_*`),
+  `BlockSpacing::for_gui` → `BlockSpacing::new`, `gui_mcp_config_file_path` →
+  `app_mcp_config_file_path`, bundled-skill variable `{{gui_mcp_config_file_path}}` →
+  `{{mcp_config_file_path}}`, and the "GUI" / "any frontend" doc comments.
+- Deviation from plan-p5: `{{settings_file_path}}` already existed (the same
+  `config_local_dir()/settings.toml`), so `{{gui_settings_file_path}}` was deleted rather than
+  renamed onto it, and `gui_config_local_dir` — whose only caller it was — went with it. No bundled
+  skill used either `gui_*` variable.
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,289 run,
+6,288 passed, 1 failed (the clone-slash-command flake), 86 skipped — unchanged.
 
 ## Risks
 

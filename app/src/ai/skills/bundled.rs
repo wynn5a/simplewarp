@@ -252,8 +252,7 @@ fn display_optional_path(path: Option<PathBuf>) -> String {
 /// - `{{skill_dir}}` - Path to the bundled skill's directory
 /// - `{{settings_file_path}}` - Path to the user's settings TOML file
 /// - `{{keybindings_file_path}}` - Path to the user's keybindings YAML file
-/// - `{{gui_settings_file_path}}` - Path to the GUI settings TOML file
-/// - `{{gui_mcp_config_file_path}}` - Path to the GUI global MCP config
+/// - `{{mcp_config_file_path}}` - Path to the global MCP config
 pub(crate) fn build_bundled_skill_context(
     resources_dir: &Path,
     skill_dir: &Path,
@@ -276,15 +275,8 @@ pub(crate) fn build_bundled_skill_context(
             keybinding_file_path().display().to_string(),
         ),
         (
-            "gui_settings_file_path".to_owned(),
-            display_optional_path(
-                warp_core::paths::gui_config_local_dir()
-                    .map(|config_dir| config_dir.join("settings.toml")),
-            ),
-        ),
-        (
-            "gui_mcp_config_file_path".to_owned(),
-            display_optional_path(warp_core::paths::gui_mcp_config_file_path()),
+            "mcp_config_file_path".to_owned(),
+            display_optional_path(warp_core::paths::app_mcp_config_file_path()),
         ),
         (
             "settings_schema_path".to_owned(),

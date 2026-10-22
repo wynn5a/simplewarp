@@ -179,33 +179,10 @@ pub fn config_local_dir() -> PathBuf {
     }
 }
 
-/// Resolves the GUI's non-portable configuration directory from any frontend.
+/// Resolves the app's global file-based MCP configuration.
 ///
-/// On macOS, development data profiles do not have an unambiguous corresponding
-/// GUI `.simplewarp*` directory, so this fails closed instead of selecting a source
-/// profile implicitly.
-pub fn gui_config_local_dir() -> Option<PathBuf> {
-    cfg_if! {
-        if #[cfg(target_os = "macos")] {
-            if ChannelState::data_profile().is_some() {
-                return None;
-            }
-            dirs::home_dir().map(|home_dir| home_dir.join(macos_config_dir_name()))
-        } else {
-            project_dirs_for_app_id(
-                ChannelState::app_id(),
-                ChannelState::data_profile().as_deref(),
-            )
-            .map(|dirs| dirs.config_local_dir().to_owned())
-        }
-    }
-}
-
-/// Resolves the GUI's global file-based MCP configuration from any frontend.
-///
-/// As with [`gui_config_local_dir`], macOS development data profiles fail
-/// closed because the matching GUI source profile is ambiguous.
-pub fn gui_mcp_config_file_path() -> Option<PathBuf> {
+/// macOS development data profiles fail closed because the matching source profile is ambiguous.
+pub fn app_mcp_config_file_path() -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
     if ChannelState::data_profile().is_some() {
         return None;

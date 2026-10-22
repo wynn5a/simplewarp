@@ -4,7 +4,7 @@ use parking_lot::FairMutex;
 use warpui::r#async::executor::Background;
 use warpui::{App, EntityId};
 
-use super::{AgentViewConversationSelection, classify_gui_list_entry};
+use super::{AgentViewConversationSelection, classify_list_entry};
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_conversations_model::{
     AgentConversationEntryId, AgentConversationListEntryState,
@@ -19,10 +19,10 @@ use crate::terminal::event_listener::ChannelEventListener;
 use crate::terminal::model::test_utils::block_size;
 use crate::test_util::settings::initialize_settings_for_tests;
 #[test]
-fn gui_list_policy_classifies_selected_entry() {
+fn list_policy_classifies_selected_entry() {
     let entry_id = AgentConversationEntryId::Conversation(AIConversationId::new());
     assert_eq!(
-        classify_gui_list_entry(
+        classify_list_entry(
             Some(entry_id),
             entry_id,
             Some(EntityId::new()),
@@ -34,10 +34,10 @@ fn gui_list_policy_classifies_selected_entry() {
 }
 
 #[test]
-fn gui_list_policy_classifies_entry_open_elsewhere() {
+fn list_policy_classifies_entry_open_elsewhere() {
     let entry_id = AgentConversationEntryId::Conversation(AIConversationId::new());
     assert_eq!(
-        classify_gui_list_entry(
+        classify_list_entry(
             None,
             entry_id,
             Some(EntityId::new()),
@@ -49,19 +49,19 @@ fn gui_list_policy_classifies_entry_open_elsewhere() {
 }
 
 #[test]
-fn gui_list_policy_classifies_available_entry() {
+fn list_policy_classifies_available_entry() {
     let entry_id = AgentConversationEntryId::Conversation(AIConversationId::new());
     assert_eq!(
-        classify_gui_list_entry(None, entry_id, None, EntityId::new(), || true),
+        classify_list_entry(None, entry_id, None, EntityId::new(), || true),
         AgentConversationListEntryState::Available
     );
 }
 
 #[test]
-fn gui_list_policy_classifies_unavailable_entry() {
+fn list_policy_classifies_unavailable_entry() {
     let entry_id = AgentConversationEntryId::Conversation(AIConversationId::new());
     assert_eq!(
-        classify_gui_list_entry(None, entry_id, None, EntityId::new(), || false),
+        classify_list_entry(None, entry_id, None, EntityId::new(), || false),
         AgentConversationListEntryState::Unavailable
     );
 }

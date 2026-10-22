@@ -5,6 +5,10 @@ authors = ["Warp Team <dev@warp.dev>"]
 publish.workspace = true
 license.workspace = true
 
+# False positives: used through `define_settings_group!` and derive expansions.
+[package.metadata.cargo-machete]
+ignored = ["concat-idents", "strum"]
+
 [features]
 integration_tests = []
 test-util = ["warp_features/test-util"]

@@ -9,8 +9,8 @@
 //! [`ConversationSelection`](super::conversation_selection::ConversationSelection)
 //! injects per-view selection semantics.
 //!
-//! The GUI implementation lives in
-//! `super::agent_view::GuiInputModePolicy`.
+//! The production implementation lives in
+//! `super::agent_view::AgentViewInputModePolicy`.
 
 use std::rc::Rc;
 
@@ -21,7 +21,7 @@ use super::input_model::{InputConfig, InputTypeAutoDetectionSource};
 use crate::settings::AISettingsChangedEvent;
 
 /// A config write produced by an [`InputModePolicy`] decision. The fields
-/// mirror exactly what the previously-inlined GUI decision code passed to the
+/// mirror exactly what the previously-inlined decision code passed to the
 /// model's internal setter: the config, the decision source recorded with it,
 /// and (for one agent-view entry path) a brief autodetection suppression so
 /// the applied config isn't immediately overridden by a keystroke-driven

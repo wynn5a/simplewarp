@@ -45,7 +45,7 @@ impl warpui::Entity for Box<dyn TerminalManager> {
 /// reserved for the rendered Warp prompt (in lines), and whether blocks
 /// reserve a footer row for the debug memory-stats overlay.
 ///
-/// [`Self::for_gui`] derives the blocklist's spacing from the user's settings.
+/// [`Self::new`] derives the blocklist's spacing from the user's settings.
 pub struct BlockSpacing {
     pub block_padding: BlockPadding,
     pub warp_prompt_height_lines: f32,
@@ -53,10 +53,10 @@ pub struct BlockSpacing {
 }
 
 impl BlockSpacing {
-    /// The GUI blocklist's spacing, derived from the user's settings: padding
+    /// The blocklist's spacing, derived from the user's settings: padding
     /// from the terminal-spacing style, the rendered Warp prompt's height, and
     /// the debug memory-stats footer toggle.
-    pub(super) fn for_gui(ctx: &AppContext) -> Self {
+    pub(super) fn new(ctx: &AppContext) -> Self {
         let appearance = Appearance::as_ref(ctx);
         let terminal_spacing =
             TerminalSettings::as_ref(ctx).terminal_spacing(appearance.line_height_ratio(), ctx);
@@ -101,7 +101,7 @@ pub(super) fn compute_block_size(
 /// Creates a [`TerminalModel`], the source of truth for the session's state.
 ///
 /// `block_spacing` is the spacing baked into block heights; callers derive it
-/// via [`BlockSpacing::for_gui`].
+/// via [`BlockSpacing::new`].
 #[allow(clippy::too_many_arguments)]
 pub(super) fn create_terminal_model(
     startup_directory: Option<PathBuf>,

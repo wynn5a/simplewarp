@@ -172,9 +172,9 @@ use crate::ai::agent::{
 use crate::ai::blocklist::agent_view::{
     AgentViewController, AgentViewControllerEvent, AgentViewConversationSelection,
     AgentViewDisplayMode, AgentViewEntryBlockParams, AgentViewEntryOrigin,
-    AgentViewHeaderDisabledTheme, AgentViewHeaderTheme, AgentViewZeroStateBlock,
-    AgentViewZeroStateEvent, EphemeralMessageModel, ExitConfirmationTrigger, GuiInputModePolicy,
-    InlineAgentViewHeader, fork_from_last_known_good_state_exchange_id,
+    AgentViewHeaderDisabledTheme, AgentViewHeaderTheme, AgentViewInputModePolicy,
+    AgentViewZeroStateBlock, AgentViewZeroStateEvent, EphemeralMessageModel,
+    ExitConfirmationTrigger, InlineAgentViewHeader, fork_from_last_known_good_state_exchange_id,
     get_agent_view_entry_block_position_id,
 };
 use crate::ai::blocklist::block::cli::{CLISubagentView, CLISubagentViewEvent};
@@ -2684,7 +2684,7 @@ impl TerminalView {
             )
         });
         let ai_input_model = ctx.add_model(|ctx| {
-            let policy = Rc::new(GuiInputModePolicy::new(
+            let policy = Rc::new(AgentViewInputModePolicy::new(
                 conversation_selection.clone(),
                 ai_context_model.clone(),
             ));

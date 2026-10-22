@@ -9,6 +9,10 @@ version = "0.1.0"
 publish.workspace = true
 license.workspace = true
 
+# False positives: used through macro/derive expansions, serde attribute paths and a re-export.
+[package.metadata.cargo-machete]
+ignored = ["asset_cache", "concat-idents", "serde_bytes", "serde_regex"]
+
 [lib]
 name = "warp"
 path = "src/lib.rs"

@@ -16,14 +16,14 @@ use crate::ai::blocklist::conversation_selection::{
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::workspace::RestoreConversationLayout;
 
-/// GUI conversation selection backed unconditionally by Agent View.
+/// Conversation selection backed unconditionally by Agent View.
 pub(crate) struct AgentViewConversationSelection {
     terminal_view_id: EntityId,
     agent_view_controller: ModelHandle<AgentViewController>,
 }
 
 impl AgentViewConversationSelection {
-    /// Creates GUI conversation selection for a terminal view.
+    /// Creates conversation selection for a terminal view.
     pub(crate) fn new(
         terminal_view_id: warpui::EntityId,
         agent_view_controller: ModelHandle<AgentViewController>,
@@ -67,8 +67,8 @@ impl AgentViewConversationSelection {
     }
 }
 
-/// Applies GUI list-state precedence without consulting frontend models.
-fn classify_gui_list_entry(
+/// Applies list-state precedence without consulting view models.
+fn classify_list_entry(
     selected_entry_id: Option<AgentConversationEntryId>,
     entry_id: AgentConversationEntryId,
     open_terminal_view_id: Option<EntityId>,
@@ -87,7 +87,7 @@ fn classify_gui_list_entry(
         AgentConversationListEntryState::Unavailable
     }
 }
-/// Classifies entries relative to this GUI Agent View terminal view.
+/// Classifies entries relative to this Agent View terminal view.
 impl AgentConversationListPolicy for AgentViewConversationSelection {
     fn classify_entry(
         &self,
@@ -99,7 +99,7 @@ impl AgentConversationListPolicy for AgentViewConversationSelection {
             .map(AgentConversationEntryId::Conversation);
         let open_terminal_view_id =
             ActiveAgentViewsModel::as_ref(app).get_terminal_view_id_for_entry(entry, app);
-        classify_gui_list_entry(
+        classify_list_entry(
             selected_entry_id,
             entry.id,
             open_terminal_view_id,
