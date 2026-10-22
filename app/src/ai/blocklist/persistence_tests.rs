@@ -31,7 +31,7 @@ fn user_query_message(task_id: &str, query: &str) -> warp_multi_agent_api::Messa
 #[test]
 fn query_exchange_event_builds_persistence_upsert() {
     App::test((), |mut app| async move {
-        let terminal_surface_id = EntityId::new();
+        let terminal_view_id = EntityId::new();
         let conversation_id = AIConversationId::new();
         let task_id = "task-id";
         let conversation = AIConversation::new_restored(
@@ -56,19 +56,19 @@ fn query_exchange_event_builds_persistence_upsert() {
 
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         history_model.update(&mut app, |model, ctx| {
-            model.restore_conversations(terminal_surface_id, vec![conversation], ctx);
+            model.restore_conversations(terminal_view_id, vec![conversation], ctx);
         });
 
         let event = BlocklistAIHistoryEvent::AppendedExchange {
             exchange_id,
             task_id,
-            terminal_surface_id,
+            terminal_view_id,
             conversation_id,
             is_hidden: false,
             response_stream_id: None,
         };
         let persistence_event = app
-            .read(|ctx| maybe_build_ai_query_upsert_event(&event, terminal_surface_id, false, ctx))
+            .read(|ctx| maybe_build_ai_query_upsert_event(&event, terminal_view_id, false, ctx))
             .expect("query exchange should produce a persistence event");
         let ModelEvent::UpsertAIQuery { query } = persistence_event else {
             panic!("query exchange should produce an AI-query upsert");

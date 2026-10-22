@@ -1589,7 +1589,7 @@ impl AgentDriver {
         let mut written_conversation_id = false;
 
         ctx.subscribe_to_model(&history_model_handle, move |me, _, event, ctx| {
-            if event.terminal_surface_id().is_some_and(|id| id != terminal_id) {
+            if event.terminal_view_id().is_some_and(|id| id != terminal_id) {
                 return;
             }
 
@@ -1657,7 +1657,7 @@ impl AgentDriver {
 
                 }
 
-                BlocklistAIHistoryEvent::UpdatedConversationStatus { terminal_surface_id: conversation_terminal_id, conversation_id, .. } => {
+                BlocklistAIHistoryEvent::UpdatedConversationStatus { terminal_view_id: conversation_terminal_id, conversation_id, .. } => {
                     if *conversation_terminal_id != terminal_id {
                         return;
                     }
@@ -1757,7 +1757,7 @@ impl AgentDriver {
                 }
                 BlocklistAIHistoryEvent::StartedNewConversation { .. }
                 | BlocklistAIHistoryEvent::ReassignedExchange { .. }
-                | BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface { .. }
+                | BlocklistAIHistoryEvent::ClearedConversationsForTerminalView { .. }
                 | BlocklistAIHistoryEvent::UpdatedAutoexecuteOverride { .. }
                 | BlocklistAIHistoryEvent::SplitConversation { .. }
                 | BlocklistAIHistoryEvent::RemoveConversation { .. }
@@ -1770,7 +1770,7 @@ impl AgentDriver {
                 | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
                 | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
                 | BlocklistAIHistoryEvent::ConversationServerTokenAssigned { .. }
-                | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalSurfaces { .. }
+                | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalViews { .. }
                 => (),
             }
         });

@@ -154,11 +154,11 @@ impl RequestInput {
         task_id: TaskId,
         active_session: &ModelHandle<ActiveSession>,
         conversation_id: AIConversationId,
-        terminal_surface_id: EntityId,
+        terminal_view_id: EntityId,
         app: &AppContext,
     ) -> Self {
         let mut me =
-            Self::new_with_common_fields(conversation_id, active_session, terminal_surface_id, app);
+            Self::new_with_common_fields(conversation_id, active_session, terminal_view_id, app);
         me.input_messages.insert(task_id, inputs);
         me
     }
@@ -168,11 +168,11 @@ impl RequestInput {
         context: Arc<[AIAgentContext]>,
         active_session: &ModelHandle<ActiveSession>,
         conversation_id: AIConversationId,
-        terminal_surface_id: EntityId,
+        terminal_view_id: EntityId,
         app: &AppContext,
     ) -> Self {
         let mut me =
-            Self::new_with_common_fields(conversation_id, active_session, terminal_surface_id, app);
+            Self::new_with_common_fields(conversation_id, active_session, terminal_view_id, app);
         for result in action_results.into_iter() {
             me.input_messages
                 .entry(result.task_id.clone())
@@ -192,20 +192,20 @@ impl RequestInput {
     fn new_with_common_fields(
         conversation_id: AIConversationId,
         active_session: &ModelHandle<ActiveSession>,
-        terminal_surface_id: EntityId,
+        terminal_view_id: EntityId,
         app: &AppContext,
     ) -> Self {
         let llm_prefs = LLMPreferences::as_ref(app);
         let model_id = llm_prefs
-            .get_active_base_model(app, Some(terminal_surface_id))
+            .get_active_base_model(app, Some(terminal_view_id))
             .id
             .clone();
         let coding_model_id = llm_prefs
-            .get_active_coding_model(app, Some(terminal_surface_id))
+            .get_active_coding_model(app, Some(terminal_view_id))
             .id
             .clone();
         let cli_agent_model_id = llm_prefs
-            .get_active_cli_agent_model(app, Some(terminal_surface_id))
+            .get_active_cli_agent_model(app, Some(terminal_view_id))
             .id
             .clone();
         let working_directory = active_session
@@ -228,7 +228,7 @@ impl RequestInput {
 
 /// Controller for Blocklist AI.
 ///
-/// This is responsible for managing and updating blocklist AI state for a single terminal surface.
+/// This is responsible for managing and updating blocklist AI state for a single terminal view.
 pub struct BlocklistAIController {
     active_session: ModelHandle<ActiveSession>,
     input_model: ModelHandle<BlocklistAIInputModel>,
@@ -238,8 +238,8 @@ pub struct BlocklistAIController {
 
     in_flight_response_streams: PendingResponseStreams,
 
-    /// The ID of the terminal surface this controller is associated with.
-    terminal_surface_id: EntityId,
+    /// The ID of the terminal view this controller is associated with.
+    terminal_view_id: EntityId,
 
     /// Ambient agent task ID attached to this controller. This is a property of the controller, and not an individual
     /// conversation, because the ambient agent task driver owns the entire Warp window working on a task, and any
@@ -299,7 +299,7 @@ impl BlocklistAIController {
         SessionContext::from_session(self.active_session.as_ref(ctx), ctx).skill_path_origin()
     }
 
-    /// Creates a controller for a terminal surface.
+    /// Creates a controller for a terminal view.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         input_model: ModelHandle<BlocklistAIInputModel>,
@@ -308,7 +308,7 @@ impl BlocklistAIController {
         action_model: ModelHandle<BlocklistAIActionModel>,
         active_session: ModelHandle<ActiveSession>,
         terminal_model: Arc<FairMutex<TerminalModel>>,
-        terminal_surface_id: EntityId,
+        terminal_view_id: EntityId,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
         ctx.subscribe_to_model(&action_model, move |me, _, event, ctx| {
@@ -390,7 +390,7 @@ impl BlocklistAIController {
                     };
                     history_model.update(ctx, |history_model, ctx| {
                         history_model.update_conversation_status(
-                            me.terminal_surface_id,
+                            me.terminal_view_id,
                             *conversation_id,
                             updated_conversation_status,
                             ctx,
@@ -443,7 +443,7 @@ impl BlocklistAIController {
             active_session,
             terminal_model,
             in_flight_response_streams: PendingResponseStreams::new(),
-            terminal_surface_id,
+            terminal_view_id,
             ambient_agent_task_id: None,
             pending_auto_resume_handles: HashMap::new(),
         }
@@ -476,8 +476,7 @@ impl BlocklistAIController {
         };
 
         let ai_history_model = BlocklistAIHistoryModel::as_ref(ctx);
-        let active_conversation_id =
-            ai_history_model.active_conversation_id(self.terminal_surface_id);
+        let active_conversation_id = ai_history_model.active_conversation_id(self.terminal_view_id);
         let cancellation_reason = CancellationReason::FollowUpSubmitted {
             is_for_same_conversation: active_conversation_id
                 .is_some_and(|id| id == conversation_id),
@@ -601,7 +600,7 @@ impl BlocklistAIController {
                 task_id,
                 &self.active_session,
                 conversation_id,
-                self.terminal_surface_id,
+                self.terminal_view_id,
                 ctx,
             ),
             Some(RequestMetadata {
@@ -657,7 +656,7 @@ impl BlocklistAIController {
                 history_model.create_cli_subagent_task_for_conversation(
                     running_command.block_id.clone(),
                     conversation_id,
-                    self.terminal_surface_id,
+                    self.terminal_view_id,
                     ctx,
                 )
             }) {
@@ -816,7 +815,7 @@ impl BlocklistAIController {
                     history_model.create_cli_subagent_task_for_conversation(
                         running_command.block_id.clone(),
                         conversation_id,
-                        self.terminal_surface_id,
+                        self.terminal_view_id,
                         ctx,
                     )
                 }) {
@@ -1014,7 +1013,7 @@ impl BlocklistAIController {
         }
 
         BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-            history.mark_active_conversation_id(conversation_id, self.terminal_surface_id, ctx);
+            history.mark_active_conversation_id(conversation_id, self.terminal_view_id, ctx);
         });
 
         let finished_results = self.action_model.update(ctx, |action_model, _| {
@@ -1037,7 +1036,7 @@ impl BlocklistAIController {
             context,
             &self.active_session,
             conversation_id,
-            self.terminal_surface_id,
+            self.terminal_view_id,
             ctx,
         );
 
@@ -1110,7 +1109,7 @@ impl BlocklistAIController {
                 task_id,
                 &self.active_session,
                 conversation_id,
-                self.terminal_surface_id,
+                self.terminal_view_id,
                 ctx,
             ),
             metadata,
@@ -1156,7 +1155,7 @@ impl BlocklistAIController {
         let history_model = BlocklistAIHistoryModel::handle(ctx);
         let id = history_model.update(ctx, |history_model, ctx| {
             history_model.start_new_conversation(
-                self.terminal_surface_id,
+                self.terminal_view_id,
                 is_autoexecute_override,
                 false,
                 ctx,
@@ -1253,7 +1252,7 @@ impl BlocklistAIController {
         );
 
         let request_params = api::RequestParams::new(
-            Some(self.terminal_surface_id),
+            Some(self.terminal_view_id),
             SessionContext::from_session(self.active_session.as_ref(ctx), ctx),
             &request_input,
             conversation_data.clone(),
@@ -1293,12 +1292,12 @@ impl BlocklistAIController {
             match history_model.update_conversation_for_new_request_input(
                 request_input,
                 response_stream_id.clone(),
-                self.terminal_surface_id,
+                self.terminal_view_id,
                 ctx,
             ) {
                 Ok(_) => {
                     history_model.update_conversation_status(
-                        self.terminal_surface_id,
+                        self.terminal_view_id,
                         conversation_data.id,
                         ConversationStatus::InProgress,
                         ctx,
@@ -1339,7 +1338,7 @@ impl BlocklistAIController {
         history_model.update(ctx, |history_model, ctx| {
             history_model.mark_active_conversation_id(
                 conversation_data.id,
-                self.terminal_surface_id,
+                self.terminal_view_id,
                 ctx,
             );
         });
@@ -1436,7 +1435,7 @@ impl BlocklistAIController {
                 if is_recovering {
                     history_model.update(ctx, |history_model, ctx| {
                         history_model.update_conversation_status(
-                            self.terminal_surface_id,
+                            self.terminal_view_id,
                             conversation_id,
                             ConversationStatus::Cancelled,
                             ctx,
@@ -1470,7 +1469,7 @@ impl BlocklistAIController {
         command: String,
         ctx: &mut ModelContext<Self>,
     ) {
-        let terminal_surface_id = self.terminal_surface_id;
+        let terminal_view_id = self.terminal_view_id;
         let history_model = BlocklistAIHistoryModel::handle(ctx);
         let shell_exit_error = RenderableAIError::AgentExitedShell { command };
 
@@ -1503,7 +1502,7 @@ impl BlocklistAIController {
                     /* recovery_pending */ false,
                     stream_id,
                     conversation_id,
-                    terminal_surface_id,
+                    terminal_view_id,
                     ctx,
                 );
             });
@@ -1532,7 +1531,7 @@ impl BlocklistAIController {
         if !had_in_flight_stream {
             history_model.update(ctx, |history_model, ctx| {
                 history_model.update_conversation_status_with_error(
-                    terminal_surface_id,
+                    terminal_view_id,
                     conversation_id,
                     ConversationStatus::Error,
                     Some(shell_exit_error),
@@ -1602,7 +1601,7 @@ impl BlocklistAIController {
                                     history_model.initialize_output_for_response_stream(
                                         &stream_id,
                                         conversation_id,
-                                        self.terminal_surface_id,
+                                        self.terminal_view_id,
                                         init_event,
                                         ctx,
                                     );
@@ -1636,7 +1635,7 @@ impl BlocklistAIController {
                                             &stream_id,
                                             client_actions,
                                             conversation_id,
-                                            self.terminal_surface_id,
+                                            self.terminal_view_id,
                                             ctx,
                                         )
                                     });
@@ -1683,7 +1682,7 @@ impl BlocklistAIController {
                                 recovery_pending,
                                 &stream_id,
                                 conversation_id,
-                                self.terminal_surface_id,
+                                self.terminal_view_id,
                                 ctx,
                             );
                         });
@@ -1709,7 +1708,7 @@ impl BlocklistAIController {
                 };
                 BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
                     history_model.update_conversation_status(
-                        self.terminal_surface_id,
+                        self.terminal_view_id,
                         conversation_id,
                         status,
                         ctx,
@@ -1764,7 +1763,7 @@ impl BlocklistAIController {
                         history_model.mark_response_stream_cancelled(
                             &stream_id,
                             conversation_id,
-                            self.terminal_surface_id,
+                            self.terminal_view_id,
                             stream_cancellation.reason,
                             ctx,
                         );
@@ -1793,7 +1792,7 @@ impl BlocklistAIController {
                             /*recovery_pending*/ false,
                             &stream_id,
                             conversation_id,
-                            self.terminal_surface_id,
+                            self.terminal_view_id,
                             ctx,
                         );
                     });
@@ -1872,7 +1871,7 @@ impl BlocklistAIController {
                     history_model.mark_response_stream_completed_successfully(
                         stream_id,
                         conversation_id,
-                        self.terminal_surface_id,
+                        self.terminal_view_id,
                         ctx,
                     );
                 });
@@ -1890,7 +1889,7 @@ impl BlocklistAIController {
                         /*recovery_pending*/ false,
                         stream_id,
                         conversation_id,
-                        self.terminal_surface_id,
+                        self.terminal_view_id,
                         ctx,
                     );
                 });
@@ -1903,7 +1902,7 @@ impl BlocklistAIController {
                         /*recovery_pending*/ false,
                         stream_id,
                         conversation_id,
-                        self.terminal_surface_id,
+                        self.terminal_view_id,
                         ctx,
                     );
                 });
@@ -1917,7 +1916,7 @@ impl BlocklistAIController {
                         /*recovery_pending*/ false,
                         stream_id,
                         conversation_id,
-                        self.terminal_surface_id,
+                        self.terminal_view_id,
                         ctx,
                     );
                 });
@@ -1935,7 +1934,7 @@ impl BlocklistAIController {
                         /*recovery_pending*/ false,
                         stream_id,
                         conversation_id,
-                        self.terminal_surface_id,
+                        self.terminal_view_id,
                         ctx,
                     );
                 });
@@ -1963,7 +1962,7 @@ impl BlocklistAIController {
                         /*recovery_pending*/ false,
                         stream_id,
                         conversation_id,
-                        self.terminal_surface_id,
+                        self.terminal_view_id,
                         ctx,
                     );
                 });
@@ -1984,7 +1983,7 @@ impl BlocklistAIController {
                         /*recovery_pending*/ false,
                         stream_id,
                         conversation_id,
-                        self.terminal_surface_id,
+                        self.terminal_view_id,
                         ctx,
                     );
                 });
@@ -1997,7 +1996,7 @@ impl BlocklistAIController {
                         /*recovery_pending*/ false,
                         stream_id,
                         conversation_id,
-                        self.terminal_surface_id,
+                        self.terminal_view_id,
                         ctx,
                     );
                 });

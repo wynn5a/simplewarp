@@ -700,7 +700,7 @@ fn append_exchange_with_inputs_and_handle_event(
         &BlocklistAIHistoryEvent::AppendedExchange {
             exchange_id,
             task_id: task_id.clone(),
-            terminal_surface_id: view.view_id,
+            terminal_view_id: view.view_id,
             conversation_id,
             is_hidden: false,
             response_stream_id: Some(response_stream_id.clone()),
@@ -756,7 +756,7 @@ fn append_inputs_to_conversation_and_handle_event(
         &BlocklistAIHistoryEvent::AppendedExchange {
             exchange_id,
             task_id,
-            terminal_surface_id: view.view_id,
+            terminal_view_id: view.view_id,
             conversation_id,
             is_hidden: false,
             response_stream_id: Some(response_stream_id),
@@ -912,7 +912,7 @@ fn updated_conversation_metadata_refreshes_selected_conversation_pane_title() {
             view.handle_ai_history_model_event(
                 BlocklistAIHistoryModel::handle(ctx),
                 &BlocklistAIHistoryEvent::UpdatedConversationTitle {
-                    terminal_surface_id: Some(view.view_id),
+                    terminal_view_id: Some(view.view_id),
                     conversation_id,
                     title: "Renamed title".to_string(),
                 },
@@ -1199,7 +1199,7 @@ fn jump_to_latest_agent_message_scrolls_without_re_entering_when_already_in_view
 }
 
 #[test]
-fn restoring_conversation_to_new_pane_transfers_blocks_from_previous_terminal_surface() {
+fn restoring_conversation_to_new_pane_transfers_blocks_from_previous_terminal_view() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(true);
@@ -1278,15 +1278,15 @@ fn restoring_conversation_to_new_pane_transfers_blocks_from_previous_terminal_su
 
         BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
             let original_view_live_conversation_ids = history
-                .all_live_conversations_for_terminal_surface(original_view_id)
+                .all_live_conversations_for_terminal_view(original_view_id)
                 .map(|conversation| conversation.id())
                 .collect::<Vec<_>>();
             let restored_view_live_conversation_ids = history
-                .all_live_conversations_for_terminal_surface(restored_view_id)
+                .all_live_conversations_for_terminal_view(restored_view_id)
                 .map(|conversation| conversation.id())
                 .collect::<Vec<_>>();
             assert_eq!(
-                history.terminal_surface_id_for_conversation(&conversation_id),
+                history.terminal_view_id_for_conversation(&conversation_id),
                 Some(restored_view_id)
             );
             assert!(original_view_live_conversation_ids.is_empty());
@@ -1311,7 +1311,7 @@ fn restoring_conversation_to_new_pane_transfers_blocks_from_previous_terminal_su
 }
 
 #[test]
-fn clicking_old_banner_for_open_conversation_focuses_current_terminal_surface_without_transferring_blocks()
+fn clicking_old_banner_for_open_conversation_focuses_current_terminal_view_without_transferring_blocks()
  {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
@@ -1429,12 +1429,12 @@ fn clicking_old_banner_for_open_conversation_focuses_current_terminal_surface_wi
 
         BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
             assert_eq!(
-                history.terminal_surface_id_for_conversation(&conversation_id),
+                history.terminal_view_id_for_conversation(&conversation_id),
                 Some(restored_view_id)
             );
             assert!(
                 history
-                    .all_live_conversations_for_terminal_surface(original_view_id)
+                    .all_live_conversations_for_terminal_view(original_view_id)
                     .next()
                     .is_none()
             );
@@ -1453,7 +1453,7 @@ fn clicking_old_banner_for_open_conversation_focuses_current_terminal_surface_wi
 }
 
 #[test]
-fn appended_exchange_renders_in_current_terminal_surface_after_conversation_transfer() {
+fn appended_exchange_renders_in_current_terminal_view_after_conversation_transfer() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(true);
@@ -1500,7 +1500,7 @@ fn appended_exchange_renders_in_current_terminal_surface_after_conversation_tran
 
         BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
             assert_eq!(
-                history.terminal_surface_id_for_conversation(&conversation_id),
+                history.terminal_view_id_for_conversation(&conversation_id),
                 Some(transferred_view_id)
             );
         });
@@ -1545,7 +1545,7 @@ fn appended_exchange_renders_in_current_terminal_surface_after_conversation_tran
                 &BlocklistAIHistoryEvent::AppendedExchange {
                     exchange_id,
                     task_id: task_id.clone(),
-                    terminal_surface_id: original_view_id,
+                    terminal_view_id: original_view_id,
                     conversation_id,
                     is_hidden: false,
                     response_stream_id: Some(response_stream_id.clone()),
@@ -1560,7 +1560,7 @@ fn appended_exchange_renders_in_current_terminal_surface_after_conversation_tran
                 &BlocklistAIHistoryEvent::AppendedExchange {
                     exchange_id,
                     task_id,
-                    terminal_surface_id: original_view_id,
+                    terminal_view_id: original_view_id,
                     conversation_id,
                     is_hidden: false,
                     response_stream_id: Some(response_stream_id),

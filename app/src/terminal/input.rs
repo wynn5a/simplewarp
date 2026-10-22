@@ -2385,7 +2385,7 @@ impl Input {
                     BlocklistAIHistoryEvent::UpdatedConversationStatus { .. }
                         | BlocklistAIHistoryEvent::SetActiveConversation { .. }
                         | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
-                        | BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface { .. }
+                        | BlocklistAIHistoryEvent::ClearedConversationsForTerminalView { .. }
                         | BlocklistAIHistoryEvent::StartedNewConversation { .. }
                         | BlocklistAIHistoryEvent::SplitConversation { .. }
                         | BlocklistAIHistoryEvent::AppendedExchange { .. }
@@ -2397,7 +2397,7 @@ impl Input {
                 if !affects_hint {
                     return;
                 }
-                if event.terminal_surface_id() != Some(terminal_view_id) {
+                if event.terminal_view_id() != Some(terminal_view_id) {
                     return;
                 }
                 me.set_zero_state_hint_text(ctx);
@@ -8884,7 +8884,7 @@ impl Input {
         let input_config = self.ai_input_model.as_ref(ctx).input_config();
         let config = UpArrowHistoryConfig::for_input_config(&input_config);
 
-        History::as_ref(ctx).up_arrow_suggestions_for_terminal_surface(
+        History::as_ref(ctx).up_arrow_suggestions_for_terminal_view(
             self.terminal_view_id,
             self.active_block_session_id(),
             config,
@@ -12109,7 +12109,7 @@ impl View for Input {
         }
 
         if BlocklistAIHistoryModel::as_ref(app)
-            .all_live_conversations_for_terminal_surface(self.terminal_view_id)
+            .all_live_conversations_for_terminal_view(self.terminal_view_id)
             .any(|conversation| conversation.initial_query().is_some())
         {
             ctx.set.insert("ActiveAIConversationHasHistory");

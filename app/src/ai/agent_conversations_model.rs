@@ -369,7 +369,7 @@ impl AgentConversationsModel {
             | BlocklistAIHistoryEvent::RestoredConversations { .. }
             | BlocklistAIHistoryEvent::RemoveConversation { .. }
             | BlocklistAIHistoryEvent::DeletedConversation { .. }
-            | BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface { .. }
+            | BlocklistAIHistoryEvent::ClearedConversationsForTerminalView { .. }
             | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
             => {
                 self.sync_conversations(ctx);
@@ -414,7 +414,7 @@ impl AgentConversationsModel {
             // doesn't change any ConversationNavigationData fields (title comes from
             // UpdateTaskDescription, last_updated uses exchange.start_time which is set at append time).
             | BlocklistAIHistoryEvent::UpdatedStreamingExchange { .. }
-            | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalSurfaces { .. }
+            | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalViews { .. }
             | BlocklistAIHistoryEvent::UpdatedConversationMetadata { .. } => {}
 
             BlocklistAIHistoryEvent::ConversationServerTokenAssigned { .. } => {

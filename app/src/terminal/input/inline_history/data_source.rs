@@ -102,7 +102,7 @@ impl InlineHistoryMenuDataSource {
             include_commands,
             include_prompts,
         };
-        let suggestions = history.up_arrow_suggestions_for_terminal_surface(
+        let suggestions = history.up_arrow_suggestions_for_terminal_view(
             self.terminal_view_id,
             session_id,
             config,
@@ -147,7 +147,7 @@ impl InlineHistoryMenuDataSource {
         let mut conversation_entries: Vec<MenuEntry> = Vec::new();
         let history_model = BlocklistAIHistoryModel::handle(app).as_ref(app);
         for conversation in
-            history_model.all_live_conversations_for_terminal_surface(self.terminal_view_id)
+            history_model.all_live_conversations_for_terminal_view(self.terminal_view_id)
         {
             if conversation.exchange_count() == 0 {
                 continue;
@@ -269,7 +269,7 @@ impl SyncDataSource for InlineHistoryMenuDataSource {
 
         let command_entries = if include_commands {
             history
-                .up_arrow_suggestions_for_terminal_surface(
+                .up_arrow_suggestions_for_terminal_view(
                     self.terminal_view_id,
                     session_id,
                     UpArrowHistoryConfig {

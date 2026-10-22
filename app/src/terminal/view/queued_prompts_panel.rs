@@ -380,7 +380,7 @@ impl QueuedPromptsPanelView {
         ctx: &mut ViewContext<Self>,
     ) {
         let is_for_this_view = event
-            .terminal_surface_id()
+            .terminal_view_id()
             .is_some_and(|id| id == self.terminal_view_id);
         if !is_for_this_view {
             return;

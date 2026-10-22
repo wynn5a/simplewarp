@@ -175,12 +175,12 @@ fn mock_response_stream_updates_history_through_controller() {
         });
 
         let (conversation_id, stream) = terminal.update(&mut app, |view, ctx| {
-            let terminal_surface_id = view.id();
+            let terminal_view_id = view.id();
             let stream_id = ResponseStreamId::new_for_test();
             let conversation_id =
                 BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
                     let conversation_id =
-                        history.start_new_conversation(terminal_surface_id, false, false, ctx);
+                        history.start_new_conversation(terminal_view_id, false, false, ctx);
                     let task_id = history
                         .conversation(&conversation_id)
                         .unwrap()
@@ -199,7 +199,7 @@ fn mock_response_stream_updates_history_through_controller() {
                                 supported_tools_override: None,
                             },
                             stream_id.clone(),
-                            terminal_surface_id,
+                            terminal_view_id,
                             ctx,
                         )
                         .unwrap();
@@ -280,12 +280,12 @@ fn fail_conversation_due_to_shell_exit_reports_error_and_survives_manual_cancel(
         let terminal = add_window_with_terminal(&mut app, None);
 
         let conversation_id = terminal.update(&mut app, |view, ctx| {
-            let terminal_surface_id = view.id();
+            let terminal_view_id = view.id();
             let stream_id = ResponseStreamId::new_for_test();
             let conversation_id =
                 BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
                     let conversation_id =
-                        history.start_new_conversation(terminal_surface_id, false, false, ctx);
+                        history.start_new_conversation(terminal_view_id, false, false, ctx);
                     let task_id = history
                         .conversation(&conversation_id)
                         .unwrap()
@@ -304,7 +304,7 @@ fn fail_conversation_due_to_shell_exit_reports_error_and_survives_manual_cancel(
                                 supported_tools_override: None,
                             },
                             stream_id.clone(),
-                            terminal_surface_id,
+                            terminal_view_id,
                             ctx,
                         )
                         .unwrap();
@@ -362,12 +362,12 @@ fn optimistic_cli_subagent_completion_with_in_flight_stream_reports_success() {
         let terminal = add_window_with_terminal(&mut app, None);
 
         let conversation_id = terminal.update(&mut app, |view, ctx| {
-            let terminal_surface_id = view.id();
+            let terminal_view_id = view.id();
             let stream_id = ResponseStreamId::new_for_test();
             let conversation_id =
                 BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
                     let conversation_id =
-                        history.start_new_conversation(terminal_surface_id, false, false, ctx);
+                        history.start_new_conversation(terminal_view_id, false, false, ctx);
                     let task_id = history
                         .conversation(&conversation_id)
                         .unwrap()
@@ -386,7 +386,7 @@ fn optimistic_cli_subagent_completion_with_in_flight_stream_reports_success() {
                                 supported_tools_override: None,
                             },
                             stream_id.clone(),
-                            terminal_surface_id,
+                            terminal_view_id,
                             ctx,
                         )
                         .unwrap();

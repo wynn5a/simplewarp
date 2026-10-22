@@ -13,10 +13,10 @@ use crate::ai::agent_conversations_model::{
     AgentConversationEntry, AgentConversationListEntryState,
 };
 
-/// Handle to a terminal surface's conversation-selection implementation.
+/// Handle to a terminal view's conversation-selection implementation.
 pub type ConversationSelectionHandle = ModelHandle<Box<dyn ConversationSelection>>;
 
-/// The conversation targeted by the next query from a terminal surface.
+/// The conversation targeted by the next query from a terminal view.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum PendingQueryState {
     /// The next query will continue an existing conversation.
@@ -52,7 +52,7 @@ pub enum ConversationSelectionEvent {
         is_exit_before_new_entrance: bool,
     },
 }
-/// Coordinates the next-query target and conversation presentation for one terminal surface.
+/// Coordinates the next-query target and conversation presentation for one terminal view.
 ///
 /// A selected conversation receives the surface's next query; without one, the next query starts a
 /// new conversation. Implementations also describe whether that selection is actively presented
@@ -64,7 +64,7 @@ pub trait ConversationSelection: AgentConversationListPolicy {
     /// Returns whether this surface presents a selected conversation as active.
     fn is_conversation_active(&self, app: &AppContext) -> bool;
 
-    /// Returns whether an active conversation occupies the entire terminal surface.
+    /// Returns whether an active conversation occupies the entire terminal view.
     fn is_conversation_fullscreen(&self, app: &AppContext) -> bool;
 
     /// Selects an existing conversation for the next query.
@@ -99,7 +99,7 @@ pub trait ConversationSelection: AgentConversationListPolicy {
         ctx: &mut ModelContext<Box<dyn ConversationSelection>>,
     );
 
-    /// Reconciles selection after a terminal-surface-scoped history event.
+    /// Reconciles selection after a terminal-view-scoped history event.
     fn handle_history_event(
         &mut self,
         event: &BlocklistAIHistoryEvent,

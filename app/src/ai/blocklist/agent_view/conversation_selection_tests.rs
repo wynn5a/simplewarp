@@ -71,7 +71,7 @@ fn gui_selection_delegates_to_agent_view() {
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
         let history = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
-        let terminal_surface_id = EntityId::new();
+        let terminal_view_id = EntityId::new();
         let terminal_model = Arc::new(FairMutex::new(TerminalModel::new_for_test(
             block_size(),
             color::List::from(&Colors::default()),
@@ -85,17 +85,17 @@ fn gui_selection_delegates_to_agent_view() {
         )));
         let ephemeral_message_model = app.add_model(|_| EphemeralMessageModel::new());
         let agent_view_controller = app.add_model(|_| {
-            AgentViewController::new(terminal_model, terminal_surface_id, ephemeral_message_model)
+            AgentViewController::new(terminal_model, terminal_view_id, ephemeral_message_model)
         });
         let selection = app.add_model(|ctx| {
             Box::new(AgentViewConversationSelection::new(
-                terminal_surface_id,
+                terminal_view_id,
                 agent_view_controller.clone(),
                 ctx,
             )) as Box<dyn ConversationSelection>
         });
         let conversation_id = history.update(&mut app, |history, ctx| {
-            history.start_new_conversation(terminal_surface_id, false, false, ctx)
+            history.start_new_conversation(terminal_view_id, false, false, ctx)
         });
 
         selection.update(&mut app, |selection, ctx| {

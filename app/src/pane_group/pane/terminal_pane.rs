@@ -239,7 +239,7 @@ impl PaneContent for TerminalPane {
             // permanently closed.
             BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
                 history_model
-                    .clear_conversations_for_terminal_surface(self.terminal_view(ctx).id(), ctx);
+                    .clear_conversations_for_terminal_view(self.terminal_view(ctx).id(), ctx);
             });
             self.delete_blocks(ctx);
         }
@@ -323,7 +323,7 @@ impl PaneContent for TerminalPane {
 
             // Collect all conversation IDs for this terminal view
             let conversation_ids_to_restore = BlocklistAIHistoryModel::as_ref(app)
-                .all_live_conversations_for_terminal_surface(self.terminal_view(app).id())
+                .all_live_conversations_for_terminal_view(self.terminal_view(app).id())
                 .map(|conversation| conversation.id())
                 .collect();
 
@@ -769,7 +769,7 @@ fn handle_ai_history_event(
     use crate::ai::blocklist::maybe_build_ai_query_upsert_event;
 
     if event
-        .terminal_surface_id()
+        .terminal_view_id()
         .is_some_and(|id| id != terminal_view_id)
     {
         return;
@@ -806,7 +806,7 @@ fn handle_ai_history_event(
                 },
             );
         }
-        BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface { .. }
+        BlocklistAIHistoryEvent::ClearedConversationsForTerminalView { .. }
         | BlocklistAIHistoryEvent::ClearedActiveConversation { .. } => {
             ctx.emit(pane_group::Event::InvalidatedActiveConversation);
         }
@@ -849,6 +849,6 @@ fn handle_ai_history_event(
         | BlocklistAIHistoryEvent::UpdatedConversationMetadata { .. }
         | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
         | BlocklistAIHistoryEvent::ConversationServerTokenAssigned { .. }
-        | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalSurfaces { .. } => (),
+        | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalViews { .. } => (),
     }
 }

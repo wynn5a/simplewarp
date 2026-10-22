@@ -184,7 +184,7 @@ fn every_canonical_state_produces_consistent_icon_across_surfaces() {
             .and_then(AgentIconFields::from_variant);
         assert_eq!(
             terminal_actual, expected,
-            "terminal surface disagreed for {state:?}"
+            "terminal view disagreed for {state:?}"
         );
     }
 }

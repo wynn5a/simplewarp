@@ -257,13 +257,13 @@ fn build_input_model(
         false, /* is_inverted */
         None,  /* session_startup_path */
     )));
-    let terminal_surface_id = EntityId::new();
+    let terminal_view_id = EntityId::new();
     let conversation_selection =
         app.add_model(|_| Box::new(MockConversationSelection) as Box<dyn ConversationSelection>);
     let context_model = app.add_model(|_| {
         BlocklistAIContextModel::new_for_test(
             terminal_model.clone(),
-            terminal_surface_id,
+            terminal_view_id,
             conversation_selection.clone(),
         )
     });

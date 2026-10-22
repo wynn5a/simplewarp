@@ -104,17 +104,17 @@ impl TryFrom<PersistedAIInputType> for AIAgentInput {
 
 /// Builds the persistence-writer event for a query-bearing exchange update.
 ///
-/// Returns `None` when the event is irrelevant to this terminal surface or the
+/// Returns `None` when the event is irrelevant to this terminal view or the
 /// exchange should not be persisted.
 pub fn maybe_build_ai_query_upsert_event(
     event: &BlocklistAIHistoryEvent,
-    terminal_surface_id: EntityId,
+    terminal_view_id: EntityId,
     is_shared_ambient_agent_session: bool,
     app: &AppContext,
 ) -> Option<ModelEvent> {
     if event
-        .terminal_surface_id()
-        .is_some_and(|id| id != terminal_surface_id)
+        .terminal_view_id()
+        .is_some_and(|id| id != terminal_view_id)
     {
         return None;
     }

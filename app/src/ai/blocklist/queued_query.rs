@@ -287,7 +287,7 @@ impl QueuedQueryModel {
             } => {
                 self.drop_conversation(*conversation_id, ctx);
             }
-            BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface {
+            BlocklistAIHistoryEvent::ClearedConversationsForTerminalView {
                 cleared_conversation_ids,
                 ..
             } => {
@@ -356,7 +356,7 @@ impl QueuedQueryModel {
         history_model: &BlocklistAIHistoryModel,
     ) -> Option<AIConversationId> {
         history_model
-            .all_live_conversations_for_terminal_surface(terminal_view_id)
+            .all_live_conversations_for_terminal_view(terminal_view_id)
             .find_map(|conversation| {
                 self.has_command_in_flight(conversation.id())
                     .then_some(conversation.id())

@@ -139,7 +139,7 @@ impl BlocklistAIStatusBar {
         let history_model = BlocklistAIHistoryModel::handle(ctx);
         ctx.subscribe_to_model(&history_model, move |me, _, event, ctx| {
             if event
-                .terminal_surface_id()
+                .terminal_view_id()
                 .is_some_and(|id| id != terminal_view_id)
             {
                 return;
@@ -156,7 +156,7 @@ impl BlocklistAIStatusBar {
                     }
                     me.reset_model_for_exchange(*exchange_id, *conversation_id, ctx);
                 }
-                BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface { .. } => {
+                BlocklistAIHistoryEvent::ClearedConversationsForTerminalView { .. } => {
                     me.active_exchange_model = None;
                     ctx.notify();
                 }

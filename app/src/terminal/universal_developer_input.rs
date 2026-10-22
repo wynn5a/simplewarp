@@ -457,7 +457,7 @@ impl UniversalDeveloperInputButtonBar {
             &BlocklistAIHistoryModel::handle(ctx),
             |me, _, event, ctx| {
                 if event
-                    .terminal_surface_id()
+                    .terminal_view_id()
                     .is_some_and(|id| id != me.terminal_view_id)
                 {
                     return;

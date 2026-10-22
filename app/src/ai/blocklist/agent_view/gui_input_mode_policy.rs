@@ -20,7 +20,7 @@ pub(crate) struct GuiInputModePolicy {
 }
 
 impl GuiInputModePolicy {
-    /// Creates the GUI policy for a terminal surface.
+    /// Creates the GUI policy for a terminal view.
     pub(crate) fn new(
         conversation_selection: ConversationSelectionHandle,
         ai_context_model: ModelHandle<BlocklistAIContextModel>,

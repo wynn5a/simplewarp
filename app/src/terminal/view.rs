@@ -4296,29 +4296,27 @@ impl TerminalView {
             }
             | BlocklistAIHistoryEvent::UpdatedConversationTitle {
                 conversation_id, ..
-            } => history_model.terminal_surface_id_for_conversation(conversation_id),
+            } => history_model.terminal_view_id_for_conversation(conversation_id),
             BlocklistAIHistoryEvent::ReassignedExchange {
                 new_conversation_id,
                 ..
-            } => history_model.terminal_surface_id_for_conversation(new_conversation_id),
+            } => history_model.terminal_view_id_for_conversation(new_conversation_id),
             BlocklistAIHistoryEvent::UpdatedConversationMetadata {
                 conversation_id, ..
-            } => history_model.terminal_surface_id_for_conversation(conversation_id),
+            } => history_model.terminal_view_id_for_conversation(conversation_id),
             BlocklistAIHistoryEvent::StartedNewConversation { .. }
             | BlocklistAIHistoryEvent::CreatedSubtask { .. }
             | BlocklistAIHistoryEvent::UpgradedTask { .. }
             | BlocklistAIHistoryEvent::SetActiveConversation { .. }
             | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
-            | BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface { .. }
+            | BlocklistAIHistoryEvent::ClearedConversationsForTerminalView { .. }
             | BlocklistAIHistoryEvent::UpdatedAutoexecuteOverride { .. }
             | BlocklistAIHistoryEvent::SplitConversation { .. }
             | BlocklistAIHistoryEvent::RemoveConversation { .. }
             | BlocklistAIHistoryEvent::DeletedConversation { .. }
             | BlocklistAIHistoryEvent::RestoredConversations { .. }
             | BlocklistAIHistoryEvent::ConversationServerTokenAssigned { .. }
-            | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalSurfaces { .. } => {
-                None
-            }
+            | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalViews { .. } => None,
         }
     }
 
@@ -4332,7 +4330,7 @@ impl TerminalView {
         let should_handle = match self.render_owner_for_ai_history_event(history_model_ref, event) {
             Some(owner_terminal_view_id) => owner_terminal_view_id == self.view_id,
             None => event
-                .terminal_surface_id()
+                .terminal_view_id()
                 .is_none_or(|terminal_view_id| terminal_view_id == self.view_id),
         };
         if !should_handle {
@@ -4597,7 +4595,7 @@ impl TerminalView {
             BlocklistAIHistoryEvent::UpdatedConversationTitle { .. } => {
                 self.update_pane_configuration(ctx);
             }
-            BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface {
+            BlocklistAIHistoryEvent::ClearedConversationsForTerminalView {
                 active_conversation_id,
                 ..
             } => {
@@ -4619,9 +4617,9 @@ impl TerminalView {
                 });
                 self.is_using_conversation_for_pane_header_title = false;
             }
-            BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalSurfaces {
+            BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalViews {
                 conversation_id,
-                previous_terminal_surface_id,
+                previous_terminal_view_id,
                 ..
             } => {
                 // The conversation has moved to another terminal view. We are
@@ -4630,7 +4628,7 @@ impl TerminalView {
                 // rendered blocks tagged to this conversation. Leave the
                 // agent-view entry in place so the user can click it to
                 // navigate to the current owner pane later.
-                if *previous_terminal_surface_id != self.view_id {
+                if *previous_terminal_view_id != self.view_id {
                     return;
                 }
                 let view_ids_to_remove = self
@@ -13069,7 +13067,7 @@ impl TerminalView {
         // When we clear the blocklist, the user can't see past AI exchanges anymore, so these conversations should no longer
         // appear active for the terminal view anymore.
         BlocklistAIHistoryModel::handle(ctx).update(ctx, |ai_history_model, ctx| {
-            ai_history_model.clear_conversations_for_terminal_surface(self.view_id, ctx)
+            ai_history_model.clear_conversations_for_terminal_view(self.view_id, ctx)
         });
 
         ctx.notify();

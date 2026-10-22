@@ -52,17 +52,17 @@ impl BlocklistAIContextModel {
 }
 
 struct TestConversationSelection {
-    terminal_surface_id: EntityId,
+    terminal_view_id: EntityId,
     selected_conversation_id: Option<AIConversationId>,
 }
 
 impl TestConversationSelection {
     fn new(
-        terminal_surface_id: EntityId,
+        terminal_view_id: EntityId,
         _: &mut warpui::ModelContext<Box<dyn ConversationSelection>>,
     ) -> Self {
         Self {
-            terminal_surface_id,
+            terminal_view_id,
             selected_conversation_id: None,
         }
     }
@@ -119,7 +119,7 @@ impl ConversationSelection for TestConversationSelection {
         ctx: &mut warpui::ModelContext<Box<dyn ConversationSelection>>,
     ) -> Result<AIConversationId, EnterAgentViewError> {
         let conversation_id = BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-            history.start_new_conversation(self.terminal_surface_id, false, false, ctx)
+            history.start_new_conversation(self.terminal_view_id, false, false, ctx)
         });
         self.select_existing_conversation(conversation_id, AgentViewEntryOrigin::Cli, ctx);
         Ok(conversation_id)
@@ -144,11 +144,7 @@ impl ConversationSelection for TestConversationSelection {
     ) {
         if let Some(conversation_id) = self.selected_conversation_id {
             BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-                history.toggle_autoexecute_override(
-                    &conversation_id,
-                    self.terminal_surface_id,
-                    ctx,
-                );
+                history.toggle_autoexecute_override(&conversation_id, self.terminal_view_id, ctx);
             });
         }
     }
@@ -261,19 +257,19 @@ fn build_cli_context_model(app: &mut App) -> (ModelHandle<BlocklistAIContextMode
         false,
         None,
     )));
-    let terminal_surface_id = EntityId::new();
+    let terminal_view_id = EntityId::new();
     let conversation_selection = app.add_model(|ctx| {
-        Box::new(TestConversationSelection::new(terminal_surface_id, ctx))
+        Box::new(TestConversationSelection::new(terminal_view_id, ctx))
             as Box<dyn ConversationSelection>
     });
     let model = app.add_model(|_| {
         BlocklistAIContextModel::new_for_test(
             terminal_model,
-            terminal_surface_id,
+            terminal_view_id,
             conversation_selection,
         )
     });
-    (model, terminal_surface_id)
+    (model, terminal_view_id)
 }
 
 #[test]
@@ -303,9 +299,9 @@ fn cli_context_tracks_selected_conversation() {
 }
 
 #[test]
-fn cli_new_conversation_is_selected_and_terminal_surface_scoped() {
+fn cli_new_conversation_is_selected_and_terminal_view_scoped() {
     App::test((), |mut app| async move {
-        let (model, terminal_surface_id) = build_cli_context_model(&mut app);
+        let (model, terminal_view_id) = build_cli_context_model(&mut app);
         let history = BlocklistAIHistoryModel::handle(&app);
 
         let conversation_id = model
@@ -320,7 +316,7 @@ fn cli_new_conversation_is_selected_and_terminal_surface_scoped() {
         history.read(&app, |history, _| {
             assert_eq!(
                 history
-                    .all_live_conversations_for_terminal_surface(terminal_surface_id)
+                    .all_live_conversations_for_terminal_view(terminal_view_id)
                     .map(|conversation| conversation.id())
                     .collect::<Vec<_>>(),
                 vec![conversation_id]

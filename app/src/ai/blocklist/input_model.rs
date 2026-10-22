@@ -1,6 +1,6 @@
 //! Model-layer AI input state management logic.
 //!
-//! The primary export of this module is `BlocklistAIInputModel`, which is a terminal-surface-scoped
+//! The primary export of this module is `BlocklistAIInputModel`, which is a terminal-view-scoped
 //! model managing input "type" state (whether the input is in AI or shell mode). This model also
 //! exposes methods for running query autodetection, where an algorithm determines if the current
 //! input contents are an AI query or shell command, which is then used to update the input mode.
@@ -174,7 +174,7 @@ impl InputConfig {
     }
 }
 
-/// Terminal-surface-scoped model responsible for managing AI input state.
+/// Terminal-view-scoped model responsible for managing AI input state.
 #[derive(Clone)]
 pub struct BlocklistAIInputModel {
     input_config: InputConfig,
@@ -205,7 +205,7 @@ pub struct BlocklistAIInputModel {
 }
 
 impl BlocklistAIInputModel {
-    /// Creates input state for a terminal surface.
+    /// Creates input state for a terminal view.
     pub fn new(
         model: Arc<FairMutex<TerminalModel>>,
         conversation_selection: ConversationSelectionHandle,

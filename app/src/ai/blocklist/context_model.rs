@@ -90,8 +90,8 @@ pub struct BlocklistAIContextModel {
 
     conversation_selection: ConversationSelectionHandle,
 
-    /// The ID of the terminal surface this model is associated with.
-    terminal_surface_id: EntityId,
+    /// The ID of the terminal view this model is associated with.
+    terminal_view_id: EntityId,
 
     /// Block IDs of user-executed commands to be auto-attached as context.
     /// When `AgentViewBlockContext` is enabled, completed user commands are tracked here
@@ -133,12 +133,12 @@ pub fn block_context_from_terminal_model(
 }
 
 impl BlocklistAIContextModel {
-    /// Creates pending context state for a terminal surface.
+    /// Creates pending context state for a terminal view.
     pub fn new(
         sessions: ModelHandle<Sessions>,
         model_event_dispatcher: &ModelHandle<ModelEventDispatcher>,
         terminal_model: Arc<FairMutex<TerminalModel>>,
-        terminal_surface_id: EntityId,
+        terminal_view_id: EntityId,
         conversation_selection: ConversationSelectionHandle,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
@@ -184,8 +184,7 @@ impl BlocklistAIContextModel {
         ctx.subscribe_to_model(&LLMPreferences::handle(ctx), |me, _, event, ctx| {
             if let LLMPreferencesEvent::UpdatedActiveAgentModeLLM = event {
                 let llm_prefs = LLMPreferences::as_ref(ctx);
-                let vision_supported =
-                    llm_prefs.vision_supported(ctx, Some(me.terminal_surface_id));
+                let vision_supported = llm_prefs.vision_supported(ctx, Some(me.terminal_view_id));
                 if !vision_supported {
                     me.clear_pending_images(ctx);
                 }
@@ -210,7 +209,7 @@ impl BlocklistAIContextModel {
             pending_context_selected_text: None,
             pending_attachments: Default::default(),
             conversation_selection,
-            terminal_surface_id,
+            terminal_view_id,
             pending_inline_diff_hunk_attachments: Default::default(),
             auto_attached_agent_view_user_block_ids: Vec::new(),
         }
@@ -220,7 +219,7 @@ impl BlocklistAIContextModel {
     #[cfg(any(test, feature = "test-util"))]
     pub(crate) fn new_for_test(
         terminal_model: Arc<FairMutex<TerminalModel>>,
-        terminal_surface_id: EntityId,
+        terminal_view_id: EntityId,
         conversation_selection: ConversationSelectionHandle,
     ) -> Self {
         Self {
@@ -231,7 +230,7 @@ impl BlocklistAIContextModel {
             pending_context_selected_text: None,
             pending_attachments: Default::default(),
             conversation_selection,
-            terminal_surface_id,
+            terminal_view_id,
             pending_inline_diff_hunk_attachments: Default::default(),
             auto_attached_agent_view_user_block_ids: Vec::new(),
         }

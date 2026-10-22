@@ -31,7 +31,7 @@ impl AgentNotificationsModel {
         ctx: &mut ModelContext<Self>,
     ) {
         let BlocklistAIHistoryEvent::UpdatedConversationStatus {
-            terminal_surface_id,
+            terminal_view_id,
             conversation_id,
             // We shouldn't trigger toasts when restoring conversations on startup.
             update: ConversationStatusUpdate::Changed { .. },
@@ -54,7 +54,7 @@ impl AgentNotificationsModel {
             return;
         }
 
-        if is_terminal_view_visible(*terminal_surface_id, ctx) {
+        if is_terminal_view_visible(*terminal_view_id, ctx) {
             return;
         }
 
@@ -67,7 +67,7 @@ impl AgentNotificationsModel {
         ctx.emit(AgentManagementEvent::ConversationNeedsAttention {
             window_id,
             tab_index,
-            terminal_view_id: *terminal_surface_id,
+            terminal_view_id: *terminal_view_id,
             conversation_id: *conversation_id,
         });
     }

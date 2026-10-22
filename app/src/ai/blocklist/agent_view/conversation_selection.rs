@@ -18,14 +18,14 @@ use crate::workspace::RestoreConversationLayout;
 
 /// GUI conversation selection backed unconditionally by Agent View.
 pub(crate) struct AgentViewConversationSelection {
-    terminal_surface_id: EntityId,
+    terminal_view_id: EntityId,
     agent_view_controller: ModelHandle<AgentViewController>,
 }
 
 impl AgentViewConversationSelection {
     /// Creates GUI conversation selection for a terminal view.
     pub(crate) fn new(
-        terminal_surface_id: warpui::EntityId,
+        terminal_view_id: warpui::EntityId,
         agent_view_controller: ModelHandle<AgentViewController>,
         ctx: &mut ModelContext<Box<dyn ConversationSelection>>,
     ) -> Self {
@@ -61,7 +61,7 @@ impl AgentViewConversationSelection {
             |selection, _, event, ctx| selection.handle_history_event(event, ctx),
         );
         Self {
-            terminal_surface_id,
+            terminal_view_id,
             agent_view_controller,
         }
     }
@@ -72,14 +72,13 @@ fn classify_gui_list_entry(
     selected_entry_id: Option<AgentConversationEntryId>,
     entry_id: AgentConversationEntryId,
     open_terminal_view_id: Option<EntityId>,
-    terminal_surface_id: EntityId,
+    terminal_view_id: EntityId,
     has_open_action: impl FnOnce() -> bool,
 ) -> AgentConversationListEntryState {
     if selected_entry_id == Some(entry_id) {
         return AgentConversationListEntryState::Selected;
     }
-    if open_terminal_view_id.is_some_and(|terminal_view_id| terminal_view_id != terminal_surface_id)
-    {
+    if open_terminal_view_id.is_some_and(|open_id| open_id != terminal_view_id) {
         return AgentConversationListEntryState::OpenElsewhere;
     }
     if has_open_action() {
@@ -88,7 +87,7 @@ fn classify_gui_list_entry(
         AgentConversationListEntryState::Unavailable
     }
 }
-/// Classifies entries relative to this GUI Agent View terminal surface.
+/// Classifies entries relative to this GUI Agent View terminal view.
 impl AgentConversationListPolicy for AgentViewConversationSelection {
     fn classify_entry(
         &self,
@@ -104,7 +103,7 @@ impl AgentConversationListPolicy for AgentViewConversationSelection {
             selected_entry_id,
             entry.id,
             open_terminal_view_id,
-            self.terminal_surface_id,
+            self.terminal_view_id,
             || entry.has_open_action(Some(RestoreConversationLayout::ActivePane), app),
         )
     }
@@ -186,11 +185,7 @@ impl ConversationSelection for AgentViewConversationSelection {
     ) {
         if let Some(conversation_id) = self.selected_conversation_id(ctx) {
             BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-                history.toggle_autoexecute_override(
-                    &conversation_id,
-                    self.terminal_surface_id,
-                    ctx,
-                );
+                history.toggle_autoexecute_override(&conversation_id, self.terminal_view_id, ctx);
             });
         }
     }
@@ -201,13 +196,13 @@ impl ConversationSelection for AgentViewConversationSelection {
         ctx: &mut ModelContext<Box<dyn ConversationSelection>>,
     ) {
         if event
-            .terminal_surface_id()
-            .is_some_and(|id| id != self.terminal_surface_id)
+            .terminal_view_id()
+            .is_some_and(|id| id != self.terminal_view_id)
         {
             return;
         }
         match event {
-            BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface { .. } => {
+            BlocklistAIHistoryEvent::ClearedConversationsForTerminalView { .. } => {
                 self.agent_view_controller
                     .update(ctx, |controller, ctx| controller.exit_agent_view(ctx));
             }

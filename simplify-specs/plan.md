@@ -1519,10 +1519,17 @@ Verification: format and all three clippy gates clean; `cargo nextest run --work
 6,288 passed, 1 failed (the clone-slash-command flake), 86 skipped. The integration UI tests
 create real local terminals through the new `create_model`.
 
-Next candidate: the AI layer still speaks of a "terminal surface" (`terminal_surface_id`, 362 uses,
-and `BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface` /
-`ConversationTransferredBetweenTerminalSurfaces`); it now always means the terminal view id, so a
-rename to `terminal_view_id` would finish the vocabulary.
+**Terminal-surface vocabulary (2026-10-22).** With one front-end a "terminal surface" is always the
+terminal view, so the AI layer now says so: `terminal_surface_id` → `terminal_view_id` (and every
+`*_for_terminal_surface` method, field and local), `ClearedConversationsForTerminalSurface` →
+`ClearedConversationsForTerminalView`, `ConversationTransferredBetweenTerminalSurfaces` →
+`ConversationTransferredBetweenTerminalViews`, plus the "terminal surface" prose in comments. 43
+files under `app/`, a pure rename: none of the names reach a serde shape or the SQLite schema. One
+closure in `classify_gui_list_entry` was renamed (`open_id`) first so it would not shadow the
+renamed parameter.
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,289 run,
+6,288 passed, 1 failed (the clone-slash-command flake), 86 skipped — unchanged from the last round.
 
 ## Risks
 

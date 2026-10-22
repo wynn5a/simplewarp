@@ -76,10 +76,10 @@ fn sort_and_dedupe_suggestions<'a>(
 }
 /// Returns de-duplicated prompt history ordered for up-arrow presentation.
 ///
-/// Prompts from other terminal surfaces precede prompts from the requested
+/// Prompts from other terminal views precede prompts from the requested
 /// surface, and repeated text keeps its newest occurrence.
-fn prompt_history_for_terminal_surface(
-    terminal_surface_id: EntityId,
+fn prompt_history_for_terminal_view(
+    terminal_view_id: EntityId,
     app: &AppContext,
 ) -> Vec<AIQueryHistory> {
     let ignored_prompts = if app.has_singleton_model::<IgnoredSuggestionsModel>() {
@@ -91,7 +91,7 @@ fn prompt_history_for_terminal_surface(
     };
     let suggestions = BlocklistAIHistoryModel::handle(app)
         .as_ref(app)
-        .all_ai_queries(Some(terminal_surface_id))
+        .all_ai_queries(Some(terminal_view_id))
         .filter(|entry| !ignored_prompts.contains(&entry.query_text))
         .filter(|entry| !entry.query_text.trim().is_empty())
         .map(|entry| HistoryInputSuggestion::AIQuery { entry })
@@ -108,9 +108,9 @@ fn prompt_history_for_terminal_surface(
 }
 
 impl History {
-    pub(crate) fn up_arrow_suggestions_for_terminal_surface<'a>(
+    pub(crate) fn up_arrow_suggestions_for_terminal_view<'a>(
         &'a self,
-        terminal_surface_id: EntityId,
+        terminal_view_id: EntityId,
         session_id: Option<SessionId>,
         config: UpArrowHistoryConfig,
         app: &'a AppContext,
@@ -158,7 +158,7 @@ impl History {
             );
         }
 
-        let ai_queries = prompt_history_for_terminal_surface(terminal_surface_id, app)
+        let ai_queries = prompt_history_for_terminal_view(terminal_view_id, app)
             .into_iter()
             .map(|entry| HistoryInputSuggestion::AIQuery { entry });
 

@@ -5,7 +5,7 @@ use settings::Setting;
 use warp_core::SessionId;
 use warpui::{App, AppContext, EntityId, SingletonEntity};
 
-use super::{UpArrowHistoryConfig, prompt_history_for_terminal_surface};
+use super::{UpArrowHistoryConfig, prompt_history_for_terminal_view};
 use crate::ai::agent::AIAgentExchangeId;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::history_model::AIQueryHistoryOutputStatus;
@@ -83,15 +83,15 @@ fn command_entry(
 }
 
 fn combined_history(
-    terminal_surface_id: EntityId,
+    terminal_view_id: EntityId,
     session_id: SessionId,
     include_prompts: bool,
     app: &AppContext,
 ) -> Vec<TestHistoryItem> {
     History::handle(app)
         .as_ref(app)
-        .up_arrow_suggestions_for_terminal_surface(
-            terminal_surface_id,
+        .up_arrow_suggestions_for_terminal_view(
+            terminal_view_id,
             Some(session_id),
             UpArrowHistoryConfig {
                 include_commands: true,
@@ -147,10 +147,10 @@ fn assert_prompt_history(prompts: &[&str], expected: &[&str]) {
     let prompts: Vec<String> = prompts.iter().map(|prompt| (*prompt).to_owned()).collect();
     let expected: Vec<String> = expected.iter().map(|entry| (*entry).to_owned()).collect();
     App::test((), |app| async move {
-        let terminal_surface_id = EntityId::new();
+        let terminal_view_id = EntityId::new();
         app.add_singleton_model(move |_| build_history_model(prompts));
         app.read(|ctx| {
-            let texts: Vec<String> = prompt_history_for_terminal_surface(terminal_surface_id, ctx)
+            let texts: Vec<String> = prompt_history_for_terminal_view(terminal_view_id, ctx)
                 .into_iter()
                 .map(|entry| entry.query_text)
                 .collect();
@@ -180,7 +180,7 @@ fn prompt_history_excludes_ignored_prompts() {
         .map(|prompt| (*prompt).to_owned())
         .collect();
     App::test((), |app| async move {
-        let terminal_surface_id = EntityId::new();
+        let terminal_view_id = EntityId::new();
         app.add_singleton_model(move |_| build_history_model(prompts));
         app.add_singleton_model(|_| {
             IgnoredSuggestionsModel::new(vec![(
@@ -189,7 +189,7 @@ fn prompt_history_excludes_ignored_prompts() {
             )])
         });
         app.read(|ctx| {
-            let texts: Vec<String> = prompt_history_for_terminal_surface(terminal_surface_id, ctx)
+            let texts: Vec<String> = prompt_history_for_terminal_view(terminal_view_id, ctx)
                 .into_iter()
                 .map(|entry| entry.query_text)
                 .collect();
@@ -204,7 +204,7 @@ fn prompt_history_excludes_ignored_prompts() {
 #[test]
 fn combined_history_dedupes_each_kind() {
     App::test((), |mut app| async move {
-        let terminal_surface_id = EntityId::new();
+        let terminal_view_id = EntityId::new();
         let session_id = SessionId::from(1);
         app.add_singleton_model(|_| {
             build_history_model(vec![
@@ -228,7 +228,7 @@ fn combined_history_dedupes_each_kind() {
 
         app.read(|ctx| {
             assert_eq!(
-                combined_history(terminal_surface_id, session_id, true, ctx),
+                combined_history(terminal_view_id, session_id, true, ctx),
                 vec![
                     TestHistoryItem::Prompt("older prompt".to_owned()),
                     TestHistoryItem::Prompt("same".to_owned()),
@@ -249,7 +249,7 @@ fn combined_history_dedupes_each_kind() {
 #[test]
 fn combined_history_preserves_command_workflow_data() {
     App::test((), |mut app| async move {
-        let terminal_surface_id = EntityId::new();
+        let terminal_view_id = EntityId::new();
         let session_id = SessionId::from(1);
         app.add_singleton_model(|_| build_history_model(vec!["prompt".to_owned()]));
         add_command_history(
@@ -267,7 +267,7 @@ fn combined_history_preserves_command_workflow_data() {
 
         app.read(|ctx| {
             assert_eq!(
-                combined_history(terminal_surface_id, session_id, true, ctx),
+                combined_history(terminal_view_id, session_id, true, ctx),
                 vec![
                     TestHistoryItem::Prompt("prompt".to_owned()),
                     TestHistoryItem::Command {
@@ -285,7 +285,7 @@ fn combined_history_preserves_command_workflow_data() {
 #[test]
 fn combined_history_excludes_ignored_prompts_and_commands() {
     App::test((), |mut app| async move {
-        let terminal_surface_id = EntityId::new();
+        let terminal_view_id = EntityId::new();
         let session_id = SessionId::from(1);
         app.add_singleton_model(|_| {
             build_history_model(vec!["keep prompt".to_owned(), "ignore prompt".to_owned()])
@@ -307,7 +307,7 @@ fn combined_history_excludes_ignored_prompts_and_commands() {
         });
 
         app.read(|ctx| {
-            let history = combined_history(terminal_surface_id, session_id, true, ctx);
+            let history = combined_history(terminal_view_id, session_id, true, ctx);
             assert_eq!(
                 history
                     .iter()
@@ -323,7 +323,7 @@ fn combined_history_excludes_ignored_prompts_and_commands() {
 fn combined_history_respects_agent_command_setting() {
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
-        let terminal_surface_id = EntityId::new();
+        let terminal_view_id = EntityId::new();
         let session_id = SessionId::from(1);
         app.add_singleton_model(|_| build_history_model(Vec::new()));
         add_command_history(
@@ -338,7 +338,7 @@ fn combined_history_respects_agent_command_setting() {
 
         app.read(|ctx| {
             assert_eq!(
-                combined_history(terminal_surface_id, session_id, false, ctx)
+                combined_history(terminal_view_id, session_id, false, ctx)
                     .into_iter()
                     .map(|item| item.text().to_owned())
                     .collect::<Vec<_>>(),
@@ -354,7 +354,7 @@ fn combined_history_respects_agent_command_setting() {
         });
         app.read(|ctx| {
             assert_eq!(
-                combined_history(terminal_surface_id, session_id, false, ctx)
+                combined_history(terminal_view_id, session_id, false, ctx)
                     .into_iter()
                     .map(|item| item.text().to_owned())
                     .collect::<Vec<_>>(),
