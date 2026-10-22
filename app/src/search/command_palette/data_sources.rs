@@ -24,7 +24,7 @@ pub struct DataSourceStore {
     actions_data_source: ModelHandle<CommandBindingDataSource>,
     sessions_data_source: ModelHandle<navigation::DataSource>,
     launch_config_data_source: ModelHandle<launch_config::DataSource>,
-    new_session_data_source: Option<ModelHandle<NewSessionDataSource>>,
+    new_session_data_source: ModelHandle<NewSessionDataSource>,
     all_conversation_data_source: ModelHandle<conversations::DataSource>,
     repo_data_source: ModelHandle<RepoDataSource>,
     tabs_data_source: Option<ModelHandle<tabs::DataSource>>,
@@ -44,9 +44,8 @@ impl DataSourceStore {
 
         let launch_config_data_source = ctx.add_model(launch_config::DataSource::new);
 
-        let new_session_data_source = FeatureFlag::ShellSelector
-            .is_enabled()
-            .then_some(ctx.add_model(|ctx| NewSessionDataSource::new(binding_source, ctx)));
+        let new_session_data_source =
+            ctx.add_model(|ctx| NewSessionDataSource::new(binding_source, ctx));
 
         let all_conversation_data_source: ModelHandle<conversations::DataSource> =
             ctx.add_model(|_| conversations::DataSource::new());
@@ -88,12 +87,10 @@ impl DataSourceStore {
                 HashSet::from([QueryFilter::Actions]),
             );
 
-            if let Some(new_session_data_source) = &self.new_session_data_source {
-                mixer.add_sync_source(
-                    new_session_data_source.clone(),
-                    HashSet::from([QueryFilter::Actions]),
-                );
-            }
+            mixer.add_sync_source(
+                self.new_session_data_source.clone(),
+                HashSet::from([QueryFilter::Actions]),
+            );
 
             if FeatureFlag::CommandPaletteFileSearch.is_enabled() {
                 let file_search_model = FileSearchModel::as_ref(ctx);
@@ -198,10 +195,9 @@ impl DataSourceStore {
                 // zero state yet.
                 None
             }
-            ItemSummary::NewSession { id } => self
-                .new_session_data_source
-                .as_ref()
-                .and_then(|source| source.as_ref(app).query_result(id)),
+            ItemSummary::NewSession { id } => {
+                self.new_session_data_source.as_ref(app).query_result(id)
+            }
             ItemSummary::File {
                 path,
                 project_directory,

@@ -1,5 +1,4 @@
 use instant::Instant;
-use warp_core::features::FeatureFlag;
 
 use super::telemetry::{LifecycleRecoveryRecord, LifecycleTelemetryLimiter};
 use super::transition::{
@@ -422,45 +421,7 @@ fn lifecycle_coordinator_records_only_conservative_or_recovery_transitions() {
 }
 
 #[test]
-fn lifecycle_coordinator_gates_novel_completion_recovery() {
-    let _recovery_disabled = FeatureFlag::TerminalLifecycleRecovery.override_enabled(false);
-    let snapshot = LifecycleSnapshot {
-        active_block_id: "active".to_owned(),
-        active_session_id: Some(1),
-        supplied_next_block_id: Some("next".to_owned()),
-        hook_session_id: Some(1),
-        block_state: BlockState::BeforeExecution,
-        started: false,
-        finished: false,
-        received_precmd: true,
-        is_in_band: false,
-        is_bootstrapped: true,
-        is_bootstrap_done: true,
-        is_alt_screen_active: false,
-        completion_mismatch: false,
-    };
-    let mut coordinator = super::BlockLifecycleCoordinator {
-        phase: LifecyclePhase::AtPrompt,
-        ..Default::default()
-    };
-
-    for input in [
-        LifecycleInput::CommandFinished(NextBlockIdDisposition::Novel),
-        LifecycleInput::PrecmdWithCompletionMetadata(NextBlockIdDisposition::Novel),
-    ] {
-        let transition = coordinator.plan(&snapshot, input);
-        assert_eq!(
-            transition.action,
-            LifecycleAction::Ignore(IgnoreReason::RecoveryDisabled)
-        );
-        assert_eq!(transition.next_phase, LifecyclePhase::AtPrompt);
-        assert!(transition.recovery_record.is_some());
-    }
-}
-
-#[test]
 fn lifecycle_coordinator_accepts_novel_completion_recovery_when_enabled() {
-    let _recovery_enabled = FeatureFlag::TerminalLifecycleRecovery.override_enabled(true);
     let snapshot = LifecycleSnapshot {
         active_block_id: "active".to_owned(),
         active_session_id: Some(1),

@@ -10,7 +10,6 @@ use std::ops::{Range, RangeInclusive};
 use lazy_static::lazy_static;
 use num_traits::Float as _;
 use unicode_width::UnicodeWidthChar;
-use warp_core::features::FeatureFlag;
 use warp_errors::{ReportErrorLogMode, report_error};
 use warpui::assets::asset_cache::{AssetCache, AssetSource, AssetState};
 use warpui::color::ColorU;
@@ -548,14 +547,42 @@ fn render_grid_without_ligatures<'a>(
         .flat_map(|marked_text| marked_text.chars());
     let mut next_marked_text_cell_is_wide_char_spacer = false;
 
-    if FeatureFlag::ITermImages.is_enabled() {
-        let image_ids = grid.get_image_ids_in_range(start_row, end_row);
+    let image_ids = grid.get_image_ids_in_range(start_row, end_row);
 
-        let (background_image_ids, foreground_image_ids): (Vec<_>, Vec<_>) = image_ids
-            .into_iter()
-            .partition(|image_placement| image_placement.z_index < 0);
+    let (background_image_ids, foreground_image_ids): (Vec<_>, Vec<_>) = image_ids
+        .into_iter()
+        .partition(|image_placement| image_placement.z_index < 0);
 
-        for image_placement in background_image_ids {
+    for image_placement in background_image_ids {
+        if let Some((image_metadata, image_placement_data)) =
+            image_metadata.get(&image_placement.image_id).zip(
+                grid.get_image_placement_data(
+                    image_placement.image_id,
+                    image_placement.placement_id,
+                ),
+            )
+        {
+            let glyph_offset = cell_size
+                * vec2f(
+                    image_placement.top_left.col as f32,
+                    image_placement.top_left.row as f32,
+                );
+
+            render_image(
+                image_placement.image_id,
+                image_metadata,
+                image_placement_data,
+                grid_origin,
+                glyph_offset,
+                ctx,
+                app,
+            );
+        }
+    }
+
+    if !foreground_image_ids.is_empty() {
+        ctx.scene.start_layer(warpui::ClipBounds::ActiveLayer);
+        for image_placement in foreground_image_ids {
             if let Some((image_metadata, image_placement_data)) = image_metadata
                 .get(&image_placement.image_id)
                 .zip(grid.get_image_placement_data(
@@ -580,36 +607,7 @@ fn render_grid_without_ligatures<'a>(
                 );
             }
         }
-
-        if !foreground_image_ids.is_empty() {
-            ctx.scene.start_layer(warpui::ClipBounds::ActiveLayer);
-            for image_placement in foreground_image_ids {
-                if let Some((image_metadata, image_placement_data)) = image_metadata
-                    .get(&image_placement.image_id)
-                    .zip(grid.get_image_placement_data(
-                        image_placement.image_id,
-                        image_placement.placement_id,
-                    ))
-                {
-                    let glyph_offset = cell_size
-                        * vec2f(
-                            image_placement.top_left.col as f32,
-                            image_placement.top_left.row as f32,
-                        );
-
-                    render_image(
-                        image_placement.image_id,
-                        image_metadata,
-                        image_placement_data,
-                        grid_origin,
-                        glyph_offset,
-                        ctx,
-                        app,
-                    );
-                }
-            }
-            ctx.scene.stop_layer();
-        }
+        ctx.scene.stop_layer();
     }
 
     for (offset, row_idx) in visible_rows.enumerate() {
@@ -1041,14 +1039,42 @@ fn render_grid_with_ligatures<'a>(
         .flat_map(|marked_text| marked_text.chars())
         .peekable();
     let mut next_marked_text_cell_is_wide_char_spacer = false;
-    if FeatureFlag::ITermImages.is_enabled() {
-        let image_ids = grid.get_image_ids_in_range(start_row, end_row);
+    let image_ids = grid.get_image_ids_in_range(start_row, end_row);
 
-        let (background_image_ids, foreground_image_ids): (Vec<_>, Vec<_>) = image_ids
-            .into_iter()
-            .partition(|image_placement| image_placement.z_index < 0);
+    let (background_image_ids, foreground_image_ids): (Vec<_>, Vec<_>) = image_ids
+        .into_iter()
+        .partition(|image_placement| image_placement.z_index < 0);
 
-        for image_placement in background_image_ids {
+    for image_placement in background_image_ids {
+        if let Some((image_metadata, image_placement_data)) =
+            image_metadata.get(&image_placement.image_id).zip(
+                grid.get_image_placement_data(
+                    image_placement.image_id,
+                    image_placement.placement_id,
+                ),
+            )
+        {
+            let glyph_offset = cell_size
+                * vec2f(
+                    image_placement.top_left.col as f32,
+                    image_placement.top_left.row as f32,
+                );
+
+            render_image(
+                image_placement.image_id,
+                image_metadata,
+                image_placement_data,
+                grid_origin,
+                glyph_offset,
+                ctx,
+                app,
+            );
+        }
+    }
+
+    if !foreground_image_ids.is_empty() {
+        ctx.scene.start_layer(warpui::ClipBounds::ActiveLayer);
+        for image_placement in foreground_image_ids {
             if let Some((image_metadata, image_placement_data)) = image_metadata
                 .get(&image_placement.image_id)
                 .zip(grid.get_image_placement_data(
@@ -1073,36 +1099,7 @@ fn render_grid_with_ligatures<'a>(
                 );
             }
         }
-
-        if !foreground_image_ids.is_empty() {
-            ctx.scene.start_layer(warpui::ClipBounds::ActiveLayer);
-            for image_placement in foreground_image_ids {
-                if let Some((image_metadata, image_placement_data)) = image_metadata
-                    .get(&image_placement.image_id)
-                    .zip(grid.get_image_placement_data(
-                        image_placement.image_id,
-                        image_placement.placement_id,
-                    ))
-                {
-                    let glyph_offset = cell_size
-                        * vec2f(
-                            image_placement.top_left.col as f32,
-                            image_placement.top_left.row as f32,
-                        );
-
-                    render_image(
-                        image_placement.image_id,
-                        image_metadata,
-                        image_placement_data,
-                        grid_origin,
-                        glyph_offset,
-                        ctx,
-                        app,
-                    );
-                }
-            }
-            ctx.scene.stop_layer();
-        }
+        ctx.scene.stop_layer();
     }
 
     for (offset, row_idx) in visible_rows.enumerate() {
@@ -1876,9 +1873,7 @@ fn native_glyph_for_cell(cell: &Cell) -> Option<NativeGlyphType> {
     let glyph_type = match cell.c {
         // Supported solid box-drawing lines render as cell-filling rects so
         // adjacent cells tile seamlessly. Other box-drawing glyphs use the font.
-        c @ '\u{2500}'..='\u{257F}'
-            if FeatureFlag::BoxDrawingGlyphs.is_enabled() && box_drawing::is_supported(c) =>
-        {
+        c @ '\u{2500}'..='\u{257F}' if box_drawing::is_supported(c) => {
             NativeGlyphType::BoxDrawing(c)
         }
 

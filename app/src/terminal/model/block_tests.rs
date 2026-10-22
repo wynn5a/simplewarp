@@ -5,7 +5,6 @@ use std::time::Duration;
 use chrono::TimeZone;
 use float_cmp::assert_approx_eq;
 use futures_lite::stream::StreamExt;
-use warp_core::features::FeatureFlag;
 
 use super::*;
 use crate::terminal::model::ansi::{Attr, Handler};
@@ -355,7 +354,6 @@ pub fn test_precmd_no_preexec() {
 
 #[test]
 pub fn test_image_completion_before_execution_routes_to_output_grid() {
-    let _iterm_images = FeatureFlag::ITermImages.override_enabled(true);
     let mut block = TestBlockBuilder::new()
         .with_bootstrap_stage(BootstrapStage::ScriptExecution)
         .build();
@@ -384,7 +382,6 @@ pub fn test_image_completion_before_execution_routes_to_output_grid() {
 
 #[test]
 pub fn test_image_completion_drops_in_warp_input_stage() {
-    let _iterm_images = FeatureFlag::ITermImages.override_enabled(true);
     let mut block = TestBlockBuilder::new()
         .with_bootstrap_stage(BootstrapStage::WarpInput)
         .build();

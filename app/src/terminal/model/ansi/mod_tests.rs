@@ -7,7 +7,6 @@ use warp_core::command::ExitCode;
 use warpui::color::ColorU;
 
 use super::*;
-use crate::features::FeatureFlag;
 use crate::terminal::model::ansi::InputBufferValue;
 use crate::terminal::model::index::VisibleRow;
 use crate::terminal::model::selection::ScrollDelta;
@@ -1036,7 +1035,6 @@ fn parse_sourced_rc_file_hook_with_uname() {
 
 #[test]
 fn parse_osc8_hyperlink_open() {
-    let _guard = FeatureFlag::OscHyperlinks.override_enabled(true);
     // ESC ] 8 ; ; https://example.com ESC \
     let bytes: &[u8] = b"\x1b]8;;https://example.com\x1b\\";
     let (_, handler) = parse_bytes(bytes);
@@ -1049,7 +1047,6 @@ fn parse_osc8_hyperlink_open() {
 
 #[test]
 fn parse_osc8_hyperlink_open_with_id() {
-    let _guard = FeatureFlag::OscHyperlinks.override_enabled(true);
     let bytes: &[u8] = b"\x1b]8;id=link-1;https://example.com\x07";
     let (_, handler) = parse_bytes(bytes);
 
@@ -1061,7 +1058,6 @@ fn parse_osc8_hyperlink_open_with_id() {
 
 #[test]
 fn parse_osc8_hyperlink_close_canonical() {
-    let _guard = FeatureFlag::OscHyperlinks.override_enabled(true);
     // Canonical close: ESC ] 8 ; ; ESC \
     let bytes: &[u8] = b"\x1b]8;;\x1b\\";
     let (_, handler) = parse_bytes(bytes);
@@ -1072,7 +1068,6 @@ fn parse_osc8_hyperlink_close_canonical() {
 
 #[test]
 fn parse_osc8_open_then_close_bell_terminator() {
-    let _guard = FeatureFlag::OscHyperlinks.override_enabled(true);
     // Open with bell terminator, write some bytes (irrelevant to the dispatch
     // mock), then close. Both terminator forms must dispatch.
     let bytes: &[u8] = b"\x1b]8;;https://example.com/report\x07Click me\x1b]8;;\x07";
@@ -1086,7 +1081,6 @@ fn parse_osc8_open_then_close_bell_terminator() {
 
 #[test]
 fn parse_osc8_uri_with_semicolons_dispatches_full_uri() {
-    let _guard = FeatureFlag::OscHyperlinks.override_enabled(true);
     // Anti-regression for the rejoin contract — the dispatcher must hand the
     // full URI (including embedded `;`) to set_hyperlink.
     let bytes: &[u8] = b"\x1b]8;;https://example.com/a?x=1;y=2\x1b\\";
@@ -1099,7 +1093,6 @@ fn parse_osc8_uri_with_semicolons_dispatches_full_uri() {
 
 #[test]
 fn parse_osc8_malformed_param_is_ignored_link_still_opens() {
-    let _guard = FeatureFlag::OscHyperlinks.override_enabled(true);
     // A param without `=` is ignored (per the OSC 8 spec); the link still opens.
     let bytes: &[u8] = b"\x1b]8;notavalidparam;https://example.com\x07";
     let (_, handler) = parse_bytes(bytes);
@@ -1111,18 +1104,7 @@ fn parse_osc8_malformed_param_is_ignored_link_still_opens() {
 }
 
 #[test]
-fn parse_osc8_dropped_when_feature_flag_disabled() {
-    let _guard = FeatureFlag::OscHyperlinks.override_enabled(false);
-    let bytes: &[u8] = b"\x1b]8;;https://example.com\x1b\\";
-    let (_, handler) = parse_bytes(bytes);
-
-    // Flag off -> dispatch falls through to `unhandled`, no event fires.
-    assert_eq!(handler.hyperlink_events.len(), 0);
-}
-
-#[test]
 fn parse_osc8_malformed_sequence_clears_active_hyperlink() {
-    let _guard = FeatureFlag::OscHyperlinks.override_enabled(true);
     // Open a valid link, then send a malformed (non-UTF-8 URI) sequence. The
     // parse error must clear the active hyperlink so subsequent output can't
     // inherit the stale URI.
@@ -1477,7 +1459,6 @@ fn only_set_report(handler: &MockHandler) -> (ProgramState, ReportSource) {
 
 #[test]
 fn parse_osc7501_with_either_terminator() {
-    let _guard = FeatureFlag::ProgramStatusProtocol.override_enabled(true);
     for terminator in [b"\x1b\\" as &[u8], b"\x07"] {
         let bytes = [b"\x1b]7501;state=working:app=cargo:progress=40", terminator].concat();
         let (handler, written) = parse_bytes_capturing_writes(&bytes);
@@ -1491,7 +1472,6 @@ fn parse_osc7501_with_either_terminator() {
 
 #[test]
 fn parse_osc7501_query_replies_and_reports_nothing() {
-    let _guard = FeatureFlag::ProgramStatusProtocol.override_enabled(true);
     let (handler, written) = parse_bytes_capturing_writes(b"\x1b]7501;?\x1b\\");
     assert_eq!(written, b"\x1b]7501;?\x1b\\");
     assert!(handler.program_status_reports.is_empty());
@@ -1502,7 +1482,6 @@ fn parse_osc7501_query_replies_and_reports_nothing() {
 
 #[test]
 fn parse_osc7501_malformed_bodies_report_nothing() {
-    let _guard = FeatureFlag::ProgramStatusProtocol.override_enabled(true);
     for body in [
         &b"\x1b]7501\x07"[..],
         b"\x1b]7501;\x07",
@@ -1517,17 +1496,7 @@ fn parse_osc7501_malformed_bodies_report_nothing() {
 }
 
 #[test]
-fn parse_osc7501_flag_off_is_ignored() {
-    let _guard = FeatureFlag::ProgramStatusProtocol.override_enabled(false);
-    let (handler, written) =
-        parse_bytes_capturing_writes(b"\x1b]7501;state=working\x07\x1b]7501;?\x07");
-    assert!(handler.program_status_reports.is_empty());
-    assert!(written.is_empty());
-}
-
-#[test]
 fn parse_osc9_4_bridges_progress() {
-    let _guard = FeatureFlag::ProgramStatusProtocol.override_enabled(true);
     let (_, handler) = parse_bytes(b"\x1b]9;4;1;40\x07");
     assert_eq!(
         only_set_report(&handler),
@@ -1537,15 +1506,7 @@ fn parse_osc9_4_bridges_progress() {
 }
 
 #[test]
-fn parse_osc9_4_flag_off_is_ignored() {
-    let _guard = FeatureFlag::ProgramStatusProtocol.override_enabled(false);
-    let (_, handler) = parse_bytes(b"\x1b]9;4;1;40\x07");
-    assert!(handler.program_status_reports.is_empty());
-}
-
-#[test]
 fn parse_osc9_9_is_not_bridged() {
-    let _guard = FeatureFlag::ProgramStatusProtocol.override_enabled(true);
     let (_, handler) = parse_bytes(b"\x1b]9;9;/tmp\x07");
     assert!(handler.program_status_reports.is_empty());
     assert!(handler.pluggable_notifications.is_empty());

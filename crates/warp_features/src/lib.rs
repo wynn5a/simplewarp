@@ -14,15 +14,6 @@ pub enum FeatureFlag {
     /// Gates a bindable keyboard action for accepting command corrections.
     CommandCorrectionKey,
 
-    /// If `true`, the "Show Initialization Block" menu item is added to the Blocks menu in the Mac
-    /// menu bar.
-    ToggleBootstrapBlock,
-
-    /// A runtime flag to enable the creation of shared sessions.
-    ///
-    /// Ligature Support in the Editor and Grid
-    Ligatures,
-
     /// When enabled, the `History` rule from the command_corrections crate
     /// will be enabled. When the `History` rule is enabled, the command_corrections
     /// lib will use the user's history as a last-ditch effort to find a reasonable correction.
@@ -41,20 +32,11 @@ pub enum FeatureFlag {
     /// menu is open (except when using completions-as-you-type).
     RemoveAutosuggestionDuringTabCompletions,
 
-    /// Feature flag for cursor reflow fix (fixes part of the Alacritty resizing logic).
-    ResizeFix,
-
     /// Enable multiselect in Notebooks and Warp Text.
     RichTextMultiselect,
 
-    /// Makes the input editor's prompt selectable.
-    SelectablePrompt,
-
     /// Enables the settings file feature.
     SettingsFile,
-
-    /// Enables rect selection.
-    RectSelection,
 
     /// Adds Alacritty as a supported terminal to import settings from.
     AlacrittySettingsImport,
@@ -67,10 +49,6 @@ pub enum FeatureFlag {
 
     /// Enables AI rules for use with Agent Mode.
     AIRules,
-
-    /// Enables the shell selector, allowing us to open a new tab in
-    /// a shell other than the default shell.
-    ShellSelector,
 
     /// Enables the full-screen "zen mode" setting, where we hide the tab bar if there's only one
     /// tab.
@@ -89,27 +67,13 @@ pub enum FeatureFlag {
     /// Adds aliases for executing Warp Drive workflows.
     WorkflowAliases,
 
-    SshDragAndDrop,
     DragTabsToWindows,
 
     /// Enables cycling through the next command suggestions with down arrow.
     CycleNextCommandSuggestion,
 
-    /// Recognizes the OSC 8 hyperlink escape sequence and makes the
-    /// linked text Cmd+click-able.
-    OscHyperlinks,
-
-    /// Recognizes the OSC 7501 program status escape sequence (and bridges
-    /// OSC 9;4 progress) and shows it on the tab pill and pane header.
-    ProgramStatusProtocol,
-
-    ImeMarkedText,
-
     /// Enables partial next command suggestions with a prefix.
     PartialNextCommandSuggestions,
-
-    /// Enables iTerm image rendering
-    ITermImages,
 
     /// Enables validation of autosuggestions.
     ValidateAutosuggestions,
@@ -378,9 +342,6 @@ pub enum FeatureFlag {
     /// Extends queued prompts to shell commands, summarization, and follow-up draining.
     QueuedPromptsV2,
 
-    /// Enables Kitty keyboard protocol support (CSI u encoding, progressive enhancement).
-    KittyKeyboardProtocol,
-
     /// Detects the word "figma" in the terminal input in real-time and shows a
     /// contextual button above the input.
     FigmaDetection,
@@ -405,15 +366,8 @@ pub enum FeatureFlag {
     /// Enables tab configs — user-definable TOML templates for launching custom tab layouts.
     TabConfigs,
 
-    /// Replaces the in-block warpification banner with a warpify footer.
-    WarpifyFooter,
-
     /// Enables commit, push, and create-PR actions in the code review panel.
     GitOperationsInCodeReview,
-
-    /// Trims trailing blank rows from CLI agent block output so unused vertical
-    /// space is not rendered while the agent is running.
-    TrimTrailingBlankLines,
 
     /// Enables summary mode in vertical tabs, showing condensed tab summaries
     /// instead of individual pane rows.
@@ -433,18 +387,10 @@ pub enum FeatureFlag {
     /// misclassification bug reports (see PR #12586).
     NldPromptHistoryMatch,
 
-    /// Enables state-mutating recovery for abnormal terminal lifecycle sequences.
-    TerminalLifecycleRecovery,
-
     /// Renders MCP tool-call request and response JSON as an interactive
     /// collapsible tree with typed colors and per-row Copy JSON, instead of
     /// a flat pretty-printed blob.
     McpJsonTreeView,
-
-    /// Renders supported solid box-drawing characters (`U+2500..=U+257F`)
-    /// procedurally as cell-filling rectangles instead of from the font,
-    /// eliminating seams between adjacent box-drawing cells in the terminal.
-    BoxDrawingGlyphs,
 }
 
 static FLAG_STATES: [AtomicBool; cardinality::<FeatureFlag>()] =

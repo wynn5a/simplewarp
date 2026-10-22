@@ -967,9 +967,7 @@ impl View for AIBlock {
             ctx.dispatch_typed_action(AIBlockAction::SelectText);
         });
 
-        if FeatureFlag::RectSelection.is_enabled() {
-            selectable = selectable.should_support_rect_select();
-        }
+        selectable = selectable.should_support_rect_select();
 
         // TODO(Simon): Bottom padding should be 24px on the final block when the input isn't visible.
         // It isn't sufficient to do an `is_streaming()` check because inline actions waiting for user

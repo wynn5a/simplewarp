@@ -536,10 +536,7 @@ fn make_new_blocks_menu(ctx: &AppContext) -> Menu {
 
 /// Returns [`MenuItem`]s that aid debugging to be included in the Block menu.
 fn block_menu_debug_items() -> Vec<MenuItem> {
-    let mut items = vec![];
-    if FeatureFlag::ToggleBootstrapBlock.is_enabled() {
-        items.push(toggle_bootstrap_block_menu_item());
-    }
+    let mut items = vec![toggle_bootstrap_block_menu_item()];
 
     items.push(MenuItem::Custom(CustomMenuItem::new(
         SHOW_IN_BAND_COMMAND_BLOCKS_MENU_ITEM_NAME,
@@ -751,10 +748,6 @@ fn debug_menu_items() -> Vec<MenuItem> {
             },
             None,
         )));
-
-        if !FeatureFlag::ToggleBootstrapBlock.is_enabled() {
-            debug_menu_items.push(toggle_bootstrap_block_menu_item());
-        }
 
         debug_menu_items.push(MenuItem::Custom(CustomMenuItem::new(
             "Manually Toggle Network Status",

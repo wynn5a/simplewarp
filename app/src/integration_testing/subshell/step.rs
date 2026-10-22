@@ -7,7 +7,6 @@ use crate::integration_testing::step::assert_no_pending_model_events;
 use crate::integration_testing::terminal::wait_until_bootstrapped_pane;
 use crate::integration_testing::view_getters::{single_terminal_view, terminal_view};
 use crate::terminal::model::rich_content::RichContentType;
-use crate::terminal::view::WithinBlockBanner;
 
 pub fn enter_local_subshell_command(shell: &str) -> TestStep {
     TestStep::new(&format!("Enter local subshell command for {shell}"))
@@ -16,19 +15,12 @@ pub fn enter_local_subshell_command(shell: &str) -> TestStep {
         .set_post_step_pause(Duration::from_millis(50))
 }
 
-pub fn assert_subshell_banner_is_showing() -> TestStep {
-    TestStep::new("Assert the Warpify banner is visible")
+pub fn assert_warpify_footer_is_showing() -> TestStep {
+    TestStep::new("Assert the Warpify footer is visible")
         .add_assertion(move |app, window_id| {
             let terminal_view = single_terminal_view(app, window_id);
-            terminal_view.read(app, |view, _ctx| {
-                async_assert!(matches!(
-                    view.model
-                        .lock()
-                        .block_list_mut()
-                        .active_block()
-                        .block_banner(),
-                    Some(WithinBlockBanner::WarpifyBanner(..))
-                ))
+            terminal_view.read(app, |view, ctx| {
+                async_assert!(view.is_warpify_footer_active(ctx))
             })
         })
         // Wait for outstanding model events to finish before moving to the next step

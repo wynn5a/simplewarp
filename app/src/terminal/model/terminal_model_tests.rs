@@ -4,7 +4,6 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use chrono::{DateTime, Local};
 use vec1::vec1;
 use warp_core::command::ExitCode;
-use warp_core::features::FeatureFlag;
 use warp_terminal::model::ansi::ClearMode;
 use warpui::text::{SelectionType, str_to_byte_vec};
 
@@ -243,7 +242,6 @@ fn handles_inline_iterm_image_payload() {
 // the parent shell resumes after the nested shell exits.
 #[test]
 fn ssh_bootstraps_if_blocklist_empty_and_reconciles_parent_return() {
-    let _recovery_enabled = FeatureFlag::TerminalLifecycleRecovery.override_enabled(true);
     let mut terminal = TerminalModel::mock(None, None);
     command_finished_and_precmd(&mut terminal);
     command_finished_and_precmd(&mut terminal);
@@ -1157,7 +1155,6 @@ fn precmd_with_completion_metadata_records_completion_mismatch_without_overwriti
 
 #[test]
 fn precmd_with_completion_metadata_recovers_missing_completion_with_exact_side_effects() {
-    let _recovery_enabled = FeatureFlag::TerminalLifecycleRecovery.override_enabled(true);
     let (event_tx, event_rx) = async_channel::unbounded();
     let event_proxy = ChannelEventListener::builder_for_test()
         .with_terminal_events_tx(event_tx)
@@ -1249,7 +1246,6 @@ fn precmd_with_completion_metadata_recovers_missing_completion_with_exact_side_e
 
 #[test]
 fn precmd_with_completion_metadata_recovery_cleans_up_alt_screen_and_bracketed_paste() {
-    let _recovery_enabled = FeatureFlag::TerminalLifecycleRecovery.override_enabled(true);
     let mut terminal = TerminalModel::mock(None, None);
     terminal.start_command_execution();
     terminal.preexec(PreexecValue {
@@ -1282,31 +1278,7 @@ fn precmd_with_completion_metadata_recovery_cleans_up_alt_screen_and_bracketed_p
 }
 
 #[test]
-fn precmd_with_completion_metadata_completion_recovery_is_disabled_by_default() {
-    let _recovery_disabled = FeatureFlag::TerminalLifecycleRecovery.override_enabled(false);
-    let mut terminal = TerminalModel::mock(None, None);
-    let active_block_id = terminal.active_block_id().clone();
-    let block_count = terminal.block_list().blocks().len();
-
-    terminal.precmd_with_completion_metadata(PrecmdValue {
-        completion_metadata: CompletionMetadata {
-            exit_code: ExitCode::from(17),
-            next_block_id: BlockId::new(),
-        },
-        prompt_metadata: PromptMetadata {
-            pwd: Some("/ignored-recovery".to_owned()),
-            ..Default::default()
-        },
-    });
-
-    assert_eq!(terminal.active_block_id(), &active_block_id);
-    assert_eq!(terminal.block_list().blocks().len(), block_count);
-    assert_eq!(terminal.block_list().active_block().pwd(), None);
-}
-
-#[test]
 fn precmd_with_completion_metadata_recovers_in_band_completion_and_reuses_cached_prompt() {
-    let _recovery_enabled = FeatureFlag::TerminalLifecycleRecovery.override_enabled(true);
     let mut terminal = TerminalModel::mock(None, None);
     normal_command_finished_and_precmd(
         &mut terminal,
@@ -1398,7 +1370,6 @@ fn empty_and_syntax_error_commands_without_preexec_complete_as_execution() {
 
 #[test]
 fn command_finished_recovers_unknown_started_block_with_real_exit_code() {
-    let _recovery_enabled = FeatureFlag::TerminalLifecycleRecovery.override_enabled(true);
     let mut terminal = TerminalModel::mock(None, None);
     terminal.lifecycle_coordinator.reset_unknown();
     terminal.block_list_mut().active_block_for_test().start();
@@ -1428,7 +1399,6 @@ fn command_finished_recovers_unknown_started_block_with_real_exit_code() {
 
 #[test]
 fn recovery_advances_finished_active_block_without_republishing_completion() {
-    let _recovery_enabled = FeatureFlag::TerminalLifecycleRecovery.override_enabled(true);
     let (event_tx, event_rx) = async_channel::unbounded();
     let event_proxy = ChannelEventListener::builder_for_test()
         .with_terminal_events_tx(event_tx)
@@ -1493,7 +1463,6 @@ fn recovery_advances_finished_active_block_without_republishing_completion() {
 
 #[test]
 fn repeated_precmd_with_completion_metadata_and_prompt_only_precmd_are_ignored() {
-    let _recovery_enabled = FeatureFlag::TerminalLifecycleRecovery.override_enabled(true);
     let (event_tx, event_rx) = async_channel::unbounded();
     let event_proxy = ChannelEventListener::builder_for_test()
         .with_terminal_events_tx(event_tx)
@@ -1596,55 +1565,6 @@ fn repeated_precmd_with_completion_metadata_and_prompt_only_precmd_are_ignored()
             .cursor_point(),
         cursor_point
     );
-    assert_eq!(
-        terminal
-            .block_list()
-            .active_block()
-            .pwd()
-            .map(String::as_str),
-        Some("/initial")
-    );
-}
-
-#[test]
-fn repeated_precmd_with_completion_metadata_and_prompt_only_precmd_are_ignored_when_recovery_is_disabled()
- {
-    let _recovery_disabled = FeatureFlag::TerminalLifecycleRecovery.override_enabled(false);
-    let mut terminal = TerminalModel::mock(None, None);
-    normal_command_finished_and_precmd(
-        &mut terminal,
-        PromptMetadata {
-            pwd: Some("/initial".to_owned()),
-            ..Default::default()
-        },
-    );
-    let active_block_id = terminal.active_block_id().clone();
-    terminal.precmd_with_completion_metadata(PrecmdValue {
-        completion_metadata: CompletionMetadata {
-            exit_code: ExitCode::from(7),
-            next_block_id: active_block_id.clone(),
-        },
-        prompt_metadata: PromptMetadata {
-            pwd: Some("/with-completion-metadata".to_owned()),
-            ..Default::default()
-        },
-    });
-    assert_eq!(terminal.active_block_id(), &active_block_id);
-    assert_eq!(
-        terminal
-            .block_list()
-            .active_block()
-            .pwd()
-            .map(String::as_str),
-        Some("/initial")
-    );
-
-    terminal.prompt_only_precmd(PromptMetadata {
-        pwd: Some("/new".to_owned()),
-        ..Default::default()
-    });
-
-    assert_eq!(terminal.active_block_id(), &active_block_id);
     assert_eq!(
         terminal
             .block_list()

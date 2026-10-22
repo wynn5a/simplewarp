@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use warp::features::FeatureFlag;
 use warp::integration_testing::pane_group::assert_focused_pane_index;
 use warp::integration_testing::settings::set_window_custom_size;
 use warp::integration_testing::step::new_step_with_default_assertions;
@@ -14,7 +13,6 @@ use warp::integration_testing::{self};
 use warp::search::SyncDataSource;
 use warp::search::command_palette::launch_config;
 use warp::search::data_source::Query;
-use warp::workspace::NEW_TAB_BUTTON_POSITION_ID;
 use warpui_core::integration::{AssertionOutcome, TestStep};
 use warpui_core::{ModelHandle, async_assert};
 
@@ -119,39 +117,6 @@ pub fn test_with_launch_config() -> Builder {
                 .add_named_assertion("Validate second tab", move |app, window_id| {
                     validate_block_output("test_command_on_another_tab", 1, 0, window_id, app)
                 }),
-        )
-}
-
-// TODO(CORE-2300): Once we remove FeatureFlag::ShellSelector, we should remove this test.
-pub fn test_open_launch_config_from_add_tab_menu_legacy() -> Builder {
-    new_builder()
-        .set_should_run_test(|| !FeatureFlag::ShellSelector.is_enabled())
-        .with_setup(move |utils| {
-            utils.set_env("WARP_CONFIG_WATCHER_DELAY_MS", Some((10).to_string()));
-
-            // Write a new launch config file. Launch config is named "Launch Config"
-            let dir = integration_testing::launch_configs::launch_configs_dir();
-            std::fs::create_dir_all(&dir).expect("Should be able to create launch configs dir");
-            integration_testing::create_file_from_assets(
-                TEST_ONLY_ASSETS,
-                "test_launch_config.yaml",
-                &dir.join("test_launch_config.yaml"),
-            );
-        })
-        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(
-            new_step_with_default_assertions("Right click on new tab button")
-                .with_right_click_on_saved_position(NEW_TAB_BUTTON_POSITION_ID),
-        )
-        .with_step(
-            new_step_with_default_assertions("Press Launch Config menu item")
-                // Since we only have one launch config, it should be the third menu item and the
-                // second one is disabled.
-                .with_keystrokes(&["down", "down", "enter"]),
-        )
-        .with_step(
-            new_step_with_default_assertions("Assert that three new windows are created")
-                .add_assertion(assert_num_windows_open(4)),
         )
 }
 

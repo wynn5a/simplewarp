@@ -1288,10 +1288,6 @@ impl ansi::Handler for GridHandler {
     }
 
     fn handle_completed_iterm_image(&mut self, image: ITermImage) {
-        if !FeatureFlag::ITermImages.is_enabled() {
-            return;
-        }
-
         if image.metadata.image_size.x() == 0.0 || image.metadata.image_size.y() == 0.0 {
             return;
         }
@@ -1445,30 +1441,18 @@ impl ansi::Handler for GridHandler {
         mode: KeyboardModes,
         apply: KeyboardModesApplyBehavior,
     ) {
-        if !FeatureFlag::KittyKeyboardProtocol.is_enabled() {
-            return;
-        }
         self.set_keyboard_mode(mode, apply);
     }
 
     fn push_keyboard_enhancement_flags(&mut self, mode: KeyboardModes) {
-        if !FeatureFlag::KittyKeyboardProtocol.is_enabled() {
-            return;
-        }
         self.push_keyboard_mode(mode);
     }
 
     fn pop_keyboard_enhancement_flags(&mut self, count: u16) {
-        if !FeatureFlag::KittyKeyboardProtocol.is_enabled() {
-            return;
-        }
         self.pop_keyboard_modes(count);
     }
 
     fn query_keyboard_enhancement_flags<W: io::Write>(&mut self, writer: &mut W) {
-        if !FeatureFlag::KittyKeyboardProtocol.is_enabled() {
-            return;
-        }
         // Respond with CSI ? flags u
         let mode = self.ansi_handler_state.keyboard_mode;
         let response = format!("\x1b[?{}u", mode.bits());

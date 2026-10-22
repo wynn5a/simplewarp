@@ -109,8 +109,8 @@ preferred route; D2 dropped the common-skills lock (user ruling). H4 was wrong a
 
 **Leftovers survey (2026-10-22):** queued in [plan-p5.md](plan-p5.md) — A `cargo machete` ignore
 lists (no real unused deps), B "GUI" names left from the two-front-end design, C the 132 always-on
-feature flags in seven batches. No behavior change in any of them. A + B done (see the round log);
-C1–C7 next.
+feature flags in seven batches. No behavior change in any of them. A + B and C1 done (see the round log);
+C1b, C1c, C2–C7 next.
 
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
@@ -1553,6 +1553,34 @@ Verification: format and all three clippy gates clean; `cargo nextest run --work
 
 Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,289 run,
 6,288 passed, 1 failed (the clone-slash-command flake), 86 skipped — unchanged.
+
+**P5 C1 — terminal, shell and rendering flags (2026-10-22).** 16 always-on flags removed (enum
+variant, cargo feature, `features.rs` mapping, `features_tests` pin, every check), keeping the on
+branch: `BoxDrawingGlyphs`, `ITermImages`, `ImeMarkedText`, `KittyKeyboardProtocol`, `Ligatures`,
+`OscHyperlinks`, `ProgramStatusProtocol`, `RectSelection`, `ResizeFix`, `SelectablePrompt`,
+`ShellSelector`, `SshDragAndDrop`, `TerminalLifecycleRecovery`, `ToggleBootstrapBlock`,
+`TrimTrailingBlankLines`, `WarpifyFooter`.
+
+- Dead off-branches deleted with them: the legacy new-tab button and narrow new-session menu, the
+  four-shell fallback list and `startup_shell_override` write in `AvailableShells`,
+  `GridStorage::resize_fix_ff_enabled`, the lifecycle `RecoveryDisabled` gate, the
+  `ShowSubshellBanner` action and `show_warpify_banner`, the Debug-menu copy of the bootstrap-block
+  toggle; `CommandPalette`'s new-session source is no longer optional.
+- Tests: 7 off-path unit tests deleted (OSC 8 / OSC 7501 / OSC 9;4 flag-off parsing, hyperlink
+  lookup flag-off, three lifecycle recovery-disabled cases) and the ShellSelector-off integration
+  test `test_open_launch_config_from_add_tab_menu_legacy`; every `override_enabled(true)` /
+  `set_enabled(true)` for these flags dropped. The (ignored) subshell integration tests now assert
+  the warpify footer instead of the in-block banner.
+- One edge: `ResizeFix` lived in a `#[serde(skip)]` field, so a deserialized `GridStorage` had the
+  reflow fix off; it now gets the fix like every live grid.
+- Split out, see plan-p5: **C1b** `AsyncFind` (always-async find breaks four sync-count view tests
+  and leaves the sync find path dead — not mechanical) and **C1c** the in-block banner machinery,
+  which nothing sets now that `WarpifyFooter` is the only path.
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,281 run
+(−8 deleted), 6,280 passed, 1 failed (the clone-slash-command flake), 86 skipped. `cargo run`
+smoke: the debug app starts, spawns its terminal server, no errors in `simplewarp.log`; the
+batch's features were not exercised by hand.
 
 ## Risks
 

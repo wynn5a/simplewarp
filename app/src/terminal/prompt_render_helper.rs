@@ -598,7 +598,7 @@ impl PromptRenderHelper {
         let semantic_selection = SemanticSelection::as_ref(app);
         Some(
             SavePosition::new(
-                EventHandler::new(if FeatureFlag::SelectablePrompt.is_enabled() {
+                EventHandler::new(
                     // TODO(Simon): Distinguish right-clicks performed directly within selected text bounds.
                     // The "Copy" option should only appear when selected text is right-clicked directly.
                     // Right-clicks performed directly within selected text can be handled separately via
@@ -611,10 +611,8 @@ impl PromptRenderHelper {
                     )
                     .with_word_boundaries_policy(semantic_selection.word_boundary_policy())
                     .with_smart_select_fn(semantic_selection.smart_select_fn())
-                    .finish()
-                } else {
-                    prompt_with_padding_container
-                })
+                    .finish(),
+                )
                 .on_right_mouse_down(move |ctx, _, position| {
                     let position_id = format!("prompt_area_{view_id}");
                     let Some(prompt_rect) = ctx.element_position_by_id(position_id) else {

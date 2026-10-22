@@ -5,7 +5,6 @@ use std::sync::Arc;
 use lazy_static::lazy_static;
 use parking_lot::RwLock;
 use settings::Setting as _;
-use warp_core::features::FeatureFlag;
 use warp_core::semantic_selection::SemanticSelection;
 use warp_core::ui::Icon;
 use warpui::elements::{
@@ -388,9 +387,7 @@ impl View for EnvVarCollectionBlock {
                 ))
             });
 
-            if FeatureFlag::RectSelection.is_enabled() {
-                selectable = selectable.should_support_rect_select();
-            }
+            selectable = selectable.should_support_rect_select();
 
             content.add_child(selectable.finish());
         }

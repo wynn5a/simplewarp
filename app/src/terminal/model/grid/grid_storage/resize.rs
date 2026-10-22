@@ -207,8 +207,7 @@ impl GridStorage {
                 // This applies when:
                 // 1. The cursor adjustment would incorrectly saturate at (0, 0) if no adjustment was made.
                 // 2. We have at least 1 row in scrollback (raw_total_rows_len - self.rows >= 1)
-                if self.resize_fix_ff_enabled
-                    && row_is_clear
+                if row_is_clear
                     && self.cursor.point.wrapping_sub(columns, num_wrapped) == visible_point_origin
                     && self.cursor.point.wrapping_sub(columns, num_wrapped + 1)
                         == visible_point_origin
@@ -242,7 +241,7 @@ impl GridStorage {
                 let line_delta = self.cursor.point.row - target.row;
 
                 if line_delta != 0 && row_is_clear {
-                    if self.resize_fix_ff_enabled && adjust_cursor {
+                    if adjust_cursor {
                         // We move the cursor up a line, if the current row is being entirely reflowed and removed.
                         self.cursor.point.row = self.cursor.point.row - line_delta;
                     }

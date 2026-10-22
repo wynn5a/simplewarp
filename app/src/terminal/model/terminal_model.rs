@@ -1948,16 +1948,10 @@ impl TerminalModel {
     }
 
     pub fn set_marked_text(&mut self, marked_text: &str, selected_range: &Range<usize>) {
-        if !FeatureFlag::ImeMarkedText.is_enabled() {
-            return;
-        }
         delegate!(self.set_marked_text(marked_text, selected_range))
     }
 
     pub fn clear_marked_text(&mut self) {
-        if !FeatureFlag::ImeMarkedText.is_enabled() {
-            return;
-        }
         delegate!(self.clear_marked_text())
     }
 }
@@ -2215,10 +2209,8 @@ impl ansi::Handler for TerminalModel {
         self.alt_screen.reset_state();
         self.block_list.reset_state();
 
-        if FeatureFlag::ProgramStatusProtocol.is_enabled() {
-            self.event_proxy
-                .send_terminal_event(Event::ProgramStatusReset);
-        }
+        self.event_proxy
+            .send_terminal_event(Event::ProgramStatusReset);
     }
 
     fn reverse_index(&mut self) -> ScrollDelta {
@@ -3053,10 +3045,8 @@ impl ansi::Handler for TerminalModel {
     }
 
     fn program_status(&mut self, report: ProgramStatusReport, source: ReportSource) {
-        if FeatureFlag::ProgramStatusProtocol.is_enabled() {
-            self.event_proxy
-                .send_terminal_event(Event::ProgramStatus { report, source });
-        }
+        self.event_proxy
+            .send_terminal_event(Event::ProgramStatus { report, source });
     }
 
     fn set_keyboard_enhancement_flags(

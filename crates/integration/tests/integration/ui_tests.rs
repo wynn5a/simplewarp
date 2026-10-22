@@ -111,7 +111,6 @@ integration_tests! {
     test_new_window_inherits_previous_session_directory,
     test_preferred_shell,
     test_open_new_tab_with_specific_shell_from_new_session_menu,
-    test_open_launch_config_from_add_tab_menu_legacy,
     test_open_launch_config_with_custom_size,
     test_launch_config_single_child_branch,
     test_open_launch_config_in_active_window,

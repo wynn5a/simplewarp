@@ -2,8 +2,6 @@ use settings::macros::define_settings_group;
 use settings::{Setting, SupportedPlatforms};
 use warpui::{AppContext, SingletonEntity};
 
-use crate::features::FeatureFlag;
-
 define_settings_group!(LigatureSettings, settings: [
     ligature_rendering_enabled: LigatureRenderingEnabled {
         type: bool,
@@ -17,9 +15,7 @@ define_settings_group!(LigatureSettings, settings: [
 ]);
 
 pub fn should_use_ligature_rendering(app: &AppContext) -> bool {
-    let enabled_in_settings = *LigatureSettings::as_ref(app)
+    *LigatureSettings::as_ref(app)
         .ligature_rendering_enabled
-        .value();
-
-    enabled_in_settings && FeatureFlag::Ligatures.is_enabled()
+        .value()
 }

@@ -201,7 +201,6 @@ fn advance_to_bootstrapped(block_list: &mut BlockList, data: BootstrappedValue) 
 
 #[test]
 fn test_iterm_image_renders_in_script_execution_block() {
-    let _iterm_images = FeatureFlag::ITermImages.override_enabled(true);
     let mut block_list = TestBlockListBuilder::new().build();
     advance_to_script_execution(&mut block_list);
 
@@ -222,7 +221,6 @@ fn test_iterm_image_renders_in_script_execution_block() {
 
 #[test]
 fn test_invalid_iterm_image_does_not_render_in_script_execution_block() {
-    let _iterm_images = FeatureFlag::ITermImages.override_enabled(true);
     let mut block_list = TestBlockListBuilder::new().build();
     let mut image = test_utils::test_iterm_image(1);
     image.metadata.desired_width = Some((
@@ -289,7 +287,6 @@ fn test_kitty_store_only_does_not_render_in_script_execution_block() {
 
 #[test]
 fn test_iterm_image_early_output_routes_to_background_block() {
-    let _iterm_images = FeatureFlag::ITermImages.override_enabled(true);
     let mut block_list =
         new_bootstrapped_block_list(None, None, ChannelEventListener::new_for_test());
     let blocks_before = block_list.blocks.len();

@@ -247,9 +247,6 @@ pub enum TerminalAction {
     TriggerSubshellBootstrap,
     /// If the user says "no" to Warpification, possibly requesting not to be asked again
     DismissWarpifyBanner(RememberForWarpification),
-    /// Triggers the banner asking to turn the running block into a subshell. The String is the
-    /// command that the user entered.
-    ShowSubshellBanner(String),
     InsertMostRecentCommandCorrection,
     AliasExpansionBanner(AliasExpansionBannerAction),
     OpenInWarpBanner(OpenInWarpBannerAction),
@@ -462,7 +459,6 @@ impl fmt::Debug for TerminalAction {
             AskAIAssistant { block_index } => write!(f, "AskAIAssistant({block_index:?})"),
             TriggerSubshellBootstrap => f.write_str("TriggerSubshellBootstrap"),
             DismissWarpifyBanner(remember) => write!(f, "DismissWarpifyBanner({remember:?})"),
-            ShowSubshellBanner(_) => f.write_str("ShowSubshellBanner"),
             InsertMostRecentCommandCorrection => f.write_str("InsertMostRecentCommandCorrection"),
             AliasExpansionBanner(action) => write!(f, "AliasExpansionBanner({action:?}"),
             OpenInWarpBanner(action) => write!(f, "OpenInWarpBanner({action:?})"),

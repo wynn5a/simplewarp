@@ -6,7 +6,6 @@ use parking_lot::FairMutex;
 use pathfinder_geometry::vector::vec2f;
 use settings::Setting as _;
 use vec1::Vec1;
-use warp_core::features::FeatureFlag;
 use warp_util::user_input::UserInput;
 use warpui::elements::new_scrollable::{NewScrollableElement, ScrollableAxis};
 use warpui::elements::{Axis, Point as UiPoint, ScrollData, ScrollableElement};
@@ -229,11 +228,7 @@ impl AltScreenElement {
             .grid_render_params
             .size_info
             .get_mouse_side(local_position);
-        let selection_type = if FeatureFlag::RectSelection.is_enabled() {
-            SelectionType::from_mouse_event(*mouse_state.modifiers(), click_count)
-        } else {
-            SelectionType::from_click_count(click_count)
-        };
+        let selection_type = SelectionType::from_mouse_event(*mouse_state.modifiers(), click_count);
 
         if should_intercept_mouse(&self.model.lock(), mouse_state.modifiers().shift, app) {
             ctx.dispatch_typed_action(TerminalAction::AltSelect(SelectAction::Begin {

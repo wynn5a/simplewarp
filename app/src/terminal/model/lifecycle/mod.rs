@@ -14,7 +14,6 @@ pub(in crate::terminal) use transition::{
     CommandStartKind, IgnoreReason, LifecycleAction, LifecycleInput, LifecyclePhase,
     LifecycleSnapshot, LifecycleTransition, NextBlockIdDisposition, PreexecObservation,
 };
-use warp_core::features::FeatureFlag;
 
 use super::block::BlockState;
 
@@ -75,9 +74,9 @@ impl BlockLifecycleCoordinator {
         input: LifecycleInput,
     ) -> LifecycleTransition {
         let previous_phase = transition::reconcile_phase(self.phase, snapshot);
-        let (planned_next_phase, planned_action) = transition::plan(previous_phase, input);
+        let (next_phase, action) = transition::plan(previous_phase, input);
         let recovers_command_finished = matches!(
-            (input, planned_action),
+            (input, action),
             (
                 LifecycleInput::CommandFinished(NextBlockIdDisposition::Novel),
                 LifecycleAction::AcceptCommandFinished,
@@ -89,22 +88,10 @@ impl BlockLifecycleCoordinator {
                 false
             }
         };
-        let is_gated_recovery = recovers_command_finished
-            || matches!(
-                planned_action,
-                LifecycleAction::ReconcileCompletionThenApplyPrecmd
-            );
-        let (next_phase, action) =
-            if is_gated_recovery && !FeatureFlag::TerminalLifecycleRecovery.is_enabled() {
-                (
-                    previous_phase,
-                    LifecycleAction::Ignore(IgnoreReason::RecoveryDisabled),
-                )
-            } else {
-                (planned_next_phase, planned_action)
-            };
+        let is_recovery = recovers_command_finished
+            || matches!(action, LifecycleAction::ReconcileCompletionThenApplyPrecmd);
         let reconciles_missing_execution = matches!(
-            (input, planned_action),
+            (input, action),
             (
                 LifecycleInput::CommandFinished(NextBlockIdDisposition::Novel),
                 LifecycleAction::AcceptCommandFinished,
@@ -112,7 +99,7 @@ impl BlockLifecycleCoordinator {
         ) && !snapshot.finished
             && snapshot.block_state != BlockState::Executing;
         let should_record = action.is_ignored()
-            || is_gated_recovery
+            || is_recovery
             || reconciles_missing_execution
             || snapshot.completion_mismatch
             || matches!(

@@ -860,7 +860,7 @@ where
             // Format: OSC 8 ; params ; URI ST. An empty URI closes the active
             // hyperlink.
             // Reference: https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
-            b"8" if FeatureFlag::OscHyperlinks.is_enabled() => {
+            b"8" => {
                 match Hyperlink::parse_osc_params(&params[1..]) {
                     Ok(hyperlink) => self.handler.set_hyperlink(hyperlink),
                     // A malformed, non-UTF-8, or over-length sequence closes any
@@ -889,7 +889,6 @@ where
                 if params.len() >= 2 {
                     if !params[1].is_empty() && params[1].iter().all(u8::is_ascii_digit) {
                         if params[1] == b"4"
-                            && FeatureFlag::ProgramStatusProtocol.is_enabled()
                             && let Some(report) = protocol::parse_conemu_progress(&params[2..])
                         {
                             self.handler.program_status(report, ReportSource::Osc94);
@@ -1104,7 +1103,7 @@ where
 
             // OSC 7501: program status. A body of `?` is the feature-detection query.
             // Reference: https://mitchellh.com/writing/program-status-osc7501
-            b"7501" if FeatureFlag::ProgramStatusProtocol.is_enabled() => {
+            b"7501" => {
                 let body = params[1..].join(&b';');
                 if body == b"?" {
                     let _ = writer.write_all(format!("\x1b]7501;?{terminator}").as_bytes());
@@ -1112,8 +1111,6 @@ where
                     self.handler.program_status(report, ReportSource::Osc7501);
                 }
             }
-            // The body is untrusted text: never fall through to `unhandled`, which logs it.
-            b"7501" => (),
 
             // Received a Warp OSC used for shell hooks.
             WARP_OSC_MARKER => {

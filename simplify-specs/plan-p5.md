@@ -82,8 +82,26 @@ If a batch's test changes turn out larger than mechanical, stop and review befor
 
 One commit per batch, smallest blast radius first; the two largest flags go alone at the end.
 
-**C1 — terminal, shell, rendering** — 17 flags, 152 refs:
+**C1 — terminal, shell, rendering** — 17 flags, 152 refs (**done 2026-10-22, 16 flags**;
+`AsyncFind` moved to C1b):
 `AsyncFind`, `BoxDrawingGlyphs`, `ITermImages`, `ImeMarkedText`, `KittyKeyboardProtocol`, `Ligatures`, `OscHyperlinks`, `ProgramStatusProtocol`, `RectSelection`, `ResizeFix`, `SelectablePrompt`, `ShellSelector`, `SshDragAndDrop`, `TerminalLifecycleRecovery`, `ToggleBootstrapBlock`, `TrimTrailingBlankLines`, `WarpifyFooter`.
+
+**C1b — AsyncFind (alone, needs review)** — pulled out of C1. With the flag on, the find model
+always has an `AsyncFindController`, so the sync block-list find path (`block_list_find_run` and
+the `else` arms in `find/model.rs`) is dead in the app. Four view tests (`test_case_sensitive_find`,
+`test_find_in_blocks`, `test_find_in_blocks_inverted_blocklist`, `test_find_bar_prefix_search`)
+assert sync match counts right after a query and fail on the async path; they need to wait for
+the background scan. Also delete the hidden `AsyncFindWidget`, `ToggleAsyncFind`, the inert
+`experimental.async_find_enabled` setting and `render_beta_chip`.
+
+**C1c — in-block banner machinery (follow-up of C1)** — `WarpifyFooter` was the only producer of
+`WithinBlockBanner::WarpifyBanner`; with the banner path gone, nothing sets a block banner. What
+is left is dead: `terminal/view/block_banner/` (`WarpifyBannerState`,
+`render_warpification_banner`), `Block::block_banner` and its height accounting in `block.rs`
+(`block_banner_height`, `BlockSection::BlockBanner`), `BlockList::set_active_block_banner`, the
+banner slot in `block_list_element.rs`, `BLOCK_BANNER_HEIGHT`, and the `DismissWarpifyBanner`
+action if the footer's dismiss no longer needs it. Not mechanical (block-height layout), so it
+gets its own round.
 
 **C2 — input, completions, history, workflows** — 16 flags, 84 refs:
 `AllowIgnoringInputSuggestions`, `ClassicCompletions`, `ClearAutosuggestionOnEscape`, `CommandCorrectionKey`, `CommandCorrectionsHistoryRule`, `CycleNextCommandSuggestion`, `DynamicWorkflowEnums`, `ForceClassicCompletions`, `InlineHistoryMenu`, `InlineMenuHeaders`, `NativeShellCompletions`, `NldPromptHistoryMatch`, `PartialNextCommandSuggestions`, `RemoveAutosuggestionDuringTabCompletions`, `ValidateAutosuggestions`, `WorkflowAliases`.
@@ -115,4 +133,4 @@ One commit per batch, smallest blast radius first; the two largest flags go alon
 ## Order
 
 1. A + B together, one commit (A is manifest metadata only).
-2. C1 → C7, one commit each.
+2. C1 → C7, one commit each; C1b and C1c (split out of C1) go after C1, each in its own round.

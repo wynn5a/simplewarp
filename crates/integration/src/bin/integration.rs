@@ -234,7 +234,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_git_prompt);
     register_test!(test_terminal_announces_capabilities_to_shell);
     register_test!(test_open_new_tab_with_specific_shell_from_new_session_menu);
-    register_test!(test_open_launch_config_from_add_tab_menu_legacy);
     register_test!(test_open_launch_config_with_custom_size);
     register_test!(test_launch_config_single_child_branch);
     register_test!(test_open_launch_config_in_active_window);

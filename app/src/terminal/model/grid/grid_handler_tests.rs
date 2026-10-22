@@ -2589,7 +2589,6 @@ fn input_hyperlinked(grid: &mut GridHandler, uri: &str, text: &str) {
 
 #[test]
 fn test_hyperlink_at_point_spans_contiguous_cells() {
-    let _flag = crate::features::FeatureFlag::OscHyperlinks.override_enabled(true);
     let mut grid = GridHandler::new_for_test(5, 20);
 
     // Plain "ab", then a hyperlink over "link", then plain "cd".
@@ -2631,7 +2630,6 @@ fn test_hyperlink_at_point_spans_contiguous_cells() {
 
 #[test]
 fn test_adjacent_hyperlinks_with_different_uris_do_not_merge() {
-    let _flag = crate::features::FeatureFlag::OscHyperlinks.override_enabled(true);
     let mut grid = GridHandler::new_for_test(5, 20);
 
     input_hyperlinked(&mut grid, "https://a.com", "aa");
@@ -2664,20 +2662,7 @@ fn test_adjacent_hyperlinks_with_different_uris_do_not_merge() {
 }
 
 #[test]
-fn test_hyperlink_at_point_short_circuits_when_flag_disabled() {
-    let _flag = crate::features::FeatureFlag::OscHyperlinks.override_enabled(false);
-    let mut grid = GridHandler::new_for_test(5, 20);
-
-    // Even though cells are stamped, both lookups short-circuit to None while
-    // the feature flag is off.
-    input_hyperlinked(&mut grid, "https://example.com", "link");
-    assert_eq!(grid.hyperlink_at_point(Point::new(0, 0)), None);
-    assert_eq!(grid.hyperlink_uri_at_point(Point::new(0, 0)), None);
-}
-
-#[test]
 fn test_full_grid_clear_drops_active_hyperlink() {
-    let _flag = crate::features::FeatureFlag::OscHyperlinks.override_enabled(true);
     let mut grid = GridHandler::new_for_test_with_scroll_limit(3, 20, MAX_SCROLL_LIMIT);
     grid.enable_full_grid_clear_behavior();
 

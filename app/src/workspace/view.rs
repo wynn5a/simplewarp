@@ -1239,23 +1239,15 @@ impl Workspace {
         // `max_width` and `min_width` instead, so we can allow the menu to
         // grow as needed.
         let new_session_menu = ctx.add_typed_action_view(|ctx| {
-            if FeatureFlag::ShellSelector.is_enabled() {
-                let theme = Appearance::as_ref(ctx).theme();
-                Menu::new()
-                    .with_width(NEW_SESSION_MENU_WIDTH)
-                    .with_menu_variant(MenuVariant::scrollable())
-                    .with_border(Border::all(1.).with_border_color(theme.outline().into()))
-                    .with_drop_shadow()
-                    .with_safe_triangle()
-                    .with_ignore_hover_when_covered()
-                    .prevent_interaction_with_other_elements()
-            } else {
-                Menu::new()
-                    .with_menu_variant(MenuVariant::scrollable())
-                    .with_safe_triangle()
-                    .with_ignore_hover_when_covered()
-                    .prevent_interaction_with_other_elements()
-            }
+            let theme = Appearance::as_ref(ctx).theme();
+            Menu::new()
+                .with_width(NEW_SESSION_MENU_WIDTH)
+                .with_menu_variant(MenuVariant::scrollable())
+                .with_border(Border::all(1.).with_border_color(theme.outline().into()))
+                .with_drop_shadow()
+                .with_safe_triangle()
+                .with_ignore_hover_when_covered()
+                .prevent_interaction_with_other_elements()
         });
         ctx.subscribe_to_view(&new_session_menu, move |me, _, event, ctx| {
             me.handle_new_session_menu_event(event, ctx);
@@ -4034,26 +4026,24 @@ impl Workspace {
                 }
                 menu_items.push(terminal_item.into_item());
 
-                if FeatureFlag::ShellSelector.is_enabled() {
-                    AvailableShells::handle(ctx).read(ctx, |model, _| {
-                        for shell in model.get_available_shells() {
-                            let shell_name = model.display_name_for_shell(shell);
-                            let icon = shell
-                                .get_valid_shell_path_and_type()
-                                .and_then(|shell_launch_data| {
-                                    ShellIndicatorType::try_from(&shell_launch_data).ok()
-                                })
-                                .map(|shell_indicator_type| shell_indicator_type.to_icon())
-                                .unwrap_or(icons::Icon::Terminal);
-                            let item = MenuItemFields::new(shell_name)
-                                .with_on_select_action(WorkspaceAction::AddTabWithShell {
-                                    shell: shell.clone(),
-                                })
-                                .with_icon(icon);
-                            menu_items.push(item.into_item());
-                        }
-                    });
-                }
+                AvailableShells::handle(ctx).read(ctx, |model, _| {
+                    for shell in model.get_available_shells() {
+                        let shell_name = model.display_name_for_shell(shell);
+                        let icon = shell
+                            .get_valid_shell_path_and_type()
+                            .and_then(|shell_launch_data| {
+                                ShellIndicatorType::try_from(&shell_launch_data).ok()
+                            })
+                            .map(|shell_indicator_type| shell_indicator_type.to_icon())
+                            .unwrap_or(icons::Icon::Terminal);
+                        let item = MenuItemFields::new(shell_name)
+                            .with_on_select_action(WorkspaceAction::AddTabWithShell {
+                                shell: shell.clone(),
+                            })
+                            .with_icon(icon);
+                        menu_items.push(item.into_item());
+                    }
+                });
             }
 
             // On other platforms, Terminal is a regular item.
@@ -13825,36 +13815,6 @@ impl Workspace {
             keybinding_name_to_display_string(TOGGLE_TAB_CONFIGS_MENU_BINDING_NAME, ctx);
         let appearance = Appearance::as_ref(ctx);
 
-        if !FeatureFlag::ShellSelector.is_enabled() {
-            // Legacy new tab button, which shows the menu on right click.
-            let new_tab_button = self
-                .render_tab_bar_icon_button(
-                    appearance,
-                    icons::Icon::Plus,
-                    &self.mouse_states.new_tab_button.clone(),
-                    WorkspaceAction::AddDefaultTab,
-                    new_tab_tool_tip_label_text,
-                    new_tab_tool_tip_sublabel_text,
-                    false,
-                    false,
-                )
-                .on_right_click(move |ctx, _, position| {
-                    ctx.dispatch_typed_action(WorkspaceAction::ToggleNewSessionMenu {
-                        anchor: NewSessionMenuAnchor::AddTabButton(position),
-                    });
-                })
-                .finish();
-            return Container::new(
-                SavePosition::new(
-                    Align::new(new_tab_button).finish(),
-                    NEW_TAB_BUTTON_POSITION_ID,
-                )
-                .finish(),
-            )
-            .with_margin_left(BUTTON_LEFT_MARGIN)
-            .finish();
-        }
-
         let theme = appearance.theme();
 
         Hoverable::new(self.mouse_states.new_tab.clone(), |state| {
@@ -17187,16 +17147,11 @@ impl View for Workspace {
                     // TODO(CORE-2300): In the new version of the shell selector, this is not a
                     // context menu but a dropdown. Since it is quite wide, we need to reposition
                     // it so it does not render outside the bounds of the window.
-                    let bounds = if FeatureFlag::ShellSelector.is_enabled() {
-                        ParentOffsetBounds::WindowByPosition
-                    } else {
-                        ParentOffsetBounds::Unbounded
-                    };
                     stack.add_positioned_overlay_child(
                         ChildView::new(&self.new_session_dropdown_menu).finish(),
                         OffsetPositioning::offset_from_parent(
                             menu_anchor.position(),
-                            bounds,
+                            ParentOffsetBounds::WindowByPosition,
                             ParentAnchor::TopLeft,
                             ChildAnchor::TopLeft,
                         ),

@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use warp_errors::report_error;
 pub use warp_terminal::model::grid::Dimensions;
 
-use crate::features::FeatureFlag;
 use crate::terminal::model::ansi::{CharsetIndex, StandardCharset};
 use crate::terminal::model::cell::{Cell, Flags};
 use crate::terminal::model::grid::row::Row;
@@ -114,11 +113,6 @@ pub struct GridStorage {
     /// that we don't overflow for blocks with a lot of truncation.
     /// We might want to consider using a smalluint if this becomes a problem.
     pub(super) num_lines_truncated: u64,
-
-    /// Whether the resize fix feature flag is enabled (Alacritty cursor reflow bug during resize). Gating
-    /// fix to gain confidence in the fix before enabling for all users.
-    #[serde(skip)]
-    pub(crate) resize_fix_ff_enabled: bool,
 }
 
 impl GridStorage {
@@ -137,7 +131,6 @@ impl GridStorage {
             max_cursor_point: Default::default(),
             rows,
             columns,
-            resize_fix_ff_enabled: FeatureFlag::ResizeFix.is_enabled(),
             num_lines_truncated: 0,
         }
     }
@@ -169,7 +162,6 @@ impl GridStorage {
             columns: self.columns,
             rows: visible_lines,
             max_scroll_limit: self.max_scroll_limit,
-            resize_fix_ff_enabled: self.resize_fix_ff_enabled,
             num_lines_truncated: 0,
         };
 

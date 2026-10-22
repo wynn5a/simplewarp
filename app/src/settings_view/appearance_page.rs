@@ -423,16 +423,14 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         ));
     }
 
-    if FeatureFlag::Ligatures.is_enabled() {
-        toggle_binding_pairs.push(ToggleSettingActionPair::new(
-            "ligature rendering",
-            builder(SettingsAction::AppearancePageToggle(
-                AppearancePageAction::ToggleLigatureRendering,
-            )),
-            context,
-            flags::LIGATURE_RENDERING_CONTEXT_FLAG,
-        ));
-    }
+    toggle_binding_pairs.push(ToggleSettingActionPair::new(
+        "ligature rendering",
+        builder(SettingsAction::AppearancePageToggle(
+            AppearancePageAction::ToggleLigatureRendering,
+        )),
+        context,
+        flags::LIGATURE_RENDERING_CONTEXT_FLAG,
+    ));
 
     toggle_binding_pairs.push(ToggleSettingActionPair::new(
         "preserve active tab color for new tabs",
@@ -1448,10 +1446,9 @@ impl AppearanceSettingsPageView {
             text_settings_widgets.push(Box::new(MinimumContrastWidget::default()));
         }
         let ligature_settings = LigatureSettings::as_ref(ctx);
-        if FeatureFlag::Ligatures.is_enabled()
-            && ligature_settings
-                .ligature_rendering_enabled
-                .is_supported_on_current_platform()
+        if ligature_settings
+            .ligature_rendering_enabled
+            .is_supported_on_current_platform()
         {
             text_settings_widgets.push(Box::new(LigaturesWidget::default()));
         }
@@ -2579,21 +2576,19 @@ impl AppearanceSettingsPageView {
     }
 
     fn toggle_ligature_rendering(&mut self, ctx: &mut ViewContext<Self>) {
-        if FeatureFlag::Ligatures.is_enabled() {
-            let ligature_settings = LigatureSettings::handle(ctx);
-            let new_value = !*ligature_settings
-                .as_ref(ctx)
-                .ligature_rendering_enabled
-                .value();
+        let ligature_settings = LigatureSettings::handle(ctx);
+        let new_value = !*ligature_settings
+            .as_ref(ctx)
+            .ligature_rendering_enabled
+            .value();
 
-            ligature_settings.update(ctx, |settings, ctx| {
-                report_if_error!(
-                    settings
-                        .ligature_rendering_enabled
-                        .set_value(new_value, ctx)
-                );
-            });
-        }
+        ligature_settings.update(ctx, |settings, ctx| {
+            report_if_error!(
+                settings
+                    .ligature_rendering_enabled
+                    .set_value(new_value, ctx)
+            );
+        });
     }
 
     pub fn toggle_input_mode(&mut self, ctx: &mut ViewContext<Self>) {

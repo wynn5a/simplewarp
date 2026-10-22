@@ -59,8 +59,8 @@ use action::RememberForWarpification;
 pub use action::TerminalAction;
 use async_channel::{Receiver, Sender};
 use base64::Engine as _;
+use block_banner::render_warpification_banner;
 pub use block_banner::{BLOCK_BANNER_HEIGHT, WithinBlockBanner};
-use block_banner::{WarpifyBannerState, render_warpification_banner};
 use bookmarks::render_floating_block_snapshot;
 use chrono::{Local, NaiveDateTime};
 use command_corrections::rules::generic::history::History as CommandCorrectionsHistoryRule;
@@ -3213,25 +3213,23 @@ impl TerminalView {
 
         let ssh_file_upload = ctx.add_typed_action_view(|_| FileUpload::new());
 
-        if FeatureFlag::SshDragAndDrop.is_enabled() {
-            ctx.subscribe_to_view(&ssh_file_upload, |_terminal, _file_upload, event, ctx| {
-                // Pass the file upload events up so they can be processed by the pane group.
-                match event {
-                    FileUploadEvent::CopyFileToRemote { command, upload_id } => {
-                        ctx.emit(Event::CopyFileToRemote {
-                            command: command.clone(),
-                            upload_id: *upload_id,
-                        });
-                    }
-                    FileUploadEvent::OpenUploadSession(upload_id) => {
-                        ctx.emit(Event::OpenFileUploadSession(*upload_id));
-                    }
-                    FileUploadEvent::TerminateUploadSession(upload_id) => {
-                        ctx.emit(Event::TerminateFileUploadSession(*upload_id));
-                    }
+        ctx.subscribe_to_view(&ssh_file_upload, |_terminal, _file_upload, event, ctx| {
+            // Pass the file upload events up so they can be processed by the pane group.
+            match event {
+                FileUploadEvent::CopyFileToRemote { command, upload_id } => {
+                    ctx.emit(Event::CopyFileToRemote {
+                        command: command.clone(),
+                        upload_id: *upload_id,
+                    });
                 }
-            });
-        }
+                FileUploadEvent::OpenUploadSession(upload_id) => {
+                    ctx.emit(Event::OpenFileUploadSession(*upload_id));
+                }
+                FileUploadEvent::TerminateUploadSession(upload_id) => {
+                    ctx.emit(Event::TerminateFileUploadSession(*upload_id));
+                }
+            }
+        });
 
         // Here we initialize the block list mouse states for block zero.
         // Afterwards, we initialize all block list mouse states for a block when the
@@ -6481,9 +6479,6 @@ impl TerminalView {
         selected_range: &Range<usize>,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !FeatureFlag::ImeMarkedText.is_enabled() {
-            return;
-        }
         self.model
             .lock()
             .set_marked_text(marked_text, selected_range);
@@ -6491,9 +6486,6 @@ impl TerminalView {
     }
 
     fn clear_marked_text_on_terminal(&mut self, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::ImeMarkedText.is_enabled() {
-            return;
-        }
         self.model.lock().clear_marked_text();
         ctx.notify();
     }
@@ -6996,11 +6988,9 @@ impl TerminalView {
 
         // Also clear the warpify footer so it doesn't linger after warpification
         // starts, fails, or is cancelled.
-        if FeatureFlag::WarpifyFooter.is_enabled() {
-            self.use_agent_footer.update(ctx, |footer, ctx| {
-                footer.clear_warpify(ctx);
-            });
-        }
+        self.use_agent_footer.update(ctx, |footer, ctx| {
+            footer.clear_warpify(ctx);
+        });
 
         match remember_command {
             RememberForWarpification::RememberSubshellCommand(command) => {
@@ -7016,50 +7006,6 @@ impl TerminalView {
             RememberForWarpification::DoNotRememberSubshellCommand
             | RememberForWarpification::DoNotRememberSSHHost => {}
         }
-    }
-
-    fn show_warpify_banner(
-        &mut self,
-        command: String,
-        title: &str,
-        lowercase_title: &str,
-        warpify_keybinding: Option<Keystroke>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if FeatureFlag::WarpifyFooter.is_enabled() {
-            return;
-        }
-
-        let mut model = self.model.lock();
-
-        // Don't show the warpify banner when an agent is monitoring the command.
-        if model.block_list().active_block().is_agent_monitoring() {
-            return;
-        }
-
-        let a11y_message = match &warpify_keybinding {
-            Some(keystroke) => format!(
-                "You can press {} to Warpify this {} for more Warp features.",
-                keystroke.displayed(),
-                lowercase_title
-            ),
-            None => format!("You can Warpify this {lowercase_title} for more Warp features."),
-        };
-
-        model
-            .block_list_mut()
-            .set_active_block_banner(Some(WithinBlockBanner::WarpifyBanner(
-                WarpifyBannerState::new(command, warpify_keybinding),
-            )));
-
-        let a11y_content = AccessibilityContent::new(
-            format!("{title} recognized."),
-            a11y_message,
-            WarpA11yRole::TextRole,
-        );
-        ctx.emit_a11y_content(a11y_content);
-
-        ctx.notify();
     }
 
     fn insert_most_recent_command_correction(&mut self, ctx: &mut ViewContext<Self>) {
@@ -8178,20 +8124,10 @@ impl TerminalView {
                         // Wait 1 second before showing the banner, just to make sure the
                         // command stays running for a bit. If the command fails instantly,
                         // we don't want to flicker the banner away so quickly.
-                        let command = command.clone();
                         self.warpify_state
                             .add_subshell_banner_abort_handle(ctx.spawn_abortable(
                                 Timer::after(*SUBSHELL_BANNER_DELAY_DURATION),
-                                |view, _, ctx| {
-                                    if FeatureFlag::WarpifyFooter.is_enabled() {
-                                        view.show_warpify_footer(ctx);
-                                    } else {
-                                        view.handle_action(
-                                            &TerminalAction::ShowSubshellBanner(command),
-                                            ctx,
-                                        );
-                                    }
-                                },
+                                |view, _, ctx| view.show_warpify_footer(ctx),
                                 |_, _| {},
                             ));
                     }
@@ -9022,18 +8958,14 @@ impl TerminalView {
                 let mut model = self.model.lock();
                 let active_block = model.block_list_mut().active_block_mut();
                 active_block.enable_full_grid_clear_behavior();
-                if FeatureFlag::TrimTrailingBlankLines.is_enabled() {
-                    active_block.set_trim_trailing_blank_rows(true);
-                }
+                active_block.set_trim_trailing_blank_rows(true);
             }
             CLIAgentSessionsModelEvent::Ended {
                 terminal_view_id, ..
             } if *terminal_view_id == self.view_id => {
                 let mut model = self.model.lock();
                 let active_block = model.block_list_mut().active_block_mut();
-                if FeatureFlag::TrimTrailingBlankLines.is_enabled() {
-                    active_block.set_trim_trailing_blank_rows(false);
-                }
+                active_block.set_trim_trailing_blank_rows(false);
             }
             _ => {}
         }
@@ -16666,10 +16598,6 @@ impl TerminalView {
     }
 
     pub fn shell_launch_data_if_local(&self, ctx: &AppContext) -> Option<ShellLaunchData> {
-        if !FeatureFlag::ShellSelector.is_enabled() {
-            return None;
-        }
-
         let session_id = self.active_block_session_id()?;
         let Some(session) = self.sessions.as_ref(ctx).get(session_id) else {
             log::warn!("Expected to have session for session ID {session_id:?}, but doesn't exist");
@@ -18674,7 +18602,7 @@ impl TerminalView {
         };
 
         let sshed = session.is_ssh_wrapper_session();
-        if sshed && !paths.is_empty() && FeatureFlag::SshDragAndDrop.is_enabled() {
+        if sshed && !paths.is_empty() {
             self.initiate_ssh_file_upload(paths, ctx);
         } else {
             // For long-running commands in MSYS2/Git Bash on Windows, skip
@@ -18828,6 +18756,11 @@ impl TerminalView {
     }
 
     /// Shows the warpify footer for a detected subshell command.
+    #[cfg(feature = "integration_tests")]
+    pub(crate) fn is_warpify_footer_active(&self, app: &AppContext) -> bool {
+        self.use_agent_footer.as_ref(app).is_warpify_active(app)
+    }
+
     fn show_warpify_footer(&mut self, ctx: &mut ViewContext<Self>) {
         let model = self.model.lock();
 
@@ -18970,8 +18903,7 @@ impl TerminalView {
             matches!(notification_settings.mode, NotificationsMode::Unset)
                 || (matches!(notification_settings.mode, NotificationsMode::Enabled)
                     && notification_settings.is_needs_attention_enabled);
-        let pane_handling_ssh_upload =
-            self.is_ssh_uploader() && FeatureFlag::SshDragAndDrop.is_enabled();
+        let pane_handling_ssh_upload = self.is_ssh_uploader();
         password_notification_setting_on || pane_handling_ssh_upload
     }
 
@@ -18994,9 +18926,7 @@ impl TerminalView {
         block_index: Option<BlockIndex>,
         ctx: &mut ViewContext<Self>,
     ) {
-        if FeatureFlag::SshDragAndDrop.is_enabled() {
-            self.propagate_password_request(ctx);
-        }
+        self.propagate_password_request(ctx);
 
         // Only send the notification if the user is navigated away from the window
         // when the password prompt appears. If they are present, don't poll again
@@ -19233,7 +19163,6 @@ impl TypedActionView for TerminalView {
             | UserInputSequence(_)
             | ControlSequence(_)
             | TriggerSubshellBootstrap
-            | ShowSubshellBanner(_)
             | DismissWarpifyBanner(_)
             | OpenBlockListContextMenu
             | AliasExpansionBanner(_)
@@ -19637,20 +19566,6 @@ impl TypedActionView for TerminalView {
             OpenBlockListContextMenu => self.open_block_list_context_menu_via_keybinding(ctx),
             AskAIAssistant { block_index } => self.ask_ai(&AskAISource::Block(*block_index), ctx),
             TriggerSubshellBootstrap => self.trigger_subshell_bootstrap(None, false, ctx),
-            ShowSubshellBanner(command) => {
-                // Abort handle is no longer needed since we've waited the 1s already.
-                self.warpify_state.take_subshell_banner_abort_handle();
-
-                let warpify_keybinding =
-                    keybinding_name_to_keystroke("terminal:warpify_subshell", ctx);
-                self.show_warpify_banner(
-                    command.to_owned(),
-                    "Subshell",
-                    "subshell",
-                    warpify_keybinding,
-                    ctx,
-                );
-            }
             DismissWarpifyBanner(remember) => {
                 self.dismiss_warpify_banner(remember, ctx);
             }
@@ -20508,8 +20423,7 @@ impl View for TerminalView {
             SavePosition::new(stack.finish(), &self.terminal_position_id()).finish()
         };
 
-        let final_element = if self.is_file_drop_target && FeatureFlag::SshDragAndDrop.is_enabled()
-        {
+        let final_element = if self.is_file_drop_target {
             Container::new(element)
                 .with_foreground_overlay(appearance.theme().accent_overlay())
                 .finish()

@@ -24,20 +24,12 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
     HashSet::from([
         #[cfg(feature = "run_generators_with_cmd_exe")]
         FeatureFlag::RunGeneratorsWithCmdExe,
-        #[cfg(feature = "ligatures")]
-        FeatureFlag::Ligatures,
-        #[cfg(feature = "selectable_prompt")]
-        FeatureFlag::SelectablePrompt,
         #[cfg(feature = "agent_mode")]
         FeatureFlag::AgentMode,
-        #[cfg(feature = "resize_fix")]
-        FeatureFlag::ResizeFix,
         #[cfg(feature = "richtext_multiselect")]
         FeatureFlag::RichTextMultiselect,
         #[cfg(feature = "settings_file")]
         FeatureFlag::SettingsFile,
-        #[cfg(feature = "rect_selection")]
-        FeatureFlag::RectSelection,
         #[cfg(feature = "alacritty_settings_import")]
         FeatureFlag::AlacrittySettingsImport,
         #[cfg(feature = "dynamic_workflow_enums")]
@@ -46,8 +38,6 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::AgentModeWorkflows,
         #[cfg(feature = "ai_rules")]
         FeatureFlag::AIRules,
-        #[cfg(feature = "shell_selector")]
-        FeatureFlag::ShellSelector,
         #[cfg(feature = "full_screen_zen_mode")]
         FeatureFlag::FullScreenZenMode,
         #[cfg(feature = "minimalist_ui")]
@@ -56,8 +46,6 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::AvatarInTabBar,
         #[cfg(feature = "workflow_aliases")]
         FeatureFlag::WorkflowAliases,
-        #[cfg(feature = "ssh_drag_and_drop")]
-        FeatureFlag::SshDragAndDrop,
         #[cfg(all(
             feature = "drag_tabs_to_windows",
             any(target_os = "macos", target_os = "windows")
@@ -65,12 +53,8 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::DragTabsToWindows,
         #[cfg(feature = "cycle_next_command_suggestion")]
         FeatureFlag::CycleNextCommandSuggestion,
-        #[cfg(feature = "ime_marked_text")]
-        FeatureFlag::ImeMarkedText,
         #[cfg(feature = "partial_next_command_suggestions")]
         FeatureFlag::PartialNextCommandSuggestions,
-        #[cfg(feature = "iterm_images")]
-        FeatureFlag::ITermImages,
         #[cfg(feature = "validate_autosuggestions")]
         FeatureFlag::ValidateAutosuggestions,
         #[cfg(feature = "clear_autosuggestion_on_escape")]
@@ -247,8 +231,6 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::QueueSlashCommand,
         #[cfg(feature = "queued_prompts_v2")]
         FeatureFlag::QueuedPromptsV2,
-        #[cfg(feature = "kitty_keyboard_protocol")]
-        FeatureFlag::KittyKeyboardProtocol,
         #[cfg(feature = "inline_menu_headers")]
         FeatureFlag::InlineMenuHeaders,
         #[cfg(feature = "restore_prompt_on_inline_model_selector_search")]
@@ -267,36 +249,22 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::PinnedTabs,
         #[cfg(feature = "agent_harness")]
         FeatureFlag::AgentHarness,
-        #[cfg(feature = "warpify_footer")]
-        FeatureFlag::WarpifyFooter,
         #[cfg(feature = "git_operations_in_code_review")]
         FeatureFlag::GitOperationsInCodeReview,
-        #[cfg(feature = "trim_trailing_blank_lines")]
-        FeatureFlag::TrimTrailingBlankLines,
         #[cfg(feature = "nld_prompt_history_match")]
         FeatureFlag::NldPromptHistoryMatch,
-        #[cfg(feature = "osc_hyperlinks")]
-        FeatureFlag::OscHyperlinks,
-        #[cfg(feature = "program_status_protocol")]
-        FeatureFlag::ProgramStatusProtocol,
-        #[cfg(feature = "terminal_lifecycle_recovery")]
-        FeatureFlag::TerminalLifecycleRecovery,
         #[cfg(feature = "code_review_scroll_preservation")]
         FeatureFlag::CodeReviewScrollPreservation,
         #[cfg(feature = "command_corrections_history_rule")]
         FeatureFlag::CommandCorrectionsHistoryRule,
         #[cfg(feature = "mcp_json_tree_view")]
         FeatureFlag::McpJsonTreeView,
-        #[cfg(feature = "box_drawing_glyphs")]
-        FeatureFlag::BoxDrawingGlyphs,
         #[cfg(feature = "remove_autosuggestion_during_tab_completions")]
         FeatureFlag::RemoveAutosuggestionDuringTabCompletions,
         #[cfg(feature = "file_glob_v2_warnings")]
         FeatureFlag::FileGlobV2Warnings,
         #[cfg(feature = "remember_fast_forward_state")]
         FeatureFlag::RememberFastForwardState,
-        #[cfg(feature = "toggle_bootstrap_block")]
-        FeatureFlag::ToggleBootstrapBlock,
     ])
 }
 

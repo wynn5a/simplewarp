@@ -10,7 +10,6 @@ use parking_lot::{FairMutex, RwLock};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use settings::Setting as _;
-use warp_core::features::FeatureFlag;
 use warp_core::semantic_selection::SemanticSelection;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
@@ -995,9 +994,7 @@ impl View for CLISubagentView {
                 .with_word_boundaries_policy(semantic_selection.word_boundary_policy())
                 .with_smart_select_fn(semantic_selection.smart_select_fn());
 
-                if FeatureFlag::RectSelection.is_enabled() {
-                    selectable_text = selectable_text.should_support_rect_select();
-                }
+                selectable_text = selectable_text.should_support_rect_select();
 
                 let scrollable_container = render_scrollable_container(
                     ScrollableContainerProps {
@@ -1213,9 +1210,7 @@ impl View for CLISubagentView {
             .with_word_boundaries_policy(semantic_selection.word_boundary_policy())
             .with_smart_select_fn(semantic_selection.smart_select_fn());
 
-            if FeatureFlag::RectSelection.is_enabled() {
-                output = output.should_support_rect_select();
-            }
+            output = output.should_support_rect_select();
 
             result.add_child(
                 render_scrollable_container(
@@ -1333,9 +1328,7 @@ impl View for CLISubagentView {
             .with_word_boundaries_policy(semantic_selection.word_boundary_policy())
             .with_smart_select_fn(semantic_selection.smart_select_fn());
 
-            if FeatureFlag::RectSelection.is_enabled() {
-                selectable_action = selectable_action.should_support_rect_select();
-            }
+            selectable_action = selectable_action.should_support_rect_select();
 
             result.add_child(
                 Container::new(selectable_action.finish())

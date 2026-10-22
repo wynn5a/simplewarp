@@ -349,18 +349,13 @@ clear_autosuggestion_on_escape = []
 simplewarp = [
     "use_tantivy_search",
     "agent_mode",
-    "osc_hyperlinks",
-    "program_status_protocol",
     "render_continuous_block_selections_with_single_border",
     "external_agent_mode_context",
-    "shell_selector",
     "minimalist_ui",
     "avatar_in_tab_bar",
     "full_screen_zen_mode",
     "workflow_aliases",
-    "ligatures",
     "dynamic_workflow_enums",
-    "rect_selection",
     "ai_rules",
     "am_workflows",
     "render_agent_mode_output_markdown",
@@ -433,15 +428,12 @@ simplewarp = [
     "figma_detection",
     "file_based_mcp",
     "inline_repo_menu",
-    "kitty_keyboard_protocol",
     "inline_menu_headers",
     "github_pr_prompt_chip",
     "conversations_as_context",
     "markdown_tables",
     "jupyter_notebook_rendering",
     "editable_markdown_mermaid",
-    "ime_marked_text",
-    "iterm_images",
     "local_docker_sandbox",
     "blocklist_markdown_table_rendering",
     "markdown_mermaid",
@@ -449,7 +441,6 @@ simplewarp = [
     "pr_comments_v2",
     "revert_to_checkpoints",
     "rewind_slash_command",
-    "warpify_footer",
     "agent_toolbar_editor",
     "configurable_toolbar",
     "vertical_tabs",
@@ -457,33 +448,26 @@ simplewarp = [
     "tab_configs",
     "grouped_tabs",
     "pinned_tabs",
-    "trim_trailing_blank_lines",
     "settings_file",
     "directory_tab_colors",
     "pending_user_query_indicator",
     "queue_slash_command",
     "queued_prompts_v2",
     "git_operations_in_code_review",
-    "terminal_lifecycle_recovery",
     "agent_harness",
     "code_review_scroll_preservation",
     "command_corrections_history_rule",
     "mcp_json_tree_view",
-    "box_drawing_glyphs",
     "remove_autosuggestion_during_tab_completions",
     "file_glob_v2_warnings",
     "remember_fast_forward_state",
-    "toggle_bootstrap_block",
     "nld_prompt_history_match",
     "cycle_next_command_suggestion",
     "partial_next_command_suggestions",
-    "resize_fix",
-    "selectable_prompt",
     "agent_view_prompt_chip",
     "ai_context_menu_commands",
     "alacritty_settings_import",
     "restore_prompt_on_inline_model_selector_search",
-    "ssh_drag_and_drop",
     "drag_tabs_to_windows",
     "projects",
 ]
@@ -523,9 +507,6 @@ jemalloc_auto_heap_profiling = ["jemalloc_with_profiling"]
 jemalloc_pprof = ["jemalloc_with_profiling", "dep:jemalloc_pprof"]
 run_generators_with_cmd_exe = []
 kitty_images = []
-kitty_keyboard_protocol = []
-ligatures = []
-trim_trailing_blank_lines = []
 list_skills = []
 local_docker_sandbox = []
 jupyter_notebook_rendering = []
@@ -535,7 +516,6 @@ mcp_server = []
 mcp_oauth = []
 # Remote-backed tty that connects to a PTY-like interface via a server.
 # Fix for cursor reflow bug during window resize, from Alacritty resizing logic.
-resize_fix = []
 pluggable_notifications = []
 # This enables `read_files` to support images.
 read_image_files = []
@@ -547,7 +527,6 @@ recording_mode = []
 render_agent_mode_output_markdown = []
 render_continuous_block_selections_with_single_border = []
 richtext_multiselect = []
-selectable_prompt = []
 settings_file = []
 tab_close_button_on_left = []
 test-util = [
@@ -555,15 +534,12 @@ test-util = [
     "warp_core/test-util",
     "cloud_objects/test-util",
 ]
-terminal_lifecycle_recovery = []
 code_review_scroll_preservation = []
 command_corrections_history_rule = []
 mcp_json_tree_view = []
-box_drawing_glyphs = []
 remove_autosuggestion_during_tab_completions = []
 file_glob_v2_warnings = []
 remember_fast_forward_state = []
-toggle_bootstrap_block = []
 # Feature enabled only when app is compiled for integration tests.
 integration_tests = [
     "warp_cli/integration_tests",
@@ -573,21 +549,16 @@ integration_tests = [
 ]
 traces = []
 workflow_aliases = []
-rect_selection = []
 alacritty_settings_import = []
 ai_rules = []
 am_workflows = []
-shell_selector = []
 blocklist_markdown_table_rendering = []
 blocklist_markdown_images = []
 minimalist_ui = []
 external_agent_mode_context = []
 avatar_in_tab_bar = []
-ssh_drag_and_drop = []
 cycle_next_command_suggestion = []
-ime_marked_text = []
 partial_next_command_suggestions = []
-iterm_images = []
 validate_autosuggestions = []
 command_correction_key = []
 use_tantivy_search = []
@@ -660,10 +631,7 @@ grouped_tabs = []
 pinned_tabs = []
 agent_harness = []
 configurable_toolbar = []
-warpify_footer = []
 git_operations_in_code_review = []
-osc_hyperlinks = []
-program_status_protocol = []
 
 [package.metadata.bundle.bin.simplewarp]
 category = "public.app-category.developer-tools"

@@ -17,7 +17,6 @@ use std::sync::OnceLock;
 
 use parking_lot::Mutex;
 use warp::cmd_or_ctrl_shift;
-use warp::features::FeatureFlag;
 use warp::integration_testing::step::new_step_with_default_assertions;
 use warp::integration_testing::terminal::util::{ExactLine, ExpectedExitStatus};
 use warp::integration_testing::terminal::{
@@ -49,7 +48,6 @@ fn osc8_printf(uri: &str, visible: &str) -> String {
 /// Bootstrap + enable feature flag. All OSC 8 tests share this prelude so
 /// the flag flip happens once.
 fn osc8_prelude() -> Builder {
-    FeatureFlag::OscHyperlinks.set_enabled(true);
     new_builder().with_step(wait_until_bootstrapped_single_pane_for_tab(0))
 }
 
@@ -230,7 +228,7 @@ pub fn test_osc8_file_scheme_opens_url() -> Builder {
         )
 }
 
-/// 5. Plain-text URL auto-detection still works with `OscHyperlinks`
+/// 5. Plain-text URL auto-detection still works with OSC 8 hyperlinks
 ///    enabled — i.e. plain URLs without OSC 8 wrappers continue to be
 ///    captured by the model's auto-detect link table.
 ///
