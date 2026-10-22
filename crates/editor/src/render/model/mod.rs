@@ -2486,7 +2486,7 @@ impl RenderState {
     ///
     /// CharCell mode consumes `styles.base_text.fixed_width_tab_size` for tab
     /// geometry. Other style fields are retained for API compatibility but are
-    /// unused; callers (e.g. `warp_tui`) may supply a minimal stub.
+    /// unused; callers may supply a minimal stub.
     pub fn new_tui(
         terminal_width: u16,
         styles: RichTextStyles,

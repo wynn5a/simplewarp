@@ -139,7 +139,7 @@ pub enum CLIAgent {
     Hermes,
     Vibe,
     Antigravity,
-    /// Warp's own headless TUI.
+    /// Warp's TUI binary.
     WarpTui,
     /// Represents an unknown/custom CLI agent matched by user-configured regex patterns.
     Unknown,

@@ -44,9 +44,8 @@ use warp_editor::editor::TextDecoration;
 use warp_editor::model::{CoreEditorModel, PlainTextEditorModel};
 use warp_editor::multiline::{AnyMultilineString, LF, MultilineString};
 use warp_editor::render::model::{
-    AutoScrollMode, BlockItem, BlockSpacings, BrokenLinkStyle, CheckBoxStyle, ColumnUnit,
-    Decoration, HorizontalRuleStyle, InlineCodeStyle, LineCount, LineDecoration, ParagraphStyles,
-    RenderEvent, RenderLineLocation, RenderState, RichTextStyles, StyleUpdateAction, TableStyle,
+    AutoScrollMode, BlockItem, ColumnUnit, Decoration, LineCount, LineDecoration, RenderEvent,
+    RenderLineLocation, RenderState, RichTextStyles, StyleUpdateAction,
     UpdateDecorationAfterLayout, WidthSetting,
 };
 use warp_editor::selection::{SelectionMode, SelectionModel, TextDirection, TextUnit};
@@ -199,7 +198,7 @@ pub enum CodeEditorModelEvent {
         origin: EditOrigin,
     },
     SelectionChanged,
-    UnifiedDiffComputed(Rc<DiffResult>),
+    UnifiedDiffComputed(#[cfg_attr(not(test), allow(dead_code))] Rc<DiffResult>),
     ViewportUpdated(BufferVersion),
     InteractionStateChanged,
     DelayedRenderingFlushed,
@@ -348,19 +347,19 @@ impl CodeEditorModel {
         )
     }
 
-    /// Constructs a `CodeEditorModel` in TUI char-cell mode.
+    /// Constructs a `CodeEditorModel` in TUI char-cell mode (test-only).
     ///
     /// Identical to `new` but creates the `RenderState` with
     /// [`LayoutMode::CharCell`] so all soft-wrap positions use monospace
-    /// character-count arithmetic rather than font-aware pixel layout.
-    /// `TuiEditorModel` (in `warp_tui`) is a type alias for this type;
-    /// constructing via this method is what gives the TUI editor all of
-    /// `CodeEditorModel`'s features (vim, syntax, diff, hidden lines) for free
-    /// while sharing no GUI-rendering infrastructure.
+    /// character-count arithmetic rather than font-aware pixel layout. It gives
+    /// the char-cell consumer all of `CodeEditorModel`'s features (vim, syntax,
+    /// diff, hidden lines) for free while sharing no GUI-rendering
+    /// infrastructure.
     ///
     /// Like `new`, this reads syntax-highlight colors from the `Appearance`
     /// singleton, so callers must register `Appearance` (a real one for the
     /// runtime, `Appearance::mock()` for tests) before constructing the model.
+    #[cfg(test)]
     pub fn new_tui(terminal_width: u16, ctx: &mut ModelContext<Self>) -> Self {
         let content = ctx.add_model(|_| Buffer::new(Box::new(|_, _| IndentBehavior::Ignore)));
 
@@ -470,12 +469,17 @@ impl CodeEditorModel {
         }
     }
 
-    /// A minimal [`RichTextStyles`] for the TUI char-cell editor.
+    /// A minimal [`RichTextStyles`] for the test-only char-cell editor path.
     ///
     /// [`RenderState::new_tui`] consumes the base paragraph's tab size and
     /// retains the remaining styles for API compatibility. This stub lives here
     /// so the core editor crate doesn't carry a TUI-specific dependency.
+    #[cfg(test)]
     fn tui_stub_text_styles() -> RichTextStyles {
+        use warp_editor::render::model::{
+            BlockSpacings, BrokenLinkStyle, CheckBoxStyle, HorizontalRuleStyle, InlineCodeStyle,
+            ParagraphStyles, TableStyle,
+        };
         use warpui::elements::{Border, Fill};
         use warpui::fonts::{FamilyId, Weight};
 

@@ -1,5 +1,8 @@
 # SimpleWarp release app build
 
+> Historical scratch log, last updated 2026-09-14. Current status lives in
+> [`plan.md`](plan.md); several "next candidates" below are marked superseded.
+
 ## Git push identity (standing decision, 2026-09-14)
 - Push as `wynn5a`, then switch back to `fuwenming-pacvue`.
 - Both accounts live in `gh auth` (keyring); remote is HTTPS + osxkeychain (holds fuwenming's credential, so a plain push 403s).

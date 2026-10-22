@@ -1,17 +1,16 @@
 //! View-supplied policy for input-mode decisions.
 //!
-//! [`BlocklistAIInputModel`](super::BlocklistAIInputModel) is shared between
-//! frontends (the GUI terminal input and the TUI prompt input), but several of
-//! its decisions depend on view concepts the model cannot know about — e.g.
-//! whether the surface distinguishes "fullscreen agent view" from "top-level
-//! terminal", or whether locking the input to AI is allowed outside a
-//! conversation. Each frontend supplies those answers via [`InputModePolicy`],
-//! mirroring how [`ConversationSelection`](super::conversation_selection::ConversationSelection)
+//! [`BlocklistAIInputModel`](super::BlocklistAIInputModel) is shared by the
+//! terminal input surfaces, but several of its decisions depend on view
+//! concepts the model cannot know about — e.g. whether the surface
+//! distinguishes "fullscreen agent view" from "top-level terminal", or whether
+//! locking the input to AI is allowed outside a conversation. Each view
+//! supplies those answers via [`InputModePolicy`], mirroring how
+//! [`ConversationSelection`](super::conversation_selection::ConversationSelection)
 //! injects per-view selection semantics.
 //!
 //! The GUI implementation lives in
-//! `super::agent_view::GuiInputModePolicy`; the TUI implementation lives in
-//! `crates/warp_tui/src/input_mode_policy.rs`.
+//! `super::agent_view::GuiInputModePolicy`.
 
 use std::rc::Rc;
 

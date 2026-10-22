@@ -228,8 +228,7 @@ impl PersistedWorkspace {
 
         // Registered regardless of whether codebase indexing is enabled:
         // `index_repo` drives project-rules (and, transitively, project
-        // skills) discovery, which must work in modes that keep codebase
-        // indexing off (e.g. the TUI front-end).
+        // skills) discovery, which must work even when codebase indexing is off.
         if !cfg!(any(test, feature = "integration_tests")) {
             ctx.subscribe_to_model(&DetectedRepositories::handle(ctx), |me, _, event, ctx| {
                 let DetectedRepositoriesEvent::DetectedGitRepo { repository, .. } = event;

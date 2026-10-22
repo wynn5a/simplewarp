@@ -328,7 +328,7 @@ impl TerminalView {
     }
 
     /// Returns whether the active long-running command in this terminal is
-    /// Warp's own headless TUI (`warp_tui`).
+    /// Warp's TUI binary.
     pub(super) fn is_running_warp_tui(&self, model: &TerminalModel, ctx: &AppContext) -> bool {
         let active_block = model.block_list().active_block();
         if !active_block.is_active_and_long_running() {
