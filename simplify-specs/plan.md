@@ -1416,9 +1416,39 @@ run, 6,289 passed, 1 failed, 87 skipped — the clone-slash-command integration 
 this session it passed and failed on consecutive isolated runs, so it is timing-sensitive and
 unrelated to the editor.
 
-Next candidates: `warpui_core` still documents a TUI that no longer exists (`AnyTuiView`,
-`TuiView` links in `window.rs`/`app.rs`, TUI wording in element and keymap comments), and
-`warp_logging::LogFrontend::Tui` has no constructor left in the workspace.
+**TUI residue documentation and the unused log frontend (2026-10-22).** Commit `e069ba7f0`,
+122 insertions and 186 deletions across 31 files, no behavior changes beyond deleting dead
+variants and helpers:
+
+- `warp_logging`: dropped `LogFrontend::Tui` and `TUI_LOG_SUBDIRECTORY`, so `log_directory` and
+  `max_rotation` cover only `Gui` and `Cli`. The bundle and crash-recovery tests now run through
+  `Cli` (renamed to drop the TUI framing), preserving the zip/rotation coverage.
+- `warpui_core`: rewrote the docs that described a live TUI backend or renderer as sharing the
+  core (`elements.rs`, `core/window.rs`, `core/view/context.rs`, `core/app.rs`,
+  `elements/gui/hoverable.rs`, `elements/shimmer_math.rs`). `StoredView` gained an inherent
+  `render`, so `App::render_views` is a plain `map`; the `filter_map` filter existed only for the
+  deleted variant, so its clippy allow is gone too. Deleted the unused `text::TuiGridPoint` and
+  the unused `libc` target dependency (with its `Cargo.lock` entry), whose comment described a
+  deleted TUI terminal probe.
+- Keymap validator regression tests: retargeted from `RootTuiView`/`require_tui_owned` to a
+  neutral `SecondaryView` context, preserving the `validate_bindings` coverage.
+- App: `generate_default_settings` documents and accepts only `--surface gui`; the settings schema
+  and settings-mode docs no longer list a TUI surface; slash-command, model-picker, skill, and
+  terminal docs describe the single surface. Deleted the TUI-only public
+  `BlockList::update_rich_content_heights_in_lines`, inlined into its only caller. Reworded the
+  `diff_storage`, persistence, MCP PATH, and test comments, and renamed
+  `build_tui_context_model` plus its two tests to `build_cli_context_model`/`cli_*`.
+- Intentionally kept: `CLIAgent::WarpTui` and `warp-tui` binary detection, comments about
+  external CLI-agent or readline-style TUIs (bracketed paste, alt screen, copy, OSC), and the
+  specs/AGENTS notes that the front-end was removed.
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,290
+run, 6,289 passed, 1 failed, 87 skipped — the same clone-slash-command integration flake (failed
+again in isolation, then passed on the next isolated run).
+
+Next candidates: `StoredView` and `SlashCommandSurfaces` are now single-variant enums, and
+`SlashCommandDataSource`/`TerminalSurface` have one production impl each; all four are the same
+shape of collapse as `ColumnUnit` if a further structural round is wanted.
 
 ## Risks
 
