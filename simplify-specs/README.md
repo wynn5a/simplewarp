@@ -13,5 +13,6 @@ kept up to date.
 | [plan-p4.md](plan-p4.md) | Second dead-code sweep (2026-10-17), mechanical pass: unused deps, allow→warn probe, orphan files, features. |
 | [plan-p4b.md](plan-p4b.md) | Second sweep, semantic pass: public API, actions/menus, DB tables, assets, every `allow(dead_code)` site. |
 | [plan-p4c.md](plan-p4c.md) | Post-P4b fixpoint (2026-10-19): crates-side leftovers, annotation pass, dependency re-check, decision round. |
+| [plan-p5.md](plan-p5.md) | Leftovers survey (2026-10-22): machete ignore lists, "GUI" names, the 132 always-on feature flags in batches. |
 | [plan-osc7501.md](plan-osc7501.md) | Design note for the OSC 7501 program-status protocol implementation. |
 | [progress-log.md](progress-log.md) | Scratch progress log through 2026-09-14; superseded by `plan.md`, kept for its acceptance notes. |

@@ -107,6 +107,10 @@ preferred route; D2 dropped the common-skills lock (user ruling). H4 was wrong a
 `warp_util::path::warp_shell_path()` reads `WARP_SHELL_PATH` in the local shell starter, so
 `.warp/workflows/run_warp_with_shell.yaml` is a working dev convenience.
 
+**Leftovers survey (2026-10-22):** queued in [plan-p5.md](plan-p5.md) — A `cargo machete` ignore
+lists (no real unused deps), B "GUI" names left from the two-front-end design, C the 132 always-on
+feature flags in seven batches. No behavior change in any of them.
+
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
 `CloudAgent` / `ScheduledAmbientAgent` shapes, `crates/isolation_platform` (local detection) and
