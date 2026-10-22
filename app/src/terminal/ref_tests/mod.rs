@@ -6,6 +6,7 @@ use std::io::{self, Read};
 use std::path::Path;
 use std::sync::Arc;
 
+use flate2::read::GzDecoder;
 use serde::Deserialize;
 use serde_json as json;
 use warpui::r#async::executor::Background;
@@ -91,14 +92,22 @@ struct RefConfig {
     history_size: u32,
 }
 
+fn read_grid(dir: &Path) -> GridStorage {
+    let file = File::open(dir.join("grid.json.gz")).unwrap();
+    let mut serialized_grid = String::new();
+    GzDecoder::new(file)
+        .read_to_string(&mut serialized_grid)
+        .unwrap();
+    json::from_str(&serialized_grid).unwrap()
+}
+
 fn ref_test(dir: &Path) {
     let recording = read_u8(dir.join("alacritty.recording"));
     let serialized_size = fs::read_to_string(dir.join("size.json")).unwrap();
-    let serialized_grid = fs::read_to_string(dir.join("grid.json")).unwrap();
     let serialized_cfg = fs::read_to_string(dir.join("config.json")).unwrap();
 
     let size: SizeInfo = json::from_str(&serialized_size).unwrap();
-    let grid: GridStorage = json::from_str(&serialized_grid).unwrap();
+    let grid = read_grid(dir);
     let ref_config: RefConfig = json::from_str(&serialized_cfg).unwrap();
 
     let history_size = ref_config.history_size;
