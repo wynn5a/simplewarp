@@ -84,7 +84,6 @@ call-out are surface-agnostic.
 - `crates/warp_core/` - Core utilities and platform abstractions (shared)
 - `crates/editor/` - Text editing functionality
 - `crates/warpui/` and `crates/warpui_core/` - Custom UI framework
-- `crates/ipc/` - Inter-process communication
 
 ### Key Architectural Patterns
 

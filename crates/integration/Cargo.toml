@@ -17,7 +17,6 @@ cfg-if.workspace = true
 chrono.workspace = true
 clap.workspace = true
 command.workspace = true
-directories.workspace = true
 itertools.workspace = true
 float-cmp.workspace = true
 instant.workspace = true
