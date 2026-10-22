@@ -1391,6 +1391,35 @@ Verification: format and the three clippy gates clean; `cargo nextest run --work
 run, 6,340 passed, 1 failed, 87 skipped — the known clone-slash-command integration flake,
 passing 2/2 in isolation (~5.8 s), the same signature recorded in P4c.
 
+**Editor char-cell engine removal (2026-10-22).** Commit `c7fa838f5`, 3,226 deletions and 74
+insertions across 12 files:
+
+- Deleted the char-cell engine itself: `CharCellState`, `CharCellTextIndex`,
+  `CharCellTemporaryBlock`, `DisplayLattice`/`DisplayRow`/`DisplayRowKind`
+  (`char_cell_display.rs` and its 415-line test module), the `char_cell_*` free functions,
+  `LayoutMode` and the `RenderState::layout_mode` field, and the `max_line`, soft-wrap, and
+  temporary-block branches that read it.
+- App side: `CodeEditorModel::new_tui`, `tui_stub_text_styles`, and the TUI diff-pipeline test
+  are gone. `from_content` no longer takes a render-state builder closure, and its three
+  mode-only flags became literals.
+- Collapsed `ColumnUnit` into `Pixels`: with the char-cell path gone, nothing constructed
+  `Chars`. Goal columns are now `Option<Pixels>`/`Option<Vec1<Pixels>>`, and
+  `SoftWrapPoint::new` takes `Pixels`.
+- Dropped `unicode-linebreak`, `unicode-segmentation`, and `unicode-width` from `warp_editor`
+  (the engine was their only consumer) and the now-unreferenced workspace
+  `unicode-linebreak`; `benches/char_cell_bench.rs` and its `[[bench]]` entry are deleted.
+- Also removed a stale "Char-cell (TUI) visual-row kill" section header that sat above
+  `reset_content` with no matching code under it.
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,290
+run, 6,289 passed, 1 failed, 87 skipped — the clone-slash-command integration flake again. In
+this session it passed and failed on consecutive isolated runs, so it is timing-sensitive and
+unrelated to the editor.
+
+Next candidates: `warpui_core` still documents a TUI that no longer exists (`AnyTuiView`,
+`TuiView` links in `window.rs`/`app.rs`, TUI wording in element and keymap comments), and
+`warp_logging::LogFrontend::Tui` has no constructor left in the workspace.
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the
