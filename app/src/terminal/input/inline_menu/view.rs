@@ -3,7 +3,6 @@ use std::sync::LazyLock;
 
 use itertools::Itertools;
 use pathfinder_geometry::vector::vec2f;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::Icon;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::color::blend::Blend;
@@ -705,10 +704,6 @@ impl<A: InlineMenuAction, T: 'static + Send + Sync> InlineMenuView<A, T> {
     }
 
     fn render_header(&self, app: &AppContext) -> Option<Box<dyn Element>> {
-        if !FeatureFlag::InlineMenuHeaders.is_enabled() {
-            return None;
-        }
-
         let model = self.model.as_ref(app);
         let tab_configs = model.tab_configs();
 

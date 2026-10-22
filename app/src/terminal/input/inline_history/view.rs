@@ -10,7 +10,6 @@ use warpui::{AppContext, Element, Entity, EntityId, ModelHandle, View, ViewConte
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewControllerEvent};
-use crate::features::FeatureFlag;
 use crate::search::data_source::{Query, QueryFilter};
 use crate::search::mixer::{SearchMixer, SearchMixerEvent};
 use crate::settings_view::SettingsSection;
@@ -236,49 +235,35 @@ impl InlineHistoryMenuView {
             mixer
         });
 
-        let menu_view = if FeatureFlag::InlineMenuHeaders.is_enabled() {
-            let configure_button = ctx.add_view(|_| {
-                ActionButton::new("Configure", ConfigureButtonTheme)
-                    .with_icon(Icon::Settings)
-                    .with_size(ButtonSize::Small)
-                    .on_click(|ctx| {
-                        ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
-                            search_query: "commands history".into(),
-                            section: Some(SettingsSection::WarpAgent),
-                        });
-                    })
-            });
-            let header_config = InlineMenuHeaderConfig {
-                label: "History".to_string(),
-                trailing_element: Some(Box::new(move |_app: &AppContext| {
-                    ChildView::new(&configure_button).finish()
-                })),
-            };
-            ctx.add_typed_action_view(|ctx| {
-                InlineMenuView::new_with_tabs(
-                    mixer.clone(),
-                    positioner.clone(),
-                    input_suggestions_model,
-                    agent_view_controller.clone(),
-                    tab_configs,
-                    None,
-                    ctx,
-                )
-                .with_header_config(header_config)
-            })
-        } else {
-            ctx.add_typed_action_view(|ctx| {
-                InlineMenuView::new_with_tabs(
-                    mixer.clone(),
-                    positioner.clone(),
-                    input_suggestions_model,
-                    agent_view_controller.clone(),
-                    tab_configs,
-                    None,
-                    ctx,
-                )
-            })
+        let configure_button = ctx.add_view(|_| {
+            ActionButton::new("Configure", ConfigureButtonTheme)
+                .with_icon(Icon::Settings)
+                .with_size(ButtonSize::Small)
+                .on_click(|ctx| {
+                    ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
+                        search_query: "commands history".into(),
+                        section: Some(SettingsSection::WarpAgent),
+                    });
+                })
+        });
+        let header_config = InlineMenuHeaderConfig {
+            label: "History".to_string(),
+            trailing_element: Some(Box::new(move |_app: &AppContext| {
+                ChildView::new(&configure_button).finish()
+            })),
         };
+        let menu_view = ctx.add_typed_action_view(|ctx| {
+            InlineMenuView::new_with_tabs(
+                mixer.clone(),
+                positioner.clone(),
+                input_suggestions_model,
+                agent_view_controller.clone(),
+                tab_configs,
+                None,
+                ctx,
+            )
+            .with_header_config(header_config)
+        });
         let model = menu_view.as_ref(ctx).model().clone();
 
         ctx.subscribe_to_model(input_suggestions_model, |me, model, event, ctx| {

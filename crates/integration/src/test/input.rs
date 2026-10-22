@@ -29,8 +29,6 @@ use crate::Builder;
 /// Ensures that tab completions are hidden when the completions menu is opened
 /// but re-appear when the menu is closed.
 pub fn test_autosuggestions_are_hidden_when_opening_tab_completions() -> Builder {
-    FeatureFlag::RemoveAutosuggestionDuringTabCompletions.set_enabled(true);
-
     new_builder()
         // Ensure that $HOME contains a directory as a tab-completion candidate.
         .with_setup(|utils| {

@@ -202,8 +202,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         .is_supported_on_current_platform(
             InputSettings::as_ref(app)
                 .warp_completions_enabled
-                .is_supported_on_current_platform()
-                && FeatureFlag::NativeShellCompletions.is_enabled(),
+                .is_supported_on_current_platform(),
         ),
         ToggleSettingActionPair::new(
             "native shell completions",
@@ -216,8 +215,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         .is_supported_on_current_platform(
             InputSettings::as_ref(app)
                 .native_shell_completions_enabled
-                .is_supported_on_current_platform()
-                && FeatureFlag::NativeShellCompletions.is_enabled(),
+                .is_supported_on_current_platform(),
         ),
         ToggleSettingActionPair::new(
             "right-click paste",
@@ -320,8 +318,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             )),
             context,
             flags::SHOW_AUTOSUGGESTION_IGNORE_BUTTON_FLAG,
-        )
-        .with_enabled(|| FeatureFlag::AllowIgnoringInputSuggestions.is_enabled()),
+        ),
     ];
 
     toggle_binding_pairs.push(ToggleSettingActionPair::new(
@@ -2277,12 +2274,8 @@ impl FeaturesPageView {
             .completions_open_while_typing
             .is_supported_on_current_platform()
         {
-            if FeatureFlag::NativeShellCompletions.is_enabled() {
-                editor_widgets.push(Box::new(WarpCompletionsWidget::default()));
-                editor_widgets.push(Box::new(NativeShellCompletionsWidget::default()));
-            } else {
-                editor_widgets.push(Box::new(CompletionsMenuWhileTypingWidget::default()));
-            }
+            editor_widgets.push(Box::new(WarpCompletionsWidget::default()));
+            editor_widgets.push(Box::new(NativeShellCompletionsWidget::default()));
         }
         if input_settings
             .command_corrections
@@ -2321,9 +2314,7 @@ impl FeaturesPageView {
 
         editor_widgets.push(Box::new(AutosuggestionKeybindingHintWidget::default()));
 
-        if FeatureFlag::AllowIgnoringInputSuggestions.is_enabled() {
-            editor_widgets.push(Box::new(AutosuggestionIgnoreButtonWidget::default()));
-        }
+        editor_widgets.push(Box::new(AutosuggestionIgnoreButtonWidget::default()));
 
         if input_settings
             .at_context_menu_in_terminal_mode
@@ -4876,47 +4867,6 @@ impl SettingsWidget for SyntaxHighlightingWidget {
                 .build()
                 .on_click(move |ctx, _, _| {
                     ctx.dispatch_typed_action(FeaturesPageAction::ToggleSyntaxHighlighting);
-                })
-                .finish(),
-            None,
-        )
-    }
-}
-
-#[derive(Default)]
-struct CompletionsMenuWhileTypingWidget {
-    switch_state: SwitchStateHandle,
-}
-
-impl SettingsWidget for CompletionsMenuWhileTypingWidget {
-    type View = FeaturesPageView;
-
-    fn search_terms(&self) -> &str {
-        "completions menu type typing"
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let ui_builder = appearance.ui_builder();
-        render_body_item::<FeaturesPageAction>(
-            "Open completions menu as you type".into(),
-            None,
-            ToggleState::Enabled,
-            appearance,
-            ui_builder
-                .switch(self.switch_state.clone())
-                .check(
-                    *InputSettings::as_ref(app)
-                        .completions_open_while_typing
-                        .value(),
-                )
-                .build()
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(FeaturesPageAction::ToggleCompletionsOpenWhileTyping);
                 })
                 .finish(),
             None,

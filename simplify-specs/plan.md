@@ -109,8 +109,8 @@ preferred route; D2 dropped the common-skills lock (user ruling). H4 was wrong a
 
 **Leftovers survey (2026-10-22):** queued in [plan-p5.md](plan-p5.md) — A `cargo machete` ignore
 lists (no real unused deps), B "GUI" names left from the two-front-end design, C the 132 always-on
-feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b and C1c done (see the round log);
-C2–C7 next.
+feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c and C2 done (see the round log);
+C2b, C3–C7 next.
 
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
@@ -1624,6 +1624,39 @@ zero or unreachable. About 460 lines net.
 Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,274 run,
 6,273 passed, 1 failed (the clone-slash-command flake), 86 skipped. `cargo run` smoke: the app
 starts with no errors in `simplewarp.log`.
+
+**P5 C2 — input, completions, history and workflow flags (2026-10-22).** 16 always-on flags removed:
+`AllowIgnoringInputSuggestions`, `ClassicCompletions`, `ClearAutosuggestionOnEscape`,
+`CommandCorrectionKey`, `CommandCorrectionsHistoryRule`, `CycleNextCommandSuggestion`,
+`DynamicWorkflowEnums`, `ForceClassicCompletions`, `InlineHistoryMenu`, `InlineMenuHeaders`,
+`NativeShellCompletions`, `NldPromptHistoryMatch`, `PartialNextCommandSuggestions`,
+`RemoveAutosuggestionDuringTabCompletions`, `ValidateAutosuggestions`, `WorkflowAliases`.
+
+- Classic completions are what ships (`ClassicCompletions` + `ForceClassicCompletions` made
+  `is_classic_completions_enabled()` always true), so that predicate is inlined away with every
+  regular-mode branch; the inert `terminal.input.classic_completions_mode` setting, the
+  `ToggleClassicCompletionsMode` action and its never-registered binding are deleted, and
+  `should_enter_accept_completion_suggestion` is just "an item is selected" (user ruling: keep
+  classic, update the tests).
+- Also gone: the fallback model dropdown and chevron (`ProfileModelSelector`, InlineMenuHeaders), the
+  `CompletionsMenuWhileTypingWidget`, the history-rule ignore list for command corrections, the
+  `feature_flag_enabled` parameter of `resolve_completion_sources`.
+- Tests: `WorkflowAliases` is now read unconditionally by `SessionContext::new`, so the shared test
+  settings register it and the completer / next-command / package-installer tests register settings
+  plus a mock `CloudModel`. 11 input tests asserted regular-completion or old history-up behavior:
+  the tab tests now assert classic behavior (first tab selects the first item, the menu anchors at
+  the replacement start and stays open on cursor moves, selecting writes the item into the buffer);
+  `test_tab_completions_menu_for_regular_completions`,
+  `..._longest_common_prefix_with_fuzzy_suggestions_and_completions_open`, the regular-mode case of
+  `..._common_prefix_shorter` and `..._ignores_toggles_without_feature_flag` are deleted; the four
+  `HistoryUp` tests became `test_history_up_opens_inline_history_menu`, and
+  `test_vim_escape_with_history_menu` asserts the inline menu.
+- Follow-up queued as **C2b**: the `HistoryUp` suggestions mode is now unreachable.
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,268 run
+(−6 deleted), 6,267 passed, 1 failed (the clone-slash-command flake), 86 skipped. `cargo run`
+smoke: the app starts with no errors in `simplewarp.log`; completion and history were not exercised
+by hand.
 
 ## Risks
 

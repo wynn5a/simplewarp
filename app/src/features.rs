@@ -32,8 +32,6 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::SettingsFile,
         #[cfg(feature = "alacritty_settings_import")]
         FeatureFlag::AlacrittySettingsImport,
-        #[cfg(feature = "dynamic_workflow_enums")]
-        FeatureFlag::DynamicWorkflowEnums,
         #[cfg(feature = "am_workflows")]
         FeatureFlag::AgentModeWorkflows,
         #[cfg(feature = "ai_rules")]
@@ -44,25 +42,13 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::MinimalistUI,
         #[cfg(feature = "avatar_in_tab_bar")]
         FeatureFlag::AvatarInTabBar,
-        #[cfg(feature = "workflow_aliases")]
-        FeatureFlag::WorkflowAliases,
         #[cfg(all(
             feature = "drag_tabs_to_windows",
             any(target_os = "macos", target_os = "windows")
         ))]
         FeatureFlag::DragTabsToWindows,
-        #[cfg(feature = "cycle_next_command_suggestion")]
-        FeatureFlag::CycleNextCommandSuggestion,
-        #[cfg(feature = "partial_next_command_suggestions")]
-        FeatureFlag::PartialNextCommandSuggestions,
-        #[cfg(feature = "validate_autosuggestions")]
-        FeatureFlag::ValidateAutosuggestions,
-        #[cfg(feature = "clear_autosuggestion_on_escape")]
-        FeatureFlag::ClearAutosuggestionOnEscape,
         #[cfg(all(not(windows), feature = "kitty_images"))]
         FeatureFlag::KittyImages,
-        #[cfg(feature = "command_correction_key")]
-        FeatureFlag::CommandCorrectionKey,
         #[cfg(feature = "use_tantivy_search")]
         FeatureFlag::UseTantivySearch,
         #[cfg(feature = "mcp_server")]
@@ -143,8 +129,6 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::CodeReviewSaveChanges,
         #[cfg(feature = "file_tree")]
         FeatureFlag::FileTree,
-        #[cfg(feature = "allow_ignoring_input_suggestions")]
-        FeatureFlag::AllowIgnoringInputSuggestions,
         #[cfg(feature = "code_launch_modal")]
         FeatureFlag::CodeLaunchModal,
         #[cfg(feature = "mcp_oauth")]
@@ -193,16 +177,8 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ConfigurableToolbar,
         #[cfg(feature = "agent_view_prompt_chip")]
         FeatureFlag::AgentViewPromptChip,
-        #[cfg(feature = "classic_completions")]
-        FeatureFlag::ClassicCompletions,
-        #[cfg(feature = "force_classic_completions")]
-        FeatureFlag::ForceClassicCompletions,
-        #[cfg(feature = "native_shell_completions")]
-        FeatureFlag::NativeShellCompletions,
         #[cfg(feature = "agent_view_conversation_list_view")]
         FeatureFlag::AgentViewConversationListView,
-        #[cfg(feature = "inline_history_menu")]
-        FeatureFlag::InlineHistoryMenu,
         #[cfg(feature = "inline_repo_menu")]
         FeatureFlag::InlineRepoMenu,
         #[cfg(feature = "pluggable_notifications")]
@@ -229,8 +205,6 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::QueueSlashCommand,
         #[cfg(feature = "queued_prompts_v2")]
         FeatureFlag::QueuedPromptsV2,
-        #[cfg(feature = "inline_menu_headers")]
-        FeatureFlag::InlineMenuHeaders,
         #[cfg(feature = "restore_prompt_on_inline_model_selector_search")]
         FeatureFlag::RestorePromptOnInlineModelSelectorSearch,
         #[cfg(feature = "directory_tab_colors")]
@@ -249,16 +223,10 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::AgentHarness,
         #[cfg(feature = "git_operations_in_code_review")]
         FeatureFlag::GitOperationsInCodeReview,
-        #[cfg(feature = "nld_prompt_history_match")]
-        FeatureFlag::NldPromptHistoryMatch,
         #[cfg(feature = "code_review_scroll_preservation")]
         FeatureFlag::CodeReviewScrollPreservation,
-        #[cfg(feature = "command_corrections_history_rule")]
-        FeatureFlag::CommandCorrectionsHistoryRule,
         #[cfg(feature = "mcp_json_tree_view")]
         FeatureFlag::McpJsonTreeView,
-        #[cfg(feature = "remove_autosuggestion_during_tab_completions")]
-        FeatureFlag::RemoveAutosuggestionDuringTabCompletions,
         #[cfg(feature = "file_glob_v2_warnings")]
         FeatureFlag::FileGlobV2Warnings,
         #[cfg(feature = "remember_fast_forward_state")]

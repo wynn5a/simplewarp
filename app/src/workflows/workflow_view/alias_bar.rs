@@ -3,7 +3,6 @@ use std::collections::HashMap;
 
 use anyhow::Error;
 use pathfinder_geometry::vector::vec2f;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors::neutral_4;
@@ -232,10 +231,6 @@ impl AliasBar {
     }
 
     fn select_alias(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::WorkflowAliases.is_enabled() {
-            return;
-        }
-
         if index >= self.aliases.len() {
             return;
         }
@@ -244,18 +239,10 @@ impl AliasBar {
     }
 
     fn deselect_alias(&mut self, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::WorkflowAliases.is_enabled() {
-            return;
-        }
-
         self.set_selected_alias(None, ctx);
     }
 
     fn add_alias(&mut self, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::WorkflowAliases.is_enabled() {
-            return;
-        }
-
         self.renaming_alias = Some(self.aliases.len());
         self.set_selected_alias(self.renaming_alias, ctx);
         self.name_editor
@@ -268,10 +255,6 @@ impl AliasBar {
     }
 
     fn remove_alias(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::WorkflowAliases.is_enabled() {
-            return;
-        }
-
         let removed = self.aliases.remove(index);
         self.deleted_aliases.push(removed.alias_name.clone());
         if let Some(selected_index) = &mut self.selected_alias {
@@ -291,10 +274,6 @@ impl AliasBar {
     }
 
     fn rename_alias(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::WorkflowAliases.is_enabled() {
-            return;
-        }
-
         if let Some(alias) = self.aliases.get(index) {
             self.deleted_aliases.push(alias.alias_name.clone());
             self.name_editor.update(ctx, |editor, ctx| {

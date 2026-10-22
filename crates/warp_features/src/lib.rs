@@ -11,26 +11,8 @@ pub enum FeatureFlag {
     /// If set, generators are executed using cmd.exe on Windows.
     RunGeneratorsWithCmdExe,
 
-    /// Gates a bindable keyboard action for accepting command corrections.
-    CommandCorrectionKey,
-
-    /// When enabled, the `History` rule from the command_corrections crate
-    /// will be enabled. When the `History` rule is enabled, the command_corrections
-    /// lib will use the user's history as a last-ditch effort to find a reasonable correction.
-    CommandCorrectionsHistoryRule,
-
     /// Warp Agent Mode.
     AgentMode,
-
-    /// A setting to enable a traditional completions experience.
-    ClassicCompletions,
-
-    /// Force enable classic completions.
-    ForceClassicCompletions,
-
-    /// If enabled, autosuggestions are hidden when the tab completions
-    /// menu is open (except when using completions-as-you-type).
-    RemoveAutosuggestionDuringTabCompletions,
 
     /// Enable multiselect in Notebooks and Warp Text.
     RichTextMultiselect,
@@ -40,9 +22,6 @@ pub enum FeatureFlag {
 
     /// Adds Alacritty as a supported terminal to import settings from.
     AlacrittySettingsImport,
-
-    /// Enable dynamic enum parameter types for workflow arguments
-    DynamicWorkflowEnums,
 
     /// Enables workflows for use with Agent Mode.
     AgentModeWorkflows,
@@ -57,29 +36,10 @@ pub enum FeatureFlag {
     /// Playground for reducing Warp UI clutter.
     MinimalistUI,
 
-    /// Enables support for using native shell completions to supplement our
-    /// completion specs.
-    NativeShellCompletions,
-
     /// Adds avatar to the tab bar.
     AvatarInTabBar,
 
-    /// Adds aliases for executing Warp Drive workflows.
-    WorkflowAliases,
-
     DragTabsToWindows,
-
-    /// Enables cycling through the next command suggestions with down arrow.
-    CycleNextCommandSuggestion,
-
-    /// Enables partial next command suggestions with a prefix.
-    PartialNextCommandSuggestions,
-
-    /// Enables validation of autosuggestions.
-    ValidateAutosuggestions,
-
-    /// Enables using `esc` to clear autosuggestions.
-    ClearAutosuggestionOnEscape,
 
     /// Enables Kitty image rendering
     KittyImages,
@@ -192,9 +152,6 @@ pub enum FeatureFlag {
     /// Enables the file tree (with an entrypoint through code mode).
     FileTree,
 
-    /// Enables ignoring input suggestions.
-    AllowIgnoringInputSuggestions,
-
     /// Enables the one-time modal on app startup for existing users for the Code launch.
     CodeLaunchModal,
 
@@ -261,9 +218,6 @@ pub enum FeatureFlag {
 
     /// Enables block context functionality in Agent View.
     AgentViewBlockContext,
-
-    /// Enables the inline history menu for quickly accessing previous commands and conversations.
-    InlineHistoryMenu,
 
     /// Enables the inline repo switcher menu for switching between indexed repos.
     InlineRepoMenu,
@@ -343,8 +297,6 @@ pub enum FeatureFlag {
     /// contextual button above the input.
     FigmaDetection,
 
-    /// Enables header rows on all inline menus (label, tabs, resize handle).
-    InlineMenuHeaders,
     /// Clears the current prompt when opening the inline model selector from the
     /// model chip, then restores that prompt when the selector closes.
     RestorePromptOnInlineModelSelectorSearch,
@@ -377,12 +329,6 @@ pub enum FeatureFlag {
     /// and whole tab groups so they stay at the front of the tab list and
     /// are protected from reordering.
     PinnedTabs,
-
-    /// Gates NLD input classification matching the buffer against agent
-    /// prompt history (in addition to shell command history). Still in
-    /// development; currently disabled on all channels as a mitigation for
-    /// misclassification bug reports (see PR #12586).
-    NldPromptHistoryMatch,
 
     /// Renders MCP tool-call request and response JSON as an interactive
     /// collapsible tree with typed colors and per-row Copy JSON, instead of

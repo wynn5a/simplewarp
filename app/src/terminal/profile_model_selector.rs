@@ -513,13 +513,12 @@ impl ProfileModelSelector {
 
         let model_name = {
             let llm_preferences = LLMPreferences::as_ref(ctx);
-            let active_llm = if FeatureFlag::InlineMenuHeaders.is_enabled()
-                && self
-                    .terminal_model
-                    .lock()
-                    .block_list()
-                    .active_block()
-                    .is_agent_in_control_or_tagged_in()
+            let active_llm = if self
+                .terminal_model
+                .lock()
+                .block_list()
+                .active_block()
+                .is_agent_in_control_or_tagged_in()
             {
                 llm_preferences.get_active_cli_agent_model(ctx, Some(self.terminal_view_id))
             } else {
@@ -1351,11 +1350,10 @@ impl ProfileModelSelector {
         let llm_preferences = LLMPreferences::as_ref(app);
 
         let terminal_model = self.terminal_model.lock();
-        let is_lrc = FeatureFlag::InlineMenuHeaders.is_enabled()
-            && terminal_model
-                .block_list()
-                .active_block()
-                .is_agent_in_control_or_tagged_in();
+        let is_lrc = terminal_model
+            .block_list()
+            .active_block()
+            .is_agent_in_control_or_tagged_in();
         drop(terminal_model);
 
         let model_display_name = if is_lrc {
@@ -1409,25 +1407,6 @@ impl ProfileModelSelector {
         }
 
         content = content.with_child(model_text);
-
-        // Only show chevron icon when the InlineMenuHeaders feature flag is not enabled
-        // (when enabled, clicking opens the inline model selector instead of a dropdown).
-        if !FeatureFlag::InlineMenuHeaders.is_enabled() {
-            let chevron_icon = Icon::ChevronDown
-                .to_warpui_icon(Fill::Solid(text_color))
-                .finish();
-
-            content = content.with_child(
-                Container::new(
-                    ConstrainedBox::new(chevron_icon)
-                        .with_height(icon_size)
-                        .with_width(icon_size)
-                        .finish(),
-                )
-                .with_margin_left(ICON_SPACING)
-                .finish(),
-            );
-        }
 
         let button = Container::new(content.finish())
             .with_vertical_padding(vertical_padding)
@@ -1809,11 +1788,7 @@ impl TypedActionView for ProfileModelSelector {
                 self.set_profile_menu_visibility(!self.is_profile_menu_open, ctx);
             }
             ProfileModelSelectorAction::ToggleModelMenu => {
-                if FeatureFlag::InlineMenuHeaders.is_enabled() {
-                    ctx.emit(ProfileModelSelectorEvent::ToggleInlineModelSelector);
-                } else {
-                    self.set_model_menu_visibility(!self.is_model_menu_open, ctx);
-                }
+                ctx.emit(ProfileModelSelectorEvent::ToggleInlineModelSelector);
             }
         }
     }

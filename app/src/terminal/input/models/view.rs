@@ -16,7 +16,6 @@ use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::ai::blocklist::block::cli_controller::{CLISubagentController, CLISubagentEvent};
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::llms::{LLMId, LLMPreferences, LLMPreferencesEvent};
-use crate::features::FeatureFlag;
 use crate::search::data_source::{Query, QueryFilter};
 use crate::search::mixer::{SearchMixer, SearchMixerEvent};
 use crate::settings_view::SettingsSection;
@@ -79,13 +78,11 @@ static TAB_CONFIGS: LazyLock<Vec<InlineMenuTabConfig<InlineModelSelectorTab>>> =
             label: "Base".to_string(),
             filters: HashSet::from([QueryFilter::BaseModels]),
         }];
-        if FeatureFlag::InlineMenuHeaders.is_enabled() {
-            configs.push(InlineMenuTabConfig {
-                id: InlineModelSelectorTab::FullTerminalUse,
-                label: "Full Terminal Use".to_string(),
-                filters: HashSet::from([QueryFilter::FullTerminalUseModels]),
-            });
-        }
+        configs.push(InlineMenuTabConfig {
+            id: InlineModelSelectorTab::FullTerminalUse,
+            label: "Full Terminal Use".to_string(),
+            filters: HashSet::from([QueryFilter::FullTerminalUseModels]),
+        });
         configs
     });
 
@@ -146,84 +143,70 @@ impl InlineModelSelectorView {
             mixer
         });
 
-        let menu_view = if FeatureFlag::InlineMenuHeaders.is_enabled() {
-            let manage_defaults_button = ctx.add_view(|_| {
-                ActionButton::new("Manage defaults", ManageDefaultsTheme)
-                    .with_icon(Icon::Settings)
-                    .with_size(ButtonSize::Small)
-                    .on_click(|ctx| {
-                        ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
-                            search_query: String::new(),
-                            section: Some(SettingsSection::WarpAgent),
-                        });
-                    })
-            });
-            let header_config = InlineMenuHeaderConfig {
-                label: "/model".to_string(),
-                trailing_element: Some(Box::new(move |_app: &AppContext| {
-                    ChildView::new(&manage_defaults_button).finish()
-                })),
-            };
+        let manage_defaults_button = ctx.add_view(|_| {
+            ActionButton::new("Manage defaults", ManageDefaultsTheme)
+                .with_icon(Icon::Settings)
+                .with_size(ButtonSize::Small)
+                .on_click(|ctx| {
+                    ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
+                        search_query: String::new(),
+                        section: Some(SettingsSection::WarpAgent),
+                    });
+                })
+        });
+        let header_config = InlineMenuHeaderConfig {
+            label: "/model".to_string(),
+            trailing_element: Some(Box::new(move |_app: &AppContext| {
+                ChildView::new(&manage_defaults_button).finish()
+            })),
+        };
 
-            ctx.add_typed_action_view(|ctx| {
-                let menu = InlineMenuView::new_with_tabs(
-                    mixer.clone(),
-                    positioner.clone(),
-                    &suggestions_mode_model,
-                    agent_view_controller,
-                    tab_configs,
-                    None,
-                    ctx,
-                )
-                .with_header_config(header_config);
+        let menu_view = ctx.add_typed_action_view(|ctx| {
+            let menu = InlineMenuView::new_with_tabs(
+                mixer.clone(),
+                positioner.clone(),
+                &suggestions_mode_model,
+                agent_view_controller,
+                tab_configs,
+                None,
+                ctx,
+            )
+            .with_header_config(header_config);
 
-                let menu_model = menu.model().clone();
-                let cli_ctrl = cli_subagent_controller.clone();
-                menu.with_banner_fn(move |app| {
-                    let active_tab = menu_model
-                        .as_ref(app)
-                        .active_tab_id()
-                        .unwrap_or(InlineModelSelectorTab::BaseAgent);
-                    let history = BlocklistAIHistoryModel::as_ref(app);
+            let menu_model = menu.model().clone();
+            let cli_ctrl = cli_subagent_controller.clone();
+            menu.with_banner_fn(move |app| {
+                let active_tab = menu_model
+                    .as_ref(app)
+                    .active_tab_id()
+                    .unwrap_or(InlineModelSelectorTab::BaseAgent);
+                let history = BlocklistAIHistoryModel::as_ref(app);
 
-                    let main_agent_in_progress = history
-                        .active_conversation(terminal_view_id)
-                        .is_some_and(|c| !c.is_empty() && c.status().is_in_progress());
-                    let is_cli_agent_in_control_or_tagged_in =
-                        cli_ctrl.as_ref(app).is_agent_in_control_or_tagged_in();
-                    let message = match active_tab {
-                        InlineModelSelectorTab::FullTerminalUse if main_agent_in_progress && !is_cli_agent_in_control_or_tagged_in => {
-                            Some("You're using the base agent. Full terminal use models only apply to the full terminal use agent.")
-                        }
-                        InlineModelSelectorTab::BaseAgent if is_cli_agent_in_control_or_tagged_in => {
-                            Some("You're using the full terminal use agent. Base models only apply to the base agent.")
-                        }
-                        _ => None,
-                    };
+                let main_agent_in_progress = history
+                    .active_conversation(terminal_view_id)
+                    .is_some_and(|c| !c.is_empty() && c.status().is_in_progress());
+                let is_cli_agent_in_control_or_tagged_in =
+                    cli_ctrl.as_ref(app).is_agent_in_control_or_tagged_in();
+                let message = match active_tab {
+                    InlineModelSelectorTab::FullTerminalUse if main_agent_in_progress && !is_cli_agent_in_control_or_tagged_in => {
+                        Some("You're using the base agent. Full terminal use models only apply to the full terminal use agent.")
+                    }
+                    InlineModelSelectorTab::BaseAgent if is_cli_agent_in_control_or_tagged_in => {
+                        Some("You're using the full terminal use agent. Base models only apply to the base agent.")
+                    }
+                    _ => None,
+                };
 
-                    message.map(|msg| {
-                        let appearance = Appearance::as_ref(app);
-                        Alert::new().render(
-                            AlertConfig::warning(msg.to_string())
-                                .with_main_axis_size(MainAxisSize::Max),
-                            appearance,
-                        )
-                    })
+                message.map(|msg| {
+                    let appearance = Appearance::as_ref(app);
+                    Alert::new().render(
+                        AlertConfig::warning(msg.to_string())
+                            .with_main_axis_size(MainAxisSize::Max),
+                        appearance,
+                    )
                 })
             })
-        } else {
-            ctx.add_typed_action_view(|ctx| {
-                InlineMenuView::new_with_tabs(
-                    mixer.clone(),
-                    positioner.clone(),
-                    &suggestions_mode_model,
-                    agent_view_controller,
-                    tab_configs,
-                    None,
-                    ctx,
-                )
-            })
-        };
+        });
 
         ctx.subscribe_to_view(&menu_view, |me, _, event, ctx| match event {
             InlineMenuEvent::AcceptedItem {

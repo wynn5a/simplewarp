@@ -5,9 +5,11 @@ use warp_completer::signatures::CommandRegistry;
 use warpui::App;
 
 use super::*;
+use crate::cloud_object::model::persistence::CloudModel;
 use crate::completer::SessionContext;
 use crate::terminal::model::session::command_executor::testing::TestCommandExecutor;
 use crate::terminal::model::session::{Session, SessionInfo};
+use crate::test_util::settings::initialize_settings_for_tests;
 
 #[test]
 fn test_find_autosuggestion_from_history_same_directory() {
@@ -211,7 +213,9 @@ fn test_session_context(cwd: TypedPathBuf, app: &App) -> SessionContext {
 
 #[test]
 fn test_feature_flag_arg_is_valid_with_no_whitespace_before_arg() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(CloudModel::mock);
         let ctx = test_session_context(TypedPathBuf::from("/test/home/"), &app);
 
         let full_command = "cargo run --features=with_local_server,fast_dev";
@@ -238,7 +242,9 @@ fn test_feature_flag_arg_is_valid_with_no_whitespace_before_arg() {
 
 #[test]
 fn test_generator_arg_is_assumed_valid_without_running_it() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(CloudModel::mock);
         let ctx = test_session_context(TypedPathBuf::from("/test/home/"), &app);
 
         // The generator would run a command if it were consulted, so a value no generator could

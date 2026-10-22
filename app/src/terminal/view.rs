@@ -59,8 +59,6 @@ use async_channel::{Receiver, Sender};
 use base64::Engine as _;
 use bookmarks::render_floating_block_snapshot;
 use chrono::{Local, NaiveDateTime};
-use command_corrections::rules::generic::history::History as CommandCorrectionsHistoryRule;
-use command_corrections::rules::{Rule, RuleId as CommandCorrectionsRuleId};
 use command_corrections::{Command, Correction, HistoryItem, SessionMetadata, correct_command};
 use enclose::enclose;
 pub use init::{
@@ -441,10 +439,6 @@ lazy_static! {
     ///
     /// This is purely a heuristic and may be subject to change based on user reports.
     static ref TRIGGER_RC_FILE_SUBSHELL_BOOTSTRAP_DELAY: Duration = Duration::from_millis(100);
-
-    static ref DEFAULT_IGNORED_RULES_FOR_COMMAND_CORRECTIONS: [CommandCorrectionsRuleId; 1] = [
-        CommandCorrectionsHistoryRule.id()
-    ];
 
     /// A list of alt-screen apps that are known to cause problems when resizing
     /// during initialization.
@@ -9804,15 +9798,7 @@ impl TerminalView {
         if is_ssh_command {
             return vec![];
         }
-        if FeatureFlag::CommandCorrectionsHistoryRule.is_enabled() {
-            correct_command(command, &session_metadata, std::iter::empty())
-        } else {
-            correct_command(
-                command,
-                &session_metadata,
-                DEFAULT_IGNORED_RULES_FOR_COMMAND_CORRECTIONS.into_iter(),
-            )
-        }
+        correct_command(command, &session_metadata, std::iter::empty())
     }
 
     fn write_init_subshell_bytes_to_pty(

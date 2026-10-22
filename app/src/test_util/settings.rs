@@ -47,6 +47,7 @@ pub fn initialize_settings_for_tests_with_mode(
     use crate::undo_close::UndoCloseSettings;
     use crate::user_config::WarpConfig;
     use crate::window_settings::WindowSettings;
+    use crate::workflows::aliases::WorkflowAliases;
     use crate::workspace::tab_settings::TabSettings;
     app.add_singleton_model(|ctx| AppExecutionMode::new(mode, is_sandboxed, ctx));
 
@@ -101,6 +102,7 @@ pub fn initialize_settings_for_tests_with_mode(
     UndoCloseSettings::register(app);
     VimBannerSettings::register(app);
     WindowSettings::register(app);
+    WorkflowAliases::register(app);
     CodeSettings::register(app);
     SemanticSelection::register(app);
 

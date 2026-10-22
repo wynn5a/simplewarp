@@ -38,7 +38,6 @@ use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
 use persistence::model::AMBIENT_AGENT_PANE_KIND;
 use uuid::Uuid;
-use warp_core::features::FeatureFlag;
 use warp_errors::{report_error, report_if_error};
 use warpui::platform::FullscreenState;
 use warpui::windowing::{MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH};
@@ -2092,16 +2091,12 @@ fn read_sqlite_data(conn: &mut SqliteConnection) -> Result<PersistedData, Error>
         .filter_map(|action| object_action_from_persisted(action).ok())
         .collect();
 
-    // Seed up-arrow prompt history and (optionally) NLD prompt-history matching from a single
+    // Seed up-arrow prompt history and NLD prompt-history matching from a single
     // SQLite read, deriving both from the same in-memory query vector instead of reading twice.
     // TODO: Once up-arrow prompt history supports pagination, drop the 100-row up-arrow cap and
     // serve both up-arrow and NLD matching from one consolidated query list.
     let recent_ai_queries = read_recent_ai_queries(conn)?;
-    let nld_prompts = if FeatureFlag::NldPromptHistoryMatch.is_enabled() {
-        process_ai_queries_for_nld_history_match(&recent_ai_queries)
-    } else {
-        Vec::new()
-    };
+    let nld_prompts = process_ai_queries_for_nld_history_match(&recent_ai_queries);
     let ai_queries = process_ai_queries_for_uparrow_prompt(recent_ai_queries);
 
     let codebase_indices = get_all_codebase_index_metadata(conn)?;

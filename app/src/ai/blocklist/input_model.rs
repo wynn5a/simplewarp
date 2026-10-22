@@ -601,9 +601,7 @@ impl BlocklistAIInputModel {
         });
 
         // Gather agent prompt history (ascending / oldest-first).
-        let prompt_entries = FeatureFlag::NldPromptHistoryMatch
-            .is_enabled()
-            .then(|| BlocklistAIHistoryModel::as_ref(ctx).prompt_history_candidates());
+        let prompt_entries = Some(BlocklistAIHistoryModel::as_ref(ctx).prompt_history_candidates());
 
         let buffer_cloned = input.buffer_text.clone();
         let current_input_type = self.input_type();

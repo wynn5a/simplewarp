@@ -1,4 +1,6 @@
+use crate::cloud_object::model::persistence::CloudModel;
 use crate::terminal::package_installers::command_at_cursor_has_common_package_installer_prefix;
+use crate::test_util::settings::initialize_settings_for_tests;
 
 #[test]
 fn test_command_at_cursor_has_common_package_installer_prefix_basic_prefixes() {
@@ -59,7 +61,9 @@ fn test_command_at_cursor_has_common_package_installer_prefix_with_alias_expansi
     use crate::terminal::model::session::command_executor::testing::TestCommandExecutor;
     use crate::terminal::model::session::{Session, SessionInfo};
 
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(CloudModel::mock);
         // Alias 'ya' expands to 'yarn add'
         let aliases = HashMap::from_iter([("ya".into(), "yarn add".to_string())]);
         let session = Session::new(

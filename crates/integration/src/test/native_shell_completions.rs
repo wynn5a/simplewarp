@@ -10,7 +10,6 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use settings::Setting as _;
-use warp::features::FeatureFlag;
 use warp::integration_testing::input::{input_is_empty, tab_completions_menu_is_open};
 use warp::integration_testing::step::new_step_with_default_assertions;
 use warp::integration_testing::terminal::util::{
@@ -44,7 +43,6 @@ fn shell_asked_marker_path() -> PathBuf {
 }
 
 pub fn test_zsh_native_completions_without_compinit_use_filepaths() -> Builder {
-    enable_native_shell_completions_feature();
     new_builder()
         .set_should_run_test(|| {
             let (starter, _version) = current_shell_starter_and_version();
@@ -92,13 +90,6 @@ pub fn test_zsh_native_completions_without_compinit_use_filepaths() -> Builder {
                 },
             ),
         )
-}
-
-/// Enables the `NativeShellCompletions` gate for the whole app run. Process-global, which is safe
-/// because each integration test runs in its own process, and unlike a scoped guard it is still in
-/// effect once the app starts.
-fn enable_native_shell_completions_feature() {
-    FeatureFlag::NativeShellCompletions.set_enabled(true);
 }
 
 /// Warp completions off, native on, resolving to `CompletionSources::NativeOnly`: the shell is
@@ -299,7 +290,6 @@ fn assert_no_visible_generator_block()
 /// The shell's own matches reach the menu, filtered to the typed prefix, without disturbing the
 /// input line or leaving a stray block.
 pub fn test_native_shell_completions_menu() -> Builder {
-    enable_native_shell_completions_feature();
     new_builder()
         .set_should_run_test(shell_supports_native_completions)
         .with_user_defaults(native_only_completion_defaults())
@@ -355,7 +345,6 @@ pub fn test_native_shell_completions_menu() -> Builder {
 
 /// Confirms the generator round trip leaves the pty and session clean.
 pub fn test_command_runs_cleanly_after_native_shell_completion() -> Builder {
-    enable_native_shell_completions_feature();
     new_builder()
         .set_should_run_test(shell_supports_native_completions)
         .with_user_defaults(native_only_completion_defaults())
@@ -393,7 +382,6 @@ pub fn test_command_runs_cleanly_after_native_shell_completion() -> Builder {
 /// The positive half of the dispatch decision: with no bundled spec to answer, the request falls
 /// through to the shell.
 pub fn test_native_shell_completions_used_when_no_bundled_spec() -> Builder {
-    enable_native_shell_completions_feature();
     new_builder()
         .set_should_run_test(shell_supports_native_completions)
         .with_user_defaults(specs_first_completion_defaults())
@@ -441,7 +429,6 @@ pub fn test_native_shell_completions_used_when_no_bundled_spec() -> Builder {
 /// mean "not asked" because `test_native_shell_completions_reach_a_spec_command_native_only` proves
 /// the same override does fire when git is dispatched.
 pub fn test_native_shell_completions_skipped_when_a_bundled_spec_answers() -> Builder {
-    enable_native_shell_completions_feature();
     new_builder()
         .set_should_run_test(shell_supports_native_completions)
         .with_user_defaults(specs_first_completion_defaults())
@@ -490,7 +477,6 @@ pub fn test_native_shell_completions_skipped_when_a_bundled_spec_answers() -> Bu
 /// under native-only the same override does fire for `git`, so that test's silence means the shell
 /// was not asked rather than that the override never registered.
 pub fn test_native_shell_completions_reach_a_spec_command_native_only() -> Builder {
-    enable_native_shell_completions_feature();
     new_builder()
         .set_should_run_test(shell_supports_native_completions)
         .with_user_defaults(native_only_completion_defaults())
@@ -532,7 +518,6 @@ pub fn test_native_shell_completions_reach_a_spec_command_native_only() -> Build
 /// `(Get-Date).` surfaces real .NET members computed by pwsh's own engine, exercising the
 /// zero-length replacement span the shell reports at a member-access position.
 pub fn test_native_shell_completions_powershell_member_access() -> Builder {
-    enable_native_shell_completions_feature();
     new_builder()
         .set_should_run_test(|| {
             let (starter, _version) = current_shell_starter_and_version();

@@ -10,7 +10,6 @@ use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent_conversations_model::AgentConversationEntryId;
 use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::ai::blocklist::conversation_selection::ConversationSelectionHandle;
-use crate::features::FeatureFlag;
 use crate::search::data_source::{Query, QueryFilter};
 use crate::search::mixer::SearchMixer;
 use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
@@ -40,13 +39,11 @@ static TAB_CONFIGS: LazyLock<Vec<InlineMenuTabConfig<InlineConversationMenuTab>>
             label: "All".to_string(),
             filters: HashSet::new(),
         }];
-        if FeatureFlag::InlineMenuHeaders.is_enabled() {
-            configs.push(InlineMenuTabConfig {
-                id: InlineConversationMenuTab::CurrentDirectory,
-                label: "Current Directory".to_string(),
-                filters: HashSet::from([QueryFilter::CurrentDirectoryConversations]),
-            });
-        }
+        configs.push(InlineMenuTabConfig {
+            id: InlineConversationMenuTab::CurrentDirectory,
+            label: "Current Directory".to_string(),
+            filters: HashSet::from([QueryFilter::CurrentDirectoryConversations]),
+        });
         configs
     });
 

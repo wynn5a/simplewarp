@@ -41,7 +41,7 @@ use ordered_float::Float;
 use parking_lot::{FairMutex, Mutex};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use settings::{Setting as _, ToggleableSetting};
+use settings::Setting as _;
 use string_offset::{ByteOffset, CharOffset};
 use vec1::Vec1;
 use vim::vim::{VimHandler, VimMode};
@@ -879,8 +879,6 @@ pub enum InputAction {
     /// this action resets the command to its original workflow state.
     ResetWorkflowState,
 
-    ToggleClassicCompletionsMode,
-
     /// Toggles the inline conversation menu for selecting AI conversations.
     ToggleConversationsMenu,
 
@@ -1255,17 +1253,16 @@ impl CompletionSources {
     }
 }
 
-/// Resolves which [`CompletionSources`] a request draws on from the `NativeShellCompletions`
-/// feature flag, the input type, the trigger, and the two user toggles.
+/// Resolves which [`CompletionSources`] a request draws on from the input type, the trigger, and
+/// the two user toggles.
 fn resolve_completion_sources(
-    feature_flag_enabled: bool,
     is_ai_input: bool,
     buffer_text_is_multiline: bool,
     completions_trigger: CompletionsTrigger,
     warp_completions_enabled: bool,
     native_shell_completions_enabled: bool,
 ) -> CompletionSources {
-    if is_ai_input || !feature_flag_enabled {
+    if is_ai_input {
         return CompletionSources::WarpOnly;
     }
 
@@ -1571,17 +1568,6 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Input") & !id!("IMEOpen"))
         .with_key_binding("pagedown"),
     ]);
-
-    if FeatureFlag::ClassicCompletions.is_enabled()
-        && !FeatureFlag::ForceClassicCompletions.is_enabled()
-    {
-        app.register_editable_bindings([EditableBinding::new(
-            "input:toggle_classic_completions_mode",
-            "(Experimental) Toggle classic completions mode",
-            InputAction::ToggleClassicCompletionsMode,
-        )
-        .with_context_predicate(id!("Input"))]);
-    }
 
     // Register editable bindings relating to Command Search.
     app.register_editable_bindings([
@@ -2173,11 +2159,9 @@ impl Input {
                 )
             }
         });
-        if FeatureFlag::InlineHistoryMenu.is_enabled() {
-            ctx.subscribe_to_view(&inline_history_menu_view, |me, _, event, ctx| {
-                me.handle_inline_history_menu_event(event, ctx);
-            });
-        }
+        ctx.subscribe_to_view(&inline_history_menu_view, |me, _, event, ctx| {
+            me.handle_inline_history_menu_event(event, ctx);
+        });
         let inline_history_model = inline_history_menu_view.as_ref(ctx).model().clone();
 
         let terminal_input_message_bar = ctx.add_view(|ctx| {
@@ -3948,10 +3932,6 @@ impl Input {
     }
 
     fn open_inline_history_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::InlineHistoryMenu.is_enabled() {
-            return;
-        }
-
         // Don't open inline history menu if a chip menu or model selector is already open
         let agent_footer = self.agent_input_footer.as_ref(ctx);
         if self.prompt_render_helper.has_open_chip_menu(ctx)
@@ -5985,21 +5965,19 @@ impl Input {
                 variants
             }
             EnumVariants::Dynamic(command) => {
-                if FeatureFlag::DynamicWorkflowEnums.is_enabled() {
-                    self.suggestions_mode_model.update(ctx, |m, ctx| {
-                        m.set_mode(
-                            InputSuggestionsMode::DynamicWorkflowEnumSuggestions {
-                                suggestions: vec![],
-                                menu_position: TabCompletionsMenuPosition::AtFirstCursor,
-                                selected_ranges,
-                                cursor_point: position,
-                                dynamic_enum_status: DynamicEnumSuggestionStatus::Unapproved,
-                                command,
-                            },
-                            ctx,
-                        );
-                    });
-                }
+                self.suggestions_mode_model.update(ctx, |m, ctx| {
+                    m.set_mode(
+                        InputSuggestionsMode::DynamicWorkflowEnumSuggestions {
+                            suggestions: vec![],
+                            menu_position: TabCompletionsMenuPosition::AtFirstCursor,
+                            selected_ranges,
+                            cursor_point: position,
+                            dynamic_enum_status: DynamicEnumSuggestionStatus::Unapproved,
+                            command,
+                        },
+                        ctx,
+                    );
+                });
                 vec![]
             }
         };
@@ -6103,20 +6081,17 @@ impl Input {
                         replacement_start, ..
                     } => {
                         let replacement_start = *replacement_start;
-                        if self.is_classic_completions_enabled(ctx) {
-                            self.editor.update(ctx, |editor, ctx| {
-                                let cursor_end_offset =
-                                    editor.end_byte_index_of_last_selection(ctx);
-                                editor.select_and_replace(
-                                    selected_item.text(),
-                                    [ByteOffset::from(replacement_start)..cursor_end_offset],
-                                    PlainTextEditorViewAction::CycleCompletionSuggestion,
-                                    ctx,
-                                );
-                                ctx.notify();
-                            });
+                        self.editor.update(ctx, |editor, ctx| {
+                            let cursor_end_offset = editor.end_byte_index_of_last_selection(ctx);
+                            editor.select_and_replace(
+                                selected_item.text(),
+                                [ByteOffset::from(replacement_start)..cursor_end_offset],
+                                PlainTextEditorViewAction::CycleCompletionSuggestion,
+                                ctx,
+                            );
                             ctx.notify();
-                        }
+                        });
+                        ctx.notify();
                     }
                     InputSuggestionsMode::StaticWorkflowEnumSuggestions { .. }
                     | InputSuggestionsMode::DynamicWorkflowEnumSuggestions { .. } => {
@@ -6588,9 +6563,7 @@ impl Input {
         // history up menu.
         let editor = self.editor.as_ref(ctx);
         if editor.single_cursor_on_first_row(ctx) {
-            if FeatureFlag::InlineHistoryMenu.is_enabled()
-                && self.suggestions_mode_model.as_ref(ctx).is_closed()
-            {
+            if self.suggestions_mode_model.as_ref(ctx).is_closed() {
                 self.open_inline_history_menu(ctx);
                 return;
             }
@@ -6859,9 +6832,7 @@ impl Input {
                     suggestions.select_next(ctx);
                 });
             }
-        } else if FeatureFlag::CycleNextCommandSuggestion.is_enabled()
-            && self.editor.as_ref(ctx).is_empty(ctx)
-        {
+        } else if self.editor.as_ref(ctx).is_empty(ctx) {
             self.cycle_next_command_suggestion(ctx);
         } else {
             self.editor.update(ctx, |editor, ctx| editor.move_down(ctx));
@@ -6909,7 +6880,7 @@ impl Input {
         };
         self.abort_latest_autosuggestion_future();
 
-        if FeatureFlag::PartialNextCommandSuggestions.is_enabled() && is_next_command_enabled(ctx) {
+        if is_next_command_enabled(ctx) {
             let Some(session) = self.active_session(ctx) else {
                 return;
             };
@@ -7789,9 +7760,7 @@ impl Input {
                         // current word span.
                         let old_buffer_text_original = buffer_text_original.clone();
                         if *trigger == CompletionsTrigger::AsYouType
-                            && (!self.is_classic_completions_enabled(ctx)
-                                || (self.is_classic_completions_enabled(ctx)
-                                    && selected_item_differs_from_current_word))
+                            && selected_item_differs_from_current_word
                         {
                             // For as-you-type completions, we recalculate suggestions rather than
                             // filtering, since typing could involve moving to a new parameter
@@ -8821,9 +8790,7 @@ impl Input {
         // query must still invalidate the result set. Otherwise a Tab followed by
         // Backspace past the replacement boundary would leave stale suggestions on
         // screen (and an empty prefix would re-show the entire original result set).
-        if !text_up_to_cursor.starts_with(buffer_text_original)
-            && (!self.is_classic_completions_enabled(ctx) || is_user_edit)
-        {
+        if !text_up_to_cursor.starts_with(buffer_text_original) && is_user_edit {
             // Close the input suggestions since the buffer was edited to no longer
             // contain the text that triggered tab completion.
             true
@@ -8832,16 +8799,12 @@ impl Input {
             // cursor
             let current_word = &editor_text[replacement_start..cursor_position.as_usize()];
 
-            if self.is_classic_completions_enabled(ctx) {
-                let current_selected_item =
-                    self.input_suggestions.as_ref(ctx).get_selected_item_text();
-                if current_selected_item.is_some_and(|selected| selected == current_word) {
-                    // If we're in classic completion mode and the selected item is equal
-                    // to the current word, then we should keep the menu open; the user is cycling.
-                    // We early-return because we don't want to filter the menu based on the
-                    // selected item.
-                    return false;
-                }
+            let current_selected_item = self.input_suggestions.as_ref(ctx).get_selected_item_text();
+            if current_selected_item.is_some_and(|selected| selected == current_word) {
+                // If the selected item is equal to the current word, then we should keep the menu
+                // open; the user is cycling. We early-return because we don't want to filter the
+                // menu based on the selected item.
+                return false;
             }
 
             // If the user continues to type with the tab suggestions open, we perform a
@@ -9046,12 +9009,6 @@ impl Input {
         !looks_like_package_install
     }
 
-    fn is_classic_completions_enabled(&self, ctx: &AppContext) -> bool {
-        (FeatureFlag::ClassicCompletions.is_enabled()
-            && *InputSettings::as_ref(ctx).classic_completions_mode)
-            || FeatureFlag::ForceClassicCompletions.is_enabled()
-    }
-
     fn should_expand_aliases(&self, ctx: &mut ViewContext<Self>) -> bool {
         // Never expand aliases when in AI input mode, regardless of the setting.
         if self.ai_input_model.as_ref(ctx).input_type().is_ai() {
@@ -9120,7 +9077,6 @@ impl Input {
         let completion_sources = {
             let input_settings = InputSettings::as_ref(ctx);
             resolve_completion_sources(
-                FeatureFlag::NativeShellCompletions.is_enabled(),
                 input_type.is_ai(),
                 buffer_text.contains('\n'),
                 completions_trigger,
@@ -9444,11 +9400,6 @@ impl Input {
         buffer_text_original: &str,
         ctx: &AppContext,
     ) -> Option<BufferPoint> {
-        // In regular mode, the menu should be positioned at the cursor.
-        if !self.is_classic_completions_enabled(ctx) {
-            return None;
-        }
-
         // Note: the replacement span is in terms of byte offsets.
         // But these byte offsets should correspond to valid char offsets.
         let start = results.replacement_span.start();
@@ -9573,9 +9524,7 @@ impl Input {
                 // The autosuggestion will be repopulated when the menu is closed.
                 // We don't do this for completions as you type because the user would
                 // otherwise hardly see autosuggestons.
-                if FeatureFlag::RemoveAutosuggestionDuringTabCompletions.is_enabled()
-                    && !self.is_completions_while_typing_turned_on(ctx)
-                {
+                if !self.is_completions_while_typing_turned_on(ctx) {
                     self.editor.update(ctx, |view, ctx| {
                         view.clear_autosuggestion(ctx);
                     });
@@ -9612,11 +9561,7 @@ impl Input {
                     );
                 });
 
-                let preselect_option = if self.is_classic_completions_enabled(ctx) {
-                    TabCompletionsPreselectOption::Unselected
-                } else {
-                    TabCompletionsPreselectOption::First
-                };
+                let preselect_option = TabCompletionsPreselectOption::Unselected;
 
                 self.input_suggestions
                     .update(ctx, |input_suggestions, ctx| {
@@ -9658,18 +9603,13 @@ impl Input {
         executing: Executing,
         ctx: &mut ViewContext<Input>,
     ) {
-        let is_completions_as_you_type_enabled = self.is_completions_while_typing_turned_on(ctx);
         self.editor.update(ctx, |input, ctx| {
             let cursor_end_offset = input.end_byte_index_of_last_selection(ctx);
 
             // Add a space to the end if the end of the selection/replacement
             // is at the end of the buffer and the completion result doesn't end with a slash.
-            // If completions as you type is turned on and classic completions is off, then
-            // _don't_ add a space.
-            let is_classic_completions_enabled = self.is_classic_completions_enabled(ctx);
-            let replacement: Cow<str> = if (!is_completions_as_you_type_enabled
-                || is_classic_completions_enabled)
-                && cursor_end_offset.as_usize() == input.buffer_text(ctx).len()
+            let replacement: Cow<str> = if cursor_end_offset.as_usize()
+                == input.buffer_text(ctx).len()
                 && !completion_result.ends_with(self.path_separators(ctx).main)
                 && executing == Executing::No
             {
@@ -10098,47 +10038,15 @@ impl Input {
     }
 
     fn should_enter_accept_completion_suggestion(&self, app: &AppContext) -> bool {
-        let InputSuggestionsMode::CompletionSuggestions {
-            replacement_start, ..
-        } = self.suggestions_mode_model.as_ref(app).mode()
-        else {
-            return false;
-        };
-        let completions_while_typing = self.is_completions_while_typing_turned_on(app);
-        let selected_item = self.input_suggestions.as_ref(app).get_selected_item_text();
-
-        // If classic completions is enabled, accept the suggestion if an item is selected.
-        if self.is_classic_completions_enabled(app) {
-            return self
-                .input_suggestions
-                .as_ref(app)
-                .get_selected_item()
-                .is_some();
-        }
-        // If completions as you type is disabled, accept the suggestion if an item is selected.
-        if !completions_while_typing {
-            return selected_item.is_some();
-        }
-
-        let path_separators = self.path_separators(app).all;
-
-        // At this point, we know completions as you type is enabled and classic completions
-        // is disabled. Accept the completion unless the buffer already matches the selected item
-        // (in which case, just execute the command).
-        let current_buffer_text = self.editor.as_ref(app).buffer_text(app);
-        selected_item.is_none_or(|selected_item| {
-            let Some(replacement) = &current_buffer_text.get(*replacement_start..) else {
-                report_error!("Failed to get replacement range in current buffer text");
-                return true;
-            };
-            if replacement == &selected_item {
-                return false;
-            }
-            let Some(no_slash) = selected_item.strip_suffix(path_separators) else {
-                return true;
-            };
-            replacement != &no_slash
-        })
+        // Accept the suggestion if an item is selected.
+        matches!(
+            self.suggestions_mode_model.as_ref(app).mode(),
+            InputSuggestionsMode::CompletionSuggestions { .. }
+        ) && self
+            .input_suggestions
+            .as_ref(app)
+            .get_selected_item()
+            .is_some()
     }
 
     /// Determines whether to insert a newline in the buffer instead of executing a command
@@ -10329,35 +10237,32 @@ impl Input {
         {
             self.submit_ai_query_with_routing(ctx);
         } else {
-            if FeatureFlag::WorkflowAliases.is_enabled() {
-                let mut command_string = self.editor.as_ref(ctx).buffer_text(ctx);
-                // If the alias was inserted from the completions menu, it will have trailing
-                // whitespace - trim it in-place.
-                command_string.truncate(command_string.trim_end().len());
+            let mut command_string = self.editor.as_ref(ctx).buffer_text(ctx);
+            // If the alias was inserted from the completions menu, it will have trailing
+            // whitespace - trim it in-place.
+            command_string.truncate(command_string.trim_end().len());
 
-                if let Some(alias) = WorkflowAliases::as_ref(ctx).match_alias(&command_string) {
-                    if let Some(workflow) = CloudModel::as_ref(ctx).get_workflow(&alias.workflow_id)
-                    {
-                        let workflow_type = WorkflowType::Cloud(Box::new(workflow.clone()));
-                        let env_vars = alias.env_vars.or(workflow.model().data.default_env_vars());
+            if let Some(alias) = WorkflowAliases::as_ref(ctx).match_alias(&command_string) {
+                if let Some(workflow) = CloudModel::as_ref(ctx).get_workflow(&alias.workflow_id) {
+                    let workflow_type = WorkflowType::Cloud(Box::new(workflow.clone()));
+                    let env_vars = alias.env_vars.or(workflow.model().data.default_env_vars());
 
-                        self.insert_workflow_into_input(
-                            workflow_type,
-                            WorkflowSource::PersonalCloud,
-                            alias.arguments,
-                            None,
-                            env_vars,
-                            true,
-                            ctx,
-                        );
-                        return;
-                    } else {
-                        log::warn!(
-                            "Tried to execute workflow for id {:?} but it does not exist",
-                            alias.workflow_id
-                        );
-                    };
-                }
+                    self.insert_workflow_into_input(
+                        workflow_type,
+                        WorkflowSource::PersonalCloud,
+                        alias.arguments,
+                        None,
+                        env_vars,
+                        true,
+                        ctx,
+                    );
+                    return;
+                } else {
+                    log::warn!(
+                        "Tried to execute workflow for id {:?} but it does not exist",
+                        alias.workflow_id
+                    );
+                };
             }
 
             let command = self.get_command(ctx);
@@ -10445,9 +10350,7 @@ impl Input {
                 let editor_model = self.editor.read(ctx, |view, ctx| view.snapshot_model(ctx));
                 self.get_enum_suggestions_async(command.clone(), editor_model, ctx);
             }
-            InputSuggestionsMode::ModelSelector
-                if FeatureFlag::InlineMenuHeaders.is_enabled() =>
-            {
+            InputSuggestionsMode::ModelSelector => {
                 self.inline_model_selector_view
                     .update(ctx, |view, ctx| view.accept_selected_item(true, ctx));
             }
@@ -11852,15 +11755,6 @@ impl TypedActionView for Input {
             }
             InputAction::HideWorkflowInfoCard => self.hide_workflows_info_box(ctx),
             InputAction::ResetWorkflowState => self.reset_workflow_state(None, ctx),
-            InputAction::ToggleClassicCompletionsMode => {
-                InputSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    if let Err(e) = settings.classic_completions_mode.toggle_and_save_value(ctx) {
-                        log::warn!(
-                            "Failed to toggle and save classic completions mode setting: {e}."
-                        )
-                    }
-                });
-            }
             InputAction::ToggleConversationsMenu => {
                 if self
                     .suggestions_mode_model

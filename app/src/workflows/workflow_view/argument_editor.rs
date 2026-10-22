@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 
 use itertools::Itertools;
 use pathfinder_color::ColorU;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_editor::editor::NavigationKey;
 use warpui::elements::{
@@ -541,12 +540,10 @@ impl WorkflowView {
             }
         }
 
-        if FeatureFlag::WorkflowAliases.is_enabled()
-            && matches!(
-                mode,
-                ArgumentEditorMode::WorkflowDefinition | ArgumentEditorMode::Alias
-            )
-            && !self.is_for_agent_mode
+        if matches!(
+            mode,
+            ArgumentEditorMode::WorkflowDefinition | ArgumentEditorMode::Alias
+        ) && !self.is_for_agent_mode
         {
             arguments_section.add_child(self.render_env_vars_selector(appearance, app));
         }

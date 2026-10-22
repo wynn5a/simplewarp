@@ -10,9 +10,11 @@ use warp_completer::completer::{CompletionContext, EngineDirEntry, PathCompletio
 use warp_completer::signatures::CommandRegistry;
 use warpui::App;
 
+use crate::cloud_object::model::persistence::CloudModel;
 use crate::completer::SessionContext;
 use crate::terminal::model::session::command_executor::testing::TestCommandExecutor;
 use crate::terminal::model::session::{Session, SessionInfo};
+use crate::test_util::settings::initialize_settings_for_tests;
 use crate::test_util::{Stub, VirtualFS};
 
 fn test_session_context(session: Session, cwd: TypedPathBuf, app: &App) -> SessionContext {
@@ -30,7 +32,9 @@ fn working_directory() -> TypedPathBuf {
 
 #[test]
 pub fn test_session_context_top_level_commands_includes_function_names() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(CloudModel::mock);
         let function_names = vec![
             "my_func".into(),
             "foo".into(),
@@ -53,7 +57,9 @@ pub fn test_session_context_top_level_commands_includes_function_names() {
 
 #[test]
 pub fn test_session_context_top_level_commands_includes_aliases() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(CloudModel::mock);
         let aliases = HashMap::from_iter([
             ("first".into(), "test one".into()),
             ("second".into(), "first".into()),
@@ -75,7 +81,9 @@ pub fn test_session_context_top_level_commands_includes_aliases() {
 
 #[test]
 pub fn test_session_context_top_level_commands_includes_abbreviations() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(CloudModel::mock);
         let abbreviations = HashMap::from_iter([
             ("gl".into(), "git log".into()),
             ("gs".into(), "git status".into()),
@@ -95,7 +103,9 @@ pub fn test_session_context_top_level_commands_includes_abbreviations() {
 
 #[test]
 pub fn test_session_context_top_level_commands_includes_keywords() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(CloudModel::mock);
         let keywords = vec!["while".into(), "foreach".into(), "repeat".into()];
         let session = Session::new(
             SessionInfo::new_for_test().with_keywords(keywords.clone()),
@@ -112,7 +122,9 @@ pub fn test_session_context_top_level_commands_includes_keywords() {
 
 #[test]
 pub fn test_session_context_top_level_commands_includes_external_commands() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(CloudModel::mock);
         let session = Session::new(
             SessionInfo::new_for_test(),
             Arc::new(TestCommandExecutor::default()),
@@ -129,7 +141,9 @@ pub fn test_session_context_top_level_commands_includes_external_commands() {
 
 #[test]
 pub fn test_session_context_top_level_commands_includes_builtins() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(CloudModel::mock);
         let builtins = vec!["export".into(), "print".into(), "break".into()];
         let session = Session::new(
             SessionInfo::new_for_test().with_builtins(builtins.clone().into_iter().collect()),
@@ -146,7 +160,9 @@ pub fn test_session_context_top_level_commands_includes_builtins() {
 
 #[test]
 pub fn test_session_context_lists_directory_entries_locally() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(CloudModel::mock);
         VirtualFS::test(
             "test_session_context_lists_directory_entries_locally",
             |dirs, mut sandbox| {
@@ -221,7 +237,9 @@ fn windows_to_unix_shell_encoding(
 #[cfg_attr(windows, ignore = "TODO(CORE-3626)")]
 #[test]
 pub fn test_session_context_lists_directory_entries_remotely() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(CloudModel::mock);
         VirtualFS::test(
             "test_session_context_lists_directory_entries_remotely",
             |dirs, mut sandbox| {
@@ -280,7 +298,9 @@ pub fn test_session_context_lists_directory_entries_remotely() {
 #[cfg(unix)]
 #[test]
 pub fn test_session_context_follows_symlinked_directories_remotely() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(CloudModel::mock);
         VirtualFS::test(
             "test_session_context_follows_symlinked_directories_remotely",
             |dirs, mut sandbox| {
@@ -319,7 +339,9 @@ fn perform_special_characters_in_path_test(session: Session, file_names: Vec<&st
         .iter()
         .map(|&filename| String::from(filename))
         .collect_vec();
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(CloudModel::mock);
         VirtualFS::test(
             "test_session_context_lists_directory_entries_with_special_characters",
             |dirs, mut sandbox| {
@@ -412,7 +434,9 @@ pub fn test_session_context_lists_directory_entries_remotely_with_special_charac
 
 #[test]
 pub fn test_session_context_refresh_directory_entries_bypasses_cache() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(CloudModel::mock);
         VirtualFS::test(
             "test_session_context_refresh_directory_entries_bypasses_cache",
             |dirs, mut sandbox| {

@@ -13,7 +13,6 @@ use warp_completer::completer::{
 use warp_completer::meta::Spanned;
 use warp_completer::parsers::ParsedExpression;
 use warp_completer::parsers::hir::{ArgType, Command, Expression, FlagType};
-use warp_core::features::FeatureFlag;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use super::generate_ai_input_suggestions::{
@@ -656,9 +655,6 @@ async fn is_arg_valid(
 /// that any filepaths args actually exist on disk.
 /// This uses a file system call, so this function should be called only in background threads.
 pub async fn is_command_valid(command: &str, ctx: Option<&SessionContext>) -> bool {
-    if !FeatureFlag::ValidateAutosuggestions.is_enabled() {
-        return true;
-    }
     let Some(ctx) = ctx else {
         return true;
     };

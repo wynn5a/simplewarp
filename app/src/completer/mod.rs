@@ -343,11 +343,7 @@ impl SessionContext {
         current_working_directory: TypedPathBuf,
         ctx: &AppContext,
     ) -> Self {
-        let workflow_aliases = if FeatureFlag::WorkflowAliases.is_enabled() {
-            WorkflowAliases::as_ref(ctx).autocomplete_data(ctx)
-        } else {
-            Default::default()
-        };
+        let workflow_aliases = WorkflowAliases::as_ref(ctx).autocomplete_data(ctx);
 
         Self {
             session: session.into(),

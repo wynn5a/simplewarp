@@ -103,8 +103,15 @@ banner slot in `block_list_element.rs`, `BLOCK_BANNER_HEIGHT`, and the `DismissW
 action if the footer's dismiss no longer needs it. Not mechanical (block-height layout), so it
 gets its own round.
 
-**C2 — input, completions, history, workflows** — 16 flags, 84 refs:
+**C2 — input, completions, history, workflows** — 16 flags, 84 refs (**done 2026-10-22**):
 `AllowIgnoringInputSuggestions`, `ClassicCompletions`, `ClearAutosuggestionOnEscape`, `CommandCorrectionKey`, `CommandCorrectionsHistoryRule`, `CycleNextCommandSuggestion`, `DynamicWorkflowEnums`, `ForceClassicCompletions`, `InlineHistoryMenu`, `InlineMenuHeaders`, `NativeShellCompletions`, `NldPromptHistoryMatch`, `PartialNextCommandSuggestions`, `RemoveAutosuggestionDuringTabCompletions`, `ValidateAutosuggestions`, `WorkflowAliases`.
+
+**C2b — dead `HistoryUp` suggestions mode (follow-up of C2)** — with `InlineHistoryMenu` always on,
+up-arrow on a closed menu opens the inline history menu, and every open menu handles up-arrow
+itself, so nothing reaches the `InputSuggestionsMode::HistoryUp` construction in
+`Input::editor_up` any more. Delete the mode, its arms across `input.rs` / `classic.rs` /
+`common.rs`, `InputSuggestions::set_history_matches` / `history_prefix_search` if nothing else
+uses them, and `HistorySearchMode` if it goes with it. Check each before deleting; not mechanical.
 
 **C3 — tabs, workspace, settings, search** — 30 flags, 316 refs:
 `AlacrittySettingsImport`, `AllowOpeningFileLinksUsingEditorEnv`, `AvatarInTabBar`, `CommandPaletteFileSearch`, `ConfigurableToolbar`, `CreateProjectFlow`, `DirectoryTabColors`, `FileTree`, `FullScreenZenMode`, `GetStartedTab`, `GlobalSearch`, `GroupedTabs`, `IncrementalAutoReload`, `InlineProfileSelector`, `InlineRepoMenu`, `MinimalistUI`, `MultiProfile`, `NewTabStyling`, `PinnedTabs`, `PluggableNotifications`, `ProfilesDesignRevamp`, `Projects`, `SettingsFile`, `TabCloseButtonOnLeft`, `TabConfigs`, `UIZoom`, `UndoClosedPanes`, `UseTantivySearch`, `VerticalTabs`, `VerticalTabsSummaryMode`.
