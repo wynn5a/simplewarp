@@ -1,6 +1,5 @@
 mod action;
 mod agent_view;
-mod block_banner;
 pub mod block_onboarding;
 pub(crate) mod blocklist_filter;
 mod bookmarks;
@@ -55,12 +54,9 @@ use std::sync::mpsc::SyncSender;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use action::RememberForWarpification;
 pub use action::TerminalAction;
 use async_channel::{Receiver, Sender};
 use base64::Engine as _;
-use block_banner::render_warpification_banner;
-pub use block_banner::{BLOCK_BANNER_HEIGHT, WithinBlockBanner};
 use bookmarks::render_floating_block_snapshot;
 use chrono::{Local, NaiveDateTime};
 use command_corrections::rules::generic::history::History as CommandCorrectionsHistoryRule;
@@ -6855,7 +6851,7 @@ impl TerminalView {
         _triggered_by_rc_file_snippet: bool,
         ctx: &mut ViewContext<Self>,
     ) {
-        self.dismiss_warpify_banner(&RememberForWarpification::DoNotRememberSubshellCommand, ctx);
+        self.clear_warpify_footer(ctx);
 
         // Record the active long-running block so we can hide it later once the remote
         // actually confirms subshell bootstrap is in progress.
@@ -6905,7 +6901,7 @@ impl TerminalView {
     }
 
     fn clear_ssh_blocks(&mut self, ctx: &mut ViewContext<Self>) {
-        self.dismiss_warpify_banner(&RememberForWarpification::DoNotRememberSSHHost, ctx);
+        self.clear_warpify_footer(ctx);
         if let Some(ssh_block) = self.warpify_state.ssh_block_state() {
             let view_id = ssh_block.get_block_view_id();
 
@@ -6976,36 +6972,12 @@ impl TerminalView {
         }
     }
 
-    fn dismiss_warpify_banner(
-        &mut self,
-        remember_command: &RememberForWarpification,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        {
-            let mut model = self.model.lock();
-            model.block_list_mut().set_active_block_banner(None);
-        }
-
-        // Also clear the warpify footer so it doesn't linger after warpification
-        // starts, fails, or is cancelled.
+    /// Clears the warpify footer so it doesn't linger after warpification starts, fails, or is
+    /// cancelled.
+    fn clear_warpify_footer(&mut self, ctx: &mut ViewContext<Self>) {
         self.use_agent_footer.update(ctx, |footer, ctx| {
             footer.clear_warpify(ctx);
         });
-
-        match remember_command {
-            RememberForWarpification::RememberSubshellCommand(command) => {
-                WarpifySettings::handle(ctx).update(ctx, |warpify, ctx| {
-                    warpify.denylist_subshell_command(command, ctx);
-                });
-            }
-            RememberForWarpification::RememberSSHHost(host) => {
-                WarpifySettings::handle(ctx).update(ctx, |warpify, ctx| {
-                    warpify.denylist_ssh_host(host, ctx);
-                });
-            }
-            RememberForWarpification::DoNotRememberSubshellCommand
-            | RememberForWarpification::DoNotRememberSSHHost => {}
-        }
     }
 
     fn insert_most_recent_command_correction(&mut self, ctx: &mut ViewContext<Self>) {
@@ -8271,10 +8243,7 @@ impl TerminalView {
                     self.remove_ssh_block_by_id(block_id);
                 }
 
-                self.dismiss_warpify_banner(
-                    &RememberForWarpification::DoNotRememberSubshellCommand,
-                    ctx,
-                );
+                self.clear_warpify_footer(ctx);
 
                 let pending_command_succeeded = match &block_type {
                     BlockType::User(UserBlockCompleted {
@@ -17169,19 +17138,6 @@ impl TerminalView {
             subshell_separators.insert(*id, render_subshell_separator(command.clone(), appearance));
         }
 
-        // Currently, it is assumed that only the active block can have a block banner, which
-        // implies that there can only be one at a time. This assumption can be relaxed once we
-        // have an actual use case for that.
-        let block_banner = model
-            .block_list()
-            .active_block()
-            .block_banner()
-            .map(|banner| match banner {
-                WithinBlockBanner::WarpifyBanner(state) => {
-                    render_warpification_banner(state, appearance)
-                }
-            });
-
         let bookmarked_blocks: HashSet<_> = self.bookmarked_blocks.keys().copied().collect();
         let filtered_blocks: HashSet<_> = model.block_list().filtered_blocks();
 
@@ -17300,7 +17256,6 @@ impl TerminalView {
                     .map(|(id, view)| (id.clone(), ChildView::new(view).finish())),
             ),
             selection_range,
-            block_banner,
             self.input_size_at_last_frame(app).unwrap_or_default(),
             self.inline_menu_positioner.clone(),
             None,
@@ -19160,7 +19115,6 @@ impl TypedActionView for TerminalView {
             | UserInputSequence(_)
             | ControlSequence(_)
             | TriggerSubshellBootstrap
-            | DismissWarpifyBanner(_)
             | OpenBlockListContextMenu
             | AliasExpansionBanner(_)
             | VimModeBanner(_)
@@ -19563,9 +19517,6 @@ impl TypedActionView for TerminalView {
             OpenBlockListContextMenu => self.open_block_list_context_menu_via_keybinding(ctx),
             AskAIAssistant { block_index } => self.ask_ai(&AskAISource::Block(*block_index), ctx),
             TriggerSubshellBootstrap => self.trigger_subshell_bootstrap(None, false, ctx),
-            DismissWarpifyBanner(remember) => {
-                self.dismiss_warpify_banner(remember, ctx);
-            }
 
             InsertMostRecentCommandCorrection => self.insert_most_recent_command_correction(ctx),
             AliasExpansionBanner(action) => self.alias_expansion_banner_action(*action, ctx),
@@ -20544,14 +20495,7 @@ impl View for TerminalView {
             }
         }
 
-        if let Some(WithinBlockBanner::WarpifyBanner(_)) =
-            model_lock.block_list().active_block().block_banner()
-        {
-            context.set.insert("SubshellBanner");
-        }
-
-        // Also set the warpify context when the footer (flag-gated replacement
-        // for the in-block banner) is active, so the ctrl-i keybinding works.
+        // Set the warpify context when the footer is active, so the ctrl-i keybinding works.
         if self.use_agent_footer.as_ref(app).is_warpify_active(app) {
             context.set.insert("SubshellBanner");
         }

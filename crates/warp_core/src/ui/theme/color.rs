@@ -321,10 +321,6 @@ impl WarpTheme {
         Fill::Solid(neutral_4(self))
     }
 
-    pub fn block_banner_background(&self) -> Fill {
-        Fill::Solid(neutral_3(self))
-    }
-
     /// Background color for tooltips.
     /// Uses neutral_6 for better contrast with text.
     pub fn tooltip_background(&self) -> ColorU {

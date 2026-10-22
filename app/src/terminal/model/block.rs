@@ -62,7 +62,6 @@ use crate::terminal::model::secrets::ObfuscateSecrets;
 use crate::terminal::model::session::SessionId;
 use crate::terminal::model::terminal_model::{BlockIndex, WithinBlock};
 use crate::terminal::shell::ShellType;
-use crate::terminal::view::WithinBlockBanner;
 use crate::terminal::{BlockPadding, ShellHost, SizeInfo};
 
 pub const LONG_RUNNING_COMMAND_DURATION_MS: u64 = 50;
@@ -365,9 +364,6 @@ pub struct Block {
     /// See doc comment on [`InteractionMode`] for detailed explanation of semantics.
     interaction_mode: InteractionMode,
 
-    /// This represents when a banner appears in this Block above the prompt.
-    pub(super) block_banner: Option<WithinBlockBanner>,
-
     /// If true, we should discard the next right prompt data we receive
     /// (whether it comes from a precmd hook or from a marked prompt
     /// printed by the shell).
@@ -663,8 +659,6 @@ impl BlockMetadata {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum BlockSection {
-    /// The banner at the top of the block, above the "top padding".
-    BlockBanner,
     /// Padding between the top of the block and the prompt.
     PaddingTop,
     /// Padding between the prompt and the command.
@@ -862,7 +856,6 @@ impl Block {
             is_for_in_band_command: false,
             env_var_metadata: None,
             interaction_mode: InteractionMode::default(),
-            block_banner: None,
             ignore_next_rprompt: false,
             prompt_snapshot: None,
             home_dir: None,
@@ -1019,16 +1012,6 @@ impl Block {
     #[cfg(any(test, feature = "test-util"))]
     pub fn set_output_grid(&mut self, output_grid: BlockGrid) {
         self.output_grid = output_grid;
-    }
-
-    #[cfg(not(feature = "integration_tests"))]
-    pub(in crate::terminal) fn block_banner(&self) -> Option<&WithinBlockBanner> {
-        self.block_banner.as_ref()
-    }
-
-    #[cfg(feature = "integration_tests")]
-    pub fn block_banner(&self) -> Option<&WithinBlockBanner> {
-        self.block_banner.as_ref()
     }
 
     /// Prefer using the `reset_block_index` fn on the BlockList instead.
@@ -1348,20 +1331,18 @@ impl Block {
         if self.should_hide_block(transcript_scope) {
             Lines::zero()
         } else {
-            self.block_banner_height()
-                + if self.should_hide_command_grid {
-                    Lines::zero()
-                } else {
-                    self.padding_top() + self.prompt_and_command_height() + self.padding_middle()
-                }
-                + if self.should_hide_output_grid {
-                    Lines::zero()
-                } else {
-                    self.output_grid_displayed_height()
-                        + self.footer_top_padding()
-                        + self.footer_height()
-                        + self.padding_bottom()
-                }
+            (if self.should_hide_command_grid {
+                Lines::zero()
+            } else {
+                self.padding_top() + self.prompt_and_command_height() + self.padding_middle()
+            }) + if self.should_hide_output_grid {
+                Lines::zero()
+            } else {
+                self.output_grid_displayed_height()
+                    + self.footer_top_padding()
+                    + self.footer_height()
+                    + self.padding_bottom()
+            }
         }
     }
 
@@ -1392,8 +1373,6 @@ impl Block {
             _ => BlockState::DoneWithNoExecution,
         };
         log::info!("Block finished with new state {:?}", self.state);
-
-        self.block_banner = None;
 
         let block_type: BlockType = self.into();
         self.event_proxy
@@ -1667,36 +1646,27 @@ impl Block {
     }
 
     pub fn prompt_grid_offset(&self) -> Lines {
-        self.block_banner_height() + self.padding_top()
+        self.padding_top()
     }
 
     /// The number of lines the command grid starts from the top of the block.
     pub fn command_grid_offset(&self) -> Lines {
-        self.block_banner_height()
-            + self.padding_top()
-            + self.prompt_height()
-            + self.command_padding_top()
+        self.padding_top() + self.prompt_height() + self.command_padding_top()
     }
 
     /// The number of lines the combined prompt/command grid starts from the top of the block.
     pub fn prompt_and_command_grid_offset(&self) -> Lines {
         if self.header_grid.honor_ps1() {
-            self.block_banner_height() + self.padding_top()
+            self.padding_top()
         } else {
             // Grid is drawn below custom Warp prompt in finished blocks.
-            self.block_banner_height()
-                + self.padding_top()
-                + self.prompt_height()
-                + self.command_padding_top()
+            self.padding_top() + self.prompt_height() + self.command_padding_top()
         }
     }
 
     /// The number of lines the output grid starts from the top of the block.
     pub fn output_grid_offset(&self) -> Lines {
-        self.block_banner_height()
-            + self.padding_top()
-            + self.prompt_and_command_height()
-            + self.padding_middle()
+        self.padding_top() + self.prompt_and_command_height() + self.padding_middle()
     }
 
     pub fn state(&self) -> BlockState {
@@ -1784,29 +1754,11 @@ impl Block {
         !self.is_background() && self.header_grid.is_command_empty()
     }
 
-    pub(in crate::terminal) fn block_banner_height(&self) -> Lines {
-        if !self.ready_to_render() {
-            Lines::zero()
-        } else {
-            match &self.block_banner {
-                Some(banner) => {
-                    (banner.banner_height() / self.prompt_grid_cell_height() as f32).into_lines()
-                }
-                None => Lines::zero(),
-            }
-        }
-    }
-
     pub fn padding_top(&self) -> Lines {
         if self.missing_command() || !self.ready_to_render() {
             Lines::zero()
         } else {
-            match self.block_banner {
-                // Truncate the padding if there is a banner, so not break the visual relationship
-                // between the block and banner, but still allow it to be smaller in compact mode.
-                Some(_) => self.padding.padding_top.min(0.6).into_lines(),
-                None => self.padding.padding_top.into_lines(),
-            }
+            self.padding.padding_top.into_lines()
         }
     }
 
@@ -2311,13 +2263,10 @@ impl Block {
     /// Returns the number of lines from the top of the block given a blocksection
     pub fn block_section_offset_from_top(&self, block_section: BlockSection) -> Lines {
         match block_section {
-            BlockSection::BlockBanner => self.block_banner_height(),
             BlockSection::PaddingTop => self.prompt_grid_offset(),
             BlockSection::CommandPaddingTop => self.command_grid_offset(),
             BlockSection::PromptAndCommandGrid(row) => row + self.prompt_and_command_grid_offset(),
-            BlockSection::PaddingMiddle => {
-                self.block_banner_height() + self.padding_top() + self.prompt_and_command_height()
-            }
+            BlockSection::PaddingMiddle => self.padding_top() + self.prompt_and_command_height(),
             BlockSection::OutputGrid(row) => row + self.output_grid_offset(),
             BlockSection::PaddingBottom => {
                 self.output_grid_offset() + self.output_grid_displayed_height()
@@ -2350,12 +2299,8 @@ impl Block {
         let adjusted_row = row + FLOATING_POINT_ROUNDING_ADJUSTMENT.into_lines();
 
         match adjusted_row {
-            x if x < self.block_banner_height() => BlockSection::BlockBanner,
-            x if x < self.block_banner_height() + self.padding_top() => BlockSection::PaddingTop,
-            x if x < self.block_banner_height()
-                + self.padding_top()
-                + self.prompt_and_command_height() =>
-            {
+            x if x < self.padding_top() => BlockSection::PaddingTop,
+            x if x < self.padding_top() + self.prompt_and_command_height() => {
                 BlockSection::PromptAndCommandGrid(
                     (row - self.prompt_and_command_grid_offset()).max(Lines::zero()),
                 )

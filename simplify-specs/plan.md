@@ -109,8 +109,8 @@ preferred route; D2 dropped the common-skills lock (user ruling). H4 was wrong a
 
 **Leftovers survey (2026-10-22):** queued in [plan-p5.md](plan-p5.md) — A `cargo machete` ignore
 lists (no real unused deps), B "GUI" names left from the two-front-end design, C the 132 always-on
-feature flags in seven batches. No behavior change in any of them. A + B, C1 and C1b done (see the round log);
-C1c, C2–C7 next.
+feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b and C1c done (see the round log);
+C2–C7 next.
 
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
@@ -1608,6 +1608,22 @@ Verification: format and all three clippy gates clean; `cargo nextest run --work
 `test_zsh_native_completions_without_compinit_use_filepaths`, a 31 s timeout under load that
 passed twice when rerun alone. All 102 find-related unit tests pass. `cargo run` smoke: the app
 starts with no errors in `simplewarp.log`; find was not exercised by hand.
+
+**P5 C1c — in-block banner machinery (2026-10-22).** With `WarpifyFooter` gone, nothing set a block
+banner, so the whole mechanism is deleted: `terminal/view/block_banner/` (`WithinBlockBanner`,
+`WarpifyBannerState`, `render_warpification_banner`, `BLOCK_BANNER_HEIGHT`), `Block::block_banner`
+and `block_banner_height` (always zero) with their terms in the block-offset math,
+`BlockSection::BlockBanner`, `BlockList::set_active_block_banner`, the banner slot in
+`BlockListElement` (layout, paint, event dispatch, border offset), the `SubshellBanner` context set
+from the banner (the footer still sets it), the `DismissWarpifyBanner` action and
+`RememberForWarpification` (only the banner produced its "remember" variants), the then-unused
+`WarpifySettings::denylist_ssh_host` and `block_banner_background` theme colour.
+`dismiss_warpify_banner` became `clear_warpify_footer`. No behavior change: every removed term was
+zero or unreachable. About 460 lines net.
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,274 run,
+6,273 passed, 1 failed (the clone-slash-command flake), 86 skipped. `cargo run` smoke: the app
+starts with no errors in `simplewarp.log`.
 
 ## Risks
 

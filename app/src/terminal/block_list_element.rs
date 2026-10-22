@@ -49,8 +49,8 @@ use super::model::mouse::{MouseAction, MouseButton, MouseState};
 use super::model::session::SessionId;
 use super::model::terminal_model::{SelectedBlocks, WithinBlock, WithinModel};
 use super::view::{
-    BLOCK_BANNER_HEIGHT, BlocklistAIRenderContext, InlineBannerId, RichContentMetadata,
-    SeparatorId, TerminalEditor, TerminalViewRenderContext,
+    BlocklistAIRenderContext, InlineBannerId, RichContentMetadata, SeparatorId, TerminalEditor,
+    TerminalViewRenderContext,
 };
 use super::warpify::render::{draw_flag_pole, render_subshell_flag};
 use super::{HEIGHT_FUDGE_FACTOR_LINES, TerminalModel, heights_approx_eq};
@@ -681,10 +681,6 @@ pub struct BlockListElement {
     child_max_z_index: Option<ZIndex>,
     selection_ranges: Option<Vec1<SelectionRange>>,
 
-    /// This banner is nested inside one of the blocks. Currently we only support 1 block banner in
-    /// the BlockList, and it has to be in the active Block.
-    block_banner: Option<Box<dyn Element>>,
-
     use_ligature_rendering: bool,
 
     /// Child Elements to use for rich content inserted into the block list
@@ -846,7 +842,6 @@ impl BlockListElement {
         subshell_separators: HashMap<SeparatorId, Box<dyn Element>>,
         cli_subagent_views: HashMap<BlockId, Box<dyn Element>>,
         selection_ranges: Option<Vec1<SelectionRange>>,
-        block_banner: Option<Box<dyn Element>>,
         input_size_at_last_frame: Vector2F,
         inline_menu_positioner: ModelHandle<InlineMenuPositioner>,
         cursor_hint_text_element: Option<Box<dyn Element>>,
@@ -913,7 +908,6 @@ impl BlockListElement {
             enforce_minimum_contrast,
             child_max_z_index: None,
             selection_ranges,
-            block_banner,
             hovered_secret: terminal_view_render_context.hovered_secret,
             use_ligature_rendering: false,
             active_filter_editor_block_index: None,
@@ -2082,14 +2076,9 @@ impl BlockListElement {
         );
 
         let cell_size_height = block_grid_params.grid_render_params.cell_size.y();
-        let block_banner_height = block.block_banner_height().as_f64() as f32 * cell_size_height;
 
         if draw_border_between_blocks && block_borders_enabled {
-            // The border belongs *above* the block banner, if there is one. The grid_origin has
-            // already been updated to point to below that banner, so we do the subtraction to go
-            // up and draw the border above it.
-            let border_origin = *grid_origin - vec2f(0., block_banner_height);
-            Self::draw_border_between_blocks(border_origin, block_grid_params, ctx);
+            Self::draw_border_between_blocks(*grid_origin, block_grid_params, ctx);
         }
 
         let cursor_visible = block.is_mode_set(TermMode::SHOW_CURSOR);
@@ -2101,7 +2090,7 @@ impl BlockListElement {
             let prompt_origin = snackbar_header
                 .and_then(|header| header.header_rect())
                 .map_or(*grid_origin, |r| {
-                    let y = r.origin().y() + prompt_height_offset + block_banner_height;
+                    let y = r.origin().y() + prompt_height_offset;
                     vec2f(grid_origin.x(), y)
                 });
 
@@ -2763,10 +2752,6 @@ impl Element for BlockListElement {
         // subshell flag on it.
         let mut prev_block_subshell_session_id: Option<SessionId> = None;
 
-        if let Some(banner) = &mut self.block_banner {
-            banner.layout(constraint, ctx, app);
-        }
-
         // Do a first pass to calculate the updated heights of all RichContent blocks by laying
         // them out and then measuring their size.
         //
@@ -3345,17 +3330,6 @@ impl Element for BlockListElement {
                         .and_then(|header| header.header_rect())
                         .map_or(grid_origin, |r| r.origin());
 
-                    let mut header_grid_origin = header_origin;
-
-                    if let (Some(_), Some(banner)) = (block.block_banner(), &mut self.block_banner)
-                    {
-                        banner.paint(header_origin, ctx, app);
-                        header_grid_origin += vec2f(
-                            0.,
-                            banner.size().map_or(BLOCK_BANNER_HEIGHT, |size| size.y()),
-                        );
-                    }
-
                     // TODO(vorporeal): should probably use `Pixels` here
                     let block_pixel_height =
                         block.height(transcript_scope).as_f64() as f32 * cell_size.y();
@@ -3468,10 +3442,6 @@ impl Element for BlockListElement {
                         flag_element.paint(flag_origin, ctx, app)
                     }
 
-                    if let Some(banner) = block.block_banner() {
-                        grid_origin += vec2f(0., banner.banner_height());
-                    }
-
                     Self::draw_block(
                         block,
                         &mut grid_origin,
@@ -3512,7 +3482,7 @@ impl Element for BlockListElement {
                     let block_is_bookmarked = self.bookmark_elements.contains_key(block_index);
                     let offset = 136.; // 4 icons of 26px width + 4px padding between icons x3 + 4px left padding + 4 px right padding + 4px for selected block border + 8px scrollbar
 
-                    let block_menu_items_start_origin = header_grid_origin
+                    let block_menu_items_start_origin = header_origin
                         + vec2f(
                             self.size_info.pane_width_px().as_f32() - offset
                                 + self.horizontal_clipped_scroll_state.scroll_start().as_f32(),
@@ -3564,7 +3534,7 @@ impl Element for BlockListElement {
                             // straightforward to measure. We'll use the column index of the
                             // right-most non-empty cell as a proxy for width.
                             None => {
-                                header_grid_origin.x()
+                                header_origin.x()
                                     + self.size_info.padding_x_px().as_f32()
                                     + block
                                         .prompt_rightmost_visible_nonempty_cell()
@@ -3946,10 +3916,6 @@ impl Element for BlockListElement {
             // event to all of them.
             for label_element in self.label_elements.values_mut() {
                 handled |= label_element.dispatch_event(event, ctx, app);
-            }
-
-            if let Some(banner) = &mut self.block_banner {
-                handled |= banner.dispatch_event(event, ctx, app);
             }
 
             for banner in self.inline_banners.values_mut() {

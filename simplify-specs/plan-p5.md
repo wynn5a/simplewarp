@@ -94,7 +94,7 @@ assert sync match counts right after a query and fail on the async path; they ne
 the background scan. Also delete the hidden `AsyncFindWidget`, `ToggleAsyncFind`, the inert
 `experimental.async_find_enabled` setting and `render_beta_chip`.
 
-**C1c — in-block banner machinery (follow-up of C1)** — `WarpifyFooter` was the only producer of
+**C1c — in-block banner machinery (follow-up of C1)** — **done 2026-10-22.** `WarpifyFooter` was the only producer of
 `WithinBlockBanner::WarpifyBanner`; with the banner path gone, nothing sets a block banner. What
 is left is dead: `terminal/view/block_banner/` (`WarpifyBannerState`,
 `render_warpification_banner`), `Block::block_banner` and its height accounting in `block.rs`

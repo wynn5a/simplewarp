@@ -127,45 +127,44 @@ impl BlockListSelection {
 
         // Determine whether it is in the command grid, output grid or none of them.
         let block = block_list.block_at(block_index)?;
-        let (point, grid_type) =
-            match block.find(block_list_point.row - block_heights_cursor.start().height) {
-                BlockSection::BlockBanner | BlockSection::PaddingTop if block.honor_ps1() => {
-                    (Point::new(0, 0), GridType::Prompt)
-                }
-                BlockSection::BlockBanner
-                | BlockSection::PaddingTop
-                | BlockSection::CommandPaddingTop => (Point::new(0, 0), GridType::PromptAndCommand),
-                BlockSection::PromptAndCommandGrid(row) => (
-                    Point::new(row, block_list_point.column),
-                    GridType::PromptAndCommand,
+        let (point, grid_type) = match block
+            .find(block_list_point.row - block_heights_cursor.start().height)
+        {
+            BlockSection::PaddingTop if block.honor_ps1() => (Point::new(0, 0), GridType::Prompt),
+            BlockSection::PaddingTop | BlockSection::CommandPaddingTop => {
+                (Point::new(0, 0), GridType::PromptAndCommand)
+            }
+            BlockSection::PromptAndCommandGrid(row) => (
+                Point::new(row, block_list_point.column),
+                GridType::PromptAndCommand,
+            ),
+            BlockSection::PaddingMiddle => (
+                Point::new(
+                    block.prompt_and_command_number_of_rows().saturating_sub(1),
+                    block_list.size().columns().saturating_sub(1),
                 ),
-                BlockSection::PaddingMiddle => (
-                    Point::new(
-                        block.prompt_and_command_number_of_rows().saturating_sub(1),
-                        block_list.size().columns().saturating_sub(1),
-                    ),
-                    GridType::PromptAndCommand,
+                GridType::PromptAndCommand,
+            ),
+            BlockSection::PaddingBottom if block.output_grid().is_empty() => (
+                Point::new(
+                    block.prompt_and_command_number_of_rows().saturating_sub(1),
+                    block_list.size().columns().saturating_sub(1),
                 ),
-                BlockSection::PaddingBottom if block.output_grid().is_empty() => (
-                    Point::new(
-                        block.prompt_and_command_number_of_rows().saturating_sub(1),
-                        block_list.size().columns().saturating_sub(1),
-                    ),
-                    GridType::PromptAndCommand,
-                ),
-                BlockSection::OutputGrid(row) => {
-                    (Point::new(row, block_list_point.column), GridType::Output)
-                }
-                BlockSection::PaddingBottom
-                | BlockSection::EndOfBlock
-                | BlockSection::NotContained => (
+                GridType::PromptAndCommand,
+            ),
+            BlockSection::OutputGrid(row) => {
+                (Point::new(row, block_list_point.column), GridType::Output)
+            }
+            BlockSection::PaddingBottom | BlockSection::EndOfBlock | BlockSection::NotContained => {
+                (
                     Point::new(
                         block.output_grid().len_displayed().saturating_sub(1),
                         block_list_point.column,
                     ),
                     GridType::Output,
-                ),
-            };
+                )
+            }
+        };
 
         Some(WithinBlock::new(point, block_index, grid_type))
     }

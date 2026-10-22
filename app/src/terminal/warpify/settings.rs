@@ -396,18 +396,6 @@ impl WarpifySettings {
         ctx.notify();
     }
 
-    /// The user has indicated that they don't want to be asked to bootstrap an ssh session
-    /// for this host, so save it in user-defaults.
-    pub fn denylist_ssh_host(&mut self, host_to_denylist: &str, ctx: &mut ModelContext<Self>) {
-        let mut new_denylist = self.ssh_hosts_denylist.to_vec();
-        new_denylist.push(host_to_denylist.trim().to_owned());
-        self.ssh_hosts_denylist
-            .set_value(new_denylist, ctx)
-            .expect("ssh_hosts_denylist failed to serialize");
-
-        ctx.notify();
-    }
-
     /// Add a new regex to the list of subshell-compatible commands.
     pub fn add_subshell_command(&mut self, command_to_add: &str, ctx: &mut ModelContext<Self>) {
         let mut new_added_commands_list = self.added_subshell_commands.to_vec();
