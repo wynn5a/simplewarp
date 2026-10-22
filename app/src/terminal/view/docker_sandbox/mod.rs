@@ -12,10 +12,7 @@ use crate::persistence::ModelEvent;
 use crate::terminal::TerminalManager;
 use crate::terminal::available_shells::AvailableShell;
 use crate::terminal::local_tty::docker_sandbox::resolve_sbx_path_from_user_shell;
-use crate::terminal::local_tty::{
-    TerminalManager as LocalTtyTerminalManager, TerminalViewSurfaceConfig,
-    create_terminal_view_surface,
-};
+use crate::terminal::local_tty::{TerminalManager as LocalTtyTerminalManager, TerminalViewConfig};
 
 /// Default base Docker image used for newly created sandbox shells.
 ///
@@ -39,9 +36,8 @@ fn create_docker_sandbox_view(
         DEFAULT_DOCKER_SANDBOX_BASE_IMAGE.map(str::to_owned),
     ));
 
-    let model_event_sender_for_surface = model_event_sender.clone();
     let window_id = ctx.window_id();
-    let terminal_init = LocalTtyTerminalManager::<TerminalView>::create_model(
+    let terminal_init = LocalTtyTerminalManager::create_model(
         None,
         HashMap::new(),
         None, /* restored_blocks */
@@ -49,26 +45,19 @@ fn create_docker_sandbox_view(
         initial_size,
         model_event_sender,
         chosen_shell,
-        ctx,
-        |surface_init, ctx| {
-            create_terminal_view_surface(
-                TerminalViewSurfaceConfig {
-                    model_event_sender: model_event_sender_for_surface,
-                    window_id,
-                    initial_input_config: None,
-                    conversation_restoration: None,
-                    has_conversation_restoration: false,
-                    is_historical: false,
-                    should_use_live_appearance: false,
-                    has_restored_command_blocks: false,
-                },
-                surface_init,
-                ctx,
-            )
+        TerminalViewConfig {
+            window_id,
+            initial_input_config: None,
+            conversation_restoration: None,
+            has_conversation_restoration: false,
+            is_historical: false,
+            should_use_live_appearance: false,
+            has_restored_command_blocks: false,
         },
+        ctx,
     );
     let terminal_manager = terminal_init.manager;
-    let terminal_view = terminal_init.surface;
+    let terminal_view = terminal_init.view;
 
     (terminal_view, terminal_manager)
 }

@@ -12,15 +12,20 @@ use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::fonts::FamilyId;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
+use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewControllerEvent};
 use crate::ai::blocklist::block::cli_controller::{CLISubagentController, CLISubagentEvent};
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::skills::{SkillDescriptor, SkillManager};
+use crate::search::SyncDataSource;
+use crate::search::data_source::{Query, QueryResult};
+use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::slash_command_menu::fuzzy_match::SlashCommandFuzzyMatchResult;
+use crate::search::slash_command_menu::static_commands::commands::COMMAND_REGISTRY;
 use crate::search::slash_command_menu::static_commands::{Availability, commands};
 use crate::search::slash_command_menu::{SlashCommandId, StaticCommand};
 use crate::settings::{
-    AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent,
-    is_codebase_context_enabled,
+    AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent, InputSettings,
+    InputSettingsChangedEvent, is_codebase_context_enabled,
 };
 use crate::terminal::input::slash_command_model::{
     DetectedCommand, DetectedSkillCommand, ParsedSlashCommandInput,
@@ -48,110 +53,171 @@ fn split_command_and_argument(buffer: &str) -> (&str, Option<&str>) {
         })
 }
 
-/// Subscribes a concrete surface data source to dependencies that affect command availability.
-/// The callback remains concrete, so this helper does not require a surface trait.
-pub(super) fn subscribe_to_shared_dependencies<T>(
-    active_session: &ModelHandle<ActiveSession>,
-    cli_subagent_controller: &ModelHandle<CLISubagentController>,
-    recompute_active_commands: fn(&mut T, &mut ModelContext<T>),
-    ctx: &mut ModelContext<T>,
-) where
-    T: Entity<Event = UpdatedActiveCommands>,
-{
-    ctx.subscribe_to_model(active_session, move |me, _, event, ctx| match event {
-        ActiveSessionEvent::UpdatedPwd | ActiveSessionEvent::Bootstrapped => {
-            recompute_active_commands(me, ctx);
-        }
-    });
-    ctx.subscribe_to_model(cli_subagent_controller, move |me, _, event, ctx| {
-        if let CLISubagentEvent::SpawnedSubagent { .. }
-        | CLISubagentEvent::FinishedSubagent { .. }
-        | CLISubagentEvent::UpdatedControl { .. } = event
-        {
-            recompute_active_commands(me, ctx);
-        }
-    });
-    ctx.subscribe_to_model(&AISettings::handle(ctx), move |me, _, event, ctx| {
-        if matches!(
-            event,
-            AISettingsChangedEvent::IsAnyAIEnabled | AISettingsChangedEvent::AIAutoDetectionEnabled
-        ) {
-            recompute_active_commands(me, ctx);
-        }
-    });
-    ctx.subscribe_to_model(&CodeSettings::handle(ctx), move |me, _, event, ctx| {
-        if matches!(event, CodeSettingsChangedEvent::CodebaseContextEnabled) {
-            recompute_active_commands(me, ctx);
-        }
-    });
-    // Recompute when the active conversation switches so commands gated on the active
-    // conversation update on navigation.
-    ctx.subscribe_to_model(
-        &BlocklistAIHistoryModel::handle(ctx),
-        move |me, _, event, ctx| {
-            if matches!(
-                event,
-                BlocklistAIHistoryEvent::SetActiveConversation { .. }
-                    | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
-            ) {
-                recompute_active_commands(me, ctx);
-            }
-        },
-    );
+pub struct SlashCommandDataSourceArgs {
+    pub active_session: ModelHandle<ActiveSession>,
+    pub agent_view_controller: ModelHandle<AgentViewController>,
+    pub cli_subagent_controller: ModelHandle<CLISubagentController>,
+    pub terminal_view_id: EntityId,
 }
 
-/// State shared by slash command data sources.
-///
-/// Common behavior is provided by [`SlashCommandDataSource`]. Surface-specific behavior such as
-/// agent view, cloud mode, compact rendering, recomputation, and event emission lives on the
-/// wrapping surface types.
-pub struct SlashCommandDataSourceState {
+/// The slash commands and skills available in one terminal's input.
+pub struct SlashCommandDataSource {
     active_session: ModelHandle<ActiveSession>,
     cli_subagent_controller: ModelHandle<CLISubagentController>,
+    agent_view_controller: ModelHandle<AgentViewController>,
     terminal_view_id: EntityId,
     active_commands_by_id: HashMap<SlashCommandId, StaticCommand>,
     active_repo_root: Option<PathBuf>,
 }
-impl SlashCommandDataSourceState {
-    pub(super) fn new(
-        active_session: ModelHandle<ActiveSession>,
-        cli_subagent_controller: ModelHandle<CLISubagentController>,
-        terminal_view_id: EntityId,
-    ) -> Self {
-        Self {
+
+impl SlashCommandDataSource {
+    pub fn new(args: SlashCommandDataSourceArgs, ctx: &mut ModelContext<Self>) -> Self {
+        let SlashCommandDataSourceArgs {
+            active_session,
+            agent_view_controller,
+            cli_subagent_controller,
+            terminal_view_id,
+        } = args;
+
+        ctx.subscribe_to_model(&active_session, |me, _, event, ctx| match event {
+            ActiveSessionEvent::UpdatedPwd | ActiveSessionEvent::Bootstrapped => {
+                me.recompute_active_commands(ctx);
+            }
+        });
+        ctx.subscribe_to_model(&cli_subagent_controller, |me, _, event, ctx| {
+            if let CLISubagentEvent::SpawnedSubagent { .. }
+            | CLISubagentEvent::FinishedSubagent { .. }
+            | CLISubagentEvent::UpdatedControl { .. } = event
+            {
+                me.recompute_active_commands(ctx);
+            }
+        });
+        ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
+            if matches!(
+                event,
+                AISettingsChangedEvent::IsAnyAIEnabled
+                    | AISettingsChangedEvent::AIAutoDetectionEnabled
+            ) {
+                me.recompute_active_commands(ctx);
+            }
+        });
+        ctx.subscribe_to_model(&CodeSettings::handle(ctx), |me, _, event, ctx| {
+            if matches!(event, CodeSettingsChangedEvent::CodebaseContextEnabled) {
+                me.recompute_active_commands(ctx);
+            }
+        });
+        // Recompute when the active conversation switches so commands gated on the active
+        // conversation update on navigation.
+        ctx.subscribe_to_model(
+            &BlocklistAIHistoryModel::handle(ctx),
+            |me, _, event, ctx| {
+                if matches!(
+                    event,
+                    BlocklistAIHistoryEvent::SetActiveConversation { .. }
+                        | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
+                ) {
+                    me.recompute_active_commands(ctx);
+                }
+            },
+        );
+        ctx.subscribe_to_model(&agent_view_controller, |me, _, event, ctx| match event {
+            AgentViewControllerEvent::EnteredAgentView { .. }
+            | AgentViewControllerEvent::ExitedAgentView { .. } => {
+                me.recompute_active_commands(ctx);
+            }
+            _ => (),
+        });
+        ctx.subscribe_to_model(&InputSettings::handle(ctx), |me, _, event, ctx| {
+            if matches!(
+                event,
+                InputSettingsChangedEvent::EnableSlashCommandsInTerminal
+            ) {
+                me.recompute_active_commands(ctx);
+            }
+        });
+
+        let mut me = Self {
             active_session,
             cli_subagent_controller,
+            agent_view_controller,
             terminal_view_id,
             active_commands_by_id: HashMap::new(),
             active_repo_root: None,
+        };
+        me.recompute_active_commands(ctx);
+        me
+    }
+
+    pub fn is_agent_view_active(&self, ctx: &AppContext) -> bool {
+        self.agent_view_controller.as_ref(ctx).is_active()
+    }
+
+    pub fn set_active_repo_root(
+        &mut self,
+        repo_root: Option<PathBuf>,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        if self.update_active_repo_root(repo_root) {
+            self.recompute_active_commands(ctx);
         }
     }
-}
 
-/// Slash command behavior shared by data sources.
-///
-/// Implementors provide access to their shared state. Default methods own the behavior whose
-/// meaning is identical across surfaces, while each concrete surface retains lifecycle wiring,
-/// availability policy, active-command recomputation, event emission, and query presentation.
-pub trait SlashCommandDataSource {
-    fn state(&self) -> &SlashCommandDataSourceState;
-
-    fn state_mut(&mut self) -> &mut SlashCommandDataSourceState;
-
-    fn active_session(&self) -> &ModelHandle<ActiveSession> {
-        &self.state().active_session
+    pub(crate) fn command_is_active(&self, command: &StaticCommand, ctx: &AppContext) -> bool {
+        command.is_active(self.availability(ctx))
     }
 
-    fn terminal_view_id(&self) -> EntityId {
-        self.state().terminal_view_id
+    fn recompute_active_commands(&mut self, ctx: &mut ModelContext<Self>) {
+        let availability = self.availability(ctx);
+        let commands = HashMap::from_iter(
+            COMMAND_REGISTRY
+                .all_commands_by_id()
+                .filter(|(_, command)| command.is_active(availability))
+                .map(|(id, command)| (id, command.clone())),
+        );
+        if self.replace_active_commands(commands) {
+            ctx.emit(UpdatedActiveCommands);
+        }
     }
 
-    fn active_commands(&self) -> impl Iterator<Item = (&SlashCommandId, &StaticCommand)> {
-        self.state().active_commands_by_id.iter()
+    fn availability(&self, ctx: &AppContext) -> Availability {
+        let is_agent_view_active = self.is_agent_view_active(ctx);
+        let mut availability =
+            self.base_availability(ctx) | Self::view_availability(is_agent_view_active);
+
+        if self.has_active_conversation(is_agent_view_active, ctx) {
+            availability |= Availability::ACTIVE_CONVERSATION;
+        }
+
+        availability
     }
 
-    /// Classifies slash command input consistently across surfaces.
-    fn parse_input(&self, buffer: &str, ctx: &AppContext) -> ParsedSlashCommandInput {
+    /// View-related availability bits for the GUI's legacy terminal-view and agent-view
+    /// modalities. When the AgentView feature flag is disabled, both bits are set so either
+    /// requirement is satisfied.
+    fn view_availability(is_agent_view_active: bool) -> Availability {
+        if !FeatureFlag::AgentView.is_enabled() {
+            Availability::AGENT_VIEW | Availability::TERMINAL_VIEW
+        } else if is_agent_view_active {
+            Availability::AGENT_VIEW
+        } else {
+            Availability::TERMINAL_VIEW
+        }
+    }
+
+    pub fn active_session(&self) -> &ModelHandle<ActiveSession> {
+        &self.active_session
+    }
+
+    pub fn terminal_view_id(&self) -> EntityId {
+        self.terminal_view_id
+    }
+
+    pub fn active_commands(&self) -> impl Iterator<Item = (&SlashCommandId, &StaticCommand)> {
+        self.active_commands_by_id.iter()
+    }
+
+    /// Classifies slash command input.
+    pub fn parse_input(&self, buffer: &str, ctx: &AppContext) -> ParsedSlashCommandInput {
         if !buffer.starts_with('/') {
             return ParsedSlashCommandInput::None;
         }
@@ -171,7 +237,7 @@ pub trait SlashCommandDataSource {
 
     /// Matches `buffer` against active slash commands, returning the detected command and
     /// space-delimited argument, if provided.
-    fn parse_slash_command(&self, buffer: &str) -> Option<DetectedCommand> {
+    pub fn parse_slash_command(&self, buffer: &str) -> Option<DetectedCommand> {
         let (possible_command, possible_argument) = split_command_and_argument(buffer);
 
         let is_matching_command = |command: &StaticCommand| {
@@ -197,7 +263,11 @@ pub trait SlashCommandDataSource {
 
     /// Matches `buffer` against skills available for the active working directory, returning the
     /// detected skill and space-delimited argument, if provided.
-    fn parse_skill_command(&self, buffer: &str, ctx: &AppContext) -> Option<DetectedSkillCommand> {
+    pub fn parse_skill_command(
+        &self,
+        buffer: &str,
+        ctx: &AppContext,
+    ) -> Option<DetectedSkillCommand> {
         let (possible_command, possible_argument) = split_command_and_argument(buffer);
         let skill_name = possible_command.strip_prefix('/')?;
 
@@ -219,8 +289,8 @@ pub trait SlashCommandDataSource {
     /// Update the active repository root for this terminal. Returns whether the value changed,
     /// so the caller can decide whether to recompute active commands.
     fn update_active_repo_root(&mut self, repo_root: Option<PathBuf>) -> bool {
-        if self.state().active_repo_root != repo_root {
-            self.state_mut().active_repo_root = repo_root;
+        if self.active_repo_root != repo_root {
+            self.active_repo_root = repo_root;
             true
         } else {
             false
@@ -232,18 +302,15 @@ pub trait SlashCommandDataSource {
         &mut self,
         commands: HashMap<SlashCommandId, StaticCommand>,
     ) -> bool {
-        if self.state().active_commands_by_id == commands {
+        if self.active_commands_by_id == commands {
             false
         } else {
-            self.state_mut().active_commands_by_id = commands;
+            self.active_commands_by_id = commands;
             true
         }
     }
 
-    /// Availability bits derived only from state shared by both surfaces.
-    ///
-    /// Surfaces add their own bits (agent view vs. terminal view, cloud mode, active
-    /// conversation) on top of this baseline.
+    /// Availability bits that do not depend on the view modality or the active conversation.
     fn base_availability(&self, ctx: &AppContext) -> Availability {
         let mut availability = Availability::empty();
 
@@ -270,7 +337,6 @@ pub trait SlashCommandDataSource {
         }
 
         if !self
-            .state()
             .cli_subagent_controller
             .as_ref(ctx)
             .is_agent_in_control()
@@ -332,11 +398,10 @@ pub trait SlashCommandDataSource {
                 .is_some()
     }
 
-    /// Fuzzy-match the active commands against `query_text`. Returns scored [`InlineItem`]s with
-    /// compact layout left unset; the caller applies any surface-specific presentation.
-    fn match_active_commands(&self, query_text: &str, app: &AppContext) -> Vec<InlineItem> {
+    /// Fuzzy-match the active commands against `query_text`, returning scored [`InlineItem`]s.
+    pub fn match_active_commands(&self, query_text: &str, app: &AppContext) -> Vec<InlineItem> {
         let mut results = Vec::new();
-        for (id, command) in &self.state().active_commands_by_id {
+        for (id, command) in &self.active_commands_by_id {
             let Some(fuzzy_result) = SlashCommandFuzzyMatchResult::try_match(
                 query_text,
                 command.name,
@@ -369,9 +434,8 @@ pub trait SlashCommandDataSource {
     }
 
     /// Fuzzy-match skills for the current working directory against `query_text`. Returns an empty
-    /// vector when skills are globally unavailable. The caller decides whether skills apply for its
-    /// surface (e.g. GUI hides them in cloud mode).
-    fn match_skills(&self, query_text: &str, app: &AppContext) -> Vec<InlineItem> {
+    /// vector when skills are globally unavailable.
+    pub fn match_skills(&self, query_text: &str, app: &AppContext) -> Vec<InlineItem> {
         if !FeatureFlag::ListSkills.is_enabled() || !AISettings::as_ref(app).is_any_ai_enabled() {
             return Vec::new();
         }
@@ -416,7 +480,7 @@ pub trait SlashCommandDataSource {
     /// DataSource implementations must return highest priority items last (results sorted in
     /// ascending order of priority). This orders all active commands alphabetically, except for
     /// the explicitly prioritized commands, which are appended after them in the listed order.
-    fn ordered_zero_state_commands(&self, app: &AppContext) -> Vec<InlineItem> {
+    pub fn ordered_zero_state_commands(&self, app: &AppContext) -> Vec<InlineItem> {
         use itertools::Itertools;
 
         let prioritized_commands = vec![
@@ -460,6 +524,30 @@ pub trait SlashCommandDataSource {
     }
 }
 
+impl SyncDataSource for SlashCommandDataSource {
+    type Action = AcceptSlashCommandOrSavedPrompt;
+
+    fn run_query(
+        &self,
+        query: &Query,
+        app: &AppContext,
+    ) -> Result<Vec<QueryResult<Self::Action>>, DataSourceRunErrorWrapper> {
+        if query.text.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let query_text = query.text.trim().to_lowercase();
+        let mut results = self.match_active_commands(&query_text, app);
+        results.extend(self.match_skills(&query_text, app));
+
+        Ok(results.into_iter().map(QueryResult::from).collect())
+    }
+}
+
+impl Entity for SlashCommandDataSource {
+    type Event = UpdatedActiveCommands;
+}
+
 /// Computes a bonus score for slash command matches where the query is a prefix
 /// of the command name. This ensures closer matches (e.g., "new" → "/new") rank
 /// above longer fuzzy matches (e.g., "new" → "/figma-create-new-file").
@@ -500,7 +588,7 @@ impl InlineItem {
         let appearance = Appearance::as_ref(app);
         Self {
             action: AcceptSlashCommandOrSavedPrompt::SlashCommand { id: *command_id },
-            icon_path: command.supported_surfaces.gui_icon_path(),
+            icon_path: Some(command.icon_path),
             name: command.name.to_owned(),
             description: Some(command.description.to_owned()),
             font_family: appearance.monospace_font_family(),

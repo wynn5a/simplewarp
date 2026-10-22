@@ -1455,7 +1455,8 @@ again in isolation, then passed on the next isolated run).
 
 Next candidates: `StoredView` and `SlashCommandSurfaces` are now single-variant enums, and
 `SlashCommandDataSource`/`TerminalSurface` have one production impl each; all four are the same
-shape of collapse as `ColumnUnit` if a further structural round is wanted.
+shape of collapse as `ColumnUnit` if a further structural round is wanted. **Done**, see
+"Single-implementation collapse" below.
 
 **Harness-audit cleanup (2026-10-22).** The queue recorded under Next, in one commit:
 
@@ -1489,6 +1490,35 @@ test). `NO_LICENSES=1 script/bundle_simplewarp --debug` produces `bundled/skills
 With `cargo about` 0.8.4 installed, the full `script/bundle_simplewarp --debug` also writes
 `THIRD_PARTY_LICENSES.txt` (1.1 MB, the appended non-Cargo licences included). Still unexercised:
 the Linux/Windows release jobs (needs a `workflow_dispatch` dry run).
+
+**Single-implementation collapse (2026-10-22).** The four leftovers of the two-front-end design,
+no behavior change:
+
+- `warpui_core`: `StoredView` (one variant, `Gui`) is gone; `Window::views` stores
+  `Box<dyn AnyView>` and callers use the `AnyView` methods directly.
+- Slash commands: `SlashCommandSurfaces::GuiOnly { icon_path }` became a plain
+  `StaticCommand::icon_path`; `supports_gui`/`supports_surface`, the test-only surface filter and the
+  icon/surface consistency test are gone (`all_commands_for_all_surfaces` is now `all_commands`).
+- `SlashCommandDataSource` trait + `SlashCommandDataSourceState` + `GuiSlashCommandDataSource`
+  merged into one `SlashCommandDataSource` struct (`data_source/gui.rs` folded into `core.rs`, the
+  generic `subscribe_to_shared_dependencies` inlined into `new`); `GuiDataSourceArgs` is
+  `SlashCommandDataSourceArgs`, `GuiZeroStateDataSource` is `ZeroStateDataSource`.
+- Terminal manager: deleted the `TerminalSurface` and `PtyIntentEvent` traits
+  (`TerminalView` hooks and `Event::pty_intent` are inherent; `writeable_pty/terminal_surface.rs` is
+  now `pty_intent.rs`) and the `TerminalManager<S>` generic. `create_model` takes a
+  `TerminalViewConfig` and builds the view itself, replacing the `create_surface` closure,
+  `TerminalSurfaceInit`/`TerminalSurfaceResult`, the `post_wire` callback (now
+  `TerminalViewConfig::restoration_separator`) and the `create_model_with_manager`/`box_manager`
+  indirection.
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,289 run,
+6,288 passed, 1 failed (the clone-slash-command flake), 86 skipped. The integration UI tests
+create real local terminals through the new `create_model`.
+
+Next candidate: the AI layer still speaks of a "terminal surface" (`terminal_surface_id`, 362 uses,
+and `BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface` /
+`ConversationTransferredBetweenTerminalSurfaces`); it now always means the terminal view id, so a
+rename to `terminal_view_id` would finish the vocabulary.
 
 ## Risks
 

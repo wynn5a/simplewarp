@@ -1991,7 +1991,7 @@ pub fn test_add_and_close_session() -> Builder {
                                     .expect("pane at index 0 is a terminal pane")
                                     .as_ref(ctx)
                                     .as_any()
-                                    .downcast_ref::<LocalTtyTerminalManager<TerminalView>>()
+                                    .downcast_ref::<LocalTtyTerminalManager>()
                                     .expect("terminal pane at index 0 contains a local session")
                                     .pid()
                                     .expect("shell should be spawned")

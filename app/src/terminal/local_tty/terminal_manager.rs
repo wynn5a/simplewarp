@@ -16,13 +16,14 @@ use pathfinder_geometry::vector::Vector2F;
 use settings::Setting as _;
 use warp_core::SessionId;
 use warp_errors::report_error;
-use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity, ViewHandle};
+use warpui::{AppContext, ModelContext, ModelHandle, SingletonEntity, ViewHandle};
 
 use super::event_loop::EventLoop;
 use super::mio_channel;
 use super::shell::{ShellStarter, ShellStarterSource};
 #[cfg(unix)]
 use super::terminal_attributes::TerminalAttributesPoller;
+use super::terminal_view_adaptor::{TerminalViewConfig, create_terminal_view};
 use crate::ai::blocklist::SerializedBlockListItem;
 use crate::banner::BannerState;
 use crate::context_chips::ContextChipKind;
@@ -48,28 +49,28 @@ use crate::terminal::terminal_manager::BlockSpacing;
 use crate::terminal::warpify::settings::WarpifySettings;
 use crate::terminal::writeable_pty::pty_controller::{EventLoopSendError, EventLoopSender};
 use crate::terminal::writeable_pty::terminal_manager_util::{
-    init_pty_controller_model, wire_up_pty_controller_with_surface,
+    init_pty_controller_model, wire_up_pty_controller_with_view,
 };
-use crate::terminal::writeable_pty::{self, Message, PtyIntentEvent, TerminalSurface};
+use crate::terminal::writeable_pty::{self, Message};
 use crate::terminal::{
     PTY_READS_BROADCAST_CHANNEL_SIZE, ShellLaunchData, ShellLaunchState, SizeInfo,
-    TerminalManager as TerminalManagerTrait, TerminalModel, terminal_manager,
+    TerminalManager as TerminalManagerTrait, TerminalModel, TerminalView, terminal_manager,
 };
 
 type PtyController = writeable_pty::PtyController<mio_channel::Sender<Message>>;
 
 /// Owns a local terminal session: the terminal model, PTY event loop, PTY
-/// controller, and a terminal surface.
+/// controller, and its terminal view.
 ///
 /// Holds onto data that needs to live as long as the session does (e.g. the
 /// event loop join handle).
-pub struct TerminalManager<S> {
+pub struct TerminalManager {
     event_loop_tx: Arc<Mutex<mio_channel::Sender<Message>>>,
     /// This is an `Option` so that we can take ownership of the inner
     /// `JoinHandle` in `TerminalManager::drop`.
     event_loop_handle: Option<JoinHandle<()>>,
     pub(super) model: Arc<FairMutex<TerminalModel>>,
-    pub(super) view: ViewHandle<S>,
+    pub(super) view: ViewHandle<TerminalView>,
 
     /// The manager is responsible for managing the lifetime
     /// of the terminal attributes poller. None if the event loop has not yet started.
@@ -93,8 +94,8 @@ pub struct TerminalManager<S> {
     inactive_pty_reads_rx: InactiveReceiver<Arc<Vec<u8>>>,
 }
 
-/// Shared inputs needed to construct a terminal surface for a local PTY.
-pub struct TerminalSurfaceInit {
+/// Terminal state the manager hands to the `TerminalView` it creates.
+pub(super) struct TerminalViewInit {
     pub wakeups_rx: async_channel::Receiver<()>,
     pub model_events: ModelHandle<ModelEventDispatcher>,
     pub model: Arc<FairMutex<TerminalModel>>,
@@ -102,39 +103,7 @@ pub struct TerminalSurfaceInit {
     pub size_info: SizeInfo,
     pub colors: ColorList,
     pub inactive_pty_reads_rx: InactiveReceiver<Arc<Vec<u8>>>,
-}
-
-#[cfg(test)]
-impl TerminalSurfaceInit {
-    /// Creates mock terminal surface inputs without spawning a PTY.
-    pub fn new_for_test(ctx: &mut AppContext) -> Self {
-        let (_wakeups_tx, wakeups_rx) = async_channel::unbounded();
-        let (_events_tx, events_rx) = async_channel::unbounded();
-        let (pty_reads_tx, pty_reads_rx) =
-            async_broadcast::broadcast(PTY_READS_BROADCAST_CHANNEL_SIZE);
-        drop(pty_reads_tx);
-        let sessions = ctx.add_model(|_| Sessions::new_for_test());
-        let model_events =
-            ctx.add_model(|ctx| ModelEventDispatcher::new(events_rx, sessions.clone(), ctx));
-        let model = Arc::new(FairMutex::new(TerminalModel::mock(None, None)));
-        let colors = model.lock().colors();
-        let size_info = model.lock().block_list().size().to_owned();
-        Self {
-            wakeups_rx,
-            model_events,
-            model,
-            sessions,
-            size_info,
-            colors,
-            inactive_pty_reads_rx: pty_reads_rx.deactivate(),
-        }
-    }
-}
-
-/// A newly constructed terminal surface and its manager post-wiring callback.
-pub struct TerminalSurfaceResult<S, PostWire> {
-    pub surface: ViewHandle<S>,
-    pub post_wire: PostWire,
+    pub model_event_sender: Option<SyncSender<ModelEvent>>,
 }
 
 /// One-shot resources consumed when the shell is determined and the PTY starts.
@@ -145,21 +114,22 @@ struct ShellStartupResources {
     model_events: ModelHandle<ModelEventDispatcher>,
 }
 
-/// Handles created for a local terminal manager and its surface.
-pub struct TerminalManagerInit<S> {
+/// Handles created for a local terminal manager and its view.
+pub struct TerminalManagerInit {
     pub manager: ModelHandle<Box<dyn TerminalManagerTrait>>,
-    pub surface: ViewHandle<S>,
+    pub view: ViewHandle<TerminalView>,
 }
-impl<S> Drop for TerminalManager<S> {
+
+impl Drop for TerminalManager {
     fn drop(&mut self) {
         self.shutdown_event_loop();
     }
 }
 
-impl<S> TerminalManager<S> {
-    /// Creates a local terminal manager model and terminal surface.
+impl TerminalManager {
+    /// Creates a local terminal manager model and its terminal view.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn create_model<PostWire>(
+    pub(crate) fn create_model(
         startup_directory: Option<PathBuf>,
         env_vars: HashMap<OsString, OsString>,
         all_restored_blocks: Option<&Vec<SerializedBlockListItem>>,
@@ -167,57 +137,9 @@ impl<S> TerminalManager<S> {
         initial_size: Vector2F,
         model_event_sender: Option<SyncSender<ModelEvent>>,
         chosen_shell: Option<AvailableShell>,
+        view_config: TerminalViewConfig,
         ctx: &mut AppContext,
-        create_surface: impl FnOnce(
-            TerminalSurfaceInit,
-            &mut AppContext,
-        ) -> TerminalSurfaceResult<S, PostWire>,
-    ) -> TerminalManagerInit<S>
-    where
-        S: TerminalSurface,
-        <S as Entity>::Event: PtyIntentEvent,
-        Self: TerminalManagerTrait,
-        PostWire: FnOnce(&mut Self, &ViewHandle<S>, &mut AppContext),
-    {
-        Self::create_model_with_manager(
-            startup_directory,
-            env_vars,
-            all_restored_blocks,
-            user_default_shell_unsupported_banner_model_handle,
-            initial_size,
-            model_event_sender,
-            chosen_shell,
-            BlockSpacing::for_gui(ctx),
-            ctx,
-            create_surface,
-            |manager| Box::new(manager),
-        )
-    }
-
-    /// Creates a manager using the supplied type-erasure adapter.
-    #[allow(clippy::too_many_arguments)]
-    fn create_model_with_manager<PostWire, BoxManager>(
-        startup_directory: Option<PathBuf>,
-        env_vars: HashMap<OsString, OsString>,
-        all_restored_blocks: Option<&Vec<SerializedBlockListItem>>,
-        user_default_shell_unsupported_banner_model_handle: ModelHandle<BannerState>,
-        initial_size: Vector2F,
-        model_event_sender: Option<SyncSender<ModelEvent>>,
-        chosen_shell: Option<AvailableShell>,
-        block_spacing: BlockSpacing,
-        ctx: &mut AppContext,
-        create_surface: impl FnOnce(
-            TerminalSurfaceInit,
-            &mut AppContext,
-        ) -> TerminalSurfaceResult<S, PostWire>,
-        box_manager: BoxManager,
-    ) -> TerminalManagerInit<S>
-    where
-        S: TerminalSurface,
-        <S as Entity>::Event: PtyIntentEvent,
-        PostWire: FnOnce(&mut Self, &ViewHandle<S>, &mut AppContext),
-        BoxManager: FnOnce(Self) -> Box<dyn TerminalManagerTrait> + 'static,
-    {
+    ) -> TerminalManagerInit {
         let (wakeups_tx, wakeups_rx) = async_channel::unbounded();
         let (events_tx, events_rx) = async_channel::unbounded();
         let (executor_command_tx, executor_command_rx) = async_channel::unbounded();
@@ -263,7 +185,7 @@ impl<S> TerminalManager<S> {
                     .map(|wsl_name_or_shell_starter| wsl_name_or_shell_starter.name())
                     .unwrap_or(ShellName::LessDescriptive("Shell".to_owned())),
             },
-            block_spacing,
+            BlockSpacing::for_gui(ctx),
             ctx,
         );
         let colors = model.colors();
@@ -280,8 +202,10 @@ impl<S> TerminalManager<S> {
         );
 
         let size_info = model.lock().block_list().size().to_owned();
-        let TerminalSurfaceResult { surface, post_wire } = create_surface(
-            TerminalSurfaceInit {
+        let restoration_separator = view_config.restoration_separator();
+        let view = create_terminal_view(
+            view_config,
+            TerminalViewInit {
                 wakeups_rx,
                 model_events: model_events.clone(),
                 model: model.clone(),
@@ -289,22 +213,23 @@ impl<S> TerminalManager<S> {
                 size_info,
                 colors,
                 inactive_pty_reads_rx: inactive_pty_reads_rx.clone(),
+                model_event_sender: model_event_sender.clone(),
             },
             ctx,
         );
-        wire_up_pty_controller_with_surface(
+        wire_up_pty_controller_with_view(
             &pty_controller,
-            &surface,
+            &view,
             model.clone(),
             sessions.clone(),
             model_event_sender,
             ctx,
         );
-        let mut terminal_manager = Self {
+        let terminal_manager = Self {
             event_loop_tx: Arc::new(Mutex::new(event_loop_tx)),
             model,
             event_loop_handle: None,
-            view: surface.clone(),
+            view: view.clone(),
             #[cfg(unix)]
             terminal_attributes_poller: None,
             pty_controller,
@@ -313,11 +238,16 @@ impl<S> TerminalManager<S> {
             inactive_pty_reads_rx,
         };
 
-        // Run surface-specific wiring after the manager exists, because this
-        // step may need manager-owned controllers and retained handles.
-        post_wire(&mut terminal_manager, &surface, ctx);
+        // Append the session restoration separator to the block list if there are any restored
+        // blocks (command blocks or AI conversations) to show.
+        if let Some(is_historical) = restoration_separator {
+            terminal_manager
+                .model
+                .lock()
+                .block_list_mut()
+                .append_session_restoration_separator_to_block_list(is_historical);
+        }
 
-        let terminal_surface = surface.clone();
         let shell_startup_resources = ShellStartupResources {
             event_loop_rx,
             channel_event_proxy,
@@ -326,7 +256,7 @@ impl<S> TerminalManager<S> {
         };
 
         let terminal_manager_model = ctx.add_model(|ctx| {
-            let terminal_manager = box_manager(terminal_manager);
+            let terminal_manager: Box<dyn TerminalManagerTrait> = Box::new(terminal_manager);
             ctx.spawn(
                 async move {
                     match wsl_name_or_shell_starter {
@@ -361,7 +291,7 @@ impl<S> TerminalManager<S> {
 
         TerminalManagerInit {
             manager: terminal_manager_model,
-            surface: terminal_surface,
+            view,
         }
     }
 
@@ -399,17 +329,15 @@ impl<S> TerminalManager<S> {
 
 /// Callback invoked upon determining the shell to be spawned when starting the event loop.
 #[allow(clippy::too_many_arguments)]
-fn on_shell_determined<S: TerminalSurface>(
-    manager: &mut TerminalManager<S>,
+fn on_shell_determined(
+    manager: &mut TerminalManager,
     startup_directory: Option<PathBuf>,
     env_vars: HashMap<OsString, OsString>,
     user_default_shell_unsupported_banner_model_handle: ModelHandle<BannerState>,
     shell_startup_resources: ShellStartupResources,
     shell_starter_source: Option<ShellStarterSource>,
     ctx: &mut ModelContext<Box<dyn TerminalManagerTrait>>,
-) where
-    <S as Entity>::Event: PtyIntentEvent,
-{
+) {
     // This is executed as a callback and the window could be closed in the interim.
     if !ctx.is_window_open(manager.view.window_id(ctx)) {
         log::warn!("Window was closed before shell was determined, aborting shell startup.");
@@ -426,8 +354,8 @@ fn on_shell_determined<S: TerminalSurface>(
         Some(shell_starter) => shell_starter,
         None => {
             report_error!("Could not compute fallback shell");
-            manager.view.update(ctx, |surface, ctx| {
-                surface.on_pty_spawn_failed(
+            manager.view.update(ctx, |view, ctx| {
+                view.on_pty_spawn_failed(
                     anyhow::Error::msg("Could not find a fallback shell. If you have PowerShell or WSL installed, please file an issue."),
                     ctx,
                 );
@@ -514,7 +442,7 @@ fn on_shell_determined<S: TerminalSurface>(
         .enqueue_init_script(&shell_starter, generated_session_id)
         .context("Failed to write shell init script to the pty")
         .and_then(|_| {
-            TerminalManager::<S>::create_pty(
+            TerminalManager::create_pty(
                 startup_directory,
                 shell_starter,
                 env_vars,
@@ -527,8 +455,8 @@ fn on_shell_determined<S: TerminalSurface>(
         Ok(pty) => pty,
         Err(err) => {
             report_error!(&err);
-            manager.view.update(ctx, |surface, ctx| {
-                surface.on_pty_spawn_failed(err, ctx);
+            manager.view.update(ctx, |view, ctx| {
+                view.on_pty_spawn_failed(err, ctx);
             });
             manager.model().lock().exit(ExitReason::PtySpawnFailed);
             return;
@@ -541,7 +469,7 @@ fn on_shell_determined<S: TerminalSurface>(
     let fd = pty.get_fd();
 
     // Create the channel above and pass the receving side to the event loop.
-    let event_loop_handle = TerminalManager::<S>::start_pty_event_loop(
+    let event_loop_handle = TerminalManager::start_pty_event_loop(
         pty,
         event_loop_rx,
         model.clone(),
@@ -554,9 +482,9 @@ fn on_shell_determined<S: TerminalSurface>(
         manager.pid = Some(pid);
     }
 
-    manager.view.update(ctx, |surface, ctx| {
-        surface.on_shell_determined(ctx);
-        surface.on_active_shell_launch_data_updated(Some(shell_launch_data), ctx);
+    manager.view.update(ctx, |view, ctx| {
+        view.on_shell_determined(ctx);
+        view.on_active_shell_launch_data_updated(Some(shell_launch_data), ctx);
     });
 
     // Initialize the terminal attributes poller.
@@ -564,7 +492,7 @@ fn on_shell_determined<S: TerminalSurface>(
     #[cfg(unix)]
     {
         let terminal_attributes_poller = ctx.add_model(|_| TerminalAttributesPoller::new(fd));
-        wire_up_terminal_attribute_poller_with_surface(
+        wire_up_terminal_attribute_poller(
             &terminal_attributes_poller,
             &manager.view,
             &model_events,
@@ -576,7 +504,7 @@ fn on_shell_determined<S: TerminalSurface>(
     }
 }
 
-impl<S> TerminalManager<S> {
+impl TerminalManager {
     /// Sends bindkey to notify shell process to switch to PS1 logic for prompt
     /// with the combined prompt/command grid (we restore the saved PS1 value).
     pub fn send_switch_to_ps1_bindkey(&self, app_ctx: &mut AppContext) {
@@ -705,37 +633,34 @@ impl<S> TerminalManager<S> {
     }
 }
 
-/// Wires the Unix terminal-attributes poller to a terminal surface.
+/// Wires the Unix terminal-attributes poller to the terminal view.
 ///
-/// The poller is driven off `ModelEventDispatcher` block start/complete events
-/// rather than surface-specific view events, and termios results are routed back
-/// through the [`TerminalSurface`] Unix hooks so the manager stays surface-agnostic.
+/// The poller is driven off `ModelEventDispatcher` block start/complete events, and termios
+/// results are routed back to the view's password-prompt hooks.
 ///
 /// NOTE: we cannot simply use the strong references (the handle arguments to this
 /// wire_up fn) in the subscription callbacks because that will create a reference
 /// cycle. Instead, we use weak handles and upgrade them lazily.
 #[cfg(unix)]
-fn wire_up_terminal_attribute_poller_with_surface<S: TerminalSurface>(
+fn wire_up_terminal_attribute_poller(
     terminal_attributes_poller: &ModelHandle<TerminalAttributesPoller>,
-    surface: &ViewHandle<S>,
+    view: &ViewHandle<TerminalView>,
     model_events: &ModelHandle<ModelEventDispatcher>,
     model: Arc<FairMutex<TerminalModel>>,
     ctx: &mut ModelContext<Box<dyn TerminalManagerTrait>>,
-) where
-    <S as Entity>::Event: PtyIntentEvent,
-{
+) {
     let poller_weak_handle = terminal_attributes_poller.downgrade();
     let poller_weak_handle_for_termios = poller_weak_handle.clone();
-    let surface_weak_handle = surface.downgrade();
-    let surface_weak_handle_for_termios = surface_weak_handle.clone();
+    let view_weak_handle = view.downgrade();
+    let view_weak_handle_for_termios = view_weak_handle.clone();
 
     // Tracks the index of the started block across the model-event <-> poller interactions.
     let block_index: Rc<RefCell<Option<BlockIndex>>> = Rc::new(RefCell::new(None));
     let block_index_for_termios = block_index.clone();
 
-    // On block start, record the active block index and ask the surface whether
+    // On block start, record the active block index and ask the view whether
     // password-prompt polling is useful before starting the poller. On block
-    // completion, stop polling and let the surface react to the completed block.
+    // completion, stop polling and let the view react to the completed block.
     ctx.subscribe_to_model(model_events, move |_manager, _dispatcher, event, ctx| {
         let Some(poller) = poller_weak_handle.upgrade(ctx) else {
             return;
@@ -747,9 +672,9 @@ fn wire_up_terminal_attribute_poller_with_surface<S: TerminalSurface>(
                 is_for_in_band_command: false,
                 ..
             } => {
-                let should_poll = surface_weak_handle.upgrade(ctx).is_some_and(|surface| {
-                    surface.read(ctx, |surface, ctx| {
-                        surface.should_start_password_prompt_polling(command, ctx)
+                let should_poll = view_weak_handle.upgrade(ctx).is_some_and(|view| {
+                    view.read(ctx, |view, ctx| {
+                        view.should_start_password_prompt_polling(command, ctx)
                     })
                 });
                 if should_poll {
@@ -763,16 +688,16 @@ fn wire_up_terminal_attribute_poller_with_surface<S: TerminalSurface>(
                 }
             }
             TerminalModelEvent::AfterBlockCompleted(completed) => {
-                if let Some(surface) = surface_weak_handle.upgrade(ctx) {
-                    let should_stop = surface.read(ctx, |surface, _ctx| {
-                        surface.should_stop_password_prompt_polling(completed)
+                if let Some(view) = view_weak_handle.upgrade(ctx) {
+                    let should_stop = view.read(ctx, |view, _ctx| {
+                        view.should_stop_password_prompt_polling(completed)
                     });
                     if should_stop {
                         poller.update(ctx, |poller, _ctx| {
                             poller.stop_polling();
                         });
-                        surface.update(ctx, |surface, ctx| {
-                            surface.on_polled_block_completed(completed, ctx);
+                        view.update(ctx, |view, ctx| {
+                            view.on_polled_block_completed(completed, ctx);
                         });
                     }
                 }
@@ -782,7 +707,7 @@ fn wire_up_terminal_attribute_poller_with_surface<S: TerminalSurface>(
     });
 
     // When the poller detects termios consistent with a password prompt, route the
-    // result through the surface and stop after the first detection to preserve
+    // result through the view and stop after the first detection to preserve
     // today's one-notification-per-command behavior.
     ctx.subscribe_to_model(
         terminal_attributes_poller,
@@ -798,12 +723,12 @@ fn wire_up_terminal_attribute_poller_with_surface<S: TerminalSurface>(
                 return;
             }
 
-            let Some(surface) = surface_weak_handle_for_termios.upgrade(ctx) else {
+            let Some(view) = view_weak_handle_for_termios.upgrade(ctx) else {
                 return;
             };
             let block_index = block_index_for_termios.borrow_mut().take();
-            surface.update(ctx, |surface, ctx| {
-                surface.on_possible_password_prompt(block_index, ctx);
+            view.update(ctx, |view, ctx| {
+                view.on_possible_password_prompt(block_index, ctx);
             });
 
             if let Some(poller) = poller_weak_handle_for_termios.upgrade(ctx) {

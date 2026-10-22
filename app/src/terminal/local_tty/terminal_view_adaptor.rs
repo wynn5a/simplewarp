@@ -1,21 +1,18 @@
 use std::any::Any;
 use std::sync::Arc;
-use std::sync::mpsc::SyncSender;
 
 use parking_lot::FairMutex;
 use warpui::{AppContext, ViewHandle, WindowId};
 
-use super::terminal_manager::{TerminalManager, TerminalSurfaceInit, TerminalSurfaceResult};
+use super::terminal_manager::{TerminalManager, TerminalViewInit};
 use crate::ai::blocklist::{InputConfig, SerializedBlockListItem};
 use crate::context_chips::current_prompt::CurrentPrompt;
 use crate::context_chips::prompt_type::PromptType;
-use crate::persistence::ModelEvent;
 use crate::terminal::view::ConversationRestorationInNewPaneType;
 use crate::terminal::{TerminalManager as TerminalManagerTrait, TerminalModel, TerminalView};
 
-/// Configuration for constructing the GUI terminal surface.
-pub(crate) struct TerminalViewSurfaceConfig {
-    pub(crate) model_event_sender: Option<SyncSender<ModelEvent>>,
+/// Configuration for the `TerminalView` a local terminal manager creates.
+pub(crate) struct TerminalViewConfig {
     pub(crate) window_id: WindowId,
     pub(crate) initial_input_config: Option<InputConfig>,
     pub(crate) conversation_restoration: Option<ConversationRestorationInNewPaneType>,
@@ -25,7 +22,17 @@ pub(crate) struct TerminalViewSurfaceConfig {
     pub(crate) has_restored_command_blocks: bool,
 }
 
-/// Resolves the block list used by the GUI `TerminalView` surface.
+impl TerminalViewConfig {
+    /// Whether the block list should end with a session restoration separator, and if so whether
+    /// it marks a historical conversation.
+    pub(super) fn restoration_separator(&self) -> Option<bool> {
+        ((self.has_conversation_restoration || self.has_restored_command_blocks)
+            && !self.should_use_live_appearance)
+            .then_some(self.is_historical)
+    }
+}
+
+/// Resolves the block list a restored `TerminalView` starts with.
 pub(crate) fn terminal_view_restored_blocks(
     restored_blocks: Option<&Vec<SerializedBlockListItem>>,
     conversation_restoration: &Option<ConversationRestorationInNewPaneType>,
@@ -51,16 +58,13 @@ pub(crate) fn terminal_view_restored_blocks(
         })
 }
 
-/// Creates the GUI terminal surface and its manager-owned post-wiring closure.
-pub(crate) fn create_terminal_view_surface(
-    config: TerminalViewSurfaceConfig,
-    surface_init: TerminalSurfaceInit,
+/// Creates the `TerminalView` for a local terminal manager.
+pub(super) fn create_terminal_view(
+    config: TerminalViewConfig,
+    init: TerminalViewInit,
     ctx: &mut AppContext,
-) -> TerminalSurfaceResult<
-    TerminalView,
-    impl FnOnce(&mut TerminalManager<TerminalView>, &ViewHandle<TerminalView>, &mut AppContext) + use<>,
-> {
-    let TerminalSurfaceInit {
+) -> ViewHandle<TerminalView> {
+    let TerminalViewInit {
         wakeups_rx,
         model_events,
         model,
@@ -68,22 +72,19 @@ pub(crate) fn create_terminal_view_surface(
         size_info,
         colors,
         inactive_pty_reads_rx,
-    } = surface_init;
-    let TerminalViewSurfaceConfig {
         model_event_sender,
+    } = init;
+    let TerminalViewConfig {
         window_id,
         initial_input_config,
         conversation_restoration,
-        has_conversation_restoration,
-        is_historical,
-        should_use_live_appearance,
-        has_restored_command_blocks,
+        ..
     } = config;
     let current_prompt = ctx.add_model(|ctx| {
         CurrentPrompt::new_with_model_events(sessions.clone(), Some(&model_events), ctx)
     });
     let prompt_type = ctx.add_model(|ctx| PromptType::new_dynamic(current_prompt.clone(), ctx));
-    let view = ctx.add_typed_action_view(window_id, |ctx| {
+    ctx.add_typed_action_view(window_id, |ctx| {
         TerminalView::new(
             wakeups_rx,
             model_events,
@@ -98,31 +99,10 @@ pub(crate) fn create_terminal_view_surface(
             Some(inactive_pty_reads_rx),
             ctx,
         )
-    });
-
-    TerminalSurfaceResult {
-        surface: view,
-        post_wire: move |terminal_manager: &mut TerminalManager<TerminalView>,
-                         _: &ViewHandle<TerminalView>,
-                         _: &mut AppContext| {
-            // Append the session restoration separator to the block list if there are any
-            // restored blocks (command blocks or AI conversations) to show.
-            let should_show_restoration_separator = (has_conversation_restoration
-                || has_restored_command_blocks)
-                && !should_use_live_appearance;
-
-            if should_show_restoration_separator {
-                terminal_manager
-                    .model()
-                    .lock()
-                    .block_list_mut()
-                    .append_session_restoration_separator_to_block_list(is_historical);
-            }
-        },
-    }
+    })
 }
 
-impl TerminalManager<TerminalView> {
+impl TerminalManager {
     /// Returns the PTY process id, for integration tests.
     #[cfg(feature = "integration_tests")]
     pub fn pid(&self) -> Option<u32> {
@@ -130,7 +110,7 @@ impl TerminalManager<TerminalView> {
     }
 }
 
-impl TerminalManagerTrait for TerminalManager<TerminalView> {
+impl TerminalManagerTrait for TerminalManager {
     fn model(&self) -> Arc<FairMutex<TerminalModel>> {
         self.model.clone()
     }
@@ -163,7 +143,7 @@ pub fn shutdown_all_pty_event_loops(ctx: &mut AppContext) {
         terminal_manager.update(ctx, |terminal_manager, _ctx| {
             if let Some(manager) = terminal_manager
                 .as_any_mut()
-                .downcast_mut::<TerminalManager<TerminalView>>()
+                .downcast_mut::<TerminalManager>()
             {
                 manager.shutdown_event_loop();
             }

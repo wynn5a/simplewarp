@@ -75,8 +75,7 @@ use crate::terminal::available_shells::{AvailableShell, AvailableShells};
 use crate::terminal::focus_env::add_session_focus_env_vars;
 use crate::terminal::general_settings::{GeneralSettings, GeneralSettingsChangedEvent};
 use crate::terminal::local_tty::{
-    TerminalManager as LocalTtyTerminalManager, TerminalViewSurfaceConfig,
-    create_terminal_view_surface, terminal_view_restored_blocks,
+    TerminalManager as LocalTtyTerminalManager, TerminalViewConfig, terminal_view_restored_blocks,
 };
 use crate::terminal::model::session::Session;
 use crate::terminal::session_settings::{NewSessionSource, SessionSettings};
@@ -1843,7 +1842,7 @@ impl PaneGroup {
                         .update(app, |terminal_manager, ctx| {
                             if let Some(manager) = terminal_manager
                                 .as_any()
-                                .downcast_ref::<LocalTtyTerminalManager<TerminalView>>()
+                                .downcast_ref::<LocalTtyTerminalManager>()
                             {
                                 if honor_ps1 {
                                     manager.send_switch_to_ps1_bindkey(ctx);
@@ -3609,9 +3608,8 @@ impl PaneGroup {
         let has_restored_command_blocks = all_restored_blocks
             .as_ref()
             .is_some_and(|blocks| !blocks.is_empty());
-        let model_event_sender_for_surface = model_event_sender.clone();
         let window_id = ctx.window_id();
-        let terminal_init = LocalTtyTerminalManager::<TerminalView>::create_model(
+        let terminal_init = LocalTtyTerminalManager::create_model(
             startup_directory,
             env_vars,
             all_restored_blocks.as_ref(),
@@ -3619,26 +3617,19 @@ impl PaneGroup {
             initial_size,
             model_event_sender,
             chosen_shell,
-            ctx,
-            |surface_init, ctx| {
-                create_terminal_view_surface(
-                    TerminalViewSurfaceConfig {
-                        model_event_sender: model_event_sender_for_surface,
-                        window_id,
-                        initial_input_config,
-                        conversation_restoration,
-                        has_conversation_restoration,
-                        is_historical,
-                        should_use_live_appearance,
-                        has_restored_command_blocks,
-                    },
-                    surface_init,
-                    ctx,
-                )
+            TerminalViewConfig {
+                window_id,
+                initial_input_config,
+                conversation_restoration,
+                has_conversation_restoration,
+                is_historical,
+                should_use_live_appearance,
+                has_restored_command_blocks,
             },
+            ctx,
         );
         let terminal_manager = terminal_init.manager;
-        let terminal_view = terminal_init.surface;
+        let terminal_view = terminal_init.view;
 
         (terminal_view, terminal_manager)
     }

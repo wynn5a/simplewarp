@@ -3,7 +3,7 @@ use std::sync::mpsc::SyncSender;
 
 use async_channel::Receiver;
 use parking_lot::FairMutex;
-use warpui::{AppContext, Entity, ModelHandle, ViewHandle};
+use warpui::{AppContext, ModelHandle, ViewHandle};
 
 use crate::persistence::ModelEvent;
 use crate::terminal::line_editor_status::LineEditorStatus;
@@ -11,33 +11,29 @@ use crate::terminal::model::session::{ExecutorCommandEvent, Sessions};
 use crate::terminal::model::terminal_model::ExitReason;
 use crate::terminal::writeable_pty::command_history::update_command_history;
 use crate::terminal::writeable_pty::pty_controller::EventLoopSender;
-use crate::terminal::writeable_pty::{
-    PtyController, PtyControllerEvent, PtyIntent, PtyIntentEvent, TerminalSurface,
-};
-use crate::terminal::{ModelEventDispatcher, TerminalModel};
+use crate::terminal::writeable_pty::{PtyController, PtyControllerEvent, PtyIntent};
+use crate::terminal::{ModelEventDispatcher, TerminalModel, TerminalView};
 
-/// Wires up bi-directional communication between the PtyController and a terminal surface.
-/// Note that this interaction can't live in the surface itself because the surface must be
+/// Wires up bi-directional communication between the PtyController and a terminal view.
+/// Note that this interaction can't live in the view itself because the view must be
 /// manager-agnostic.
 ///
 /// NOTE: we cannot simply use the strong references (the handle arguments to this wire_up fn)
 /// in the subscription callbacks because that will create a reference cycle. Instead,
 /// we should use weak handles and upgrade them lazily.
-pub fn wire_up_pty_controller_with_surface<T: EventLoopSender, S: TerminalSurface>(
+pub fn wire_up_pty_controller_with_view<T: EventLoopSender>(
     pty_controller: &ModelHandle<PtyController<T>>,
-    surface: &ViewHandle<S>,
+    view: &ViewHandle<TerminalView>,
     model: Arc<FairMutex<TerminalModel>>,
     sessions: ModelHandle<Sessions>,
     model_event_sender: Option<SyncSender<ModelEvent>>,
     ctx: &mut AppContext,
-) where
-    <S as Entity>::Event: PtyIntentEvent,
-{
+) {
     let controller_weak_handle = pty_controller.downgrade();
-    let surface_weak_handle = surface.downgrade();
+    let view_weak_handle = view.downgrade();
     let model_clone = model.clone();
 
-    ctx.subscribe_to_view(surface, move |_surface, event, ctx| {
+    ctx.subscribe_to_view(view, move |_view, event, ctx| {
         // NOTE: we cannot simply use the strong reference (the model handle argument to this wire_up fn)
         // because it'll create a reference cycle with the `subscribe_to_model` usage below. Instead,
         // we should use a weak handle and upgrade it lazily.
@@ -120,12 +116,12 @@ pub fn wire_up_pty_controller_with_surface<T: EventLoopSender, S: TerminalSurfac
     });
 
     ctx.subscribe_to_model(pty_controller, move |_pty_controller, event, ctx| {
-        let Some(surface) = surface_weak_handle.upgrade(ctx) else {
+        let Some(view) = view_weak_handle.upgrade(ctx) else {
             return;
         };
 
         match event {
-            PtyControllerEvent::PtyDisconnected => surface.update(ctx, |_, _| {
+            PtyControllerEvent::PtyDisconnected => view.update(ctx, |_, _| {
                 model.lock().exit(ExitReason::PtyDisconnected);
             }),
         }

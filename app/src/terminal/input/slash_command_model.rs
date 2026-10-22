@@ -11,9 +11,7 @@ use crate::ai::blocklist::{
 use crate::search::slash_command_menu::StaticCommand;
 use crate::settings::InputSettings;
 use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
-use crate::terminal::input::slash_commands::{
-    GuiSlashCommandDataSource, SlashCommandDataSource as _,
-};
+use crate::terminal::input::slash_commands::SlashCommandDataSource;
 
 /// Event emitted by the slash command model when its entry state is updated.
 #[derive(Debug, Clone)]
@@ -46,7 +44,7 @@ pub struct DetectedSkillCommand {
     pub argument: Option<String>,
 }
 
-/// Surface-neutral classification of the current slash command input.
+/// Classification of the current slash command input.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParsedSlashCommandInput {
     /// The input is not slash command composition.
@@ -141,14 +139,14 @@ pub struct SlashCommandModel {
     ai_input_model: ModelHandle<BlocklistAIInputModel>,
     state: SlashCommandEntryState,
     lifecycle: InputDrivenInlineMenuLifecycle,
-    data_source: ModelHandle<GuiSlashCommandDataSource>,
+    data_source: ModelHandle<SlashCommandDataSource>,
 }
 
 impl SlashCommandModel {
     pub fn new(
         buffer_model: &ModelHandle<InputBufferModel>,
         ai_input_model: &ModelHandle<BlocklistAIInputModel>,
-        data_source: ModelHandle<GuiSlashCommandDataSource>,
+        data_source: ModelHandle<SlashCommandDataSource>,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
         ctx.subscribe_to_model(buffer_model, |me, _, event, ctx| {

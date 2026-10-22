@@ -31,7 +31,7 @@ use crate::assets::AssetProvider;
 use crate::assets::asset_cache::{AssetCache, AssetHandle};
 use crate::r#async::executor::{self, Background, Foreground, ForegroundTask};
 use crate::r#async::{FutureId, SpawnableOutput, Timer, block_on};
-use crate::core::{ActionType, StoredView, Window};
+use crate::core::{ActionType, Window};
 use crate::event::KeyState;
 use crate::image_cache::{self, ImageCache};
 use crate::keymap::{
@@ -2971,9 +2971,7 @@ impl AppContext {
         let mut ctx = ViewContext::new(self, window_id, view_id);
         let handle = if let Some(view) = build_view(&mut ctx) {
             if let Some(window) = self.windows.get_mut(&window_id) {
-                window
-                    .views
-                    .insert(view_id, StoredView::Gui(Box::new(view)));
+                window.views.insert(view_id, Box::new(view));
             } else {
                 panic!("Window does not exist");
             }
@@ -3050,9 +3048,7 @@ impl AppContext {
             .windows
             .get_mut(&window_id)
             .expect("Window does not exist");
-        window
-            .views
-            .insert(view_id, StoredView::Gui(Box::new(view)));
+        window.views.insert(view_id, Box::new(view));
 
         self.register_typed_action_view_internal::<V>(window_id, view_id, parent_view_id)
     }
@@ -4546,14 +4542,13 @@ impl AppContext {
             .windows
             .get(&window_id)
             .ok_or_else(|| anyhow!("window not found"))?;
-        match window.views.get(&view_id) {
-            Some(StoredView::Gui(view)) => {
-                Ok(autotracking::render_view(window_id, view_id, || {
-                    view.render(self)
-                }))
-            }
-            None => Err(anyhow!("view not found")),
-        }
+        let view = window
+            .views
+            .get(&view_id)
+            .ok_or_else(|| anyhow!("view not found"))?;
+        Ok(autotracking::render_view(window_id, view_id, || {
+            view.render(self)
+        }))
     }
 
     /// Renders every view in the window, keyed by view ID.

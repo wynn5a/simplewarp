@@ -9,8 +9,8 @@ use crate::terminal::input::buffer_model::InputBufferModel;
 use crate::terminal::input::inline_menu::{InlineMenuEvent, InlineMenuPositioner, InlineMenuView};
 use crate::terminal::input::slash_command_model::{SlashCommandEntryState, SlashCommandModel};
 use crate::terminal::input::slash_commands::{
-    AcceptSlashCommandOrSavedPrompt, GuiSlashCommandDataSource, GuiZeroStateDataSource,
-    SlashCommandMixer, UpdatedActiveCommands, build_slash_command_mixer, slash_command_query,
+    AcceptSlashCommandOrSavedPrompt, SlashCommandDataSource, SlashCommandMixer,
+    UpdatedActiveCommands, ZeroStateDataSource, build_slash_command_mixer, slash_command_query,
 };
 use crate::terminal::input::suggestions_mode_model::{
     InputSuggestionsModeEvent, InputSuggestionsModeModel,
@@ -67,7 +67,7 @@ impl InlineSlashCommandView {
     pub fn new(
         slash_command_model: &ModelHandle<SlashCommandModel>,
         positioner: &ModelHandle<InlineMenuPositioner>,
-        slash_commands_source: ModelHandle<GuiSlashCommandDataSource>,
+        slash_commands_source: ModelHandle<SlashCommandDataSource>,
         suggestions_mode_model: ModelHandle<InputSuggestionsModeModel>,
         agent_view_controller: ModelHandle<AgentViewController>,
         input_buffer_model: ModelHandle<InputBufferModel>,
@@ -84,7 +84,7 @@ impl InlineSlashCommandView {
                 });
             },
         );
-        let zero_state_source = GuiZeroStateDataSource::new(&slash_commands_source);
+        let zero_state_source = ZeroStateDataSource::new(&slash_commands_source);
         let mixer = ctx.add_model(|ctx| {
             build_slash_command_mixer(slash_commands_source.clone(), zero_state_source, ctx)
         });

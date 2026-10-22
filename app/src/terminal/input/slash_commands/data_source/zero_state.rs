@@ -4,26 +4,26 @@ use crate::search::SyncDataSource;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::terminal::input::slash_commands::{
-    AcceptSlashCommandOrSavedPrompt, GuiSlashCommandDataSource, SlashCommandDataSource,
+    AcceptSlashCommandOrSavedPrompt, SlashCommandDataSource,
 };
 
-pub struct GuiZeroStateDataSource {
-    slash_command_data_source: ModelHandle<GuiSlashCommandDataSource>,
+pub struct ZeroStateDataSource {
+    slash_command_data_source: ModelHandle<SlashCommandDataSource>,
 }
 
-impl GuiZeroStateDataSource {
-    pub fn new(slash_command_data_source: &ModelHandle<GuiSlashCommandDataSource>) -> Self {
+impl ZeroStateDataSource {
+    pub fn new(slash_command_data_source: &ModelHandle<SlashCommandDataSource>) -> Self {
         Self {
             slash_command_data_source: slash_command_data_source.clone(),
         }
     }
 }
 
-impl Entity for GuiZeroStateDataSource {
+impl Entity for ZeroStateDataSource {
     type Event = ();
 }
 
-impl SyncDataSource for GuiZeroStateDataSource {
+impl SyncDataSource for ZeroStateDataSource {
     type Action = AcceptSlashCommandOrSavedPrompt;
 
     fn run_query(

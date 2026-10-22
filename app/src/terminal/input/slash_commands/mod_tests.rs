@@ -24,7 +24,7 @@ fn slash_command_is_submitted_as_prompt_only_for_prompt_commands() {
 }
 
 #[test]
-fn commands_have_typed_identities_and_explicit_surface_support() {
+fn commands_have_typed_identities() {
     for (command, expected) in [
         (&*commands::AGENT, SlashCommandKind::Agent),
         (&*commands::NEW, SlashCommandKind::New),
@@ -47,7 +47,6 @@ fn commands_have_typed_identities_and_explicit_surface_support() {
             "{} should have its typed command identity",
             command.name
         );
-        assert!(command.supports_surface(settings::SettingsMode::Gui));
     }
 }
 

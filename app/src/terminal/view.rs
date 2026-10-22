@@ -364,7 +364,7 @@ use crate::terminal::warpify::SubshellSource;
 use crate::terminal::warpify::render::render_subshell_separator;
 use crate::terminal::warpify::settings::WarpifySettings;
 use crate::terminal::waterfall_gap_element::WaterfallGapElement;
-use crate::terminal::writeable_pty::{PtyIntent, PtyIntentEvent, TerminalSurface};
+use crate::terminal::writeable_pty::PtyIntent;
 use crate::terminal::{
     AudibleBell, BlockListSettings, BlockListSettingsChangedEvent, CellSizeAndWindowPadding,
     History, HistoryEntry, ShellHost, ShellLaunchData, SizeInfo, SizeUpdate, SizeUpdateReason,
@@ -7723,11 +7723,7 @@ impl TerminalView {
                 && is_done_bootstrapping
             {
                 let shell_launch_data = self.shell_launch_data_if_local(ctx);
-                <Self as TerminalSurface>::on_active_shell_launch_data_updated(
-                    self,
-                    shell_launch_data,
-                    ctx,
-                );
+                self.on_active_shell_launch_data_updated(shell_launch_data, ctx);
             }
 
             // Check if the block is done bootstrapping and the directory is set.
@@ -18883,11 +18879,10 @@ impl Entity for TerminalView {
     type Event = Event;
 }
 
-/// Projects the GUI [`Event`] stream into the PTY/session intent vocabulary used
-/// by `TerminalManager`. Only the PTY-driving variants map to a [`PtyIntent`];
-/// every other event returns `None` and is handled by the GUI surface itself.
-impl PtyIntentEvent for Event {
-    fn pty_intent(&self) -> Option<PtyIntent> {
+impl Event {
+    /// Projects this event into the PTY intent vocabulary used by `TerminalManager`. Only the
+    /// PTY-driving variants map to a [`PtyIntent`]; every other event returns `None`.
+    pub(crate) fn pty_intent(&self) -> Option<PtyIntent> {
         match self {
             Event::CtrlD => Some(PtyIntent::CtrlD),
             Event::ShutdownPty => Some(PtyIntent::ShutdownPty),
@@ -18910,14 +18905,17 @@ impl PtyIntentEvent for Event {
     }
 }
 
-impl TerminalSurface for TerminalView {
-    fn on_shell_determined(&mut self, ctx: &mut ViewContext<Self>) {
+/// Hooks the local `TerminalManager` drives as the shell and PTY come up.
+impl TerminalView {
+    /// Called once the shell starter has been determined and the PTY event loop has started.
+    pub(crate) fn on_shell_determined(&mut self, ctx: &mut ViewContext<Self>) {
         // Start a timer for the initial session bootstrapping, so that we can log and show a
         // banner to the user if the bootstrapping takes too long
         self.start_bootstrap_timer(BOOTSTRAP_FAILED_DURATION, ctx);
     }
 
-    fn on_active_shell_launch_data_updated(
+    /// Called when the active shell launch data is updated (e.g. shell indicator metadata).
+    pub(crate) fn on_active_shell_launch_data_updated(
         &mut self,
         shell_launch_data: Option<ShellLaunchData>,
         ctx: &mut ViewContext<Self>,
@@ -18938,7 +18936,12 @@ impl TerminalSurface for TerminalView {
         });
     }
 
-    fn on_pty_spawn_failed(&mut self, error: anyhow::Error, ctx: &mut ViewContext<Self>) {
+    /// Called when the PTY fails to spawn.
+    pub(crate) fn on_pty_spawn_failed(
+        &mut self,
+        error: anyhow::Error,
+        ctx: &mut ViewContext<Self>,
+    ) {
         self.pty_spawn_failed = true;
         // Emit before the banner so the terminal driver can cancel its
         // bootstrap wait immediately, without waiting for the 60 s timeout.
@@ -18953,8 +18956,14 @@ impl TerminalSurface for TerminalView {
         ctx.notify();
     }
 
+    /// Whether the local manager should start polling termios for a password prompt after the
+    /// given block starts.
     #[cfg(unix)]
-    fn should_start_password_prompt_polling(&self, command: &str, ctx: &AppContext) -> bool {
+    pub(crate) fn should_start_password_prompt_polling(
+        &self,
+        command: &str,
+        ctx: &AppContext,
+    ) -> bool {
         if !self.would_emit_block_started_for_password_prompt_polling(command, ctx) {
             return false;
         }
@@ -18967,16 +18976,22 @@ impl TerminalSurface for TerminalView {
             self.is_ssh_uploader() && FeatureFlag::SshDragAndDrop.is_enabled();
         password_notification_setting_on || pane_handling_ssh_upload
     }
+
+    /// Whether the local manager should stop password-prompt polling for this completed block.
     #[cfg(unix)]
-    fn should_stop_password_prompt_polling(&self, completed: &AfterBlockCompletedEvent) -> bool {
+    pub(crate) fn should_stop_password_prompt_polling(
+        &self,
+        completed: &AfterBlockCompletedEvent,
+    ) -> bool {
         matches!(
             &completed.block_type,
             BlockType::User(_) | BlockType::BootstrapVisible(_) | BlockType::Background(_)
         )
     }
 
+    /// Called when termios indicates a likely password prompt is blocking the active block.
     #[cfg(unix)]
-    fn on_possible_password_prompt(
+    pub(crate) fn on_possible_password_prompt(
         &mut self,
         block_index: Option<BlockIndex>,
         ctx: &mut ViewContext<Self>,
@@ -19002,8 +19017,9 @@ impl TerminalSurface for TerminalView {
         }
     }
 
+    /// Called when the block the poller was tracking completes.
     #[cfg(unix)]
-    fn on_polled_block_completed(
+    pub(crate) fn on_polled_block_completed(
         &mut self,
         completed: &AfterBlockCompletedEvent,
         ctx: &mut ViewContext<Self>,

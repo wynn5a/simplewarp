@@ -6,7 +6,7 @@ use super::*;
 fn command_names_and_kinds_are_unique() {
     let mut names = HashSet::new();
     let mut kinds = HashSet::new();
-    for command in all_commands(settings::SettingsMode::Gui) {
+    for command in all_commands() {
         assert!(
             names.insert(command.name),
             "duplicate slash command name: {}",
@@ -21,23 +21,9 @@ fn command_names_and_kinds_are_unique() {
 }
 
 #[test]
-fn gui_icon_metadata_matches_surface_support() {
-    let mut checked_kinds = HashSet::new();
-    for command in all_commands(settings::SettingsMode::Gui) {
-        if checked_kinds.insert(command.kind) {
-            assert_eq!(
-                command.supported_surfaces.gui_icon_path().is_some(),
-                command.supports_gui(),
-                "{} has inconsistent GUI icon metadata",
-                command.name
-            );
-        }
-    }
-}
-#[test]
 fn version_command_is_not_registered() {
     assert!(
-        all_commands(settings::SettingsMode::Gui)
+        all_commands()
             .iter()
             .all(|command| command.name != "/version")
     );
@@ -69,10 +55,7 @@ fn rename_conversation_command_is_active_conversation_scoped_and_requires_argume
         .expect("expected /rename-conversation to require an argument");
 
     assert_eq!(command.name, "/rename-conversation");
-    assert_eq!(
-        command.supported_surfaces.gui_icon_path(),
-        Some("bundled/svg/pencil-line.svg")
-    );
+    assert_eq!(command.icon_path, "bundled/svg/pencil-line.svg");
     assert!(!command.auto_enter_ai_mode);
     assert_eq!(
         command.availability,
@@ -148,7 +131,7 @@ fn strip_command_prefix_substring_not_matched() {
 #[test]
 fn copy_debugging_id_command_is_registered() {
     assert!(
-        all_commands(settings::SettingsMode::Gui)
+        all_commands()
             .iter()
             .any(|command| command.kind == SlashCommandKind::CopyDebuggingId),
         "/copy-debugging-id should be registered"
@@ -157,19 +140,14 @@ fn copy_debugging_id_command_is_registered() {
 
 #[test]
 fn copy_debugging_id_command_has_correct_registry_metadata() {
-    let command = all_commands(settings::SettingsMode::Gui)
+    let command = all_commands()
         .into_iter()
         .find(|command| command.kind == SlashCommandKind::CopyDebuggingId)
         .expect("expected /copy-debugging-id to be registered");
 
     assert_eq!(command.name, "/copy-debugging-id");
     assert_eq!(command.kind, SlashCommandKind::CopyDebuggingId);
-    assert_eq!(
-        command.supported_surfaces,
-        SlashCommandSurfaces::GuiOnly {
-            icon_path: "bundled/svg/copy.svg"
-        }
-    );
+    assert_eq!(command.icon_path, "bundled/svg/copy.svg");
     assert!(!command.auto_enter_ai_mode);
     assert_eq!(command.availability, Availability::ACTIVE_CONVERSATION);
     assert!(command.argument.is_none());

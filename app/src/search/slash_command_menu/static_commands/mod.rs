@@ -3,7 +3,6 @@ pub mod commands;
 
 use bitflags::bitflags;
 pub use commands::SlashCommandId;
-use settings::SettingsMode;
 
 bitflags! {
     /// Specifies the requirements for a slash command to be available.
@@ -80,33 +79,6 @@ pub enum SlashCommandKind {
     CopyDebuggingId,
 }
 
-/// The application surface on which a static slash command is implemented.
-///
-/// This field is required on every [`StaticCommand`] so new commands must
-/// explicitly declare the surface they support. The GUI variant also carries
-/// the icon path used to render the command in menus.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SlashCommandSurfaces {
-    GuiOnly { icon_path: &'static str },
-}
-
-impl SlashCommandSurfaces {
-    pub fn supports_gui(self) -> bool {
-        matches!(self, Self::GuiOnly { .. })
-    }
-
-    pub fn gui_icon_path(self) -> Option<&'static str> {
-        match self {
-            Self::GuiOnly { icon_path } => Some(icon_path),
-        }
-    }
-    pub fn includes(self, settings_mode: SettingsMode) -> bool {
-        match settings_mode {
-            SettingsMode::Gui => self.supports_gui(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Argument {
     pub hint_text: Option<&'static str>,
@@ -153,7 +125,8 @@ pub struct StaticCommand {
     pub kind: SlashCommandKind,
     pub name: &'static str,
     pub description: &'static str,
-    pub supported_surfaces: SlashCommandSurfaces,
+    /// Icon rendered next to the command in menus.
+    pub icon_path: &'static str,
     /// Specifies the requirements for this command to be available. See [`Availability`].
     pub availability: Availability,
     /// Whether this command requires AI mode when executed.
@@ -162,14 +135,6 @@ pub struct StaticCommand {
     pub argument: Option<Argument>,
 }
 impl StaticCommand {
-    pub fn supports_gui(&self) -> bool {
-        self.supported_surfaces.supports_gui()
-    }
-
-    pub fn supports_surface(&self, settings_mode: SettingsMode) -> bool {
-        self.supported_surfaces.includes(settings_mode)
-    }
-
     pub fn is_active(&self, session_context: Availability) -> bool {
         session_context.contains(self.availability)
     }
