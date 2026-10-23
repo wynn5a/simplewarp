@@ -7,6 +7,9 @@ description = "Warp completions engine"
 publish.workspace = true
 license.workspace = true
 
+[package.metadata.cargo-machete]
+ignored = ["rust-embed-v6"]
+
 [dependencies]
 async-recursion.workspace = true
 async-trait.workspace = true
@@ -32,6 +35,10 @@ warp_util.workspace = true
 typed-path.workspace = true
 command = { path = "../command" }
 warp-command-signatures = {workspace = true, features = ["embed-signatures"]}
+# Feature-only: Cargo unifies `compression` into the rust-embed 6 that
+# warp-command-signatures embeds its ~30 MB of JSON specs with, so the binary
+# carries them deflated (~3 MB) instead of raw.
+rust-embed-v6 = { package = "rust-embed", version = "6.8.1", features = ["compression"] }
 
 [dev-dependencies]
 anyhow.workspace = true

@@ -2003,6 +2003,41 @@ up only under parallel load.
 Verification: format and all three clippy gates clean; two full `-p integration` runs 243/243;
 `cargo nextest run --workspace` 6,240 run, 6,240 passed, 0 failed, 86 skipped.
 
+### Round: performance and size baseline, compressed completion specs (2026-10-23)
+
+Baseline, `cargo build --release --bin simplewarp` at `bc4dcadf2`, Apple Silicon:
+
+- **Binary 225.5 MB** (184 MB stripped). `__TEXT,__const` held 98 MB of read-only data: 51 MB of
+  tree-sitter parse tables (the ~35 `arborium-*` highlighting grammars), 30 MB of raw JSON
+  completion specs from `warp-command-signatures` (498 files, 6 MB of them PowerShell), 12 MB of
+  embedded app assets and strings. Machine code is 64 MB plus ~13 MB of unwind tables; the symbol
+  table is ~41 MB (debug info already goes to the dSYM).
+- **Startup, warm:** `main` logs at ~0.15 s, the window opens at ~0.15 s, the shell spawns at
+  ~0.25 s, and the session is bootstrapped at ~1.15 s. ~0.6 s of that is the user's own login rc
+  files (`zsh -il -c exit` alone takes 0.6 s); `warp_bootstrapped`'s 13 `sed | tr` escapes cost
+  ~50 ms. A freshly built binary's first launch adds 2–12 s before `main` (macOS first-exec
+  checks).
+- **Idle memory, one window:** footprint ~315 MB, RSS ~440 MB: 138 MB heap, 94 MB `IOSurface`
+  (window drawables), 16 MB one decoded `CG Image`, 13 MB GPU.
+
+Changes:
+
+- `warp_completer` enables rust-embed 6's `compression` feature (a feature-only `rust-embed-v6`
+  dependency; Cargo unifies it into the copy `warp-command-signatures` embeds with). The specs are
+  stored deflated and decompressed per command on first lookup, as they were already loaded
+  lazily. **Binary 225.5 → 201.4 MB**; startup and idle memory unchanged.
+- The file log writes millisecond timestamps (`timestamp_millis`), which the startup breakdown
+  above needed.
+
+Left for decisions: stripping symbols from the release binary (−41 MB, loses function names in
+in-process panic backtraces unless the dSYM is kept), thin LTO / fewer codegen units (smaller and
+faster code, much slower release builds), and attributing the 138 MB heap (needs a heap
+profile).
+
+Verification: format and clippy clean; `warp_completer` + `input_classifier` 180/180, the
+completion integration tests 42/42, `warp_logging` 24/24; release smoke runs bootstrap a shell in
+~1.1 s as before.
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the
