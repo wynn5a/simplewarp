@@ -12,8 +12,8 @@ use warp::integration_testing::terminal::util::{
     ExpectedExitStatus, current_shell_starter_and_version,
 };
 use warp::integration_testing::terminal::{
-    assert_command_executed_for_single_terminal_in_tab, execute_command_for_single_terminal_in_tab,
-    wait_until_bootstrapped_single_pane_for_tab,
+    assert_active_block_received_precmd, assert_command_executed_for_single_terminal_in_tab,
+    execute_command_for_single_terminal_in_tab, wait_until_bootstrapped_single_pane_for_tab,
 };
 use warp::integration_testing::view_getters::{
     single_input_view_for_tab, single_terminal_view_for_tab,
@@ -299,6 +299,10 @@ pub fn test_clone_slash_command_clones_and_enters_the_repository() -> Builder {
                         0,
                         "git clone -- origin/repo.git && cd repo".into(),
                     ),
+                )
+                .add_named_assertion(
+                    "wait for precmd so the next command can run",
+                    assert_active_block_received_precmd(0, 0),
                 ),
         )
         .with_step(execute_command_for_single_terminal_in_tab(

@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use futures::channel::oneshot;
-use futures::future::{self, BoxFuture, FutureExt as _};
+use futures::future::{BoxFuture, FutureExt as _};
 use warp_util::sync::Condition;
 use warpui_core::ModelHandle;
 use warpui_core::r#async::{FutureId, SpawnedFutureHandle};
@@ -137,7 +137,7 @@ impl IndexedRepoState {
     #[cfg(any(test, feature = "test-util"))]
     pub fn wait_until_indexed(&self) -> BoxFuture<'static, ()> {
         match self {
-            Self::Indexed(_) | Self::Failed(_) => future::ready(()).boxed(),
+            Self::Indexed(_) | Self::Failed(_) => futures::future::ready(()).boxed(),
             Self::Pending(condition) => {
                 let condition = condition.clone();
                 async move {
@@ -1917,7 +1917,7 @@ impl LocalRepoMetadataModel {
     pub fn repository_indexed(&self, repo_path: &StandardizedPath) -> BoxFuture<'static, ()> {
         match self.repositories.get(repo_path) {
             Some(state) => state.wait_until_indexed(),
-            None => future::ready(()).boxed(),
+            None => futures::future::ready(()).boxed(),
         }
     }
 }

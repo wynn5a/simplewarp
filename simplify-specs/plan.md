@@ -1980,6 +1980,29 @@ Verification: format and all three clippy gates clean; `cargo nextest run --work
 which passed in isolation), 86 skipped. `cargo build --bin simplewarp` smoke: the app starts and
 stays up with no errors in `simplewarp.log`.
 
+### Round: the two recurring integration flakes (2026-10-23)
+
+Both reproduced in a full `-p integration` run and passed alone; both were timing races that show
+up only under parallel load.
+
+- `test_clone_slash_command_clones_and_enters_the_repository` was a test bug: the `/clone` step
+  finished on `CommandFinished`, before the block's `Precmd` hook, so the next typed command was
+  refused with `HistoryNotAppendable`. The step now waits on `assert_active_block_received_precmd`,
+  as `execute_command_step` already does.
+- `test_with_launch_config_with_active_pane` was an app bug: `ModelEvent::VisibleBootstrapBlock`
+  (a bootstrap block's first visible output, e.g. a slow or chatty rc file) called
+  `focus_terminal` unconditionally, so in a split launch config any slow pane took focus from the
+  template's focused pane. It now focuses only when the terminal view already holds focus. Found
+  by logging focus-effect backtraces while running the test 8× concurrently (1 in 8 failed
+  before, 0 in 32 after).
+- Also: the `futures::future` import in `repo_metadata::local_model` was only used under
+  `test-util`; the two cfg-gated uses take an absolute path.
+- Seen once, not reproduced in later runs: a 30 s timeout in
+  `test_zsh_native_completions_without_compinit_use_filepaths` (empty completion list under load).
+
+Verification: format and all three clippy gates clean; two full `-p integration` runs 243/243;
+`cargo nextest run --workspace` 6,240 run, 6,240 passed, 0 failed, 86 skipped.
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the

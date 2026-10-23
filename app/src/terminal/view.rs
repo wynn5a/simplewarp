@@ -7666,7 +7666,11 @@ impl TerminalView {
                 // case, we want the block to be focused because otherwise,
                 // users get stuck as they'd otherwise need to click into the
                 // box to respond to whether or not they want to update oh my zsh.
-                self.focus_terminal(ctx);
+                // Only when this pane already has focus: a split launch config bootstraps every
+                // pane at once, and a background pane must not steal focus from the focused one.
+                if ctx.is_self_or_child_focused() {
+                    self.focus_terminal(ctx);
+                }
             }
             ModelEvent::AfterBlockStarted {
                 command,
