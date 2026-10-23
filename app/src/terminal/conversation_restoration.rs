@@ -69,11 +69,8 @@ pub fn prepare_conversation_block_restoration(
     }
 
     let exchanges = exchanges_for_blocklist(conversation);
-    let command_block_indices = command_block_indices_for_exchanges(
-        terminal_model,
-        exchanges.iter().copied(),
-        exchanges.len(),
-    );
+    let command_block_indices =
+        command_block_indices_for_exchanges(terminal_model, exchanges.iter().copied());
     let exchanges = exchanges
         .into_iter()
         .zip(command_block_indices)
@@ -92,7 +89,6 @@ pub fn prepare_conversation_block_restoration(
 pub(crate) fn command_block_indices_for_exchanges<'a>(
     terminal_model: &TerminalModel,
     exchanges: impl Iterator<Item = &'a AIAgentExchange>,
-    _exchange_count: usize,
 ) -> Vec<Option<BlockIndex>> {
     let blocks = terminal_model.block_list().blocks();
     let command_blocks: Vec<(BlockIndex, DateTime<Local>)> = blocks

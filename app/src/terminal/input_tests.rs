@@ -290,14 +290,12 @@ fn bootstrap_terminal(
             let BootstrappedEvent {
                 session_info,
                 restored_block_commands,
-                rcfiles_duration_seconds,
                 spawning_command,
             } = bootstrapped_event;
             sessions.initialize_bootstrapped_session(
                 *session_info,
                 spawning_command,
                 restored_block_commands,
-                rcfiles_duration_seconds,
                 ctx,
             );
         });
@@ -356,7 +354,6 @@ pub async fn add_window_with_bootstrapped_terminal_and_window_id(
             .into_iter()
             .map(|command| HistoryEntry::command_at_time(command, Local::now(), None, true))
             .collect_vec(),
-        rcfiles_duration_seconds: None,
         spawning_command: "test command".to_string(),
     };
     bootstrap_terminal(&terminal, bootstrapped_event, app);

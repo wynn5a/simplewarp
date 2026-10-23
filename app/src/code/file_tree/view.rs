@@ -2006,15 +2006,13 @@ impl FileTreeView {
         let Some(root_dir) = self.root_directories.get(&id.root) else {
             return;
         };
-        let Some(item) = root_dir.items.get(id.index) else {
+        if root_dir.items.get(id.index).is_none() {
             return;
-        };
+        }
 
         let Some(relative_path) = self.relative_path_for_item(id) else {
             return;
         };
-
-        let _is_directory = matches!(item, FileTreeItem::DirectoryHeader { .. });
 
         ctx.emit(FileTreeEvent::AttachAsContext {
             path: relative_path,

@@ -1,5 +1,4 @@
 use pathfinder_geometry::vector::vec2f;
-use serde::Serialize;
 use settings::Setting as _;
 use warp_core::ui::theme::Fill;
 use warp_errors::report_if_error;
@@ -54,13 +53,6 @@ pub fn init(app: &mut AppContext) {
         EditorModalAction::Cancel,
         id!(EditorModal::ui_name()),
     )]);
-}
-
-#[derive(Copy, Clone, Debug, Serialize)]
-pub enum OpenSource {
-    AppearancePage,
-    CommandPalette,
-    InputContextMenu,
 }
 
 pub enum EditorModalEvent {

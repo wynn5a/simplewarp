@@ -831,12 +831,6 @@ impl TypedActionView for InitStepBlock {
                 });
             }
             InitProjectBlockAction::LinkFromExisting(path) => {
-                let _file_name = path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or("")
-                    .to_string();
-
                 // Create symlink in background
                 {
                     let path_clone = path.clone();

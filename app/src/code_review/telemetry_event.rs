@@ -3,43 +3,6 @@ use std::fmt::Display;
 use serde::Serialize;
 use serde_with::SerializeDisplay;
 
-/// Identifies which git operation actually ran when a `GitDialog` completed.
-/// Distinguishes commit-dialog chained intents (e.g. commit-and-push) from
-/// standalone push/publish/create-PR dialogs so analytics can tell the user
-/// flows apart.
-#[derive(Clone, Copy, Debug, Serialize)]
-pub enum GitOperationKind {
-    /// Commit dialog with the commit-only intent.
-    #[serde(rename = "commit_only")]
-    CommitOnly,
-    /// Commit dialog with the commit-and-push intent.
-    #[serde(rename = "commit_and_push")]
-    CommitAndPush,
-    /// Commit dialog with the commit-and-create-PR intent.
-    #[serde(rename = "commit_and_create_pr")]
-    CommitAndCreatePr,
-    /// Standalone push dialog.
-    #[serde(rename = "push")]
-    Push,
-    /// Standalone publish dialog (push that also sets upstream).
-    #[serde(rename = "publish")]
-    Publish,
-    /// Standalone create-PR dialog.
-    #[serde(rename = "create_pr")]
-    CreatePr,
-}
-
-/// Terminal status of a `GitDialog`.
-#[derive(Clone, Copy, Debug, Serialize)]
-pub enum GitDialogStatus {
-    /// User confirmed the dialog and the underlying git operation succeeded.
-    #[serde(rename = "succeeded")]
-    Succeeded,
-    /// User confirmed the dialog and the underlying git operation failed.
-    #[serde(rename = "failed")]
-    Failed,
-}
-
 /// Entry points for opening the code review pane.
 #[derive(Clone, Copy, Debug, SerializeDisplay, Default)]
 pub enum CodeReviewPaneEntrypoint {
@@ -107,26 +70,4 @@ pub enum CodeReviewContextDestination {
     /// Inserted into CLI agent rich input.
     #[serde(rename = "rich_input")]
     RichInput,
-}
-
-/// Scope of a diff set attachment initiated from code review.
-#[derive(Clone, Copy, Debug, Serialize)]
-pub enum DiffSetContextScope {
-    /// Attach the full diff set for the current review.
-    #[serde(rename = "all")]
-    All,
-    /// Attach the diff set for a single file.
-    #[serde(rename = "file")]
-    File,
-}
-
-/// Pane state change for minimize/maximize events.
-#[derive(Clone, Copy, Debug, Serialize)]
-pub enum PaneStateChange {
-    /// Pane was minimized.
-    #[serde(rename = "minimized")]
-    Minimized,
-    /// Pane was maximized.
-    #[serde(rename = "maximized")]
-    Maximized,
 }

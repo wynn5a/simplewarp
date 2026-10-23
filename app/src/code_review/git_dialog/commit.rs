@@ -20,7 +20,6 @@ use crate::code_review::git_dialog::{
     GitDialog, GitDialogAction, GitDialogEvent, GitDialogMode, render_branch_section,
     render_file_changes_box, show_toast, user_facing_git_error,
 };
-use crate::code_review::telemetry_event::{GitDialogStatus, GitOperationKind};
 use crate::editor::{
     EditorOptions, EditorView, Event as EditorEvent, InteractionState,
     PropagateAndNoOpNavigationKeys, TextOptions,
@@ -275,23 +274,13 @@ pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>
     });
 }
 
-/// Commit-chain completion: toast + telemetry + close.
+/// Commit-chain completion: toast + close.
 /// `Ok(Some)` means create-PR ran; `Ok(None)` is a plain commit / commit-and-push.
 pub(super) fn finish_commit_chain(
-    _me: &GitDialog,
     intent: CommitChainMode,
     result: Result<Option<PrInfo>, String>,
     ctx: &mut ViewContext<GitDialog>,
 ) {
-    let _operation = match intent {
-        CommitChainMode::CommitOnly => GitOperationKind::CommitOnly,
-        CommitChainMode::CommitAndPush => GitOperationKind::CommitAndPush,
-        CommitChainMode::CommitAndCreatePr => GitOperationKind::CommitAndCreatePr,
-    };
-    let (_status, _error) = match &result {
-        Ok(_) => (GitDialogStatus::Succeeded, None),
-        Err(err) => (GitDialogStatus::Failed, Some(err.clone())),
-    };
     match &result {
         Ok(Some(pr)) => show_pr_created_toast(pr, ctx),
         Ok(None) => {

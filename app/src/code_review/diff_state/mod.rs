@@ -1,7 +1,6 @@
 //! Diff state module: [`DiffStateModel`] and the types it exposes.
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -315,7 +314,6 @@ pub enum DiffStateModelEvent {
     /// Event dispatched when new diffs are computed (full reload).
     NewDiffsComputed {
         diffs: Option<Arc<GitDiffWithBaseContent>>,
-        load_duration: Option<Duration>,
     },
     /// Event dispatched when a single file's diff is updated incrementally.
     SingleFileUpdated {

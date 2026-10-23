@@ -1,9 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::mem;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Duration;
 
 use ai::project_context::model::ProjectContextModel;
 use indexmap::IndexMap;
@@ -94,7 +93,6 @@ use crate::code_review::find_model::CodeReviewFindModel;
 use crate::code_review::git_repo_model::{GitRepoModels, GitRepoStatusEvent, GitRepoStatusModel};
 use crate::code_review::github_repo_model::{GitHubRepoEvent, GitHubRepoModel};
 use crate::code_review::hidden_lines::calculate_hidden_lines;
-use crate::code_review::telemetry_event::{DiffSetContextScope, PaneStateChange};
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
 use crate::editor::InteractionState;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
@@ -583,10 +581,6 @@ impl CodeReviewView {
         self.active_repo.as_ref().map(|repo| &repo.repo_path)
     }
 
-    pub(crate) fn repo_is_local(&self) -> Option<bool> {
-        self.repo_path().map(LocalOrRemotePath::is_local)
-    }
-
     fn to_standardized_path(&self, repo_relative_path: &str) -> Option<StandardizedPath> {
         if Path::new(repo_relative_path).is_absolute() {
             Some(StandardizedPath::from_local_absolute_unchecked(Path::new(
@@ -656,7 +650,7 @@ impl CodeReviewView {
         // need to fetch the base branch from origin.
         self.diff_state_model.update(ctx, |model, ctx| {
             model.set_code_review_metadata_refresh_enabled(true, ctx);
-            model.load_diffs_for_current_repo(false, true, ctx);
+            model.load_diffs_for_current_repo(false, ctx);
         });
     }
 
@@ -1229,7 +1223,7 @@ impl CodeReviewView {
             // Tracked diff loading starts in `on_open`, after this view is
             // subscribed to `diff_state_model`, so the completion event can
             // be observed and logged.
-            view.invalidate_all(None, None, ctx);
+            view.invalidate_all(None, ctx);
         }
 
         view
@@ -1435,10 +1429,10 @@ impl CodeReviewView {
         }
 
         self.diff_state_model.update(ctx, |model, ctx| {
-            model.set_diff_mode(mode, false, true, ctx);
+            model.set_diff_mode(mode, false, ctx);
         });
         self.update_diff_selector_selection(ctx);
-        self.invalidate_all(None, None, ctx);
+        self.invalidate_all(None, ctx);
     }
 
     fn handle_find_event(
@@ -2105,11 +2099,8 @@ impl CodeReviewView {
                 self.fetch_branches_and_setup_dropdown(ctx);
                 self.update_diff_selector_selection(ctx);
             }
-            DiffStateModelEvent::NewDiffsComputed {
-                diffs,
-                load_duration,
-            } => {
-                self.invalidate_all(diffs.as_ref().map(|d| d.as_ref()), *load_duration, ctx);
+            DiffStateModelEvent::NewDiffsComputed { diffs } => {
+                self.invalidate_all(diffs.as_ref().map(|d| d.as_ref()), ctx);
                 self.update_git_operations_ui(ctx);
             }
             DiffStateModelEvent::SingleFileUpdated { path, diff } => {
@@ -2244,7 +2235,6 @@ impl CodeReviewView {
     fn invalidate_all(
         &mut self,
         diff_data: Option<&GitDiffWithBaseContent>,
-        _load_duration: Option<Duration>,
         ctx: &mut ViewContext<Self>,
     ) {
         if self.active_repo.is_none() {
@@ -2308,8 +2298,6 @@ impl CodeReviewView {
         self.viewported_list_state = Self::create_list_state(ctx);
 
         let file_states_vec = self.build_view_state_for_file_diffs(&diff_data.files, ctx);
-        let _is_local = self.repo_is_local();
-        let _diff_mode = self.diff_state_model.as_ref(ctx).diff_mode();
 
         if let Some(repo) = self.active_repo.as_mut() {
             repo.state = CodeReviewViewState::Loaded(LoadedState {
@@ -2521,14 +2509,6 @@ impl CodeReviewView {
 
     fn delete_comment_by_id(&mut self, id: CommentId, ctx: &mut ViewContext<Self>) {
         if let Some(model) = self.active_comment_model.clone() {
-            let _is_imported = model
-                .read(ctx, |batch, _| {
-                    batch
-                        .get_review_comment_by_id(id)
-                        .map(|c| c.origin.is_imported_from_github())
-                })
-                .unwrap_or(false);
-
             model.update(ctx, |batch, ctx| {
                 batch.delete_comment(id, ctx);
             });
@@ -3283,7 +3263,6 @@ impl CodeReviewView {
         });
 
         let newly_imported = attach_pending_imported_comments(pending_imported, &repo_path);
-        let newly_imported_ids: HashSet<CommentId> = newly_imported.iter().map(|c| c.id).collect();
         comments.extend(newly_imported);
 
         if comments.is_empty() {
@@ -3294,19 +3273,6 @@ impl CodeReviewView {
             comments: relocated_comments,
             ..
         } = Self::relocate_comments(comments, state, &repo_path, ctx);
-
-        if !newly_imported_ids.is_empty() {
-            let (_active_count, _outdated_count) = relocated_comments
-                .iter()
-                .filter(|c| newly_imported_ids.contains(&c.id))
-                .fold((0usize, 0usize), |(active, outdated), c| {
-                    if c.outdated {
-                        (active, outdated + 1)
-                    } else {
-                        (active + 1, outdated)
-                    }
-                });
-        }
 
         model.update(ctx, |batch, ctx| {
             batch.upsert_comments(relocated_comments, ctx);
@@ -5352,11 +5318,6 @@ impl CodeReviewView {
     /// Insert diff set as context in the terminal input (either all files or a specific file)
     fn insert_diff_as_context(&mut self, scope: DiffSetScope, ctx: &mut ViewContext<Self>) {
         if let Some(terminal_view) = self.attach_target_terminal(ctx) {
-            let _diff_set_scope = match &scope {
-                DiffSetScope::All => DiffSetContextScope::All,
-                DiffSetScope::File(_) => DiffSetContextScope::File,
-            };
-
             let is_input_box_visible = terminal_view.read(ctx, |terminal_view, _| {
                 terminal_view.is_input_box_visible(&terminal_view.model.lock(), ctx)
             });
@@ -5493,7 +5454,7 @@ impl CodeReviewView {
             diff_state_model.set_diff_mode_and_fetch_base(diff_mode, ctx);
         });
         self.update_diff_selector_selection(ctx);
-        self.invalidate_all(None, None, ctx);
+        self.invalidate_all(None, ctx);
     }
 
     /// Insert diff hunk as an inline attachment in the terminal input
@@ -6614,18 +6575,6 @@ impl TypedActionView for CodeReviewView {
                 ctx.notify();
             }
             CodeReviewAction::ToggleMaximize => {
-                // Determine if we're minimizing or maximizing
-                let is_currently_maximized = self
-                    .focus_handle
-                    .as_ref()
-                    .is_some_and(|h| h.is_maximized(ctx));
-
-                let _state_change = if is_currently_maximized {
-                    PaneStateChange::Minimized
-                } else {
-                    PaneStateChange::Maximized
-                };
-
                 ctx.emit(CodeReviewViewEvent::Pane(PaneEvent::ToggleMaximized));
             }
             CodeReviewAction::SaveAllFiles { paths } => {
@@ -6637,7 +6586,7 @@ impl TypedActionView for CodeReviewView {
             }
             CodeReviewAction::RefreshGitState => {
                 self.diff_state_model.update(ctx, |model, ctx| {
-                    model.load_diffs_for_current_repo(false, true, ctx);
+                    model.load_diffs_for_current_repo(false, ctx);
                     model.refresh_metadata_after_git_operation(ctx);
                 });
                 self.refresh_pr_info(ctx);

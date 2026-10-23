@@ -166,7 +166,6 @@ impl GrepExecutor {
         };
 
         let shell_launch_data = self.active_session.as_ref(ctx).shell_launch_data(ctx);
-        let _shell_type = self.active_session.as_ref(ctx).shell_type(ctx);
         let current_working_directory = self
             .active_session
             .as_ref(ctx)
@@ -180,12 +179,7 @@ impl GrepExecutor {
 
         let session = self.active_session.as_ref(ctx).session(ctx);
 
-        let _path_clone = path.clone();
         let queries_clone = queries.clone();
-        let _other_queries_clone = queries.clone();
-        let _absolute_path_clone = absolute_path.clone();
-        let _working_directory_clone = current_working_directory.clone();
-        let _conversation_id_clone = input.conversation_id;
         ActionExecution::new_async(
             async move {
                 match run_grep(queries_clone, absolute_path, session, shell_launch_data)

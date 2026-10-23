@@ -386,8 +386,6 @@ impl AIExecutionProfilesModel {
             },
             ctx,
         );
-
-        if let Some(_model_id) = &llm_id {}
     }
 
     pub fn set_coding_model(
@@ -407,8 +405,6 @@ impl AIExecutionProfilesModel {
             },
             ctx,
         );
-
-        if let Some(_model_id) = &model_id {}
     }
 
     pub fn set_cli_agent_model(
@@ -428,8 +424,6 @@ impl AIExecutionProfilesModel {
             },
             ctx,
         );
-
-        if let Some(_model_id) = &model_id {}
     }
 
     pub fn set_apply_code_diffs(

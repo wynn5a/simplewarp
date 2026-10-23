@@ -149,7 +149,7 @@ terminal input message line" setting went too (user decision). Left for other ro
 status bar" setting (`vim_status_bar`), whose renderer a separate round restores (**done
 2026-10-23**, "vim status bar restored" in the round log), and
 `ConversationRestorationInNewPaneType::Historical::should_use_live_appearance` (always treated
-as `true`; still set by the Docker sandbox code, pending that work).
+as `true`) (**done 2026-10-23**, "placeholder and telemetry-stub sweep" in the round log).
 
 ## Verification, every round
 

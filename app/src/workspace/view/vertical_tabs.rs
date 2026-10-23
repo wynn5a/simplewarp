@@ -1,5 +1,3 @@
-pub mod telemetry;
-
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -71,7 +69,6 @@ use crate::workspace::tab_settings::{
     TabSettings, VerticalTabsCompactSubtitle, VerticalTabsDisplayGranularity,
     VerticalTabsPrimaryInfo, VerticalTabsTabItemMode, VerticalTabsViewMode,
 };
-use crate::workspace::view::vertical_tabs::telemetry::VerticalTabsChipEntrypoint;
 use crate::workspace::{
     PaneViewLocator, TabBarLocation, TabContextMenuAnchor, VerticalTabsPaneContextMenuTarget,
     VerticalTabsPaneDropTargetData, Workspace,
@@ -4389,7 +4386,6 @@ fn render_terminal_row_content(
             props.pane_group_id,
             props.pane_id,
             metadata_left,
-            chip_entrypoint_for_granularity(props.display_granularity),
             &props.badge_mouse_states,
             appearance,
             app,
@@ -4398,15 +4394,6 @@ fn render_terminal_row_content(
         .finish(),
     );
     content.finish()
-}
-
-fn chip_entrypoint_for_granularity(
-    granularity: VerticalTabsDisplayGranularity,
-) -> VerticalTabsChipEntrypoint {
-    match granularity {
-        VerticalTabsDisplayGranularity::Panes => VerticalTabsChipEntrypoint::Pane,
-        VerticalTabsDisplayGranularity::Tabs => VerticalTabsChipEntrypoint::Tab,
-    }
 }
 
 fn branch_label_display(git_branch: Option<&str>, fallback: &str) -> (String, bool) {
@@ -4717,7 +4704,6 @@ fn render_summary_tab_item(
     }
 
     // Branch region. Each branch line gets the existing 4px top margin from APP-3875.
-    let pr_chip_entrypoint = chip_entrypoint_for_granularity(props.display_granularity);
     for (idx, branch_entry) in summary
         .branch_entries
         .iter()
@@ -4728,7 +4714,6 @@ fn render_summary_tab_item(
             Container::new(render_summary_branch_line(
                 branch_entry,
                 pr_badge_mouse_states.get(idx).cloned(),
-                pr_chip_entrypoint,
                 appearance,
             ))
             .with_margin_top(REGION_GAP)
@@ -5024,7 +5009,6 @@ fn summary_pane_kind_icon(
 fn render_summary_branch_line(
     entry: &VerticalTabsSummaryBranchEntry,
     pr_badge_mouse_state: Option<MouseStateHandle>,
-    pr_chip_entrypoint: VerticalTabsChipEntrypoint,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
@@ -5063,7 +5047,6 @@ fn render_summary_branch_line(
             right_badges.add_child(render_terminal_pull_request_badge(
                 pull_request_label.clone(),
                 pull_request_url.clone(),
-                pr_chip_entrypoint,
                 mouse_state,
                 appearance,
             ));
@@ -5178,13 +5161,11 @@ fn render_terminal_primary_line(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn render_terminal_metadata_line(
     terminal_view: &TerminalView,
     pane_group_id: EntityId,
     pane_id: PaneId,
     left_content: MetadataLeftContent,
-    row_entrypoint: VerticalTabsChipEntrypoint,
     badge_mouse_states: &PaneRowBadgeMouseStates,
     appearance: &Appearance,
     app: &AppContext,
@@ -5226,7 +5207,6 @@ fn render_terminal_metadata_line(
         terminal_view,
         pane_group_id,
         pane_id,
-        row_entrypoint,
         badge_mouse_states,
         appearance,
         app,
@@ -5244,7 +5224,6 @@ fn render_terminal_right_badges(
     terminal_view: &TerminalView,
     pane_group_id: EntityId,
     pane_id: PaneId,
-    entrypoint: VerticalTabsChipEntrypoint,
     badge_mouse_states: &PaneRowBadgeMouseStates,
     appearance: &Appearance,
     app: &AppContext,
@@ -5265,7 +5244,6 @@ fn render_terminal_right_badges(
             &git_line_changes,
             pane_group_id,
             pane_id,
-            entrypoint,
             badge_mouse_states.diff_stats.clone(),
             appearance,
         ));
@@ -5277,7 +5255,6 @@ fn render_terminal_right_badges(
         right_badges.add_child(render_terminal_pull_request_badge(
             label,
             pull_request_url,
-            entrypoint,
             badge_mouse_states.pull_request.clone(),
             appearance,
         ));
@@ -5291,7 +5268,6 @@ fn render_terminal_diff_stats_badge(
     git_line_changes: &GitLineChanges,
     pane_group_id: EntityId,
     pane_id: PaneId,
-    _entrypoint: VerticalTabsChipEntrypoint,
     mouse_state: MouseStateHandle,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
@@ -5323,7 +5299,6 @@ fn render_terminal_diff_stats_badge(
 fn render_terminal_pull_request_badge(
     label: String,
     url: String,
-    _entrypoint: VerticalTabsChipEntrypoint,
     mouse_state: MouseStateHandle,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
@@ -6721,7 +6696,6 @@ fn render_terminal_detail_section(
             &git_line_changes,
             props.pane_group_id,
             props.pane_id,
-            VerticalTabsChipEntrypoint::DetailsSidecar,
             props.badge_mouse_states.diff_stats.clone(),
             appearance,
         ));
@@ -6731,7 +6705,6 @@ fn render_terminal_detail_section(
         right_badges.add_child(render_terminal_pull_request_badge(
             terminal_pull_request_badge_label(&pull_request_url),
             pull_request_url,
-            VerticalTabsChipEntrypoint::DetailsSidecar,
             props.badge_mouse_states.pull_request.clone(),
             appearance,
         ));

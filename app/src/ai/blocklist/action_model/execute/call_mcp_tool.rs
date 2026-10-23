@@ -3,10 +3,7 @@ use futures::future::BoxFuture;
 use itertools::Itertools;
 use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
-use super::{
-    ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput,
-    get_server_output_id,
-};
+use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
 use crate::ai::agent::{AIAgentAction, AIAgentActionResultType, CallMCPToolResult};
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::blocklist::action_model::AIAgentActionType;
@@ -63,7 +60,6 @@ impl CallMCPToolExecutor {
         ctx: &mut ModelContext<Self>,
     ) -> impl Into<AnyActionExecution> + use<> {
         {
-            let server_output_id = get_server_output_id(input.conversation_id, ctx);
             let AIAgentAction {
                 action:
                     AIAgentActionType::CallMCPTool {
@@ -76,9 +72,6 @@ impl CallMCPToolExecutor {
             else {
                 return ActionExecution::InvalidAction;
             };
-
-            let name_owned = name.to_owned();
-            let name_clone = name_owned.clone();
 
             let serde_json::Value::Object(mut arguments) = input.clone() else {
                 return ActionExecution::Sync(AIAgentActionResultType::CallMCPTool(
@@ -116,17 +109,17 @@ impl CallMCPToolExecutor {
                 ));
             };
 
-            let name_owned_inner = name_owned.clone();
+            let name_owned = name.to_owned();
             ActionExecution::new_async(
                 async move {
                     reconnecting_peer
                         .call_tool(
-                            rmcp::model::CallToolRequestParams::new(name_owned_inner)
+                            rmcp::model::CallToolRequestParams::new(name_owned)
                                 .with_arguments(arguments),
                         )
                         .await
                 },
-                move |res, ctx| handle_call_tool_result(res, server_output_id, name_clone, ctx),
+                |res, _| handle_call_tool_result(res),
             )
         }
     }
@@ -270,9 +263,6 @@ mod tests;
 /// Handles the result of a call_tool request, converting it to an AIAgentActionResultType.
 fn handle_call_tool_result(
     res: Result<rmcp::model::CallToolResult, rmcp::ServiceError>,
-    _server_output_id: Option<crate::ai::blocklist::action_model::execute::ServerOutputId>,
-    _tool_name: String,
-    _ctx: &warpui::AppContext,
 ) -> AIAgentActionResultType {
     let action_result = match res {
         Ok(result) => {

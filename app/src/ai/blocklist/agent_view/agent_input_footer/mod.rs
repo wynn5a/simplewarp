@@ -799,7 +799,6 @@ impl TypedActionView for AgentInputFooter {
                 }
             }
             AgentInputFooterAction::InsertFilePath(path) => {
-                if let Some(_agent) = self.cli_agent(ctx) {}
                 let path_with_space = format!("{path} ");
                 ctx.emit(AgentInputFooterEvent::WriteToPty(path_with_space));
             }

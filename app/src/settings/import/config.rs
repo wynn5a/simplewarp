@@ -293,13 +293,6 @@ impl Config {
     }
 }
 
-/// Used for telemetry.
-#[derive(Clone, Serialize)]
-pub struct ParsedTerminalSetting {
-    pub setting_type: SettingType,
-    pub was_imported_by_user: bool,
-}
-
 /// A wrapper for a setting along with its display name
 /// and whether or not the user has selected to import it.
 #[derive(Debug)]

@@ -1468,11 +1468,8 @@ impl EventLoop {
 
         // Winit doesn't tell us why termination was requested, so assume the
         // user asked (system-initiated shutdown detection is macOS-only for now).
-        let approve_terminate_result = self
-            .callbacks
-            .should_terminate_app(TerminationRequestSource::User);
-        if let ApproveTerminateResult::Terminate = approve_terminate_result {}
-        approve_terminate_result
+        self.callbacks
+            .should_terminate_app(TerminationRequestSource::User)
     }
 
     fn handle_ime_event(&mut self, winit_window_id: WinitWindowId, event: ImeEvent) {

@@ -2678,12 +2678,6 @@ impl Input {
         is_command: bool,
         ctx: &mut ViewContext<Self>,
     ) {
-        // Read the origin before dispatch; the row is removed once it fires.
-        let origin = QueuedQueryModel::as_ref(ctx)
-            .queue(conversation_id)
-            .iter()
-            .find(|row| row.id() == query_id)
-            .map(|row| row.origin());
         let dispatched = if is_command {
             self.execute_queued_command(&text, conversation_id, ctx)
         } else {
@@ -2693,7 +2687,6 @@ impl Input {
         if !dispatched {
             return;
         }
-        if let Some(_origin) = origin {}
         QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
             model.remove_fired_row(conversation_id, query_id, ctx);
         });
@@ -9647,8 +9640,6 @@ impl Input {
             if !self.try_execute_command(&command, ctx) {
                 return;
             }
-            self.emit_input_buffer_submitted_telemetry(ctx);
-
             if AISettings::as_ref(ctx).is_ai_autodetection_enabled() {
                 self.ai_input_model.update(ctx, |input, ctx| {
                     input.abort_in_progress_detection();
@@ -9996,7 +9987,6 @@ impl Input {
         self.ai_input_model.update(ctx, |model, ctx| {
             model.handle_input_buffer_submitted(ctx);
         });
-        self.emit_input_buffer_submitted_telemetry(ctx);
         self.editor.update(ctx, |editor, ctx| {
             editor.clear_buffer(ctx);
         });
@@ -10075,7 +10065,6 @@ impl Input {
         IgnoredSuggestionsModel::handle(ctx).update(ctx, |model, ctx| {
             model.remove_ignored_suggestion(ai_query.clone(), SuggestionType::AIQuery, ctx);
         });
-        self.emit_input_buffer_submitted_telemetry(ctx);
 
         self.ai_input_model.update(ctx, |model, ctx| {
             model.handle_input_buffer_submitted(ctx);
@@ -10114,11 +10103,6 @@ impl Input {
                 )
             });
         }
-    }
-
-    fn emit_input_buffer_submitted_telemetry(&self, ctx: &mut ViewContext<Self>) {
-        let _input_model = self.ai_input_model.as_ref(ctx);
-        let _block_id = self.model.lock().active_block_id().clone();
     }
 
     fn is_input_mode_toggle_disabled(&self, _ctx: &ViewContext<Self>) -> bool {

@@ -920,12 +920,7 @@ impl LeftPanelView {
 }
 
 impl LeftPanelView {
-    pub fn handle_action_with_force_open(
-        &mut self,
-        action: &LeftPanelAction,
-        _force_open: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    pub fn handle_panel_action(&mut self, action: &LeftPanelAction, ctx: &mut ViewContext<Self>) {
         match action {
             LeftPanelAction::ProjectExplorer => {
                 active_view_state::set(self, ToolPanelView::ProjectExplorer, ctx);
@@ -941,7 +936,6 @@ impl LeftPanelView {
             }
             LeftPanelAction::ConversationListView => {
                 active_view_state::set(self, ToolPanelView::ConversationListView, ctx);
-                if self.active_view_availability(ctx) == ToolPanelAvailability::Available {}
             }
         }
     }
@@ -994,7 +988,7 @@ impl TypedActionView for LeftPanelView {
     type Action = LeftPanelAction;
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
-        self.handle_action_with_force_open(action, false, ctx);
+        self.handle_panel_action(action, ctx);
     }
 }
 

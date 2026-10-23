@@ -97,12 +97,11 @@ impl PaneContent for CodePane {
     }
     fn attach(
         &self,
-        group: &PaneGroup,
+        _group: &PaneGroup,
         focus_handle: crate::pane_group::focus_state::PaneFocusHandle,
         ctx: &mut ViewContext<PaneGroup>,
     ) {
         let pane_id = self.id();
-        let _code_model = group.active_file_model().clone();
 
         self.view
             .update(ctx, |view, ctx| view.set_focus_handle(focus_handle, ctx));

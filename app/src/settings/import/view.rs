@@ -1,7 +1,6 @@
-use itertools::Itertools;
 use warp_core::settings::Setting;
 use warp_core::ui::appearance::Appearance;
-use warp_errors::{report_error, report_if_error};
+use warp_errors::report_if_error;
 use warpui::elements::{
     Border, Container, CornerRadius, Flex, Hoverable, MainAxisAlignment, MainAxisSize,
     MouseStateHandle, ParentElement, Radius, Shrinkable, Text,
@@ -17,7 +16,7 @@ use warpui::{
 
 use super::config::{QuakeModeWindow, ThemeType};
 use crate::GlobalResourceHandlesProvider;
-use crate::settings::import::config::{Config, ParsedTerminalSetting, SettingType};
+use crate::settings::import::config::{Config, SettingType};
 use crate::settings::import::model::{ImportedConfigModel, TerminalTypeAndProfile};
 use crate::settings::{
     AppEditorSettings, CursorBlink, FontSettings, GlobalHotkeyMode, SelectionSettings,
@@ -698,7 +697,6 @@ impl SettingsImportView {
             }
         });
 
-        self.send_completed_import_telemetry_event(terminal_type_and_profile, ctx);
         ctx.notify();
     }
 
@@ -879,36 +877,6 @@ impl SettingsImportView {
     pub(crate) fn interrupt_block(&mut self, ctx: &mut warpui::ViewContext<Self>) {
         self.state = State::Completed { imported_idx: None };
         ctx.notify();
-    }
-
-    fn send_completed_import_telemetry_event(
-        &self,
-        terminal_type_and_profile: &TerminalTypeAndProfile,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let model = ImportedConfigModel::handle(ctx);
-        let _imported_settings = model.read(ctx, |model, _ctx| {
-            let Some(config) = model.config(terminal_type_and_profile) else {
-                report_error!(
-                    "Could not find config for terminal",
-                    extra: { "terminal" => ?terminal_type_and_profile }
-                );
-                return Default::default();
-            };
-
-            config
-                .valid_setting_types()
-                .into_iter()
-                .map(|setting_type| {
-                    let was_imported_by_user =
-                        model.should_import(terminal_type_and_profile, &setting_type);
-                    ParsedTerminalSetting {
-                        setting_type,
-                        was_imported_by_user,
-                    }
-                })
-                .collect_vec()
-        });
     }
 }
 

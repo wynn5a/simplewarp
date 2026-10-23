@@ -1932,6 +1932,54 @@ Verification: format and all three clippy gates clean; `cargo nextest run --work
 skipped. `cargo build --bin simplewarp` smoke: the app starts and stays up with no errors in
 `simplewarp.log`.
 
+### Round: placeholder and telemetry-stub sweep (2026-10-23)
+
+- Of the 78 `_`-prefixed placeholder bindings outside tests (`let _x = ...` / `let (_a, _b) =
+  ...`), 65 were telemetry leftovers computed only to be dropped and went, with what they kept
+  alive: the model locks taken only to read them (`Input`, the "use agent" footer, the bootstrap
+  slow path), the pending-session start times (now a `HashSet<SessionId>`), the block-finished to
+  precmd delay (`AfterBlockCompletedEvent::command_finished_to_precmd_delay`), the rcfile duration
+  (`BootstrappedEvent::rcfiles_duration_seconds`), the code review load duration
+  (`NewDiffsComputed::load_duration`, `track_load_duration`), `AIBlock::time_to_last_token`,
+  `GlobalSearchView::search_started_at` and the queued-prompts drag start index. Three became
+  plain statements that keep their side effect (`sendmsg(..)?`, `selected_index()?`,
+  `model_rows.remove`). About 25 empty `if` / `if let` bodies left by telemetry went too; the vim
+  banner's `set_value(true)` stays as `let _ =`.
+- Stub functions gone with their call sites: `emit_input_buffer_submitted_telemetry` (it still
+  took the terminal model lock), `emit_retryable_agent_mode_error_telemetry`,
+  `send_open_telemetry`, `send_completed_import_telemetry_event`,
+  `maybe_send_multiple_hotkeys_telemetry_event`, `log_file_glob_error`,
+  `record_static_slash_command_accepted`, `record_saved_prompt_accepted`, `get_server_output_id`,
+  `CodeReviewView::repo_is_local`, `CodeDiffView::server_output_id` and
+  `AIBlockModel::was_autodetected_ai_query`. `maybe_send_agent_exited_shell_telemetry` is
+  `agent_command_that_exited_shell`.
+- Telemetry-only parameters removed at every call site: the git dialog `finish_*` `_me`, the
+  call-MCP-tool result's output id / tool name / context, `trigger_subshell_bootstrap`'s rc-file
+  flag, `open_prompt_editor`'s source (`WorkspaceAction::OpenPromptEditor` is a unit variant),
+  the left panel's force-open flag (`handle_panel_action`), the vertical-tabs chip entrypoint
+  (`vertical_tabs/telemetry.rs`), `open_block_filter_editor`'s `OpenedFromClick`, the command
+  search result index, the transcript navigation direction and the exchange count of
+  `command_block_indices_for_exchanges`. Telemetry-only types went: `GitOperationKind`,
+  `GitDialogStatus`, `DiffSetContextScope`, `PaneStateChange`, `ParsedTerminalSetting`, the
+  prompt editor `OpenSource`.
+- `ConversationRestorationInNewPaneType::Historical::should_use_live_appearance` went: it was
+  only ever set to `true` and never read. `should_use_live_appearance()` and
+  `TerminalViewConfig::should_use_live_appearance` stay; they are false for startup restoration
+  and for the Docker sandbox pane, which sets the config field, not the enum field. Not
+  serialized.
+- Kept: RAII guards (`_enter`, `_guard`, `_pool`, `_file`), the passwd field skips in
+  `local_tty/unix.rs`, `NetworkLogModel::push`'s documented `_evicted`, the settings import
+  `IntervalTimer` (it logs tracing milestones), `_`-named parameters of trait impls, subscription
+  callbacks and cfg platform stubs, and a few non-telemetry ones (`BlockSnackbarHover`'s
+  `is_hovered`, `open_file_in_code_editor`'s file name, `CallMCPToolExecutor::_active_session`).
+  The settings import "Could not find config" `report_error!` went with the telemetry function
+  that raised it.
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,240 run,
+6,238 passed, 2 failed (the clone-slash-command flake and `test_with_launch_config_with_active_pane`,
+which passed in isolation), 86 skipped. `cargo build --bin simplewarp` smoke: the app starts and
+stays up with no errors in `simplewarp.log`.
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the

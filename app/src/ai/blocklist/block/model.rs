@@ -117,11 +117,6 @@ pub trait AIBlockModel {
         false
     }
 
-    /// Returns `true` if this block renders a user query input that was autodetected as AI.
-    fn was_autodetected_ai_query(&self, _app: &AppContext) -> bool {
-        false
-    }
-
     /// Returns the time elapsed since the request was triggered.
     ///
     /// `None` if there was no request for data in this block (e.g. if it's for a restored AI block).

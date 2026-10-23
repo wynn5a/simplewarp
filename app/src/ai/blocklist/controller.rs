@@ -504,9 +504,6 @@ impl BlocklistAIController {
 
         let (query, user_query_mode) = extract_user_query_mode(query);
 
-        // Attribute /orchestrate queries to the slash-command entry surface.
-        if matches!(user_query_mode, UserQueryMode::Orchestrate) {}
-
         let should_prepend_finished_action_results = matches!(
             input_query.input_query,
             InputQueryType::UserSubmittedQueryFromInput { .. }

@@ -97,11 +97,6 @@ pub struct BlockFilterQuery {
     pub is_active: bool,
 }
 
-pub enum OpenedFromClick {
-    Yes,
-    No,
-}
-
 impl BlockFilterQuery {
     pub fn construct_dfas(&self) -> Result<RegexDFAs, Box<BuildError>> {
         RegexDFAs::new_with_config(

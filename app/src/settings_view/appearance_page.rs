@@ -51,7 +51,6 @@ use crate::editor::{
     TextOptions,
 };
 use crate::gpu_state::{GPUState, GPUStateEvent};
-use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::settings::app_icon::{AppIcon, AppIconSettings};
 use crate::settings::{
     AIFontName, AISettings, AppEditorSettings, CodeSettings, CursorBlink, CursorDisplayType,
@@ -2250,7 +2249,6 @@ impl AppearanceSettingsPageView {
         from_binding: bool,
         ctx: &mut ViewContext<Self>,
     ) {
-        let _old_mode = *InputModeSettings::as_ref(ctx).input_mode.value();
         InputModeSettings::handle(ctx).update(ctx, |input_mode, ctx| {
             report_if_error!(input_mode.input_mode.set_value(new_mode, ctx));
         });
@@ -2402,30 +2400,28 @@ impl AppearanceSettingsPageView {
         new_value: WorkspaceDecorationVisibility,
         ctx: &mut ViewContext<Self>,
     ) {
-        let _previous_value = TabSettings::handle(ctx).update(ctx, |tab_settings, ctx| {
-            let prev_value = *tab_settings.workspace_decoration_visibility.value();
+        TabSettings::handle(ctx).update(ctx, |tab_settings, ctx| {
             report_if_error!(
                 tab_settings
                     .workspace_decoration_visibility
                     .set_value(new_value, ctx)
             );
-            prev_value
         });
     }
 
     /// Toggle among the supported workspace decoration visibility values.
     fn toggle_workspace_decoration_visiblity(&mut self, ctx: &mut ViewContext<Self>) {
-        let (_new_value, _previous_value) =
-            TabSettings::handle(ctx).update(ctx, |tab_settings, ctx| {
-                let previous_value = *tab_settings.workspace_decoration_visibility.value();
-                let new_value = previous_value.toggled();
-                report_if_error!(
-                    tab_settings
-                        .workspace_decoration_visibility
-                        .set_value(new_value, ctx)
-                );
-                (new_value, previous_value)
-            });
+        TabSettings::handle(ctx).update(ctx, |tab_settings, ctx| {
+            let new_value = tab_settings
+                .workspace_decoration_visibility
+                .value()
+                .toggled();
+            report_if_error!(
+                tab_settings
+                    .workspace_decoration_visibility
+                    .set_value(new_value, ctx)
+            );
+        });
     }
 
     fn build_workspace_decoration_visibility_dropdown(
@@ -3575,11 +3571,7 @@ impl SettingsWidget for PromptWidget {
                 .finish()
         })
         .with_cursor(Cursor::PointingHand)
-        .on_click(|ctx, _, _| {
-            ctx.dispatch_typed_action(WorkspaceAction::OpenPromptEditor {
-                open_source: PromptEditorOpenSource::AppearancePage,
-            })
-        })
+        .on_click(|ctx, _, _| ctx.dispatch_typed_action(WorkspaceAction::OpenPromptEditor))
         .finish()
     }
 }

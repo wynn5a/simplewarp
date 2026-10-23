@@ -79,7 +79,6 @@ pub enum CommandSearchEvent {
 #[derive(Clone, Debug)]
 pub enum CommandSearchAction {
     ResultClicked {
-        result_index: usize,
         result_action: Box<CommandSearchItemAction>,
     },
     Close,
@@ -128,9 +127,8 @@ impl CommandSearchView {
                     QueryResultRenderer::new(
                         result,
                         format!("QueryResultRenderer:{result_index}"),
-                        |result_index, result_action, event_ctx| {
+                        |_, result_action, event_ctx| {
                             event_ctx.dispatch_typed_action(CommandSearchAction::ResultClicked {
-                                result_index,
                                 result_action: Box::new(result_action),
                             })
                         },
@@ -317,7 +315,6 @@ impl CommandSearchView {
     }
 
     fn blur(&self, ctx: &mut ViewContext<Self>) {
-        let _buffer_length = self.search_bar.as_ref(ctx).query(ctx).len();
         ctx.emit(CommandSearchEvent::Blur);
     }
 
@@ -329,15 +326,14 @@ impl CommandSearchView {
     ) {
         match event {
             SearchBarEvent::Close => {
-                let _buffer_length = self.search_bar.as_ref(ctx).query(ctx).len();
                 self.close(ctx);
             }
             // ctrl-c should close the command search view
             SearchBarEvent::BufferCleared { buffer_len: _ } => {
                 self.close(ctx);
             }
-            SearchBarEvent::ResultAccepted { index, action } => {
-                self.handle_result_selected(*index, action.clone(), ctx);
+            SearchBarEvent::ResultAccepted { action, .. } => {
+                self.handle_result_selected(action.clone(), ctx);
             }
             SearchBarEvent::ResultSelected { index } => {
                 self.state.list_state.scroll_to(*index);
@@ -368,7 +364,6 @@ impl CommandSearchView {
     /// the search panel.
     fn handle_result_selected(
         &self,
-        result_index: usize,
         result_action: CommandSearchItemAction,
         ctx: &mut ViewContext<Self>,
     ) {
@@ -396,13 +391,6 @@ impl CommandSearchView {
                 a11y_help_content,
                 WarpA11yRole::UserAction,
             ));
-
-            // Recompute the result index - the incoming index is the index in the
-            // uniform list, but what we want is the "distance from first result".
-            let _result_index = match self.search_bar_state.as_ref(ctx).query_result_renderers() {
-                Some(renderers) => renderers.len() - result_index - 1,
-                None => result_index,
-            };
         }
 
         let query = self.search_bar.as_ref(ctx).query(ctx);
@@ -686,10 +674,9 @@ impl TypedActionView for CommandSearchView {
 
         match action {
             Close => self.blur(ctx),
-            ResultClicked {
-                result_index,
-                result_action,
-            } => self.handle_result_selected(*result_index, *result_action.clone(), ctx),
+            ResultClicked { result_action } => {
+                self.handle_result_selected(*result_action.clone(), ctx)
+            }
             Resize => ctx.emit(CommandSearchEvent::Resize),
         }
     }

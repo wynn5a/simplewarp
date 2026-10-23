@@ -3672,7 +3672,6 @@ impl PaneGroup {
     ) -> bool {
         let restoration = ConversationRestorationInNewPaneType::Historical {
             conversation: *cloud_conversation,
-            should_use_live_appearance: true,
             ambient_agent_task_id: None,
         };
 

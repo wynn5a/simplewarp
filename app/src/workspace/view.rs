@@ -177,7 +177,6 @@ use crate::persistence::ModelEvent;
 use crate::projects::ProjectManagementModel;
 use crate::prompt::editor_modal::{
     EditorModal as PromptEditorModal, EditorModalEvent as PromptEditorModalEvent,
-    OpenSource as PromptEditorOpenSource,
 };
 use crate::quit_warning::UnsavedStateSummary;
 use crate::root_view::{NewWorkspaceSource, OpenLaunchConfigArg};
@@ -4306,7 +4305,6 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) {
         if tab_config.params.is_empty() {
-            let _is_worktree_config = tab_config.is_worktree();
             let worktree_branch_name = self.maybe_generate_worktree_name(&tab_config);
             let param_values = tab_config.default_param_values();
             self.open_tab_config_with_params(
@@ -8082,7 +8080,7 @@ impl Workspace {
             ctx,
         );
 
-        // Telemetry whenever tabs actually closed, not when confirmation dialog comes up.
+        // Save only when tabs actually closed, not when the confirmation dialog comes up.
         if tabs_closed {
             ctx.dispatch_global_action("workspace:save_app", ());
         }
@@ -8099,10 +8097,7 @@ impl Workspace {
         // Figure out what indices we want to delete for the "other tabs" case.
         let indices_to_remove = (0..self.tabs.len()).filter(|i| *i != index);
 
-        let tabs_closed = self.close_tabs(indices_to_remove, skip_confirmation, true, ctx);
-
-        // Telemetry whenever tabs actually closed, not when confirmation dialog comes up.
-        if tabs_closed {}
+        self.close_tabs(indices_to_remove, skip_confirmation, true, ctx);
     }
 
     /// Opens a confirmation dialog if necessary, or closes immediately if not.
@@ -10413,7 +10408,7 @@ impl Workspace {
                 self.open_ai_fact_collection_pane(None, Some(page), ctx);
             }
             pane_group::Event::OpenPromptEditor => {
-                self.open_prompt_editor(PromptEditorOpenSource::InputContextMenu, ctx);
+                self.open_prompt_editor(ctx);
             }
             pane_group::Event::OpenAgentToolbarEditor => {
                 self.open_agent_toolbar_editor(AgentToolbarEditorMode::AgentView, ctx);
@@ -11005,7 +11000,7 @@ impl Workspace {
                         let action = match target_view {
                             LeftPanelTargetView::FileTree => LeftPanelAction::ProjectExplorer,
                         };
-                        left_panel.handle_action_with_force_open(&action, *force_open, ctx);
+                        left_panel.handle_panel_action(&action, ctx);
                     });
                 }
             }
@@ -12170,11 +12165,7 @@ impl Workspace {
         ctx.notify();
     }
 
-    fn open_prompt_editor(
-        &mut self,
-        _open_source: PromptEditorOpenSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn open_prompt_editor(&mut self, ctx: &mut ViewContext<Self>) {
         // Try to get a prompt preview from an active session. Otherwise, read it from the settings
         // view.
         let ps1_grid_info = self.active_session_ps1_grid_info(ctx).or_else(|| {
@@ -15153,7 +15144,7 @@ impl Workspace {
 
         if self.active_tab_pane_group().as_ref(ctx).left_panel_open {
             self.left_panel_view.update(ctx, |left_panel, ctx| {
-                left_panel.handle_action_with_force_open(action, false, ctx);
+                left_panel.handle_panel_action(action, ctx);
                 left_panel.focus_active_view_on_entry(ctx);
             });
         }
@@ -15805,32 +15796,29 @@ impl TypedActionView for Workspace {
                 ctx.notify();
             }
             ToggleVerticalTabsShowPrLink => {
-                let _new_value = TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+                TabSettings::handle(ctx).update(ctx, |settings, ctx| {
                     let new_value = !*settings.vertical_tabs_show_pr_link.value();
                     let _ = settings
                         .vertical_tabs_show_pr_link
                         .set_value(new_value, ctx);
-                    new_value
                 });
                 ctx.notify();
             }
             ToggleVerticalTabsShowDiffStats => {
-                let _new_value = TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+                TabSettings::handle(ctx).update(ctx, |settings, ctx| {
                     let new_value = !*settings.vertical_tabs_show_diff_stats.value();
                     let _ = settings
                         .vertical_tabs_show_diff_stats
                         .set_value(new_value, ctx);
-                    new_value
                 });
                 ctx.notify();
             }
             ToggleVerticalTabsShowDetailsOnHover => {
-                let _new_value = TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+                TabSettings::handle(ctx).update(ctx, |settings, ctx| {
                     let new_value = !*settings.vertical_tabs_show_details_on_hover.value();
                     let _ = settings
                         .vertical_tabs_show_details_on_hover
                         .set_value(new_value, ctx);
-                    new_value
                 });
                 ctx.notify();
             }
@@ -15981,8 +15969,8 @@ impl TypedActionView for Workspace {
                     view.add_ephemeral_toast(new_toast, ctx);
                 });
             }
-            OpenPromptEditor { open_source } => {
-                self.open_prompt_editor(*open_source, ctx);
+            OpenPromptEditor => {
+                self.open_prompt_editor(ctx);
             }
             OpenHeaderToolbarEditor => {
                 self.open_header_toolbar_editor(ctx);

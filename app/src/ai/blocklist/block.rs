@@ -663,7 +663,6 @@ pub struct AIBlock {
     auto_expand_requested_command_timer_handle: Option<SpawnedFutureHandle>,
 
     time_to_first_token: OnceCell<Duration>,
-    time_to_last_token: Option<Duration>,
 
     /// Whether selected text was attached as context to this AI block's query.
     has_attached_context_selected_text: bool,
@@ -1012,7 +1011,6 @@ impl AIBlock {
             selected_text: Arc::new(RwLock::new(None)),
             state_handles: Default::default(),
             time_to_first_token: OnceCell::new(),
-            time_to_last_token: None,
             has_attached_context_selected_text,
             finish_reason: None,
             is_agent_transcript_navigation_target: false,
@@ -1345,19 +1343,8 @@ impl AIBlock {
                     );
                 });
             }
-            self.time_to_last_token = Some(latency);
         }
 
-        let _was_autodetected_ai_query = self.model.was_autodetected_ai_query(ctx);
-        let _client_exchange_id = self.client_ids.client_exchange_id.to_string();
-        let _conversation_id = self.client_ids.conversation_id;
-        let _time_to_first_token_ms = self
-            .time_to_first_token
-            .get()
-            .map(|duration| duration.num_milliseconds() as u128);
-        let _time_to_last_token_ms = self
-            .time_to_last_token
-            .map(|duration| duration.num_milliseconds() as u128);
         let status = self.model.status(ctx);
 
         match status {
@@ -1371,7 +1358,6 @@ impl AIBlock {
             }
             AIBlockOutputStatus::Complete { output } => {
                 let output = output.get();
-                let _server_output_id = self.model.server_output_id(ctx);
                 self.handle_updated_output(&output, ctx);
                 self.handle_complete_output(&output, ctx);
             }
@@ -1382,11 +1368,8 @@ impl AIBlock {
                 }
                 self.spawn_link_detection(ctx);
                 self.finish(FinishReason::Cancelled, ctx);
-
-                let _server_output_id = self.model.server_output_id(ctx);
             }
             AIBlockOutputStatus::Failed { .. } => {
-                let _server_output_id = self.model.server_output_id(ctx);
                 // There are no actions to be taken in this block, it is finished.
                 self.finish(FinishReason::Error, ctx);
             }
@@ -4126,7 +4109,6 @@ impl TypedActionView for AIBlock {
                 }
             }
             AIBlockAction::Rated { is_positive } => {
-                let _output_id = self.model.server_output_id(ctx);
                 let rating = if *is_positive {
                     AIBlockResponseRating::Positive
                 } else {

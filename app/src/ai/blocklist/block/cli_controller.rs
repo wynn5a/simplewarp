@@ -491,13 +491,7 @@ impl CLISubagentController {
         let active_block = terminal_model.block_list_mut().active_block_mut();
 
         if active_block.toggle_subagent_response_visibility() {
-            let conversation_id = active_block.ai_conversation_id();
-            let _block_id = active_block.id().clone();
-            let _is_hidden = active_block.should_hide_responses();
-
             ctx.emit(CLISubagentEvent::ToggledHideResponses);
-
-            if let Some(_conversation_id) = conversation_id {}
         }
     }
 

@@ -1772,8 +1772,6 @@ impl TypedActionView for CodeFooterView {
                         _ => None,
                     };
 
-                    if let Some(_st) = server_type {}
-
                     if needed_install {
                         ctx.emit(CodeFooterViewEvent::InstallAndEnableLSP {
                             path: path.clone(),
@@ -1789,11 +1787,6 @@ impl TypedActionView for CodeFooterView {
             }
             CodeFooterViewAction::OpenLogs => {
                 self.is_lsp_menu_open = false;
-                let _server_name = self
-                    .lsp_servers
-                    .first()
-                    .and_then(|w| w.upgrade(ctx))
-                    .map(|s| s.as_ref(ctx).server_name());
                 ctx.emit(CodeFooterViewEvent::OpenLogs {
                     path: self.mode.path().to_path_buf(),
                 });

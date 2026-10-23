@@ -261,8 +261,7 @@ use crate::terminal::alt_screen::alt_screen_element::AltScreenElement;
 use crate::terminal::alt_screen::should_intercept_scroll;
 use crate::terminal::alt_screen_reporting::{AltScreenReporting, AltScreenReportingChangedEvent};
 use crate::terminal::block_filter::{
-    BlockFilterEditor, BlockFilterEditorEvent, BlockFilterQuery, OpenedFromClick,
-    filter_button_position_id,
+    BlockFilterEditor, BlockFilterEditorEvent, BlockFilterQuery, filter_button_position_id,
 };
 use crate::terminal::block_list_element::{
     BlockListElement, BlockListMenuSource, BlockListMouseStates, BlockSelectAction,
@@ -6581,7 +6580,6 @@ impl TerminalView {
     fn trigger_subshell_bootstrap(
         &mut self,
         shell_type: Option<ShellType>,
-        _triggered_by_rc_file_snippet: bool,
         ctx: &mut ViewContext<Self>,
     ) {
         self.clear_warpify_footer(ctx);
@@ -6957,7 +6955,7 @@ impl TerminalView {
 
     fn enable_vim_keybindings(&mut self, ctx: &mut ViewContext<Self>) {
         AppEditorSettings::handle(ctx).update(ctx, |editor_settings, ctx| {
-            if editor_settings.vim_mode.set_value(true, ctx).is_ok() {}
+            let _ = editor_settings.vim_mode.set_value(true, ctx);
         });
     }
 
@@ -7186,14 +7184,10 @@ impl TerminalView {
             .is_some_and(|session| !session.is_local())
     }
 
-    /// Sends telemetry if an AI-requested command caused the shell to exit, and
-    /// returns the conversation that issued that command along with the
-    /// (secret-redacted) command text so the caller can finalize it as a
-    /// shell-exit failure.
-    fn maybe_send_agent_exited_shell_telemetry(
-        &self,
-        ctx: &mut ViewContext<Self>,
-    ) -> Option<(AIConversationId, String)> {
+    /// If an AI-requested command caused the shell to exit, returns the conversation that issued
+    /// that command along with the (secret-redacted) command text so the caller can finalize it as
+    /// a shell-exit failure.
+    fn agent_command_that_exited_shell(&self) -> Option<(AIConversationId, String)> {
         let model = self.model.lock();
         let block_list = model.block_list();
         let blocks = block_list.blocks();
@@ -7220,17 +7214,9 @@ impl TerminalView {
         let mut command = agent_block.command_to_string();
         redact_secrets(&mut command);
 
-        let conversation_id = agent_block.ai_conversation_id();
-        let _server_output_id = conversation_id.and_then(|conversation_id| {
-            BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&conversation_id)
-                .and_then(|conversation| {
-                    conversation
-                        .latest_exchange()
-                        .and_then(|e| e.output_status.server_output_id())
-                })
-        });
-        conversation_id.map(|conversation_id| (conversation_id, command))
+        agent_block
+            .ai_conversation_id()
+            .map(|conversation_id| (conversation_id, command))
     }
 
     /// Updates the back button's disabled state from the controller's
@@ -7528,8 +7514,7 @@ impl TerminalView {
                     model.drop_running(self.view_id, ctx);
                 });
                 if !self.manual_pty_shutdown_requested
-                    && let Some((conversation_id, command)) =
-                        self.maybe_send_agent_exited_shell_telemetry(ctx)
+                    && let Some((conversation_id, command)) = self.agent_command_that_exited_shell()
                 {
                     // The agent's command caused the shell to exit. Finalize the
                     // conversation as a failure (with a message naming the command)
@@ -7748,7 +7733,7 @@ impl TerminalView {
                         let auto_warpify_abort_handle = ctx.spawn_abortable(
                             Timer::after(Duration::from_millis(AUTO_WARPIFY_DELAY)),
                             move |me, _, ctx| {
-                                me.trigger_subshell_bootstrap(Some(shell_type), false, ctx);
+                                me.trigger_subshell_bootstrap(Some(shell_type), ctx);
                             },
                             |_, _| (),
                         );
@@ -7846,7 +7831,6 @@ impl TerminalView {
                 }
             }
             ModelEvent::AfterBlockCompleted(AfterBlockCompletedEvent {
-                command_finished_to_precmd_delay,
                 block_type,
                 num_secrets_obfuscated: _,
                 cloud_workflow_id,
@@ -7872,21 +7856,6 @@ impl TerminalView {
                         .detach();
                 }
 
-                if let Some(delay) = command_finished_to_precmd_delay {
-                    let _delay_ms = delay.as_millis() as u64;
-                    let _honor_ps1_enabled = match &block_type {
-                        // If we have access to the value of honor_ps1 that the
-                        // block was holding, use that.
-                        BlockType::User(UserBlockCompleted {
-                            serialized_block, ..
-                        })
-                        | BlockType::BootstrapVisible(serialized_block) => {
-                            serialized_block.honor_ps1
-                        }
-                        // Otherwise, grab the current value.
-                        _ => *SessionSettings::as_ref(ctx).honor_ps1,
-                    };
-                }
                 let active_session_id = self.active_block_session_id();
                 if let Some(block_id) = self
                     .warpify_state
@@ -8321,7 +8290,7 @@ impl TerminalView {
             }
             ModelEvent::InitSubshell(event) => {
                 let shell_type = event.shell_type;
-                self.trigger_subshell_bootstrap(Some(shell_type), false, ctx);
+                self.trigger_subshell_bootstrap(Some(shell_type), ctx);
             }
             ModelEvent::SourcedRcFileInSubshell(event) => {
                 let shell_type = event.shell_type;
@@ -8343,7 +8312,7 @@ impl TerminalView {
                         if has_ai_metadata {
                             return;
                         }
-                        me.trigger_subshell_bootstrap(Some(shell_type), true, ctx);
+                        me.trigger_subshell_bootstrap(Some(shell_type), ctx);
                     },
                 );
             }
@@ -8476,8 +8445,6 @@ impl TerminalView {
         CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions_model, ctx| {
             sessions_model.update_from_event(self.view_id, &notification, ctx);
         });
-
-        if notification.event == CLIAgentEventType::SessionStart {}
     }
 
     fn register_cli_agent_listener_from_event(
@@ -9927,15 +9894,6 @@ impl TerminalView {
             block.unhide();
         });
 
-        // Send the bootstrapping slow event synchronously to ensure that we don't drop
-        // the event if the user quits the app before the event queue is flushed and then
-        // never reopens the app.
-
-        let _bootstrap_block_contents = {
-            let model = self.model.lock();
-            model.block_list().bootstrap_block_contents()
-        };
-
         if !self.is_login_shell_bootstrapped {
             log::warn!("Showing bootstrap slow toast");
             self.is_slow_bootstrap_banner_open = true;
@@ -11228,12 +11186,7 @@ impl TerminalView {
         self.open_workflow_modal_with_command(selected_block_contents, ctx);
     }
 
-    fn open_block_filter_editor(
-        &mut self,
-        block_index: BlockIndex,
-        opened_from_click: OpenedFromClick,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn open_block_filter_editor(&mut self, block_index: BlockIndex, ctx: &mut ViewContext<Self>) {
         self.active_filter_editor_block_index = Some(block_index);
         {
             let model = self.model.lock();
@@ -11256,7 +11209,6 @@ impl TerminalView {
                 });
         }
         self.focus_block_filter_editor(ctx);
-        if matches!(opened_from_click, OpenedFromClick::Yes) {}
     }
 
     fn close_block_filter_editor(&mut self, ctx: &mut ViewContext<Self>) {
@@ -12699,12 +12651,9 @@ impl TerminalView {
     }
 
     fn toggle_input_hint_text(&mut self, ctx: &mut ViewContext<Self>) {
-        let _new_val = InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+        InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
             report_if_error!(input_settings.show_hint_text.toggle_and_save_value(ctx));
-            *input_settings.show_hint_text
         });
-
-        // Send the same telemetry event that we do from the features page to make data analysis easier.
     }
 
     fn open_workflow_modal_with_command(&mut self, command: String, ctx: &mut ViewContext<Self>) {
@@ -13404,13 +13353,12 @@ impl TerminalView {
         let Some(target) = target else {
             return;
         };
-        self.apply_agent_transcript_selection(target, direction, ctx);
+        self.apply_agent_transcript_selection(target, ctx);
     }
 
     fn apply_agent_transcript_selection(
         &mut self,
         target: AgentTranscriptNavigableItem,
-        direction: AgentTranscriptNavigationDirection,
         ctx: &mut ViewContext<Self>,
     ) {
         self.agent_transcript_selection = Some(target);
@@ -13430,11 +13378,6 @@ impl TerminalView {
             }
         }
         self.sync_agent_transcript_navigation_target(ctx);
-
-        let (_delta, _is_cmd_down) = match direction {
-            AgentTranscriptNavigationDirection::Previous => (BlockSelectionDelta::Previous, false),
-            AgentTranscriptNavigationDirection::Next => (BlockSelectionDelta::Next, true),
-        };
 
         ctx.notify();
     }
@@ -14364,16 +14307,14 @@ impl TerminalView {
     }
 
     fn bookmark_block(&mut self, index: &BlockIndex, ctx: &mut ViewContext<Self>) {
-        let _enable_bookmark = match self.bookmarked_blocks.entry(*index) {
+        match self.bookmarked_blocks.entry(*index) {
             Entry::Occupied(occupied) => {
                 occupied.remove();
-                false
             }
             Entry::Vacant(vacant) => {
                 vacant.insert(Default::default());
-                true
             }
-        };
+        }
 
         ctx.notify();
     }
@@ -17614,17 +17555,13 @@ impl TerminalView {
                 ctx,
             );
             if new_block_filter_query.is_active {
-                self.open_block_filter_editor(
-                    selected_or_last_block_index,
-                    OpenedFromClick::No,
-                    ctx,
-                );
+                self.open_block_filter_editor(selected_or_last_block_index, ctx);
             } else {
                 self.close_block_filter_editor(ctx);
                 self.redetermine_global_focus(ctx);
             }
         } else {
-            self.open_block_filter_editor(selected_or_last_block_index, OpenedFromClick::No, ctx);
+            self.open_block_filter_editor(selected_or_last_block_index, ctx);
         }
     }
 
@@ -18795,7 +18732,6 @@ impl TypedActionView for TerminalView {
             FocusInputAndClearSelection => self.focus_input_and_clear_selections(ctx),
             ShowFindBar => self.show_find_bar(ctx),
             SelectPriorBlock => {
-                let is_first_selection = self.selected_blocks.is_empty();
                 match input_mode {
                     InputMode::PinnedToBottom | InputMode::Waterfall => {
                         self.select_less_recent_block(false /* is_shift_down */, ctx)
@@ -18808,8 +18744,6 @@ impl TypedActionView for TerminalView {
                         )
                     }
                 }
-
-                if is_first_selection && self.ai_input_model.as_ref(ctx).is_ai_input_enabled() {}
             }
             SelectNextBlock => {
                 match input_mode {
@@ -18956,14 +18890,12 @@ impl TypedActionView for TerminalView {
             }
             OpenBlockListContextMenu => self.open_block_list_context_menu_via_keybinding(ctx),
             AskAIAssistant { block_index } => self.ask_ai(&AskAISource::Block(*block_index), ctx),
-            TriggerSubshellBootstrap => self.trigger_subshell_bootstrap(None, false, ctx),
+            TriggerSubshellBootstrap => self.trigger_subshell_bootstrap(None, ctx),
 
             InsertMostRecentCommandCorrection => self.insert_most_recent_command_correction(ctx),
             AliasExpansionBanner(action) => self.alias_expansion_banner_action(*action, ctx),
             OpenInWarpBanner(action) => self.handle_open_in_warp_banner_action(*action, ctx),
-            OpenBlockFilterEditor(block_index) => {
-                self.open_block_filter_editor(*block_index, OpenedFromClick::Yes, ctx)
-            }
+            OpenBlockFilterEditor(block_index) => self.open_block_filter_editor(*block_index, ctx),
             VimModeBanner(action) => self.handle_vim_banner_action(*action, ctx),
             ImportSettings => {
                 self.add_settings_import_block(ctx);

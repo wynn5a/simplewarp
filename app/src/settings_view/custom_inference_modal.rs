@@ -541,7 +541,7 @@ impl CustomEndpointModal {
 
     fn remove_model(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
         if index < self.model_rows.len() {
-            let _row = self.model_rows.remove(index);
+            self.model_rows.remove(index);
             ctx.notify();
         }
     }

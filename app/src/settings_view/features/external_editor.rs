@@ -7,9 +7,7 @@ use warpui::{Element, Entity, SingletonEntity, TypedActionView, View, ViewContex
 
 use crate::appearance::Appearance;
 use crate::settings_view::settings_page::{ToggleState, render_body_item, render_dropdown_item};
-use crate::util::file::external_editor::settings::{
-    EditorChoice, EditorLayout, PreferMarkdownViewer, PreferTabbedEditorView,
-};
+use crate::util::file::external_editor::settings::{EditorChoice, EditorLayout};
 use crate::util::file::external_editor::{EditorSettings, SUPPORTED_EDITORS};
 use crate::view_components::{Dropdown, DropdownItem};
 
@@ -190,21 +188,19 @@ impl ExternalEditorView {
     /// Handles [`ExternalEditorAction::TogglePreferMarkdownViewer`]
     /// preference.
     fn toggle_prefer_markdown_viewer(&mut self, ctx: &mut ViewContext<Self>) {
-        let _new_value = EditorSettings::handle(ctx).update(ctx, |settings, ctx| {
-            let new_value = settings.prefer_markdown_viewer.toggle_and_save_value(ctx);
-            report_if_error!(new_value);
-            new_value.unwrap_or(PreferMarkdownViewer::default_value())
+        EditorSettings::handle(ctx).update(ctx, |settings, ctx| {
+            report_if_error!(settings.prefer_markdown_viewer.toggle_and_save_value(ctx));
         });
     }
 
     /// Handles [`ExternalEditorAction::TogglePreferTabbedEditorView`] by updating the tabbed file viewer preference.
     fn toggle_prefer_tabbed_editor_view(&mut self, ctx: &mut ViewContext<Self>) {
-        let _new_value = EditorSettings::handle(ctx).update(ctx, |settings, ctx| {
-            let new_value = settings
-                .prefer_tabbed_editor_view
-                .toggle_and_save_value(ctx);
-            report_if_error!(new_value);
-            new_value.unwrap_or(PreferTabbedEditorView::default_value())
+        EditorSettings::handle(ctx).update(ctx, |settings, ctx| {
+            report_if_error!(
+                settings
+                    .prefer_tabbed_editor_view
+                    .toggle_and_save_value(ctx)
+            );
         });
     }
 }

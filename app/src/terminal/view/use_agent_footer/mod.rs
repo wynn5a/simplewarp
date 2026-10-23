@@ -389,11 +389,6 @@ impl TerminalView {
             input.clear_buffer_and_reset_undo_stack(ctx);
         });
         ctx.notify();
-
-        let model = self.model.lock();
-        let active_block = model.block_list().active_block();
-        let _conversation_id = active_block.ai_conversation_id();
-        let _block_id = active_block.id().clone();
     }
 
     /// Tags the agent "out". See docs on `tag_in_agent_for_user_long_running_command` for
@@ -430,11 +425,6 @@ impl TerminalView {
         self.redetermine_terminal_focus(ctx);
 
         ctx.notify();
-
-        let model = self.model.lock();
-        let active_block = model.block_list().active_block();
-        let _conversation_id = active_block.ai_conversation_id();
-        let _block_id = active_block.id().clone();
     }
 
     pub(super) fn maybe_show_use_agent_footer_in_blocklist(&mut self, ctx: &mut ViewContext<Self>) {

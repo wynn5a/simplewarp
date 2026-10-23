@@ -3,7 +3,6 @@ use std::fmt::{Debug, Formatter};
 use std::num::ParseIntError;
 use std::string::FromUtf8Error;
 use std::sync::Arc;
-use std::time::Duration;
 
 use instant::Instant;
 use warp_completer::meta::Span;
@@ -167,9 +166,6 @@ pub struct BootstrappedEvent {
     // functionally needs to be wrapped in an `Box`.
     pub session_info: Box<SessionInfo>,
     pub restored_block_commands: Vec<HistoryEntry>,
-    /// The time we spent sourcing the user's rcfiles, in seconds.  This may be
-    /// None if the information was not provided by the shell.
-    pub rcfiles_duration_seconds: Option<f64>,
 }
 
 #[derive(Clone)]
@@ -184,11 +180,6 @@ pub struct BlockCompletedEvent {
 
 #[derive(Clone)]
 pub struct AfterBlockCompletedEvent {
-    /// The delay from the CommandFinished ansi hook to the Precmd hook.
-    /// This value is only provided for the blocks that the user directly
-    /// executes (so it's not provided if this is a restored block from session
-    /// restoration or a bootstrapping block).
-    pub command_finished_to_precmd_delay: Option<Duration>,
     pub block_type: BlockType,
     pub num_secrets_obfuscated: usize,
 

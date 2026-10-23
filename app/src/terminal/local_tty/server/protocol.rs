@@ -99,7 +99,7 @@ pub(super) fn send_message(
     }
 
     // Push the message data and any control messages across the socket.
-    let _len = socket::sendmsg::<()>(
+    socket::sendmsg::<()>(
         socket_fd.as_raw_fd(),
         &[iov],
         control_msgs.as_slice(),

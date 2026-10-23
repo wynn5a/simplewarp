@@ -12,7 +12,6 @@ use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
 use async_channel::Sender;
-use instant::Instant;
 use repo_metadata::repositories::{DetectedRepositories, RepoDetectionSource};
 use repo_metadata::repository::{RepositorySubscriber, SubscriberId};
 use repo_metadata::{RepoMetadataError, Repository, RepositoryUpdate, RepositoryWatchMode};
@@ -168,8 +167,6 @@ pub struct DiffStateModel {
     metadata: Option<DiffMetadata>,
     computing_diffs_abort_handle: Option<SpawnedFutureHandle>,
     computing_metadata_abort_handle: Option<SpawnedFutureHandle>,
-    /// Start time for the latest caller-tracked full diff load.
-    tracked_diff_load_start_time: Option<Instant>,
     /// Controls whether periodic throttled metadata refresh is active.
     /// Refresh is suppressed when the code review pane is not open.
     metadata_refresh_enabled: bool,
@@ -232,7 +229,6 @@ impl DiffStateModel {
             metadata: None,
             computing_diffs_abort_handle: None,
             computing_metadata_abort_handle: None,
-            tracked_diff_load_start_time: None,
             metadata_refresh_enabled: false,
             file_invalidation: FileInvalidationState::new(queue),
             pending_file_updates: None,
@@ -259,11 +255,7 @@ impl DiffStateModel {
                 // Emit so subscribers (e.g. the server model) can drain
                 // pending responses with the NotInRepository state.
                 me.state = InternalDiffState::NotInRepository;
-                me.tracked_diff_load_start_time = None;
-                ctx.emit(DiffStateModelEvent::NewDiffsComputed {
-                    diffs: None,
-                    load_duration: None,
-                });
+                ctx.emit(DiffStateModelEvent::NewDiffsComputed { diffs: None });
             });
         }
         model
@@ -405,12 +397,11 @@ impl DiffStateModel {
         &mut self,
         mode: DiffMode,
         should_fetch_base: bool,
-        track_load_duration: bool,
         ctx: &mut ModelContext<Self>,
     ) {
         if self.mode != mode {
             self.mode = mode;
-            self.load_diffs_for_current_repo(should_fetch_base, track_load_duration, ctx);
+            self.load_diffs_for_current_repo(should_fetch_base, ctx);
         }
     }
 
@@ -419,7 +410,7 @@ impl DiffStateModel {
     /// This is intended for the `insert_code_review_comments` flow where the
     /// requested base branch may never have been checked out.
     pub fn set_diff_mode_and_fetch_base(&mut self, mode: DiffMode, ctx: &mut ModelContext<Self>) {
-        self.set_diff_mode(mode, true, true, ctx);
+        self.set_diff_mode(mode, true, ctx);
     }
 
     /// Loads the actual diffs for the current repo.
@@ -427,12 +418,8 @@ impl DiffStateModel {
     pub fn load_diffs_for_current_repo(
         &mut self,
         should_fetch_base: bool,
-        track_load_duration: bool,
         ctx: &mut ModelContext<Self>,
     ) {
-        if track_load_duration {
-            self.tracked_diff_load_start_time = Some(Instant::now());
-        }
         // Cancels in-flight per-file invalidation tasks so that stale queue results cannot
         // race with the new full reload.
         self.queue_full_invalidation();
@@ -741,7 +728,7 @@ impl DiffStateModel {
             },
             |me, result, ctx| match result {
                 Ok(_) => {
-                    me.load_diffs_for_current_repo(false, false, ctx);
+                    me.load_diffs_for_current_repo(false, ctx);
                     me.refresh_diff_metadata_for_current_repo(false, ctx);
                 }
                 Err(err) => {
@@ -911,7 +898,7 @@ impl DiffStateModel {
         }
 
         if commit_updated || remote_ref_updated {
-            self.load_diffs_for_current_repo(false, false, ctx);
+            self.load_diffs_for_current_repo(false, ctx);
             // Don't emit MetadataRefreshed here — metadata hasn't been
             // recomputed yet. NewDiffsComputed handles the immediate UI
             // refresh, and the throttled metadata refresh will emit
@@ -920,7 +907,7 @@ impl DiffStateModel {
         } else if index_lock_detected {
             if self.file_invalidation.invalidate_all_pending {
                 // Lock was released while a full invalidation was pending — reload now.
-                self.load_diffs_for_current_repo(false, false, ctx);
+                self.load_diffs_for_current_repo(false, ctx);
                 return true;
             }
             // Lock just appeared — suppress the per-file queue (data may be stale
@@ -934,7 +921,7 @@ impl DiffStateModel {
         // by forcing a full reload. Without this, all subsequent file
         // invalidations would be silently deferred forever.
         if self.file_invalidation.invalidate_all_pending {
-            self.load_diffs_for_current_repo(false, false, ctx);
+            self.load_diffs_for_current_repo(false, ctx);
             return true;
         }
 
@@ -961,7 +948,7 @@ impl DiffStateModel {
         });
 
         if gitignore_modified {
-            self.load_diffs_for_current_repo(false, false, ctx);
+            self.load_diffs_for_current_repo(false, ctx);
         } else {
             self.enqueue_file_invalidations(changed_files, ctx);
         }
@@ -1429,7 +1416,7 @@ impl DiffStateModel {
         }
 
         if should_reload_diffs {
-            self.load_diffs_for_current_repo(false, false, ctx);
+            self.load_diffs_for_current_repo(false, ctx);
         }
         if let Some(metadata) = self.metadata.clone() {
             ctx.emit(DiffStateModelEvent::MetadataRefreshed(Box::new(metadata)));
@@ -1441,24 +1428,15 @@ impl DiffStateModel {
         diffs: DiffsWithBaseContent,
         ctx: &mut ModelContext<Self>,
     ) {
-        let load_duration = match &diffs.changes {
-            Ok(_) => self
-                .tracked_diff_load_start_time
-                .take()
-                .map(|start| start.elapsed()),
-            Err(e) => {
-                let err = DiffStateError::from_message(e);
-                err.report_and_log();
-                None
-            }
-        };
+        if let Err(e) = &diffs.changes {
+            DiffStateError::from_message(e).report_and_log();
+        }
 
         self.state = InternalDiffState::Loaded((&diffs).into());
         // Compute merge base and flush deferred invalidations before emitting.
         self.recompute_merge_base_and_flush(ctx);
         ctx.emit(DiffStateModelEvent::NewDiffsComputed {
             diffs: diffs.changes.ok().map(Arc::new),
-            load_duration,
         });
     }
 
@@ -2743,7 +2721,6 @@ impl DiffStateModel {
             metadata: None,
             computing_diffs_abort_handle: None,
             computing_metadata_abort_handle: None,
-            tracked_diff_load_start_time: None,
             metadata_refresh_enabled: false,
             file_invalidation: FileInvalidationState::new(SyncQueue::new_streaming(
                 &ctx.background_executor(),

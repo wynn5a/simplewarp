@@ -16,7 +16,6 @@ use crate::ai::agent::AIAgentExchangeId;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::PendingAttachment;
 use crate::palette::PaletteMode;
-use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::search;
 use crate::search::command_palette::PaletteSource;
 use crate::settings_view::{SettingsAction as SettingsTabAction, SettingsSection};
@@ -358,9 +357,7 @@ pub enum WorkspaceAction {
     ToggleSyncTerminalInputsInTab,
     /// An action to force terminal input syncing off
     DisableTerminalInputSync,
-    OpenPromptEditor {
-        open_source: PromptEditorOpenSource,
-    },
+    OpenPromptEditor,
     OpenHeaderToolbarEditor,
     ShowHeaderToolbarContextMenu {
         position: Vector2F,
@@ -711,7 +708,7 @@ impl WorkspaceAction {
             | ToggleSyncAllTerminalInputsInAllTabs
             | ToggleSyncTerminalInputsInTab
             | DisableTerminalInputSync
-            | OpenPromptEditor { .. }
+            | OpenPromptEditor
             | OpenHeaderToolbarEditor
             | ShowHeaderToolbarContextMenu { .. }
             | OpenLink(_)

@@ -15,7 +15,6 @@ use crate::code_review::git_dialog::{
     GitDialog, GitDialogAction, GitDialogEvent, GitDialogMode, render_branch_section,
     render_file_changes_box, show_toast, user_facing_git_error,
 };
-use crate::code_review::telemetry_event::GitDialogStatus;
 use crate::ui_components::icons::Icon;
 use crate::util::git::{FileChangeEntry, PrInfo};
 use crate::view_components::{DismissibleToast, ToastLink};
@@ -122,17 +121,8 @@ pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>
     });
 }
 
-/// Shared create-PR completion: toast (with Open PR link) + telemetry +
-/// close.
-pub(super) fn finish_create_pr(
-    _me: &GitDialog,
-    result: anyhow::Result<PrInfo>,
-    ctx: &mut ViewContext<GitDialog>,
-) {
-    let (_status, _error) = match &result {
-        Ok(_) => (GitDialogStatus::Succeeded, None),
-        Err(err) => (GitDialogStatus::Failed, Some(err.to_string())),
-    };
+/// Shared create-PR completion: toast (with Open PR link) + close.
+pub(super) fn finish_create_pr(result: anyhow::Result<PrInfo>, ctx: &mut ViewContext<GitDialog>) {
     match &result {
         Ok(pr_info) => show_pr_created_toast(pr_info, ctx),
         Err(err) => {

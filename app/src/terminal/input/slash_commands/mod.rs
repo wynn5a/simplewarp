@@ -103,17 +103,6 @@ pub fn should_close_slash_command_menu_for_exact_match(
     result_count < 2 || argument_started
 }
 
-/// Records an accepted static slash command.
-pub fn record_static_slash_command_accepted(
-    _command_name: &str,
-    _is_in_agent_view: bool,
-    _ctx: &mut AppContext,
-) {
-}
-
-/// Records an accepted saved prompt.
-pub fn record_saved_prompt_accepted(_is_in_agent_view: bool, _ctx: &mut AppContext) {}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum SlashCommandTrigger {
     Input { cmd_or_ctrl_enter: bool },
@@ -333,9 +322,6 @@ impl Input {
                     log::warn!("Tried to execute workflow for id {id:?} but it does not exist");
                     return;
                 };
-                let is_in_agent_view = self.agent_view_controller.as_ref(ctx).is_fullscreen();
-                record_saved_prompt_accepted(is_in_agent_view, ctx);
-
                 self.show_workflows_info_box_on_workflow_selection(
                     WorkflowType::Cloud(Box::new(workflow)),
                     WorkflowSource::WarpAI,
@@ -943,8 +929,6 @@ impl Input {
             });
         }
 
-        let is_in_agent_view = self.agent_view_controller.as_ref(ctx).is_active();
-        record_static_slash_command_accepted(command.name, is_in_agent_view, ctx);
         true
     }
 

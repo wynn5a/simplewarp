@@ -43,9 +43,7 @@ use warpui::{
 };
 
 use crate::ai::agent::icons::{self, yellow_stop_icon};
-use crate::ai::agent::{
-    AIAgentActionId, AIIdentifiers, FileEdit, RequestFileEditsResult, ServerOutputId,
-};
+use crate::ai::agent::{AIAgentActionId, AIIdentifiers, FileEdit, RequestFileEditsResult};
 use crate::ai::blocklist::action_model::{
     AIActionStatus, BlocklistAIActionEvent, BlocklistAIActionModel,
 };
@@ -478,10 +476,6 @@ impl CodeDiffView {
                     return;
                 }
                 me.user_edited_file_contents = true;
-
-                let Some(_output_id) = me.server_output_id() else {
-                    return;
-                };
             }
         });
     }
@@ -1563,8 +1557,6 @@ impl CodeDiffView {
                 .diff_view
                 .update(ctx, |v, ctx| v.navigate_previous_diff_hunk(ctx)),
         };
-
-        if let Some(_output_id) = self.server_output_id() {}
     }
 
     fn select_file(&mut self, direction: Direction, ctx: &mut ViewContext<Self>) {
@@ -1591,8 +1583,6 @@ impl CodeDiffView {
             mode: ScrollToPositionMode::FullyIntoView,
         });
         ctx.notify();
-
-        if let Some(_output_id) = self.server_output_id() {}
     }
 
     fn set_display_mode(&mut self, display_mode: DisplayMode, ctx: &mut ViewContext<Self>) {
@@ -1667,10 +1657,6 @@ impl CodeDiffView {
                     .update(ctx, |editor, ctx| editor.clear_selection(ctx));
             });
         }
-    }
-
-    fn server_output_id(&self) -> Option<ServerOutputId> {
-        self.identifiers.server_output_id.clone()
     }
 
     pub fn set_original_pane_id(&mut self, original_pane_id: Option<PaneId>) {
@@ -1787,8 +1773,6 @@ impl TypedActionView for CodeDiffView {
                 if *idx < self.pending_diffs.len() {
                     self.selected_tab = *idx;
                     ctx.notify();
-
-                    if let Some(_output_id) = self.server_output_id() {}
                 }
             }
             CodeDiffViewAction::Edit => {

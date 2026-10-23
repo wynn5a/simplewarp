@@ -1282,7 +1282,7 @@ impl AIContextMenu {
     /// Returns the positioning for the details panel relative to the selected item.
     /// If there isn't enough space to render to the right, returns None so the details panel doesn't render.
     fn offset_positioning_for_details_panel(&self, app: &AppContext) -> Option<OffsetPositioning> {
-        let _selected_index = self.search_bar_state.as_ref(app).selected_index()?;
+        self.search_bar_state.as_ref(app).selected_index()?;
         let selected_result_renderer = self.selected_result_renderer(app)?;
 
         // Use positioning logic similar to command search - render to the right with space checking

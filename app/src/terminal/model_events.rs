@@ -235,7 +235,6 @@ impl ModelEventDispatcher {
             session_info,
             spawning_command,
             restored_block_commands,
-            rcfiles_duration_seconds,
         } = event;
 
         self.sessions.update(ctx, |sessions, ctx| {
@@ -243,7 +242,6 @@ impl ModelEventDispatcher {
                 *session_info,
                 spawning_command,
                 restored_block_commands,
-                rcfiles_duration_seconds,
                 ctx,
             );
         });

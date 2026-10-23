@@ -195,14 +195,6 @@ impl ResponseStream {
         self.should_resume_conversation_after_stream_finished
     }
 
-    /// Helper function to emit AgentModeError telemetry for error that is retryable (not user visible).
-    fn emit_retryable_agent_mode_error_telemetry(
-        &self,
-        _error: String,
-        _ctx: &mut ModelContext<Self>,
-    ) {
-    }
-
     fn retry(&mut self, ctx: &mut ModelContext<Self>) {
         self.retry_count += 1;
         // Reset per-attempt state for the new attempt.
@@ -365,9 +357,6 @@ impl ResponseStream {
                             self.retry_count + 1,
                             MAX_RETRIES
                         );
-                        // Only emit error telemetry here if we're retrying.
-                        // Final errors that aren't being retried are emitted elsewhere.
-                        self.emit_retryable_agent_mode_error_telemetry(format!("{e:?}"), ctx);
                         self.retry(ctx);
                         // Don't emit the error event, we're retrying
                         return;
@@ -378,7 +367,6 @@ impl ResponseStream {
                             self.retry_count + 1,
                             MAX_RETRIES
                         );
-                        self.emit_retryable_agent_mode_error_telemetry(format!("{e:?}"), ctx);
                         self.defer_retry_until_online(ctx);
                         return;
                     }
@@ -436,10 +424,6 @@ impl ResponseStream {
                         self.retry_count + 1,
                         MAX_RETRIES
                     );
-                    self.emit_retryable_agent_mode_error_telemetry(
-                        format!("{unexpected_eof:?}"),
-                        ctx,
-                    );
                     self.retry(ctx);
                     return;
                 }
@@ -448,10 +432,6 @@ impl ResponseStream {
                         "MultiAgent request failed while offline; retrying (attempt {}/{}) once connectivity returns - Error: {unexpected_eof:?}",
                         self.retry_count + 1,
                         MAX_RETRIES
-                    );
-                    self.emit_retryable_agent_mode_error_telemetry(
-                        format!("{unexpected_eof:?}"),
-                        ctx,
                     );
                     self.defer_retry_until_online(ctx);
                     return;

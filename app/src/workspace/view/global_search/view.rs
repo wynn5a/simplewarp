@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_channel::Sender;
-use instant::Instant;
 use pathfinder_geometry::vector::vec2f;
 use string_offset::{ByteOffset, CharCounter};
 use warp_core::r#async::debounce;
@@ -320,8 +319,6 @@ pub struct GlobalSearchView {
     is_search_in_progress: bool,
     capped_matches: bool,
     last_error: Option<String>,
-    /// When the current search started, for completion telemetry.
-    search_started_at: Option<Instant>,
     scroll_state: ScrollStateHandle,
     uniform_list_state: UniformListState,
     handle: WeakViewHandle<GlobalSearchView>,
@@ -697,7 +694,6 @@ impl GlobalSearchView {
             is_search_in_progress: false,
             capped_matches: false,
             last_error: None,
-            search_started_at: None,
             scroll_state: ScrollStateHandle::default(),
             uniform_list_state: UniformListState::new(),
             handle,
@@ -810,7 +806,6 @@ impl GlobalSearchView {
     fn cancel_search(&mut self, ctx: &mut ViewContext<Self>) {
         self.is_search_in_progress = false;
         self.current_search_id = None;
-        self.search_started_at = None;
 
         self.find_model.update(ctx, |model, _| {
             model.abort_search();
@@ -920,7 +915,6 @@ impl GlobalSearchView {
         match event {
             GlobalSearchEvent::Started { search_id } => {
                 self.current_search_id = Some(*search_id);
-                self.search_started_at = Some(Instant::now());
 
                 self.is_search_in_progress = true;
                 self.reset_search_state(false);
@@ -961,8 +955,6 @@ impl GlobalSearchView {
                 self.is_search_in_progress = false;
                 self.total_match_count = *total_match_count;
                 self.capped_matches |= capped;
-
-                if let Some(_started_at) = self.search_started_at.take() {}
                 ctx.notify();
             }
             GlobalSearchEvent::Failed { search_id, error } => {
@@ -971,7 +963,6 @@ impl GlobalSearchView {
                 }
 
                 self.is_search_in_progress = false;
-                self.search_started_at = None;
                 self.reset_search_state(false);
                 self.last_error = Some(error.clone());
                 ctx.notify();

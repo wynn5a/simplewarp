@@ -73,7 +73,6 @@ pub enum ConversationRestorationInNewPaneType {
     /// The conversation has already been converted from ConversationData.
     Historical {
         conversation: AIConversation,
-        should_use_live_appearance: bool,
         /// The ambient agent task ID, if this is an ambient agent conversation.
         /// Used to display the session ended tombstone.
         ambient_agent_task_id: Option<crate::ai::ambient_agents::AmbientAgentTaskId>,
@@ -550,13 +549,11 @@ impl TerminalView {
         // Compute all block indices based on the restoration type
         let command_block_indices = {
             let terminal_model = self.model.lock();
-            let exchange_count = all_exchanges_with_conversation_ids.len();
             command_block_indices_for_exchanges(
                 &terminal_model,
                 all_exchanges_with_conversation_ids
                     .iter()
                     .map(|(exchange, _)| exchange),
-                exchange_count,
             )
         };
 
