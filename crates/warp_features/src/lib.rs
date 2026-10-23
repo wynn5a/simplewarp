@@ -19,9 +19,6 @@ pub enum FeatureFlag {
     /// UNIX shells running "natively" on Windows via MSYS2.
     MSYS2Shells,
 
-    /// Enables vim keybindings in the code editor.
-    VimCodeEditor,
-
     AgentView,
 }
 

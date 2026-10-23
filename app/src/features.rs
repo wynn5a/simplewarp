@@ -33,8 +33,6 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::KittyImages,
         #[cfg(feature = "msys2_shells")]
         FeatureFlag::MSYS2Shells,
-        #[cfg(feature = "vim_code_editor")]
-        FeatureFlag::VimCodeEditor,
         #[cfg(feature = "agent_view")]
         FeatureFlag::AgentView,
     ])

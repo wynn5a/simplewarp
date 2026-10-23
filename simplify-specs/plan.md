@@ -110,8 +110,8 @@ preferred route; D2 dropped the common-skills lock (user ruling). H4 was wrong a
 
 **Leftovers survey (2026-10-22):** queued in [plan-p5.md](plan-p5.md) — A `cargo machete` ignore
 lists (no real unused deps), B "GUI" names left from the two-front-end design, C the 132 always-on
-feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c, C2, C2b, C3, C4, C5 and C5b done (see the
-round log); C6 and C7 next.
+feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c, C2, C2b, C3, C4, C5, C5b and C6 done (see the
+round log); C7 next.
 
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
@@ -1807,6 +1807,21 @@ the AI surfaces were not exercised by hand.
 Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,251 run,
 6,250 passed, 1 failed (the clone-slash-command flake), 86 skipped. `cargo build --bin simplewarp`
 smoke: the app starts and stays up with no errors in `simplewarp.log`.
+
+### Round: C6 — VimCodeEditor flag (2026-10-23)
+
+- `VimCodeEditor` went from `warp_features`, `app/Cargo.toml` (no other feature depended on it) and
+  `features.rs`. Vim support in the code editor now hangs on the "Vim keybindings" editor setting
+  alone: `CodeEditorView` loses its `supports_vim_mode` field (`vim_mode_enabled` reads the
+  setting), and the find bar's Enter / Shift-Enter handling and blur-time selection keeping read
+  the setting directly. No dead branches beyond that; nothing else only the flag reached.
+- Tests: none deleted; the 69 `override_enabled(true)` guards in `vim_handler_tests.rs` went.
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,251 run,
+6,249 passed, 2 failed (the clone-slash-command flake and
+`test_with_launch_config_with_no_active_pane`, which passed twice in isolation), 86 skipped.
+`cargo build --bin simplewarp` smoke: the app starts and stays up with no errors in
+`simplewarp.log`.
 
 ## Risks
 

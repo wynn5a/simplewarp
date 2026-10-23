@@ -131,7 +131,7 @@ and conversation-finished lifecycle), so it gets its own round. Also decide on t
 "Show terminal input message line" setting (`show_terminal_input_message_bar`): its only
 reader was the terminal input message bar, which C5 deleted as never shown.
 
-**C6 — VimCodeEditor (alone)** — 1 flag, 74 refs:
+**C6 — VimCodeEditor (alone)** (**done 2026-10-23**) — 1 flag, 74 refs:
 `VimCodeEditor`.
 
 **C7 — AgentView (alone, last)** — 1 flag, 275 refs:

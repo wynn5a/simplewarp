@@ -345,7 +345,6 @@ simplewarp = [
     "external_agent_mode_context",
     "render_agent_mode_output_markdown",
     "kitty_images",
-    "vim_code_editor",
     "agent_view",
     "inline_slash_commands",
     "inline_model_selector",
@@ -401,7 +400,6 @@ integration_tests = [
 ]
 traces = []
 external_agent_mode_context = []
-vim_code_editor = []
 agent_view = []
 inline_model_selector = ["agent_view"]
 
