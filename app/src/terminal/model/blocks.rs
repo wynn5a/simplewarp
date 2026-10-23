@@ -13,7 +13,6 @@ use selection::BlockListSelection;
 pub use selection::SelectionRange;
 use sum_tree::{Dimension, Item, SeekBias, SumTree};
 use warp_core::command::ExitCode;
-use warp_core::features::FeatureFlag;
 use warp_terminal::model::{KeyboardModes, KeyboardModesApplyBehavior};
 use warpui::r#async::executor::Background;
 use warpui::color::ColorU;
@@ -131,10 +130,6 @@ impl RichContentItem {
     }
 
     pub fn should_hide_for_transcript_scope(&self, transcript_scope: &TranscriptScope) -> bool {
-        if !FeatureFlag::AgentView.is_enabled() {
-            return false;
-        }
-
         match transcript_scope {
             TranscriptScope::Unfiltered => false,
             TranscriptScope::Terminal => self.agent_view_conversation_id.is_some(),
@@ -932,14 +927,6 @@ impl BlockList {
     /// "pinned" to the bottom of the blocklist while a block changes above it.
     pub fn append_inline_banner(&mut self, banner: InlineBannerItem) {
         self.insert_inline_banner_before_block(self.active_block_index(), banner, None)
-    }
-
-    pub fn append_inline_banner_with_custom_height(
-        &mut self,
-        banner: InlineBannerItem,
-        height: f64,
-    ) {
-        self.insert_inline_banner_before_block(self.active_block_index(), banner, Some(height))
     }
 
     pub fn append_subshell_separator(

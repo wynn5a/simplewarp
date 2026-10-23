@@ -21,7 +21,6 @@ use crate::ai::blocklist::{
     AutofireAction, BlocklistAIControllerEvent, BlocklistAIHistoryModel, PendingAttachment,
     QueuedQuery, QueuedQueryId, QueuedQueryModel, QueuedQueryOrigin, ResponseStreamId,
 };
-use crate::features::FeatureFlag;
 use crate::search::slash_command_menu::static_commands::commands;
 use crate::terminal::input::{Event as InputEvent, Input};
 use crate::test_util::settings::initialize_settings_for_tests;
@@ -178,7 +177,6 @@ fn complete_drain_of_edited_command_restores_text_in_shell_mode() {
     // shell mode, so the restored text stays a command rather than being submitted as a prompt.
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
         // Entering agent view puts the input in agent (AI) mode, so the drain must actively
@@ -225,7 +223,6 @@ fn error_drain_of_command_restores_text_in_shell_mode() {
     // restored command stays a command.
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
         // The cancel restore path only fires for the conversation the user is viewing; entering
@@ -451,7 +448,6 @@ fn lrc_finish_commits_edited_lrc_row_before_sending() {
 fn lrc_finish_queued_compact_and_sends_followup_after_summary() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
         let terminal_view_id = terminal.read(&app, |view, _| view.view_id);
@@ -572,7 +568,6 @@ fn enqueue_followup_prompt_appends_compact_and_row() {
     // /compact-and follow-ups land in the queue with the CompactAndSlashCommand origin.
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let (terminal, conversation_id) = add_window_with_local_conversation(&mut app);
         terminal.update(&mut app, |view, ctx| {
@@ -603,7 +598,6 @@ fn enqueue_followup_prompt_appends_fork_and_compact_row() {
     // /fork-and-compact follow-ups land in the queue with the ForkAndCompactSlashCommand origin.
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let (terminal, conversation_id) = add_window_with_local_conversation(&mut app);
         terminal.update(&mut app, |view, ctx| {
@@ -635,7 +629,6 @@ fn enqueue_followup_prompt_uses_supplied_conversation_id() {
     // the currently selected conversation. The helper must respect that explicit id.
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let (terminal, selected_conversation_id) = add_window_with_local_conversation(&mut app);
         terminal.update(&mut app, |view, ctx| {

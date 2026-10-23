@@ -20,11 +20,9 @@ use super::session_settings::SessionSettings;
 use super::settings::TerminalSettings;
 use super::shell::ShellType;
 use super::{SizeInfo, TerminalModel, prompt};
-use crate::ai::blocklist::BlocklistAIInputModel;
 use crate::appearance::Appearance;
 use crate::context_chips::display::PromptDisplay;
 use crate::context_chips::spacing;
-use crate::features::FeatureFlag;
 use crate::settings::{FontSettings, InputSettings};
 use crate::terminal::blockgrid_element::BlockGridElement;
 use crate::terminal::grid_size_util::grid_compute_baseline_position_fn;
@@ -78,42 +76,15 @@ pub fn should_render_prompt_on_same_line(
     terminal_model: &TerminalModel,
     app: &AppContext,
 ) -> bool {
-    // We render the prompt on the same line, in the input editor, if:
-    // 1. The user is using a custom prompt (PS1)
-    // 2. The user has the same line prompt setting enabled for their Warp prompt.
+    // We render the prompt on the same line, in the input editor, if the user is using a custom
+    // prompt (PS1).
 
     // If universal developer input is enabled, ignore PS1 rendering logic
     if is_universal_developer_input {
         return false;
     }
 
-    let should_render_ps1 = should_render_ps1_prompt(terminal_model, app);
-
-    if FeatureFlag::AgentView.is_enabled() {
-        should_render_ps1
-    } else {
-        let session_settings = SessionSettings::as_ref(app);
-        should_render_ps1
-            || session_settings
-                .saved_prompt
-                .value()
-                .same_line_prompt_enabled()
-    }
-}
-
-/// Returns `true` if the shell or AI prompt should be rendered using the editors
-/// `EditorDecoratorElements` API.
-///
-/// The AI prompt is unconditionally rendered above the input.
-pub fn should_render_prompt_using_editor_decorator_elements(
-    is_universal_developer_input: bool,
-    ai_input_model: &ModelHandle<BlocklistAIInputModel>,
-    model: &TerminalModel,
-    app: &AppContext,
-) -> bool {
-    should_render_prompt_on_same_line(is_universal_developer_input, model, app)
-        && (!ai_input_model.as_ref(app).is_ai_input_enabled()
-            || FeatureFlag::AgentView.is_enabled())
+    should_render_ps1_prompt(terminal_model, app)
 }
 
 pub(in crate::terminal) struct PromptAndPadding {
@@ -173,8 +144,6 @@ pub struct PromptRenderHelper {
     prompt_view: ViewHandle<PromptDisplay>,
     prompt_selection_state_handle: SelectionHandle,
     input_render_state_model_handle: ModelHandle<InputRenderStateModel>,
-
-    ai_input_model: ModelHandle<BlocklistAIInputModel>,
 }
 
 #[derive(Clone, Copy)]
@@ -199,7 +168,6 @@ impl PromptRenderHelper {
         prompt_selection_state_handle: SelectionHandle,
         parent_view_id: EntityId,
         input_render_state_model_handle: ModelHandle<InputRenderStateModel>,
-        ai_input_model: ModelHandle<BlocklistAIInputModel>,
     ) -> Self {
         Self {
             sessions,
@@ -207,7 +175,6 @@ impl PromptRenderHelper {
             prompt_selection_state_handle,
             prompt_parent_view_id: parent_view_id,
             input_render_state_model_handle,
-            ai_input_model,
         }
     }
 
@@ -382,12 +349,7 @@ impl PromptRenderHelper {
             InputSettings::as_ref(app).is_universal_developer_input_enabled(app);
         let render_prompt_on_same_line =
             should_render_prompt_on_same_line(is_universal_input, model, app);
-        let padding_right = if should_render_prompt_using_editor_decorator_elements(
-            is_universal_input,
-            &self.ai_input_model,
-            model,
-            app,
-        ) {
+        let padding_right = if render_prompt_on_same_line {
             LPROMPT_RIGHT_PADDING_SAME_LINE_PROMPT
         } else {
             *TERMINAL_VIEW_PADDING_LEFT
@@ -565,12 +527,7 @@ impl PromptRenderHelper {
             InputSettings::as_ref(app).is_universal_developer_input_enabled(app);
 
         let should_render_prompt_using_editor_decorator_elements =
-            should_render_prompt_using_editor_decorator_elements(
-                is_universal_input,
-                &self.ai_input_model,
-                terminal_model,
-                app,
-            );
+            should_render_prompt_on_same_line(is_universal_input, terminal_model, app);
         let view_id = self.prompt_parent_view_id;
         let position_id = format!("{prompt_side}_{view_id}");
         let size_info = app.model(&self.input_render_state_model_handle).size_info();

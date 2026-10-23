@@ -8882,10 +8882,9 @@ impl Workspace {
         conversation_id: AIConversationId,
         ctx: &mut ViewContext<Self>,
     ) {
-        let terminal_view_for_active_pane = self.active_session_view(ctx).filter(|_| {
-            self.get_active_session_terminal_model(ctx).is_some()
-                && FeatureFlag::AgentView.is_enabled()
-        });
+        let terminal_view_for_active_pane = self
+            .active_session_view(ctx)
+            .filter(|_| self.get_active_session_terminal_model(ctx).is_some());
 
         // If we can't restore in the active pane, fall back to restoring in new tab.
         let Some(terminal_view) = &terminal_view_for_active_pane else {
@@ -8973,7 +8972,7 @@ impl Workspace {
                     .set_loading_conversation_transcript(false);
                 terminal_view.restore_conversation_and_directory_context(
                     conversation,
-                    FeatureFlag::AgentView.is_enabled(),
+                    true,
                     RestoreConversationEntryBehavior::PreserveAgentViewState,
                     is_local_conversation,
                     move |terminal_view, ctx| {
@@ -11460,7 +11459,7 @@ impl Workspace {
             terminal_view.input().update(ctx, |input, ctx| {
                 input.clear_buffer_and_reset_undo_stack(ctx);
                 input.set_input_mode_agent(true, ctx);
-                input.ensure_agent_mode_for_ai_features(true, None, ctx);
+                input.ensure_agent_mode_for_ai_features(None, ctx);
                 input.replace_buffer_content(&prompt, ctx);
                 input.focus_input_box(ctx);
             });
@@ -11515,7 +11514,7 @@ impl Workspace {
                 }
 
                 if ensure_agent_mode {
-                    input.ensure_agent_mode_for_ai_features(true, None, ctx);
+                    input.ensure_agent_mode_for_ai_features(None, ctx);
                 }
 
                 if should_submit {
@@ -16644,16 +16643,14 @@ impl View for Workspace {
                 context.set.insert("LongRunningCommand");
             }
 
-            if FeatureFlag::AgentView.is_enabled() {
-                let agent_view_state = terminal_view
-                    .agent_view_controller()
-                    .as_ref(app)
-                    .agent_view_state();
-                if agent_view_state.is_fullscreen() {
-                    context.set.insert(flags::ACTIVE_AGENT_VIEW);
-                } else if agent_view_state.is_inline() {
-                    context.set.insert(flags::ACTIVE_INLINE_AGENT_VIEW);
-                }
+            let agent_view_state = terminal_view
+                .agent_view_controller()
+                .as_ref(app)
+                .agent_view_state();
+            if agent_view_state.is_fullscreen() {
+                context.set.insert(flags::ACTIVE_AGENT_VIEW);
+            } else if agent_view_state.is_inline() {
+                context.set.insert(flags::ACTIVE_INLINE_AGENT_VIEW);
             }
         }
 

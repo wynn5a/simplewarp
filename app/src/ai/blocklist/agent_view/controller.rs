@@ -153,15 +153,6 @@ pub enum AgentViewEntryOrigin {
     /// Entered agent view via the "Jump to Latest Agent Message" command, which
     /// returns to the most recent conversation from the terminal.
     JumpToLatestAgentMessage,
-
-    // The variants below actually correspond to callsites where the selected conversation is
-    // updated, but don't actually correspond to entering the agent view. They exist so we can
-    // continue to call `set_pending_query_state_for_(new|existing)_conversation`, but you'll find
-    // that their callsites are actually gated on `AgentView` being disabled. Once `AgentView` is
-    // launched, those callsites for updating the selected conversation will be removed along with
-    // these variants.
-    ContinueConversationButton,
-    ResumeConversationButton,
 }
 
 /// Controls when `try_enter_agent_view` is allowed to auto-submit an initial prompt

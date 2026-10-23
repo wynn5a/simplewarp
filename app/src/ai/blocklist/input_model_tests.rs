@@ -226,8 +226,6 @@ impl InputModePolicy for StubPolicy {
     fn config_on_ai_settings_changed(
         &self,
         _event: &AISettingsChangedEvent,
-        _current: InputConfig,
-        _is_autodetection_enabled_for_current_context: bool,
         _app: &AppContext,
     ) -> Option<PolicyConfigUpdate> {
         self.on_settings_changed.map(PolicyConfigUpdate::new)

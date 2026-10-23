@@ -18,8 +18,6 @@ pub enum FeatureFlag {
 
     /// UNIX shells running "natively" on Windows via MSYS2.
     MSYS2Shells,
-
-    AgentView,
 }
 
 static FLAG_STATES: [AtomicBool; cardinality::<FeatureFlag>()] =

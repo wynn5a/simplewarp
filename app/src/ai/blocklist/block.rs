@@ -31,7 +31,6 @@ use repo_metadata::repositories::DetectedRepositories;
 use secret_redaction::*;
 use serde::Serialize;
 use settings::Setting as _;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
 use warp_editor::content::buffer::InitialBufferState;
@@ -265,12 +264,6 @@ pub(super) struct AIBlockStateHandles {
 
     /// Mouse state handle for interacting with the attached blocks.
     attached_blocks_chip_state_handle: MouseStateHandle,
-
-    /// Mouse state handle for the continue conversation button
-    continue_conversation_handle: MouseStateHandle,
-
-    /// Mouse state handle for the resume conversation button
-    resume_conversation_handle: MouseStateHandle,
 
     /// Mouse state handle for the fork conversation button
     fork_conversation_handle: MouseStateHandle,
@@ -729,8 +722,6 @@ pub struct AIBlock {
 
     /// Controller for reading/modifying `AgentView` state for this terminal pane (e.g. if there is
     /// an active agent view or not, which affects whether or not this block should be hidden).
-    ///
-    /// Only used when `FeatureFlag::AgentView` is enabled.
     agent_view_controller: ModelHandle<AgentViewController>,
 
     imported_comments: HashMap<AIAgentActionId, ImportedCommentGroup>,
@@ -938,9 +929,7 @@ impl AIBlock {
             }
         });
 
-        if FeatureFlag::AgentView.is_enabled() {
-            ctx.subscribe_to_model(&agent_view_controller, |_, _, _, ctx| ctx.notify());
-        }
+        ctx.subscribe_to_model(&agent_view_controller, |_, _, _, ctx| ctx.notify());
 
         ctx.subscribe_to_model(&context_model, |_, _, event, ctx| {
             if let BlocklistAIContextEvent::UpdatedPendingContext { .. } = event {
@@ -1839,9 +1828,6 @@ impl AIBlock {
         // 'passive' AI feature like suggested prompts.
         if is_for_hidden_exchange {
             return true;
-        }
-        if !FeatureFlag::AgentView.is_enabled() {
-            return false;
         }
 
         // If the agent view is active, only AI blocks for the active agent view conversation
@@ -3770,10 +3756,6 @@ pub enum AIBlockEvent {
         /// If set, open the fact collection to the specific rule.
         sync_id: Option<SyncId>,
     },
-    /// Emitted when the continue conversation button is clicked
-    ContinueConversation {
-        conversation_id: AIConversationId,
-    },
     FocusTerminal,
     OpenThemeChooser,
     #[cfg(windows)]
@@ -3831,9 +3813,6 @@ pub enum AIBlockAction {
     SelectText,
 
     CopyAIBlockCodeSnippet(String),
-
-    /// Continue the conversation using this response
-    ContinueConversation,
 
     /// Resume the stopped conversation
     ResumeConversation,
@@ -3970,19 +3949,6 @@ impl TypedActionView for AIBlock {
                     ctx.notify();
                 }
             }
-            AIBlockAction::ContinueConversation => {
-                // Get the current conversation ID from this block
-                let conversation_id = self.client_ids.conversation_id;
-
-                // Emit an event for the terminal view to handle
-                // The terminal view will handle setting active conversation,
-                // updating context model, setting input mode, and focusing
-                ctx.emit(AIBlockEvent::ContinueConversation { conversation_id });
-
-                // Also emit focus terminal event to ensure input is focused
-                ctx.emit(AIBlockEvent::FocusTerminal);
-                ctx.notify();
-            }
             AIBlockAction::ResumeConversation => {
                 ctx.emit(AIBlockEvent::ResumeConversation {
                     conversation_id: self.client_ids.conversation_id,
@@ -3997,7 +3963,7 @@ impl TypedActionView for AIBlock {
                 }
 
                 let is_read_only = self.terminal_model.lock().is_read_only();
-                if FeatureFlag::AgentView.is_enabled() && !is_read_only {
+                if !is_read_only {
                     ctx.emit(AIBlockEvent::InsertForkSlashCommand);
                 } else {
                     ctx.dispatch_global_action(

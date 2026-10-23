@@ -87,16 +87,10 @@ pub trait InputModePolicy: 'static {
     ) -> Option<PolicyConfigUpdate>;
 
     /// The config to apply when AI settings change, or `None` to leave the
-    /// config unchanged. `is_autodetection_enabled_for_current_context` is the
-    /// model's guarded autodetection state (agent-in-control and attachment
-    /// checks layered over [`Self::is_autodetection_enabled`]). Computing it
-    /// takes the terminal-model lock, so the model only computes it for
-    /// `AIAutoDetectionEnabled` events; for all other events it is `false`.
+    /// config unchanged.
     fn config_on_ai_settings_changed(
         &self,
         event: &AISettingsChangedEvent,
-        current: InputConfig,
-        is_autodetection_enabled_for_current_context: bool,
         app: &AppContext,
     ) -> Option<PolicyConfigUpdate>;
 }

@@ -16,7 +16,6 @@ use rand::distributions::Alphanumeric;
 use string_offset::CharOffset;
 use vec1::Vec1;
 use warp_core::channel::{Channel, ChannelState};
-use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::color::internal_colors;
 use warp_editor::content::buffer::{AutoScrollBehavior, InitialBufferState, SelectionOffsets};
 use warp_editor::model::CoreEditorModel;
@@ -5321,7 +5320,7 @@ impl CodeReviewView {
                 terminal_view.input().update(ctx, |input, ctx| {
                     input.append_to_buffer(&location, ctx);
                     // Ensure agent mode for AI features
-                    input.ensure_agent_mode_for_ai_features(true, None, ctx);
+                    input.ensure_agent_mode_for_ai_features(None, ctx);
                 });
             });
         }
@@ -5422,7 +5421,7 @@ impl CodeReviewView {
                 terminal_view.update(ctx, |terminal_view, ctx| {
                     terminal_view.input().update(ctx, |input, ctx| {
                         input.append_to_buffer(&format!("{attachment_reference} "), ctx);
-                        input.ensure_agent_mode_for_ai_features(true, None, ctx);
+                        input.ensure_agent_mode_for_ai_features(None, ctx);
                     });
                 });
 
@@ -5438,12 +5437,11 @@ impl CodeReviewView {
                         ctx,
                     );
 
-                    // Enter agent view if enabled and not already active
-                    if FeatureFlag::AgentView.is_enabled()
-                        && !terminal_view
-                            .agent_view_controller()
-                            .as_ref(ctx)
-                            .is_active()
+                    // Enter agent view if not already active
+                    if !terminal_view
+                        .agent_view_controller()
+                        .as_ref(ctx)
+                        .is_active()
                     {
                         terminal_view.enter_agent_view_for_new_conversation(
                             None,
@@ -5542,7 +5540,7 @@ impl CodeReviewView {
                 terminal_view.update(ctx, |terminal_view, ctx| {
                     terminal_view.input().update(ctx, |input, ctx| {
                         input.append_to_buffer(&format!("{attachment_reference} "), ctx);
-                        input.ensure_agent_mode_for_ai_features(true, None, ctx);
+                        input.ensure_agent_mode_for_ai_features(None, ctx);
                     });
                 });
 
@@ -5592,12 +5590,11 @@ impl CodeReviewView {
                             context_model.register_diff_hunk_attachment(diff_hunk_key, attachment);
                         });
 
-                    // Enter agent view if enabled and not already active
-                    if FeatureFlag::AgentView.is_enabled()
-                        && !terminal_view
-                            .agent_view_controller()
-                            .as_ref(ctx)
-                            .is_active()
+                    // Enter agent view if not already active
+                    if !terminal_view
+                        .agent_view_controller()
+                        .as_ref(ctx)
+                        .is_active()
                     {
                         terminal_view.enter_agent_view_for_new_conversation(
                             None,

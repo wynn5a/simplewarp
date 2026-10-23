@@ -9,7 +9,6 @@ use ai::skills::SkillReference;
 pub use data_source::*;
 pub use mixer::{SlashCommandMixer, build_slash_command_mixer, slash_command_query};
 pub use view::{CloseReason, InlineSlashCommandView, SlashCommandsEvent};
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::AnsiColorIdentifier;
 use warp_errors::report_error;
@@ -278,9 +277,7 @@ impl Input {
                     self.close_slash_commands_menu(ctx);
                 }
 
-                if detected_command.command.auto_enter_ai_mode
-                    || !FeatureFlag::AgentView.is_enabled()
-                {
+                if detected_command.command.auto_enter_ai_mode {
                     self.enter_ai_mode(Some(InputTypeAutoDetectionSource::SlashCommand), ctx);
                 }
 
@@ -336,8 +333,7 @@ impl Input {
                     log::warn!("Tried to execute workflow for id {id:?} but it does not exist");
                     return;
                 };
-                let is_in_agent_view = FeatureFlag::AgentView.is_enabled()
-                    && self.agent_view_controller.as_ref(ctx).is_fullscreen();
+                let is_in_agent_view = self.agent_view_controller.as_ref(ctx).is_fullscreen();
                 record_saved_prompt_accepted(is_in_agent_view, ctx);
 
                 self.show_workflows_info_box_on_workflow_selection(
@@ -487,11 +483,7 @@ impl Input {
                 ctx.emit(Event::CreateDockerSandbox);
             }
             SlashCommandKind::Conversations => {
-                if FeatureFlag::AgentView.is_enabled() {
-                    self.open_conversation_menu(ctx);
-                } else {
-                    ctx.dispatch_typed_action(&TerminalAction::OpenConversationsPalette);
-                }
+                self.open_conversation_menu(ctx);
             }
             SlashCommandKind::RenameTab => {
                 let Some(name) = argument
@@ -939,10 +931,7 @@ impl Input {
 
         // If the command must be executed in AI mode, and we're not already in an agent view,
         // enter the agent view.
-        if FeatureFlag::AgentView.is_enabled()
-            && command.auto_enter_ai_mode
-            && !self.agent_view_controller.as_ref(ctx).is_active()
-        {
+        if command.auto_enter_ai_mode && !self.agent_view_controller.as_ref(ctx).is_active() {
             self.agent_view_controller.update(ctx, |controller, ctx| {
                 let _ = controller.try_enter_agent_view(
                     None,
@@ -954,8 +943,7 @@ impl Input {
             });
         }
 
-        let is_in_agent_view = FeatureFlag::AgentView.is_enabled()
-            && self.agent_view_controller.as_ref(ctx).is_active();
+        let is_in_agent_view = self.agent_view_controller.as_ref(ctx).is_active();
         record_static_slash_command_accepted(command.name, is_in_agent_view, ctx);
         true
     }

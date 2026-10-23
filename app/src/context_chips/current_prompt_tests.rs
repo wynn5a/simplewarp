@@ -22,7 +22,6 @@ use crate::context_chips::context_chip::{ChipDisabledReason, Environment, Prompt
 use crate::context_chips::display_chip::GitBranchTrackingStatus;
 use crate::context_chips::prompt::Prompt;
 use crate::context_chips::{ChipAvailability, ContextChipKind};
-use crate::features::FeatureFlag;
 use crate::menu::MenuItem;
 use crate::server::server_api::ServerApiProvider;
 use crate::settings::WarpPromptSeparator;
@@ -657,7 +656,6 @@ fn test_cli_agent_footer_chips_require_a_visible_supported_footer() {
 
 #[test]
 fn test_ps1_without_active_agent_surface_runs_no_footer_generators() {
-    let _flag_guard = FeatureFlag::AgentView.override_enabled(true);
     App::test((), |mut app| async move {
         let session_id = SessionId::from(321);
         app.add_singleton_model(|_| Prompt::mock());

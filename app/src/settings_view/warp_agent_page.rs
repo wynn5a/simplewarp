@@ -5,14 +5,12 @@
 //! miscellaneous agent display settings.
 
 use std::ops::Not;
-use std::sync::LazyLock;
 
 use ::ai::api_keys::{ApiKeyManager, CustomEndpointParams};
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_geometry::vector::vec2f;
 use settings::{Setting, ToggleableSetting};
 use strum::IntoEnumIterator;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::color::ContrastingColor;
 use warp_core::ui::color::contrast::MinimumAllowedContrast;
 use warp_core::ui::theme::Fill as ThemeFill;
@@ -123,11 +121,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
         vec![
             ToggleSettingActionPair::new(
-                if FeatureFlag::AgentView.is_enabled() {
-                    "terminal command autodetection in agent input"
-                } else {
-                    "natural language detection"
-                },
+                "terminal command autodetection in agent input",
                 builder(SettingsAction::WarpAgent(
                     WarpAgentPageAction::ToggleAIInputAutoDetection,
                 )),
@@ -148,8 +142,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 &(context.clone() & id!(flags::IS_ANY_AI_ENABLED)),
                 flags::NLD_IN_TERMINAL_FLAG,
             )
-            .with_group(bindings::BindingGroup::WarpAi)
-            .with_enabled(|| FeatureFlag::AgentView.is_enabled()),
+            .with_group(bindings::BindingGroup::WarpAi),
         ],
         app,
     );
@@ -1577,62 +1570,24 @@ impl AIInputWidget {
 
         let mut section = Flex::column();
 
-        if FeatureFlag::AgentView.is_enabled() {
-            section.add_children([
-                render_ai_setting_toggle(
-                    "Autodetect agent prompts in terminal input",
-                    WarpAgentPageAction::ToggleNLDInTerminal,
-                    ai_settings.is_nld_in_terminal_enabled(),
-                    is_toggleable,
-                    nld_in_terminal_toggle,
-                    app,
-                ),
-                render_ai_setting_toggle(
-                    "Autodetect terminal commands in agent input",
-                    WarpAgentPageAction::ToggleAIInputAutoDetection,
-                    is_nld_enabled,
-                    is_toggleable,
-                    autodetection_toggle,
-                    app,
-                ),
-            ])
-        } else {
-            static NATURAL_LANGUAGE_DETECTION_DESCRIPTION_FRAGMENTS: LazyLock<
-                Vec<FormattedTextFragment>,
-            > = LazyLock::new(|| {
-                vec![FormattedTextFragment::plain_text(
-                    "Enabling natural language detection will detect when natural language is written in the terminal input, and then automatically switch to Agent Mode for AI queries.",
-                )]
-            });
-
-            section.add_children([
-                render_ai_setting_toggle(
-                    "Natural language detection",
-                    WarpAgentPageAction::ToggleAIInputAutoDetection,
-                    is_nld_enabled,
-                    is_toggleable,
-                    autodetection_toggle,
-                    app,
-                ),
-                Container::new(
-                    FormattedTextElement::new(
-                        FormattedText::new([FormattedTextLine::Line(
-                            (*NATURAL_LANGUAGE_DETECTION_DESCRIPTION_FRAGMENTS).clone(),
-                        )]),
-                        CONTENT_FONT_SIZE,
-                        appearance.ui_font_family(),
-                        appearance.ui_font_family(),
-                        styles::description_font_color(is_toggleable, app).into(),
-                        HighlightedHyperlink::default(),
-                    )
-                    .finish(),
-                )
-                .with_margin_top(styles::DESCRIPTION_NEGATIVE_MARGIN_OFFSET)
-                .with_margin_bottom(styles::DESCRIPTION_MARGIN_BOTTOM)
-                .with_margin_right(styles::TOGGLE_WIDTH_MARGIN)
-                .finish(),
-            ]);
-        }
+        section.add_children([
+            render_ai_setting_toggle(
+                "Autodetect agent prompts in terminal input",
+                WarpAgentPageAction::ToggleNLDInTerminal,
+                ai_settings.is_nld_in_terminal_enabled(),
+                is_toggleable,
+                nld_in_terminal_toggle,
+                app,
+            ),
+            render_ai_setting_toggle(
+                "Autodetect terminal commands in agent input",
+                WarpAgentPageAction::ToggleAIInputAutoDetection,
+                is_nld_enabled,
+                is_toggleable,
+                autodetection_toggle,
+                app,
+            ),
+        ]);
 
         section
             .with_child(render_ai_setting_label(
@@ -1758,31 +1713,29 @@ impl SettingsWidget for OtherAIWidget {
                 .finish(),
             );
 
-        if FeatureFlag::AgentView.is_enabled() {
-            let mut agent_view_column = Flex::column()
-                .with_child(render_ai_setting_toggle(
-                    "Show \"Use Agent\" footer",
-                    WarpAgentPageAction::ToggleUseAgentToolbar,
-                    *ai_settings.should_render_use_agent_footer_for_user_commands,
-                    is_toggleable,
-                    self.use_agent_footer_toggle.clone(),
-                    app,
-                ))
-                .with_child(render_ai_setting_description(
-                    "Shows hint to use the \"Full Terminal Use\"-enabled agent in long running commands.",
-                    is_toggleable,
-                    app,
-                ));
+        let mut agent_view_column = Flex::column()
+            .with_child(render_ai_setting_toggle(
+                "Show \"Use Agent\" footer",
+                WarpAgentPageAction::ToggleUseAgentToolbar,
+                *ai_settings.should_render_use_agent_footer_for_user_commands,
+                is_toggleable,
+                self.use_agent_footer_toggle.clone(),
+                app,
+            ))
+            .with_child(render_ai_setting_description(
+                "Shows hint to use the \"Full Terminal Use\"-enabled agent in long running commands.",
+                is_toggleable,
+                app,
+            ));
 
-            if is_toggleable {
-                agent_view_column.add_child(render_toolbar_layout_editor(
-                    &view.agent_toolbar_inline_editor,
-                    appearance,
-                ));
-            }
-
-            column.add_child(agent_view_column.finish());
+        if is_toggleable {
+            agent_view_column.add_child(render_toolbar_layout_editor(
+                &view.agent_toolbar_inline_editor,
+                appearance,
+            ));
         }
+
+        column.add_child(agent_view_column.finish());
 
         column.add_child(render_ai_setting_toggle(
             "Show conversation history in tools panel",

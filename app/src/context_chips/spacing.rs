@@ -16,5 +16,3 @@ pub const UDI_ROW_RUN_SPACING: f32 = 8.0;
 pub const UDI_PROMPT_TOP_PADDING_FACTOR: f32 = 0.6;
 /// Bottom padding factor for universal developer input prompt - more bottom padding
 pub const UDI_PROMPT_BOTTOM_PADDING_FACTOR: f32 = 1.5;
-/// Bottom padding for classic prompt attach images
-pub const CLASSIC_PROMPT_ATTACH_IMAGES_BOTTOM_PADDING: f32 = 10.;

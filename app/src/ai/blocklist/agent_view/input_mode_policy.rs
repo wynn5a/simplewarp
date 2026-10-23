@@ -1,6 +1,5 @@
 //! The terminal view's [`InputModePolicy`].
 
-use warp_core::features::FeatureFlag;
 use warpui::{AppContext, ModelHandle, SingletonEntity};
 
 use super::super::conversation_selection::ConversationSelectionEvent;
@@ -11,9 +10,8 @@ use super::AgentViewEntryOrigin;
 use crate::settings::{AISettings, AISettingsChangedEvent};
 
 /// The terminal view's input-mode policy. The surface is either a fullscreen agent view or a
-/// top-level terminal (when `FeatureFlag::AgentView` is enabled), each with its
-/// own autodetection setting, and AI input may only be locked inside an agent
-/// view or an open CLI-agent rich input session.
+/// top-level terminal, each with its own autodetection setting, and AI input may only be locked
+/// inside an agent view or an open CLI-agent rich input session.
 pub(crate) struct AgentViewInputModePolicy {
     conversation_selection: ConversationSelectionHandle,
     ai_context_model: ModelHandle<BlocklistAIContextModel>,
@@ -34,11 +32,7 @@ impl AgentViewInputModePolicy {
 
 impl InputModePolicy for AgentViewInputModePolicy {
     fn initial_config(&self, app: &AppContext) -> InputConfig {
-        let is_autodetection_enabled = if FeatureFlag::AgentView.is_enabled() {
-            AISettings::as_ref(app).is_nld_in_terminal_enabled()
-        } else {
-            AISettings::as_ref(app).is_ai_autodetection_enabled()
-        };
+        let is_autodetection_enabled = AISettings::as_ref(app).is_nld_in_terminal_enabled();
         InputConfig {
             input_type: InputType::Shell,
             is_locked: !is_autodetection_enabled,
@@ -46,34 +40,27 @@ impl InputModePolicy for AgentViewInputModePolicy {
     }
 
     fn allows_locked_ai_input(&self, app: &AppContext) -> bool {
-        // When `AgentView` is enabled, AI input mode can only be set in the top-level terminal
+        // AI input mode can only be set in the top-level terminal
         // mode via autodetection; it cannot be locked to AI input mode unless there is an active
         // agent view or a CLI agent rich input session is open. In the agent view case, executing
         // autodetected AI input will trigger entering the agent view with that query. In the CLI
         // agent rich input case, the input must be in AI mode to suppress shell decorations
         // (syntax highlighting, error underlining).
-        !FeatureFlag::AgentView.is_enabled()
-            || self
-                .conversation_selection
-                .as_ref(app)
-                .is_conversation_active(app)
+        self.conversation_selection
+            .as_ref(app)
+            .is_conversation_active(app)
     }
 
     fn is_autodetection_enabled(&self, app: &AppContext) -> bool {
         let ai_settings = AISettings::as_ref(app);
-        if FeatureFlag::AgentView.is_enabled() {
-            if self
-                .conversation_selection
-                .as_ref(app)
-                .is_conversation_fullscreen(app)
-            {
-                ai_settings.is_ai_autodetection_enabled()
-            } else {
-                ai_settings.is_nld_in_terminal_enabled()
-            }
-        } else {
-            // AgentView not enabled: use the main autodetection setting
+        if self
+            .conversation_selection
+            .as_ref(app)
+            .is_conversation_fullscreen(app)
+        {
             ai_settings.is_ai_autodetection_enabled()
+        } else {
+            ai_settings.is_nld_in_terminal_enabled()
         }
     }
 
@@ -145,14 +132,10 @@ impl InputModePolicy for AgentViewInputModePolicy {
     fn config_on_ai_settings_changed(
         &self,
         event: &AISettingsChangedEvent,
-        current: InputConfig,
-        is_autodetection_enabled_for_current_context: bool,
         app: &AppContext,
     ) -> Option<PolicyConfigUpdate> {
         match event {
-            AISettingsChangedEvent::AIAutoDetectionEnabled
-                if FeatureFlag::AgentView.is_enabled() =>
-            {
+            AISettingsChangedEvent::AIAutoDetectionEnabled => {
                 if self
                     .conversation_selection
                     .as_ref(app)
@@ -170,19 +153,11 @@ impl InputModePolicy for AgentViewInputModePolicy {
                     None
                 }
             }
-            AISettingsChangedEvent::AIAutoDetectionEnabled => {
-                // If autodetection is enabled, unlock the input.
-                Some(PolicyConfigUpdate::new(InputConfig {
-                    is_locked: !is_autodetection_enabled_for_current_context,
-                    ..current
-                }))
-            }
             AISettingsChangedEvent::NLDInTerminalEnabled
-                if FeatureFlag::AgentView.is_enabled()
-                    && !self
-                        .conversation_selection
-                        .as_ref(app)
-                        .is_conversation_active(app) =>
+                if !self
+                    .conversation_selection
+                    .as_ref(app)
+                    .is_conversation_active(app) =>
             {
                 let is_nld_enabled = AISettings::as_ref(app).is_nld_in_terminal_enabled();
                 Some(PolicyConfigUpdate::new(InputConfig {

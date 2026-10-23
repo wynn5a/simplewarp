@@ -1,4 +1,4 @@
-use warpui::{AppContext, EntityId, ModelHandle, SingletonEntity};
+use warpui::{AppContext, ModelHandle, SingletonEntity};
 
 use super::AIBlockModel;
 use crate::BlocklistAIHistoryModel;
@@ -19,12 +19,6 @@ pub trait AIBlockModelHelper {
     fn contains_static_prompt_suggestion_input(&self, app: &AppContext) -> bool;
 
     fn is_latest_visible_exchange_in_root_task(&self, app: &AppContext) -> bool;
-
-    fn is_latest_exchange_in_terminal_pane(
-        &self,
-        terminal_view_id: EntityId,
-        app: &AppContext,
-    ) -> bool;
 
     fn is_conversation_summarization_active(&self, app: &AppContext) -> bool;
 
@@ -67,21 +61,6 @@ impl<T: ?Sized + AIBlockModel> AIBlockModelHelper for T {
                 _ => false,
             }
         })
-    }
-
-    fn is_latest_exchange_in_terminal_pane(
-        &self,
-        terminal_view_id: EntityId,
-        app: &AppContext,
-    ) -> bool {
-        match (
-            BlocklistAIHistoryModel::as_ref(app)
-                .latest_exchange_across_all_conversations(terminal_view_id),
-            self.exchange_id(app),
-        ) {
-            (Some(latest_exchange), Some(id)) => latest_exchange.id == id,
-            _ => false,
-        }
     }
 
     fn is_conversation_summarization_active(&self, app: &AppContext) -> bool {

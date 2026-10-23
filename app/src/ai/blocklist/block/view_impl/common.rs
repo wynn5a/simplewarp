@@ -13,7 +13,6 @@ use itertools::Itertools;
 use markdown_parser::{FormattedText, FormattedTextInline, TableAlignment};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::color::blend::Blend;
 use warp_core::ui::theme::color::internal_colors;
@@ -605,12 +604,7 @@ pub fn render_warping_indicator_base(
     )
     .with_padding_right(CONTENT_HORIZONTAL_PADDING);
 
-    if FeatureFlag::AgentView.is_enabled() {
-        container = container.with_padding_left(*terminal::view::PADDING_LEFT);
-    } else {
-        container =
-            container.with_padding_left(CONTENT_HORIZONTAL_PADDING + (STATUS_ICON_SIZE_DELTA / 2.));
-    }
+    container = container.with_padding_left(*terminal::view::PADDING_LEFT);
 
     container.finish()
 }
@@ -913,8 +907,7 @@ fn render_force_refresh_inline(
             .finish();
         let text_with_margin = Container::new(text).with_margin_top(1.).finish();
 
-        // Tooltip overlay, positioned above the element on hover. Same pattern as
-        // `render_ai_follow_up_icon` in `view_util.rs`.
+        // Tooltip overlay, positioned above the element on hover.
         let mut stack = Stack::new().with_child(text_with_margin);
         if state.is_hovered() {
             let tool_tip = ui_builder

@@ -12,15 +12,14 @@ use super::common::{
 use super::{Input, InputAction, InputDropTargetData};
 use crate::appearance::Appearance;
 use crate::context_chips::spacing;
-use crate::settings::{AppEditorSettings, InputModeSettings};
+use crate::settings::InputModeSettings;
 use crate::terminal::block_list_settings::BlockListSettings;
 use crate::terminal::block_list_viewport::InputMode;
 use crate::terminal::settings::TerminalSettings;
 use crate::terminal::view::TerminalAction;
 
 impl Input {
-    /// Renders the terminal mode input when `FeatureFlag::AgentView` is enabled and there is no
-    /// active agent view.
+    /// Renders the terminal mode input when there is no active agent view.
     pub(super) fn render_terminal_input(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let menu_positioning = self.menu_positioning(app);
@@ -31,9 +30,6 @@ impl Input {
         // by reworking the positioning of the children to not depend on this.
         let mut stack = Stack::new().with_constrain_absolute_children();
 
-        let vim_state = self.editor.as_ref(app).vim_state(app);
-        let app_editor_settings = AppEditorSettings::as_ref(app);
-        let show_vim_status = vim_state.is_some() && *app_editor_settings.vim_status_bar.value();
         let input_mode = *InputModeSettings::as_ref(app).input_mode.value();
 
         let mut column = Flex::column();
@@ -57,7 +53,7 @@ impl Input {
         let terminal_spacing = TerminalSettings::as_ref(app)
             .terminal_input_spacing(appearance.line_height_ratio(), app);
         column.add_child(
-            Container::new(self.render_input_box(show_vim_status, appearance, app))
+            Container::new(self.render_input_box(appearance, app))
                 .with_margin_top(
                     terminal_spacing.prompt_to_editor_padding
                         * spacing::UDI_PROMPT_BOTTOM_PADDING_FACTOR,

@@ -20,8 +20,6 @@ use crate::terminal::view::TerminalAction;
 
 impl Input {
     /// Renders the input when there is an active `AgentView`.
-    ///
-    /// Only used when `FeatureFlag::AgentView` is enabled.
     pub(super) fn render_agent_input(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let menu_positioning = self.menu_positioning(app);
@@ -59,7 +57,7 @@ impl Input {
         let terminal_spacing = TerminalSettings::as_ref(app)
             .terminal_input_spacing(appearance.line_height_ratio(), app);
         column.add_child(
-            Container::new(self.render_input_box(/*show_vim_status=*/ false, appearance, app))
+            Container::new(self.render_input_box(appearance, app))
                 .with_margin_top(
                     terminal_spacing.prompt_to_editor_padding
                         * spacing::UDI_PROMPT_BOTTOM_PADDING_FACTOR,

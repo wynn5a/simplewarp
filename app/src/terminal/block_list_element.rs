@@ -56,7 +56,6 @@ use super::warpify::render::{draw_flag_pole, render_subshell_flag};
 use super::{HEIGHT_FUDGE_FACTOR_LINES, TerminalModel, heights_approx_eq};
 use crate::ai::blocklist::{ATTACH_AS_AGENT_MODE_CONTEXT_TEXT, ai_brand_color};
 use crate::appearance::Appearance;
-use crate::features::FeatureFlag;
 use crate::pane_group::SplitPaneState;
 use crate::settings::{
     AISettings, DebugSettings, EnforceMinimumContrast, InputSettings, TerminalSpacing,
@@ -1061,15 +1060,11 @@ impl BlockListElement {
 
         if AISettings::as_ref(app).is_any_ai_enabled() {
             let icon = Container::new(
-                ConstrainedBox::new(if FeatureFlag::AgentView.is_enabled() {
+                ConstrainedBox::new(
                     UIIcon::Icon::Paperclip
                         .to_warpui_icon(icon_color.into())
-                        .finish()
-                } else {
-                    UIIcon::Icon::Stars
-                        .to_warpui_icon(icon_color.into())
-                        .finish()
-                })
+                        .finish(),
+                )
                 .with_height(16.)
                 .with_width(16.)
                 .finish(),
@@ -1930,29 +1925,17 @@ impl BlockListElement {
         warp_theme: &WarpTheme,
         block_borders_enabled: bool,
         snackbar_header: &Option<SnackbarHeader>,
-        ai_render_context: &BlocklistAIRenderContext,
         transcript_scope: &TranscriptScope,
         ctx: &mut PaintContext,
     ) {
         let block_height = block.height(transcript_scope).as_f64() as f32 * cell_size.y();
-        if block.is_restored()
-            && (!FeatureFlag::AgentView.is_enabled() || !transcript_scope.is_conversation())
-        {
+        if block.is_restored() && !transcript_scope.is_conversation() {
             ctx.scene
                 .draw_rect_with_hit_recording(RectF::new(
                     grid_origin,
                     Vector2F::new(bounds.width(), block_height),
                 ))
                 .with_background(warp_theme.restored_blocks_overlay());
-        }
-
-        let mut did_render_ai_stripe = false;
-        if !FeatureFlag::AgentView.is_enabled()
-            && let Some(ai_context_stripe_color) =
-                ai_render_context.context_color_for_block(block, warp_theme)
-        {
-            draw_flag_pole(grid_origin, block_height, ai_context_stripe_color, ctx);
-            did_render_ai_stripe = true;
         }
 
         if block.has_failed() {
@@ -1963,7 +1946,7 @@ impl BlockListElement {
                 ))
                 .with_background(warp_theme.failed_block_color().with_opacity(10));
 
-            if !is_selected_by_anyone && !did_render_ai_stripe {
+            if !is_selected_by_anyone {
                 draw_flag_pole(
                     grid_origin,
                     block_height,
@@ -2033,7 +2016,6 @@ impl BlockListElement {
         snackbar_header: &Option<SnackbarHeader>,
         terminal_view_id: EntityId,
         draw_border_between_blocks: bool,
-        ai_render_context: &BlocklistAIRenderContext,
         cursor_hint_text: Option<&mut Box<dyn Element>>,
         image_metadata: &HashMap<u32, StoredImageMetadata>,
         transcript_scope: &TranscriptScope,
@@ -2049,7 +2031,6 @@ impl BlockListElement {
             &block_grid_params.grid_render_params.warp_theme,
             block_borders_enabled,
             snackbar_header,
-            ai_render_context,
             transcript_scope,
             ctx,
         );
@@ -3449,7 +3430,6 @@ impl Element for BlockListElement {
                         &snackbar_header,
                         self.terminal_view_id,
                         draw_border_above_block,
-                        self.ai_render_context.borrow().deref(),
                         self.cursor_hint_text_element.as_mut(),
                         &model.image_id_to_metadata,
                         transcript_scope,
@@ -3688,25 +3668,8 @@ impl Element for BlockListElement {
                 VisibleItem::RichContent {
                     view_id, height_px, ..
                 } => {
-                    let block_origin = grid_origin;
                     if let Some(rich_content) = self.rich_content_elements.get_mut(view_id) {
                         rich_content.paint(grid_origin, ctx, app);
-                    }
-
-                    if !FeatureFlag::AgentView.is_enabled() {
-                        let ai_render_context = self.ai_render_context.borrow();
-                        if let Some(ai_context_color) = self
-                            .rich_content_metadata
-                            .get(view_id)
-                            .and_then(|metadata| {
-                                ai_render_context
-                                    .context_color_for_rich_content(metadata, &self.warp_theme)
-                            })
-                        {
-                            ctx.scene.start_layer(ClipBounds::ActiveLayer);
-                            draw_flag_pole(block_origin, *height_px, ai_context_color, ctx);
-                            ctx.scene.stop_layer();
-                        }
                     }
 
                     // Don't draw a border below session headers (i.e. above the next block).

@@ -1,7 +1,5 @@
 //! Renders the AI block "header", which includes a version of the AI "prompt" as it was rendered
 //! when the query was submitted.
-use warp_core::features::FeatureFlag;
-use warp_util::path::user_friendly_path;
 use warpui::elements::{
     ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable,
     Icon as ElementIcon, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius,
@@ -12,7 +10,6 @@ use warpui::{AppContext, Element, EntityId, SingletonEntity, ViewHandle};
 
 use crate::ai::agent::AIAgentExchangeId;
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::blocklist::block::DirectoryContext;
 use crate::ai::blocklist::{
     get_ai_block_overflow_menu_element_position_id, get_attached_blocks_chip_element_position_id,
 };
@@ -32,63 +29,25 @@ pub(super) struct Props<'a> {
     pub(super) overflow_menu_mouse_state: &'a MouseStateHandle,
     pub(super) rewind_button: &'a ViewHandle<ActionButton>,
     pub(super) has_attached_context_selected_text: bool,
-    pub(super) directory_context: &'a DirectoryContext,
-    pub(super) is_selected_text_attached_as_context: bool,
     pub(super) is_restored: bool,
 }
 
 /// Render the AI Block's header which is the "AI prompt" that displays context about the AI query.
 pub(super) fn render(props: Props, app: &AppContext) -> Option<Box<dyn Element>> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-
-    let mut did_render_child = false;
-    let mut left_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
-
-    let font_size = prompt_font_size(appearance);
-    if !FeatureFlag::AgentView.is_enabled()
-        && let Some(pwd) = &props.directory_context.pwd
-    {
-        let current_directory =
-            user_friendly_path(pwd.as_str(), props.directory_context.home_dir.as_deref())
-                .to_string();
-        left_row.add_child(
-            Container::new(
-                Text::new_inline(
-                    current_directory,
-                    appearance.monospace_font_family(),
-                    font_size,
-                )
-                .with_color(blended_colors::text_sub(theme, theme.surface_1()))
-                .with_selection_color(if props.is_selected_text_attached_as_context {
-                    theme.text_selection_as_context_color().into_solid()
-                } else {
-                    theme.text_selection_color().into_solid()
-                })
-                .finish(),
-            )
-            .with_margin_right(8.)
-            .finish(),
-        );
-        did_render_child |= true;
-    }
-
     // Blocks are auto-attached as context, so only attached selected text gets a chip.
-    if props.has_attached_context_selected_text {
-        left_row.add_child(render_attached_context_chip(
-            props.attached_blocks_chip_mouse_state.clone(),
-            "selected text".to_owned(),
-            *props.view_id,
-            *props.exchange_id,
-            *props.conversation_id,
-            app,
-        ));
-        did_render_child |= true;
-    }
-
-    if FeatureFlag::AgentView.is_enabled() && !did_render_child {
+    if !props.has_attached_context_selected_text {
         return None;
     }
+
+    let mut left_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
+    left_row.add_child(render_attached_context_chip(
+        props.attached_blocks_chip_mouse_state.clone(),
+        "selected text".to_owned(),
+        *props.view_id,
+        *props.exchange_id,
+        *props.conversation_id,
+        app,
+    ));
 
     let mut right_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
 

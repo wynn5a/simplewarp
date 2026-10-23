@@ -1663,7 +1663,6 @@ fn test_remove_rich_content_block() {
 
 #[test]
 fn test_conversation_scoped_rich_content_hidden_outside_fullscreen_agent_view() {
-    FeatureFlag::AgentView.set_enabled(true);
     let mut block_list =
         new_bootstrapped_block_list(None, None, ChannelEventListener::new_for_test());
     let conversation_id = AIConversationId::new();
@@ -1793,7 +1792,6 @@ fn test_clear_user_executed_command_blocks_for_conversation() {
 
 #[test]
 fn test_agent_origin_block_can_be_attached_to_other_conversation() {
-    let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
     let mut block_list =
         new_bootstrapped_block_list(None, None, ChannelEventListener::new_for_test());
 
@@ -1857,7 +1855,6 @@ fn test_agent_origin_block_can_be_attached_to_other_conversation() {
 }
 #[test]
 fn unfiltered_transcript_scope_shows_restored_conversation_command_blocks() {
-    let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
     let mut block_list =
         new_bootstrapped_block_list(None, None, ChannelEventListener::new_for_test());
     let conversation_id = AIConversationId::new();
@@ -1881,7 +1878,6 @@ fn unfiltered_transcript_scope_shows_restored_conversation_command_blocks() {
 
 #[test]
 fn test_finish_startup_commands_at_block_attaches_and_unhides_command_blocks_since_target_block() {
-    let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
     let mut block_list =
         new_bootstrapped_block_list(None, None, ChannelEventListener::new_for_test());
     block_list.set_is_executing_oz_environment_startup_commands(true);
@@ -2433,7 +2429,6 @@ fn test_device_status_uses_active_block_if_no_typeahead() {
 
 #[test]
 fn agent_transcript_navigable_items_include_prompts_and_user_shell_blocks() {
-    let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
     let mut block_list =
         new_bootstrapped_block_list(None, None, ChannelEventListener::new_for_test());
     let conversation_id = AIConversationId::new();

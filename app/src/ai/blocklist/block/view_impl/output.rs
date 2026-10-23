@@ -17,47 +17,40 @@ use warp_core::ui::theme::color::internal_colors;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::elements::new_scrollable::SingleAxisConfig;
 use warpui::elements::{
-    Align, Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-    Expanded, Fill, Flex, FormattedTextElement, Hoverable, NewScrollable, ParentElement, Radius,
-    Shrinkable, Text,
+    Align, Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Fill,
+    Flex, FormattedTextElement, Hoverable, NewScrollable, ParentElement, Radius, Shrinkable, Text,
 };
-use warpui::keymap::Keystroke;
-use warpui::platform::{Cursor, OperatingSystem};
-use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::{
-    Action, AppContext, Element, EntityId, ModelHandle, SingletonEntity, View, ViewHandle,
-};
+use warpui::platform::Cursor;
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui::{Action, AppContext, Element, ModelHandle, SingletonEntity, View, ViewHandle};
 
 use super::common::{
-    DebugFooterProps, FailedOutputProps, FindContext, STATUS_FOOTER_VERTICAL_PADDING,
-    STATUS_ICON_SIZE_DELTA, TextSectionsProps, render_debug_footer, render_failed_output,
-    render_output_status_text, render_scrollable_collapsible_content, render_text_sections,
+    DebugFooterProps, FailedOutputProps, FindContext, TextSectionsProps, render_debug_footer,
+    render_failed_output, render_scrollable_collapsible_content, render_text_sections,
 };
 use super::imported_comments::render_imported_comments;
 use super::{
     CONTENT_HORIZONTAL_PADDING, CONTENT_ITEM_VERTICAL_MARGIN, WithContentItemSpacing,
     add_highlights_to_rich_text, render_autonomy_checkbox_setting_speedbump_footer,
 };
-use crate::FeatureFlag;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::comment::ReviewComment;
-use crate::ai::agent::icons::{self, gray_stop_icon};
+use crate::ai::agent::icons::{self};
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResult, AIAgentActionResultType,
-    AIAgentActionType, AIAgentInput, AIAgentOutputMessage, AIAgentOutputMessageType, AIAgentText,
-    AIAgentTextSection, CancellationOutcome, MessageId, ReadFilesFailedFile, ReadFilesRequest,
-    ReadFilesResult, RequestCommandOutputResult, SubagentCall, SubagentType, SummarizationType,
+    AIAgentActionType, AIAgentOutputMessage, AIAgentOutputMessageType, AIAgentText,
+    AIAgentTextSection, MessageId, ReadFilesFailedFile, ReadFilesRequest, ReadFilesResult,
+    RequestCommandOutputResult, SubagentCall, SubagentType, SummarizationType,
 };
 use crate::ai::blocklist::action_model::AIActionStatus;
 use crate::ai::blocklist::block::model::{AIBlockModel, AIBlockModelHelper, AIBlockOutputStatus};
 use crate::ai::blocklist::block::view_impl::common::{
     BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB, BLOCKED_ACTION_MESSAGE_FOR_READING_FILES,
-    MaybeShimmeringText,
 };
 use crate::ai::blocklist::block::{
     AIBlock, AIBlockAction, AIBlockStateHandles, ActionButtons, AutonomySettingSpeedbump,
-    CollapsibleElementState, CollapsibleExpansionState, EmbeddedCodeEditorView, FinishReason,
+    CollapsibleElementState, CollapsibleExpansionState, EmbeddedCodeEditorView,
     ImportedCommentGroup, RequestedEdit, TextLocation,
 };
 use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
@@ -117,8 +110,6 @@ pub(crate) struct Props<'a> {
     pub(super) review_changes_button: &'a ViewHandle<ActionButton>,
     pub(super) open_all_comments_button: &'a ViewHandle<ActionButton>,
     pub(super) has_accepted_edits: bool,
-    pub(super) finish_reason: Option<&'a FinishReason>,
-    pub(super) terminal_view_id: EntityId,
     pub(super) is_conversation_transcript_viewer: bool,
     pub(super) imported_comments: &'a HashMap<AIAgentActionId, ImportedCommentGroup>,
     pub(crate) resolved_code_block_paths:
@@ -779,62 +770,7 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
         }
     }
 
-    if should_render_stopped_output(props, app) {
-        output_items.add_child(render_stopped_output(props, app))
-    }
-
     output_items.finish()
-}
-
-fn should_render_stopped_output(props: Props, app: &AppContext) -> bool {
-    if FeatureFlag::AgentView.is_enabled() {
-        return false;
-    }
-
-    let status = props.model.status(app);
-    let cancellation_reason = status.cancellation_reason().cloned();
-    // Reasons that keep the conversation alive (follow-ups, CLI-subagent takeover)
-    // or finalize it as a success (optimistic command completion, revert) must not
-    // render a stopped banner.
-    if cancellation_reason.is_some_and(|reason| {
-        matches!(
-            reason.conversation_outcome(),
-            CancellationOutcome::KeepInProgress | CancellationOutcome::Succeeded
-        )
-    }) {
-        return false;
-    }
-
-    let has_expanded_requested_command = props
-        .requested_commands
-        .values()
-        .any(|requested_command| requested_command.view.as_ref(app).is_header_expanded());
-    // Expanded requested commands would appear after the stopped task UI, which we don't want.
-    if has_expanded_requested_command {
-        return false;
-    }
-
-    let is_current_exchange_empty = status
-        .output_to_render()
-        .is_none_or(|output| output.get().messages.is_empty());
-
-    let is_resumed_conversation = props
-        .model
-        .inputs_to_render(app)
-        .iter()
-        .last()
-        .is_some_and(|input| matches!(input, AIAgentInput::ResumeConversation { .. }));
-
-    // When the user resumes a conversation, and cancels before any follow-up output,
-    // we should avoid showing a stopped banner. Otherwise the user can stack
-    // stopped banners by toggling stop and resume.
-    if is_current_exchange_empty && is_resumed_conversation {
-        return false;
-    }
-
-    props.finish_reason.is_some_and(|finish_reason| {
-        *finish_reason == FinishReason::CancelledDuringRequestedCommandExecution
-    }) || cancellation_reason.is_some()
 }
 
 pub struct LinkActionConstructors<A: Action> {
@@ -1185,142 +1121,6 @@ fn parsed_skill_for_common_locations(
         .all(|skill_path| skill_path == first_skill_path)
         .then(|| SkillManager::as_ref(app).skill_by_path(first_skill_path))
         .flatten()
-}
-
-fn render_stopped_output(props: Props, app: &AppContext) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-
-    let mut row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
-
-    let stopped_label = props
-        .model
-        .conversation_id(app)
-        .and_then(|conversation_id| {
-            let history = BlocklistAIHistoryModel::as_ref(app);
-            let conversation = history.conversation(&conversation_id)?;
-
-            conversation
-                .initial_query()
-                .map(|task_name| format!("Stopped task: \"{task_name}\""))
-        })
-        .unwrap_or_else(|| "Stopped task".to_string());
-
-    let stop_icon = Container::new(
-        ConstrainedBox::new(gray_stop_icon(appearance).finish())
-            .with_width(icon_size(app) - STATUS_ICON_SIZE_DELTA)
-            .with_height(icon_size(app) - STATUS_ICON_SIZE_DELTA)
-            .finish(),
-    )
-    .with_margin_right(6.)
-    .finish();
-
-    row.add_children([
-        stop_icon,
-        Expanded::new(
-            1.,
-            render_output_status_text(
-                MaybeShimmeringText::Static(stopped_label.into()),
-                appearance,
-                app,
-            ),
-        )
-        .finish(),
-    ]);
-
-    // Only show resume button for the latest cancelled task in the conversation
-    if props
-        .model
-        .is_latest_exchange_in_terminal_pane(props.terminal_view_id, app)
-    {
-        let ui_builder = appearance.ui_builder().clone();
-
-        let play_icon = Container::new(
-            ConstrainedBox::new(Icon::Play.to_warpui_icon(theme.foreground()).finish())
-                .with_height(appearance.ui_font_size() + 1.)
-                .with_width(appearance.ui_font_size() + 1.)
-                .finish(),
-        )
-        .with_margin_right(4.)
-        .finish();
-
-        let button_content = {
-            let mut row = Flex::row()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(play_icon);
-
-            let resume_keystroke = if OperatingSystem::get().is_mac() {
-                Keystroke::parse("cmd-shift-R").expect("keystroke should parse")
-            } else {
-                Keystroke::parse("ctrl-alt-r").expect("keystroke should parse")
-            };
-            let keybinding_string = resume_keystroke.displayed();
-            let keybinding = Text::new_inline(
-                keybinding_string,
-                appearance.ui_font_family(),
-                appearance.ui_font_size() - 1.,
-            )
-            .with_color(theme.foreground().into())
-            .finish();
-
-            row.add_child(Container::new(keybinding).with_margin_right(4.).finish());
-            row.finish()
-        };
-
-        let button_styles = UiComponentStyles::default()
-            .set_border_radius(CornerRadius::with_all(Radius::Pixels(4.)))
-            .set_border_width(1.)
-            .set_border_color(internal_colors::neutral_4(theme).into())
-            .set_padding(Coords {
-                top: 2.,
-                bottom: 2.,
-                left: 4.,
-                right: 4.,
-            });
-
-        let hovered_styles = button_styles.merge(
-            UiComponentStyles::default()
-                .set_background(internal_colors::fg_overlay_2(theme).into()),
-        );
-
-        let active_styles = button_styles.merge(
-            UiComponentStyles::default()
-                .set_background(internal_colors::fg_overlay_3(theme).into()),
-        );
-
-        let resume_button = warpui::ui_components::button::Button::new(
-            props.state_handles.resume_conversation_handle.clone(),
-            button_styles,
-            Some(hovered_styles),
-            Some(active_styles),
-            None,
-        )
-        .with_custom_label(button_content)
-        .with_tooltip(move || {
-            ui_builder
-                .tool_tip("Resume conversation".to_string())
-                .build()
-                .finish()
-        })
-        .with_cursor(Some(Cursor::PointingHand))
-        .build()
-        .on_click(move |ctx, _, _| {
-            ctx.dispatch_typed_action(AIBlockAction::ResumeConversation);
-        })
-        .finish();
-
-        row.add_child(resume_button);
-    }
-
-    Container::new(
-        ConstrainedBox::new(row.finish())
-            .with_height(STATUS_FOOTER_VERTICAL_PADDING * 2. + appearance.monospace_font_size())
-            .finish(),
-    )
-    .with_padding_left(CONTENT_HORIZONTAL_PADDING + (STATUS_ICON_SIZE_DELTA / 2.))
-    .with_padding_right(CONTENT_HORIZONTAL_PADDING)
-    .with_margin_bottom(8.)
-    .finish()
 }
 
 fn render_requested_edits_output_message(
@@ -1887,30 +1687,6 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
                 .with_margin_right(2.)
                 .finish(),
         );
-    }
-
-    if !FeatureFlag::AgentView.is_enabled() {
-        let ui_builder = appearance.ui_builder().clone();
-        let continue_button = icon_button(
-            appearance,
-            Icon::CornerRight,
-            false,
-            props.state_handles.continue_conversation_handle.clone(),
-        )
-        .with_tooltip(move || {
-            ui_builder
-                .tool_tip("Continue conversation".to_string())
-                .build()
-                .finish()
-        })
-        .with_style(style_override)
-        .with_hovered_styles(style_override_with_background)
-        .with_active_styles(style_override_with_background)
-        .build()
-        .on_click(|ctx, _, _| ctx.dispatch_typed_action(AIBlockAction::ContinueConversation))
-        .finish();
-
-        flex.add_child(continue_button);
     }
 
     if !props.is_conversation_transcript_viewer {

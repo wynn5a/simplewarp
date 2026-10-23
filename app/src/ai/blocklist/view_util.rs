@@ -2,12 +2,10 @@
 use std::sync::LazyLock;
 
 use pathfinder_color::ColorU;
-use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::appearance::Appearance;
 use warpui::elements::{
-    ChildAnchor, ConstrainedBox, Container, CrossAxisAlignment, Flex, Hoverable, MainAxisAlignment,
-    MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement,
-    ParentOffsetBounds, Stack,
+    ConstrainedBox, Container, CrossAxisAlignment, Flex, MainAxisAlignment, MainAxisSize,
+    MouseStateHandle, ParentElement,
 };
 use warpui::fonts::Weight;
 use warpui::ui_components::button::ButtonVariant;
@@ -134,67 +132,6 @@ pub fn should_show_failed_output_debug_footer(
         && !has_expanded_last_requested_command
         && !is_restored
         && !error.is_invalid_api_key()
-}
-
-/// Returns the AI icon element to be rendered in AI output blocks and the terminal input when in
-/// AI mode. Takes a color parameter as the solid fill for the icon. We use [ai_brand_color] in most
-/// cases.
-pub fn render_ai_agent_mode_icon(app: &AppContext, color: impl Into<Fill>) -> Box<dyn Element> {
-    render_input_icon(Icon::AgentMode, color.into(), app)
-}
-
-/// Returns the icon element to be rendered in the terminal input when
-/// the user is making a follow up AI query in an existing conversation. Takes a color parameter as the solid fill for the icon.
-pub fn render_ai_follow_up_icon(
-    mouse_state: MouseStateHandle,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    Hoverable::new(mouse_state, |state| {
-        let mut stack = Stack::new().with_child(render_input_icon(
-            Icon::CornerRight,
-            appearance.theme().foreground(),
-            app,
-        ));
-        if state.is_hovered() {
-            let tooltip_background = appearance.theme().tooltip_background();
-            let tool_tip = appearance
-                .ui_builder()
-                .tool_tip("Follow up with existing conversation".to_owned())
-                .with_style(UiComponentStyles {
-                    font_size: Some(12.),
-                    background: Some(warpui::elements::Fill::Solid(tooltip_background)),
-                    font_color: Some(appearance.theme().background().into_solid()),
-                    ..Default::default()
-                });
-            stack.add_positioned_overlay_child(
-                tool_tip.build().finish(),
-                OffsetPositioning::offset_from_parent(
-                    vec2f(0., -4.),
-                    ParentOffsetBounds::WindowByPosition,
-                    ParentAnchor::TopLeft,
-                    ChildAnchor::BottomLeft,
-                ),
-            );
-        }
-        stack.finish()
-    })
-    .finish()
-}
-
-fn render_input_icon(icon: Icon, color: Fill, app: &AppContext) -> Box<dyn Element> {
-    // Since the icon is rendered next to monospace text content, its size should scale to
-    // based on the current font size -- specifically, its height must match the editor text line
-    // height.
-    let icon_size = ai_indicator_height(app);
-    ConstrainedBox::new(
-        Container::new(icon.to_warpui_icon(color).finish())
-            .with_uniform_padding(icon_size / 8.)
-            .finish(),
-    )
-    .with_width(icon_size)
-    .with_height(icon_size)
-    .finish()
 }
 
 /// Returns the size to be used for the AI icon in AI output blocks and the terminal input when in

@@ -345,9 +345,6 @@ simplewarp = [
     "external_agent_mode_context",
     "render_agent_mode_output_markdown",
     "kitty_images",
-    "agent_view",
-    "inline_slash_commands",
-    "inline_model_selector",
     "drag_tabs_to_windows",
 ]
 default = ["simplewarp"]
@@ -365,7 +362,6 @@ agent_mode_evals = [
     "cloud_object_models/agent_mode_evals",
     "warp_logging/agent_mode_evals",
 ]
-inline_slash_commands = ["agent_view"]
 
 # Enable this feature to add a "Write heap profile to disk" command backed by
 # jemalloc heap profiling.
@@ -400,8 +396,6 @@ integration_tests = [
 ]
 traces = []
 external_agent_mode_context = []
-agent_view = []
-inline_model_selector = ["agent_view"]
 
 [package.metadata.bundle.bin.simplewarp]
 category = "public.app-category.developer-tools"

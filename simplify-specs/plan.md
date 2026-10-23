@@ -110,8 +110,8 @@ preferred route; D2 dropped the common-skills lock (user ruling). H4 was wrong a
 
 **Leftovers survey (2026-10-22):** queued in [plan-p5.md](plan-p5.md) — A `cargo machete` ignore
 lists (no real unused deps), B "GUI" names left from the two-front-end design, C the 132 always-on
-feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c, C2, C2b, C3, C4, C5, C5b and C6 done (see the
-round log); C7 next.
+feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c, C2, C2b, C3, C4, C5, C5b, C6 and C7 done (see the
+round log); C7b (legacy universal developer input) queued.
 
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
@@ -1820,6 +1820,53 @@ smoke: the app starts and stays up with no errors in `simplewarp.log`.
 Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,251 run,
 6,249 passed, 2 failed (the clone-slash-command flake and
 `test_with_launch_config_with_no_active_pane`, which passed twice in isolation), 86 skipped.
+`cargo build --bin simplewarp` smoke: the app starts and stays up with no errors in
+`simplewarp.log`.
+
+### Round: C7 — AgentView flag (2026-10-23)
+
+- `AgentView` went from `warp_features`, `app/Cargo.toml` and `features.rs`, together with
+  `inline_slash_commands` and `inline_model_selector`, which only forwarded to `agent_view` and
+  mapped to nothing. `FeatureFlag` now holds only the kept flags: `DebugMode`,
+  `RunGeneratorsWithCmdExe`, `MSYS2Shells`, `DragTabsToWindows` and `KittyImages`.
+- Every gate keeps its on-branch (271 refs in 53 files). `CLISubagentController`'s agent-view
+  controller is no longer an `Option`; `ensure_agent_mode_for_ai_features` loses its
+  `should_override_shell_lock` parameter and `InputModePolicy::config_on_ai_settings_changed` its
+  `current` / `is_autodetection_enabled_for_current_context` ones; the `FeatureFlag.AgentView`
+  keymap context key is gone from the predicates (it was always set where they apply); the
+  `ADD_PROMPT` slash command is a `const`.
+- Dead with the off-branches: the universal input renderer (`input/universal.rs`), the editor's
+  inline image / `@` buttons (`render_controls` and its mouse handles, `EditorAction::AttachFiles`
+  / `SetAIContextMenuOpen`), the `* ` AI-input prefix, the classic input's image chips and Vim
+  status bar, the AI input / follow-up icons (`render_ai_agent_mode_icon`,
+  `render_ai_follow_up_icon`), the AI-block header pwd, separator and restored background, the
+  status-bar AI stripe, block-list AI context flag poles (`context_color_for_*`,
+  `should_highlight_context`), the "continue conversation" button chain
+  (`AIBlockAction` / `AIBlockEvent::ContinueConversation`, `handle_continue_conversation`,
+  `AgentViewEntryOrigin::ContinueConversationButton` / `ResumeConversationButton`), the stopped
+  output footer, the agent-mode setup speedbump banner (`inline_banner/agent_mode_setup.rs`,
+  `TerminalAction::AgentModeSetupSpeedbumpBanner`, `InlineBannerType::AgentModeSetup`), the
+  flag-off "New agent conversation" binding, `should_render_prompt_using_editor_decorator_elements`
+  and a few unused helpers (`last_conversation_id`, `is_input_at_top`,
+  `append_inline_banner_with_custom_height`, `InputSuggestions::confirm_and_execute`). Kept and
+  only unwrapped: the "Show terminal input message line" setting, its widget, palette toggle and
+  context flag (pending user decision).
+- Tests: the flag-off tests went (`jump_to_latest_agent_message_no_ops_when_agent_view_disabled`,
+  `both_view_bits_satisfy_either_view_requirement`, the four `* ` / `!` prefix tests,
+  `test_agent_mode_set_while_typing_slash_command`, and the UDI lock tests
+  `test_input_type_button_explicit_lock`, `test_auto_detection_toggle`,
+  `test_image_attachment_preserves_lock_state`, `test_input_config_transitions`,
+  `test_input_mode_setting_methods`); the `override_enabled` / `set_enabled` guards went. Moved to
+  the on-branch: typing or inserting keeps block and text selections (`test_insert`,
+  `test_insert_into_input`, `test_reinput_blocks`, `test_clear_selection_after_insert` renamed
+  `test_selection_preserved_after_insert`), the viewport iterator skips the empty active block,
+  the AI-query and alias tests enter the agent view first, and
+  `test_scroll_position_doesnt_change_when_block_finished` turns off the help block that the
+  bootstrap inserts.
+- Queued as C7b: the legacy universal developer input (see plan-p5.md).
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,239 run
+(−12 deleted), 6,238 passed, 1 failed (the clone-slash-command flake), 86 skipped.
 `cargo build --bin simplewarp` smoke: the app starts and stays up with no errors in
 `simplewarp.log`.
 

@@ -6,18 +6,14 @@ use warpui::elements::{
 };
 use warpui::{AppContext, SingletonEntity};
 
-use super::{Input, SubshellRenderState, should_render_prompt_using_editor_decorator_elements};
-use crate::ai::blocklist::InputType;
+use super::{Input, SubshellRenderState, should_render_prompt_on_same_line};
 use crate::appearance::Appearance;
-use crate::context_chips::spacing;
-use crate::features::FeatureFlag;
-use crate::settings::{AppEditorSettings, InputModeSettings};
+use crate::settings::InputModeSettings;
 use crate::terminal::block_list_settings::BlockListSettings;
 use crate::terminal::block_list_viewport::InputMode;
 use crate::terminal::input::common::{
-    add_command_xray_overlay, add_input_suggestions_overlays, add_vim_status_to_stack,
-    add_voltron_overlay, add_workflow_info_overlay,
-    wrap_input_with_terminal_padding_and_focus_handler,
+    add_command_xray_overlay, add_input_suggestions_overlays, add_voltron_overlay,
+    add_workflow_info_overlay, wrap_input_with_terminal_padding_and_focus_handler,
 };
 use crate::terminal::input::{InputDropTargetData, get_input_box_top_border_width};
 use crate::terminal::settings::{SpacingMode, TerminalSettings};
@@ -25,9 +21,7 @@ use crate::terminal::view::TerminalAction;
 use crate::terminal::warpify::render::{render_subshell_flag, render_subshell_flag_pole};
 
 impl Input {
-    /// Renders the classic input. This is used when the user has 'Honor PS1' enabled in settings,
-    /// OR if `FeatureFlag::AgentView` is disabled and the user has 'Classic' input type selected
-    /// in settings.
+    /// Renders the classic input. This is used when the user has 'Honor PS1' enabled in settings.
     pub(super) fn render_classic_input(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
@@ -35,12 +29,7 @@ impl Input {
 
         let model = self.model.lock();
         let should_render_prompt_using_editor_decorator_elements =
-            should_render_prompt_using_editor_decorator_elements(
-                false,
-                &self.ai_input_model,
-                &model,
-                app,
-            );
+            should_render_prompt_on_same_line(false, &model, app);
 
         // We should likely rework this stack to not need to use `with_constrain_absolute_children`,
         // by reworking the positioning of the children to not depend on this.
@@ -90,9 +79,6 @@ impl Input {
             }
         }
 
-        let vim_state = self.editor.as_ref(app).vim_state(app);
-        let app_editor_settings = AppEditorSettings::as_ref(app);
-        let show_vim_status = vim_state.is_some() && *app_editor_settings.vim_status_bar.value();
         let input_mode = *InputModeSettings::as_ref(app).input_mode.value();
 
         let is_compact_mode = matches!(
@@ -110,20 +96,7 @@ impl Input {
 
         column.add_children([prompt_top_padding_row.finish(), prompt_row.finish()]);
 
-        let ai_input_model = self.ai_input_model.as_ref(app);
-
-        if matches!(ai_input_model.input_type(), InputType::AI)
-            && !FeatureFlag::AgentView.is_enabled()
-            && let Some(images) = self.render_attachment_chips(appearance)
-        {
-            column.add_child(
-                Container::new(images)
-                    .with_padding_bottom(spacing::CLASSIC_PROMPT_ATTACH_IMAGES_BOTTOM_PADDING)
-                    .finish(),
-            );
-        }
-
-        column.add_child(self.render_input_box(show_vim_status, appearance, app));
+        column.add_child(self.render_input_box(appearance, app));
 
         if !(matches!(input_mode, InputMode::PinnedToTop)
             && self
@@ -180,16 +153,6 @@ impl Input {
             );
         }
 
-        if !FeatureFlag::AgentView.is_enabled()
-            && let Some(vim_state) = vim_state.as_ref()
-            && show_vim_status
-        {
-            add_vim_status_to_stack(
-                &mut stack, vim_state, appearance,
-                false, // legacy doesn't use adjusted padding for vim status
-            );
-        }
-
         stack.add_child(wrap_input_with_terminal_padding_and_focus_handler(
             self.is_active_session(app),
             column.finish(),
@@ -228,10 +191,9 @@ impl Input {
 
         let input_mode = *InputModeSettings::as_ref(app).input_mode.value();
 
-        // When AgentView is enabled, match terminal-mode input behavior and only render the
-        // divider adjacent to the status/message line when block dividers are enabled.
-        let show_block_dividers = *BlockListSettings::as_ref(app).show_block_dividers.value();
-        let should_render_divider = !FeatureFlag::AgentView.is_enabled() || show_block_dividers;
+        // Match terminal-mode input behavior and only render the divider adjacent to the
+        // status/message line when block dividers are enabled.
+        let should_render_divider = *BlockListSettings::as_ref(app).show_block_dividers.value();
 
         let border = match input_mode {
             InputMode::PinnedToBottom => Border::top(if should_render_divider {

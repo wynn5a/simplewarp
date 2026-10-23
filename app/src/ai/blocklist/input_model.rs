@@ -16,7 +16,6 @@ use parking_lot::FairMutex;
 use serde::{Deserialize, Serialize};
 use settings::Setting as _;
 use warp_completer::completer::CompletionContext;
-use warp_core::features::FeatureFlag;
 #[cfg(any(test, feature = "test-util"))]
 use warpui::EntityId;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
@@ -49,8 +48,6 @@ pub enum InputTypeAutoDetectionSource {
     AgentQueryAutosuggestionAccepted,
     /// Empty-buffer conversation context render forced AI so conversation context renders.
     ConversationContextRender,
-    /// "Continue conversation" button forced AI mode.
-    ContinueConversation,
     /// Locking the input for a CLI subagent's terminal-control handoff.
     /// Distinguishes an agent-installed AI lock from a user-forced one so the
     /// post-agent reset only restores autodetection when the lock was installed
@@ -64,8 +61,6 @@ pub enum InputTypeAutoDetectionSource {
     SlashCommand,
     /// Entering inline agent view force-locked AI without an explicit user toggle.
     InlineAgentViewEntry,
-    /// Legacy non-AgentView `?` AI prefix path force-locked AI.
-    AgentModePrefix,
     /// Inline code review send overrode the input mode to AI.
     InlineCodeReviewSend,
     /// Fullscreen AgentView inline history command cycling force-locked Shell.
@@ -89,7 +84,7 @@ use super::context_model::BlocklistAIContextModel;
 use super::history_model::BlocklistAIHistoryModel;
 use super::input_mode_policy::{InputModePolicyHandle, PolicyConfigUpdate};
 use crate::input_classifier::InputClassifierModel;
-use crate::settings::{AISettings, AISettingsChangedEvent, InputBoxType, InputSettings};
+use crate::settings::{AISettings, InputBoxType, InputSettings};
 use crate::terminal::input::decorations::ParsedTokensSnapshot;
 use crate::terminal::model::rich_content::RichContentType;
 use crate::terminal::model::session::SessionId;
@@ -149,7 +144,7 @@ impl InputConfig {
         app: &AppContext,
     ) -> Self {
         Self {
-            is_locked: if !FeatureFlag::AgentView.is_enabled() || is_in_fullscreen_agent_view {
+            is_locked: if is_in_fullscreen_agent_view {
                 !AISettings::as_ref(app).is_ai_autodetection_enabled()
             } else {
                 !AISettings::as_ref(app).is_nld_in_terminal_enabled()
@@ -214,18 +209,7 @@ impl BlocklistAIInputModel {
         ctx: &mut ModelContext<Self>,
     ) -> Self {
         ctx.subscribe_to_model(&AISettings::handle(ctx), move |me, _, event, ctx| {
-            // Computing the guarded autodetection state takes the terminal-model
-            // lock, so only compute it for the one event whose handling can need
-            // it; policies must not rely on it for any other event.
-            let is_autodetection_enabled_for_current_context =
-                matches!(event, AISettingsChangedEvent::AIAutoDetectionEnabled)
-                    && me.is_autodetection_enabled_for_current_context(ctx);
-            if let Some(update) = me.policy.config_on_ai_settings_changed(
-                event,
-                me.input_config(),
-                is_autodetection_enabled_for_current_context,
-                ctx,
-            ) {
+            if let Some(update) = me.policy.config_on_ai_settings_changed(event, ctx) {
                 me.apply_policy_update(update, ctx);
             }
         });
@@ -339,7 +323,7 @@ impl BlocklistAIInputModel {
     ) {
         // When agent view is active, the input should behave like Universal mode
         // even if Classic mode is selected (e.g. when PS1 is enabled).
-        if FeatureFlag::AgentView.is_enabled() && self.is_conversation_active(ctx) {
+        if self.is_conversation_active(ctx) {
             return;
         }
 

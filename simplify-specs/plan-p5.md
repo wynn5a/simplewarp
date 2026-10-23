@@ -134,8 +134,25 @@ reader was the terminal input message bar, which C5 deleted as never shown.
 **C6 — VimCodeEditor (alone)** (**done 2026-10-23**) — 1 flag, 74 refs:
 `VimCodeEditor`.
 
-**C7 — AgentView (alone, last)** — 1 flag, 275 refs:
+**C7 — AgentView (alone, last)** (**done 2026-10-23**) — 1 flag, 275 refs:
 `AgentView`.
+
+**C7b — legacy universal developer input (follow-up of C7)** — with `AgentView` gone the input
+renders only the agent, terminal or (PS1) classic input; `render_universal_developer_input` went
+in C7, so the UDI button bar is never on screen. Still alive and only reachable through it:
+`UniversalDeveloperInputButtonBar` / `UniversalDeveloperInputButtonBarEvent` /
+`UniversalDeveloperInputButtonBarAction` (`terminal/universal_developer_input.rs`),
+`Input::universal_developer_input_button_bar` and
+`handle_universal_developer_input_button_bar_event`, and the input tests that drive it
+(`test_ai_context_menu_*` via `SetAIContextMenuOpen`). `InputBoxType::Universal` /
+`is_universal_developer_input_enabled` / `Input::should_show_universal_developer_input` still
+change spacing, chip and status-bar details in the shipped app, so removing them is a behavior
+decision, not a mechanical cut: decide whether the "Universal" input type setting stays, then
+delete the button bar and fold the remaining `is_universal_developer_input_enabled` branches.
+Also inert after C7: the "Vim status bar" editor setting (`vim_status_bar`; its only renderer,
+`add_vim_status_to_stack`, sat on the flag-off classic path) and
+`ConversationRestorationInNewPaneType::Historical::should_use_live_appearance` (always treated as
+`true` now; still set by `terminal/view/docker_sandbox/mod.rs`, which C7 did not touch).
 
 ## Verification, every round
 

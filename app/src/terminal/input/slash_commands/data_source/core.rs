@@ -5,7 +5,6 @@ use ai::skills::SkillProvider;
 use fuzzy_match::FuzzyMatchResult;
 use ordered_float::OrderedFloat;
 use repo_metadata::repositories::DetectedRepositories;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::Icon as WarpIcon;
 use warp_core::ui::appearance::Appearance;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
@@ -191,13 +190,9 @@ impl SlashCommandDataSource {
         availability
     }
 
-    /// View-related availability bits for the legacy terminal-view and agent-view
-    /// modalities. When the AgentView feature flag is disabled, both bits are set so either
-    /// requirement is satisfied.
+    /// View-related availability bit for the terminal view or agent view.
     fn view_availability(is_agent_view_active: bool) -> Availability {
-        if !FeatureFlag::AgentView.is_enabled() {
-            Availability::AGENT_VIEW | Availability::TERMINAL_VIEW
-        } else if is_agent_view_active {
+        if is_agent_view_active {
             Availability::AGENT_VIEW
         } else {
             Availability::TERMINAL_VIEW

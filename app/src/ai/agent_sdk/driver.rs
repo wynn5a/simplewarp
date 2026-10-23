@@ -20,7 +20,6 @@ use tracing::Instrument as _;
 use uuid::Uuid;
 use warp_cli::agent::{Harness, OutputFormat};
 use warp_cli::mcp::MCPSpec;
-use warp_core::features::FeatureFlag;
 use warp_errors::{ErrorExt, register_error, report_error, report_if_error};
 use warpui::r#async::{FutureExt, TimeoutError};
 use warpui::{Entity, ModelContext, ModelHandle, ModelSpawner, SingletonEntity};
@@ -1780,19 +1779,12 @@ impl AgentDriver {
 
         self.terminal_driver.update(ctx, |td, ctx| {
             td.with_terminal_view(ctx, |terminal, ctx| {
-                if FeatureFlag::AgentView.is_enabled() {
-                    terminal.enter_agent_view(
-                        Some(task_prompt.clone()),
-                        None,
-                        AgentViewEntryOrigin::Cli,
-                        ctx,
-                    );
-                } else {
-                    terminal.set_ai_input_mode_with_query(Some(&task_prompt), ctx);
-                    terminal
-                        .input()
-                        .update(ctx, |input, ctx| input.input_enter(ctx));
-                }
+                terminal.enter_agent_view(
+                    Some(task_prompt.clone()),
+                    None,
+                    AgentViewEntryOrigin::Cli,
+                    ctx,
+                );
             });
         });
 

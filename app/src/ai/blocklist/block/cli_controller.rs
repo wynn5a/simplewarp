@@ -180,7 +180,7 @@ impl LongRunningCommandControlState {
 pub struct CLISubagentController {
     controller: ModelHandle<BlocklistAIController>,
     action_model: ModelHandle<BlocklistAIActionModel>,
-    agent_view_controller: Option<ModelHandle<AgentViewController>>,
+    agent_view_controller: ModelHandle<AgentViewController>,
     terminal_model: Arc<FairMutex<TerminalModel>>,
     terminal_view_id: EntityId,
     // Active or recently-active CLI subagent state, keyed by the associated block.
@@ -191,7 +191,7 @@ impl CLISubagentController {
     pub fn new(
         controller: &ModelHandle<BlocklistAIController>,
         action_model: &ModelHandle<BlocklistAIActionModel>,
-        agent_view_controller: Option<ModelHandle<AgentViewController>>,
+        agent_view_controller: ModelHandle<AgentViewController>,
         terminal_model: Arc<FairMutex<TerminalModel>>,
         model_event_dispatcher: &ModelHandle<ModelEventDispatcher>,
         terminal_view_id: EntityId,
@@ -283,10 +283,7 @@ impl CLISubagentController {
                     .as_ref()
                     .is_some_and(|state| state.task_id.is_some())
                 {
-                    let is_inline_agent_view =
-                        me.agent_view_controller.as_ref().is_some_and(|controller| {
-                            controller.read(ctx, |controller, _| controller.is_inline())
-                        });
+                    let is_inline_agent_view = me.agent_view_controller.as_ref(ctx).is_inline();
 
                     if is_inline_agent_view {
                         // Mark conversation as successfully completed BEFORE exiting agent view.
@@ -310,13 +307,11 @@ impl CLISubagentController {
                 }
 
                 // Exit inline agent view if agent was tagged in or had metadata (was in control).
-                if let Some(agent_view_controller) = &me.agent_view_controller {
-                    agent_view_controller.update(ctx, |controller, ctx| {
-                        if controller.is_inline() && (was_agent_tagged_in || has_agent_metadata) {
-                            controller.exit_agent_view(ctx);
-                        }
-                    });
-                }
+                me.agent_view_controller.update(ctx, |controller, ctx| {
+                    if controller.is_inline() && (was_agent_tagged_in || has_agent_metadata) {
+                        controller.exit_agent_view(ctx);
+                    }
+                });
             }
         });
 
@@ -442,22 +437,20 @@ impl CLISubagentController {
         let action_id = active_block.requested_command_action_id().cloned();
         let agent_has_control = active_block.is_agent_in_control();
         drop(terminal_model);
-        if let Some(agent_view_controller) = &self.agent_view_controller {
-            agent_view_controller.update(ctx, |controller, ctx| {
-                if !controller.is_inline()
-                    && let Err(e) = controller.try_enter_inline_agent_view(
-                        conversation_id,
-                        AgentViewEntryOrigin::LongRunningCommand,
-                        ctx,
-                    )
-                {
-                    report_error!(
-                        anyhow::Error::new(e)
-                            .context("Failed to enter inline agent view for LRC handoff")
-                    );
-                }
-            });
-        }
+        self.agent_view_controller.update(ctx, |controller, ctx| {
+            if !controller.is_inline()
+                && let Err(e) = controller.try_enter_inline_agent_view(
+                    conversation_id,
+                    AgentViewEntryOrigin::LongRunningCommand,
+                    ctx,
+                )
+            {
+                report_error!(
+                    anyhow::Error::new(e)
+                        .context("Failed to enter inline agent view for LRC handoff")
+                );
+            }
+        });
 
         // Trigger an auto-resume of the conversation when handing control to the agent. After a
         // transfer the agent is still waiting on its transfer call, whose result resumes it.

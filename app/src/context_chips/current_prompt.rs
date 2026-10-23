@@ -29,7 +29,6 @@ use crate::code_review::git_repo_model::{GitRepoStatusEvent, GitRepoStatusModel}
 use crate::code_review::github_repo_model::{GitHubRepoEvent, GitHubRepoModel};
 use crate::context_chips::display_chip::GitLineChanges;
 use crate::editor::EditorView;
-use crate::features::FeatureFlag;
 use crate::menu::{MenuItem, MenuItemFields};
 use crate::settings::{AISettings, AISettingsChangedEvent, InputSettings, WarpPromptSeparator};
 use crate::terminal::event::{BlockType, UserBlockCompleted};
@@ -1086,12 +1085,11 @@ impl CurrentPrompt {
     fn active_surfaces(&self, ctx: &AppContext) -> ActiveChipSurfaces {
         let prompt = !*SessionSettings::as_ref(ctx).honor_ps1
             || InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx);
-        let agent_footer = FeatureFlag::AgentView.is_enabled()
-            && self
-                .agent_view_controller
-                .as_ref()
-                .and_then(|controller| controller.upgrade(ctx))
-                .is_some_and(|controller| controller.as_ref(ctx).is_active());
+        let agent_footer = self
+            .agent_view_controller
+            .as_ref()
+            .and_then(|controller| controller.upgrade(ctx))
+            .is_some_and(|controller| controller.as_ref(ctx).is_active());
         let cli_agent_footer = self.terminal_view_id.is_some_and(|terminal_view_id| {
             *AISettings::as_ref(ctx).should_render_cli_agent_footer
                 && CLIAgentSessionsModel::as_ref(ctx)

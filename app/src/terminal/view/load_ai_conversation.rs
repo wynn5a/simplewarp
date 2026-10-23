@@ -3,7 +3,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use vec1::Vec1;
-use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
 use warp_multi_agent_api as api;
 use warpui::units::IntoPixels;
@@ -117,11 +116,7 @@ impl ConversationRestorationInNewPaneType {
     /// Use live appearance background color, and don't add a session restoration banner.
     pub fn should_use_live_appearance(&self) -> bool {
         match self {
-            Self::Forked { .. } => true,
-            Self::Historical {
-                should_use_live_appearance,
-                ..
-            } => FeatureFlag::AgentView.is_enabled() || *should_use_live_appearance,
+            Self::Forked { .. } | Self::Historical { .. } => true,
             Self::Startup { .. } => false,
         }
     }
@@ -337,12 +332,11 @@ impl TerminalView {
             }
         });
 
-        // If `AgentView` is enabled and we're restoring conversations on startup (as opposed to
-        // loading a conversation due to selection from the command palette), then we don't eagerly
-        // set the pending query state (which is equivalent to _entering_ the agent view when the
-        // FeatureFlag is enabled).
+        // If we're restoring conversations on startup (as opposed to loading a conversation due to
+        // selection from the command palette), then we don't eagerly set the pending query state
+        // (which is equivalent to _entering_ the agent view).
         if entry_behavior == RestoreConversationEntryBehavior::EnterRestoredConversation
-            && (!FeatureFlag::AgentView.is_enabled() || !is_restoring_on_startup)
+            && !is_restoring_on_startup
         {
             // Set agent pending state for follow-up if we have an active conversation
             if let Some(conversation_id) = active_conversation_id {
@@ -368,8 +362,7 @@ impl TerminalView {
             let conversation_id = params.conversation_id;
             let command_block_index = params.command_block_index;
 
-            if FeatureFlag::AgentView.is_enabled()
-                && params.is_restoring_on_startup
+            if params.is_restoring_on_startup
                 && !conversations_with_agent_view_block.contains(&conversation_id)
             {
                 // Insert an agent view block before the first AI block of each conversation.
@@ -624,9 +617,7 @@ impl TerminalView {
         );
 
         // If agent view was open before the session was saved, restore it
-        if FeatureFlag::AgentView.is_enabled()
-            && let Some(conversation_id) = active_conversation_id_to_restore
-        {
+        if let Some(conversation_id) = active_conversation_id_to_restore {
             // Check if the conversation was successfully restored
             let conversation_exists = BlocklistAIHistoryModel::handle(ctx)
                 .as_ref(ctx)
@@ -858,16 +849,12 @@ impl TerminalView {
         let item = RichContentItem::new_with_agent_transcript_user_query(
             Some(RichContentType::AIBlock),
             restored_block_view_handle.id(),
-            FeatureFlag::AgentView
-                .is_enabled()
-                .then_some(conversation_id),
-            FeatureFlag::AgentView.is_enabled()
-                && self
-                    .agent_view_controller
-                    .as_ref(ctx)
-                    .agent_view_state()
-                    .active_conversation_id()
-                    .is_some_and(|id| id == conversation_id),
+            Some(conversation_id),
+            self.agent_view_controller
+                .as_ref(ctx)
+                .agent_view_state()
+                .active_conversation_id()
+                .is_some_and(|id| id == conversation_id),
             is_agent_transcript_user_query,
         );
         if let Some(cmd_block_index) = command_block_index {

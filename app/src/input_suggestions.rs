@@ -534,17 +534,6 @@ impl InputSuggestions {
         }
     }
 
-    pub fn confirm_and_execute(&mut self, ctx: &mut ViewContext<Self>) {
-        if let Some(item) = self.get_selected_item() {
-            ctx.emit(Event::ConfirmAndExecuteSuggestion {
-                suggestion: item.text.to_owned(),
-                match_type: item.match_type,
-            });
-        } else {
-            ctx.emit(Event::CloseSuggestion);
-        }
-    }
-
     pub fn exit(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.emit_a11y_content(AccessibilityContent::new_without_help(
             "Closed suggestions.",
