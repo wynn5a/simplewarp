@@ -4589,18 +4589,16 @@ impl CodeReviewView {
             .with_cross_axis_alignment(CrossAxisAlignment::Center);
 
         // Add file diff as context button (before remove button)
-        if FeatureFlag::DiffSetAsContext.is_enabled() {
-            right_row.add_child(
-                EventHandler::new(
-                    Container::new(ChildView::new(&file.add_context_button).finish())
-                        .with_margin_left(4.)
-                        .finish(),
-                )
-                .on_left_mouse_up(|_, _, _| DispatchEventResult::StopPropagation)
-                .on_left_mouse_down(|_, _, _| DispatchEventResult::StopPropagation)
-                .finish(),
-            );
-        }
+        right_row.add_child(
+            EventHandler::new(
+                Container::new(ChildView::new(&file.add_context_button).finish())
+                    .with_margin_left(4.)
+                    .finish(),
+            )
+            .on_left_mouse_up(|_, _, _| DispatchEventResult::StopPropagation)
+            .on_left_mouse_down(|_, _, _| DispatchEventResult::StopPropagation)
+            .finish(),
+        );
 
         right_row.add_child(
             EventHandler::new(
@@ -6207,7 +6205,7 @@ impl CodeReviewView {
         let has_changes = matches!(self.state(), CodeReviewViewState::Loaded(loaded) if !loaded.to_diff_stats().has_no_changes());
 
         let is_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
-        if is_ai_enabled && FeatureFlag::DiffSetAsContext.is_enabled() && has_changes {
+        if is_ai_enabled && has_changes {
             items.push(
                 MenuItemFields::new("Add diff set as context")
                     .with_icon(Icon::Paperclip)

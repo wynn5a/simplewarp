@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use lazy_static::lazy_static;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
     Container, CornerRadius, Flex, Hoverable, MouseStateHandle, ParentElement, Radius, Text, Wrap,
@@ -281,10 +280,8 @@ impl TypedActionView for CommandSearchZeroStateView {
 fn valid_query_filters(app: &AppContext) -> Vec<QueryFilter> {
     let mut filters = vec![QueryFilter::History];
 
-    if FeatureFlag::AgentMode.is_enabled() && AISettings::as_ref(app).is_any_ai_enabled() {
-        if FeatureFlag::AgentModeWorkflows.is_enabled() {
-            filters.push(QueryFilter::AgentModeWorkflows);
-        }
+    if AISettings::as_ref(app).is_any_ai_enabled() {
+        filters.push(QueryFilter::AgentModeWorkflows);
         filters.push(QueryFilter::PromptHistory);
     }
 

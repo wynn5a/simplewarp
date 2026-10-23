@@ -17,7 +17,6 @@ pub mod slash_commands;
 mod suggestions_mode_menu;
 pub mod suggestions_mode_model;
 mod terminal;
-mod terminal_message_bar;
 mod universal;
 pub mod user_query;
 
@@ -224,7 +223,6 @@ use crate::terminal::input::slash_commands::{
 use crate::terminal::input::suggestions_mode_model::{
     InputSuggestionsModeEvent, InputSuggestionsModeModel,
 };
-use crate::terminal::input::terminal_message_bar::TerminalInputMessageBar;
 use crate::terminal::input::user_query::{UserQueryMenuEvent, UserQueryMenuView};
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::session::shell_quote_arg;
@@ -305,8 +303,6 @@ pub const COMPLETIONS_MENU_WIDTH: f32 = 330.;
 pub const OPEN_COMPLETIONS_KEYBINDING_NAME: &str = "input:open_completion_suggestions";
 pub const INPUT_A11Y_LABEL: &str = "Command Input.";
 pub const INPUT_A11Y_HELPER: &str = "Input your shell command, press enter to execute. Press cmd-up to navigate to output of previously executed commands. Press cmd-l to re-focus command input.";
-pub const AI_COMMAND_SEARCH_HINT_TEXT: &str = "Type '#' for AI command suggestions";
-
 const AGENT_MODE_AI_DISABLED_AUTODETECTION_DISABLED_HINT_TEXT: &str = "Run commands";
 
 // Rotating hint text options for new Agent Mode conversations
@@ -597,7 +593,7 @@ impl InputSuggestionsMode {
                 | Self::UserQueryMenu { .. }
                 | Self::InlineHistoryMenu { .. }
         ) || matches!(self, Self::ProfileSelector)
-            || (FeatureFlag::ListSkills.is_enabled() && matches!(self, Self::SkillMenu))
+            || (matches!(self, Self::SkillMenu))
             || matches!(self, Self::IndexedReposMenu)
     }
 
@@ -1339,8 +1335,6 @@ pub struct Input {
 
     universal_developer_input_button_bar: ViewHandle<UniversalDeveloperInputButtonBar>,
 
-    terminal_input_message_bar: ViewHandle<TerminalInputMessageBar>,
-
     agent_input_footer: ViewHandle<AgentInputFooter>,
     prompt_suggestions_view: ViewHandle<PromptSuggestionsView>,
 
@@ -1389,9 +1383,8 @@ pub struct Input {
     weak_view_handle: WeakViewHandle<Input>,
 
     agent_status_view: ViewHandle<BlocklistAIStatusBar>,
-    /// Optional queued-prompts panel rendered between `agent_status_view` and the input editor.
-    /// Constructed in [`Input::new`] when [`FeatureFlag::QueueSlashCommand`] is enabled.
-    queued_prompts_panel: Option<ViewHandle<QueuedPromptsPanelView>>,
+    /// Queued-prompts panel rendered between `agent_status_view` and the input editor.
+    queued_prompts_panel: ViewHandle<QueuedPromptsPanelView>,
     agent_view_controller: ModelHandle<AgentViewController>,
     agent_shortcut_view_model: ModelHandle<AgentShortcutViewModel>,
     ephemeral_message_model: ModelHandle<EphemeralMessageModel>,
@@ -1576,7 +1569,6 @@ pub fn init(app: &mut AppContext) {
             "Trigger Auto Detection",
             InputAction::EnableAutoDetection,
         )
-        .with_enabled(|| FeatureFlag::AgentMode.is_enabled())
         .with_group(bindings::BindingGroup::WarpAi.as_str())
         .with_context_predicate(
             id!("Input")
@@ -2079,19 +2071,6 @@ impl Input {
         });
         ctx.subscribe_to_view(&inline_history_menu_view, |me, _, event, ctx| {
             me.handle_inline_history_menu_event(event, ctx);
-        });
-        let inline_history_model = inline_history_menu_view.as_ref(ctx).model().clone();
-
-        let terminal_input_message_bar = ctx.add_view(|ctx| {
-            TerminalInputMessageBar::new(
-                model.clone(),
-                ai_input_model.clone(),
-                buffer_model.clone(),
-                ai_context_model.clone(),
-                suggestions_mode_model.clone(),
-                inline_history_model,
-                ctx,
-            )
         });
 
         let agent_shortcut_view_model = ctx.add_model(|ctx| {
@@ -2613,10 +2592,10 @@ impl Input {
             )
         });
 
-        let queued_prompts_panel = FeatureFlag::QueueSlashCommand.is_enabled().then(|| {
+        let queued_prompts_panel = {
             let cli_subagent_controller = cli_subagent_controller.clone();
             let host_editor = editor.clone();
-            let panel = ctx.add_typed_action_view(|ctx| {
+            ctx.add_typed_action_view(|ctx| {
                 QueuedPromptsPanelView::new(
                     terminal_view_id,
                     suggestions_mode_model.clone(),
@@ -2624,11 +2603,10 @@ impl Input {
                     host_editor,
                     ctx,
                 )
-            });
-            ctx.subscribe_to_view(&panel, |me, _, event, ctx| {
-                me.handle_queued_prompts_panel_event(event, ctx);
-            });
-            panel
+            })
+        };
+        ctx.subscribe_to_view(&queued_prompts_panel, |me, _, event, ctx| {
+            me.handle_queued_prompts_panel_event(event, ctx);
         });
 
         let buffer_block_id = model.lock().block_list().active_block_id().clone();
@@ -2665,7 +2643,6 @@ impl Input {
             completions_abort_handle: None,
             menu_positioning_provider,
             universal_developer_input_button_bar,
-            terminal_input_message_bar,
             prompt_render_helper,
             prompt_type: current_prompt,
             ai_controller,
@@ -2802,16 +2779,15 @@ impl Input {
         self.focus_input_box(ctx);
     }
 
-    /// The queued prompts panel, when [`FeatureFlag::QueueSlashCommand`] is enabled.
-    pub(crate) fn queued_prompts_panel(&self) -> Option<&ViewHandle<QueuedPromptsPanelView>> {
-        self.queued_prompts_panel.as_ref()
+    pub(crate) fn queued_prompts_panel(&self) -> &ViewHandle<QueuedPromptsPanelView> {
+        &self.queued_prompts_panel
     }
 
     /// Returns whether this input's queued-prompt inline editor is currently focused.
     pub(crate) fn is_queued_prompt_inline_editor_focused(&self, ctx: &AppContext) -> bool {
         self.queued_prompts_panel
-            .as_ref()
-            .is_some_and(|panel| panel.as_ref(ctx).is_inline_edit_editor_focused(ctx))
+            .as_ref(ctx)
+            .is_inline_edit_editor_focused(ctx)
     }
 
     /// Returns whether the active queued prompt is being edited inline.
@@ -3017,7 +2993,7 @@ impl Input {
     }
 
     fn set_ai_context_menu_open(&mut self, open: bool, ctx: &mut ViewContext<Self>) {
-        if FeatureFlag::AIContextMenuEnabled.is_enabled() && open {
+        if open {
             let cursor_position = self.editor.read(ctx, |editor, ctx| {
                 editor.start_byte_index_of_last_selection(ctx)
             });
@@ -3414,8 +3390,7 @@ impl Input {
     ) {
         self.close_overlays(ctx);
         let has_input = !self.editor.as_ref(ctx).buffer_text(ctx).is_empty();
-        let should_clear_prompt_for_search =
-            has_input && FeatureFlag::RestorePromptOnInlineModelSelectorSearch.is_enabled();
+        let should_clear_prompt_for_search = has_input;
         self.inline_model_selector_view.update(ctx, |view, ctx| {
             if has_input && !should_clear_prompt_for_search {
                 view.set_filter_results_by_input(false);
@@ -3444,10 +3419,6 @@ impl Input {
     }
 
     fn open_skill_selector(&mut self, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::ListSkills.is_enabled() {
-            return;
-        }
-
         self.skill_selector_should_invoke = false;
         self.inline_skill_selector_view.update(ctx, |view, ctx| {
             view.set_include_bundled(false, ctx);
@@ -3460,10 +3431,6 @@ impl Input {
     }
 
     fn open_invoke_skill_selector(&mut self, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::ListSkills.is_enabled() {
-            return;
-        }
-
         self.skill_selector_should_invoke = true;
         self.inline_skill_selector_view.update(ctx, |view, ctx| {
             view.set_include_bundled(true, ctx);
@@ -4077,9 +4044,7 @@ impl Input {
 
         // Image context is available whenever the feature flag is enabled and we're in AI input
         // mode, including cloud mode
-        let image_context_options = if FeatureFlag::ImageAsContext.is_enabled()
-            && matches!(ai_input_model.input_type(), InputType::AI)
-        {
+        let image_context_options = if matches!(ai_input_model.input_type(), InputType::AI) {
             ImageContextOptions::Enabled {
                 unsupported_model: !vision_supported,
                 is_processing_attached_images: self.is_processing_attached_images,
@@ -4366,8 +4331,8 @@ impl Input {
             .ai_context_model
             .as_ref(app)
             .selected_conversation_id(app);
-        let is_queue_next_prompt_enabled = FeatureFlag::QueueSlashCommand.is_enabled()
-            && selected_conversation_id.is_some_and(|conversation_id| {
+        let is_queue_next_prompt_enabled =
+            selected_conversation_id.is_some_and(|conversation_id| {
                 let terminal_model = self.model.lock();
                 QueuedQueryModel::as_ref(app).is_queue_next_prompt_enabled(
                     conversation_id,
@@ -4832,24 +4797,11 @@ impl Input {
 
         // Now handle the default (empty prefix) placeholder
         if toggled_on && AISettings::as_ref(ctx).is_any_ai_enabled() {
-            if FeatureFlag::AgentMode.is_enabled() {
-                // agent_mode_hint_text now handles caching internally
-                let hint_text = self.agent_mode_hint_text(ctx);
-                self.editor.update(ctx, |editor, ctx| {
-                    editor.set_placeholder_text(hint_text, ctx);
-                });
-            } else if *InputSettings::as_ref(ctx)
-                .ai_command_search_hash_trigger
-                .value()
-            {
-                self.editor.update(ctx, |editor, ctx| {
-                    editor.set_placeholder_text(AI_COMMAND_SEARCH_HINT_TEXT, ctx);
-                });
-            } else {
-                self.editor.update(ctx, |editor, ctx| {
-                    editor.clear_placeholder_text(ctx);
-                });
-            }
+            // agent_mode_hint_text now handles caching internally
+            let hint_text = self.agent_mode_hint_text(ctx);
+            self.editor.update(ctx, |editor, ctx| {
+                editor.set_placeholder_text(hint_text, ctx);
+            });
         } else {
             self.editor.update(ctx, |editor, ctx| {
                 // Clear only the default placeholder, keep slash command placeholders
@@ -7153,9 +7105,7 @@ impl Input {
                     }
 
                     // Check if "@" was just typed in a valid context
-                    if FeatureFlag::AIContextMenuEnabled.is_enabled()
-                        && (is_ai_input_enabled || FeatureFlag::AtMenuOutsideOfAIMode.is_enabled())
-                        && Some(PlainTextEditorViewAction::InsertChar) == last_action
+                    if Some(PlainTextEditorViewAction::InsertChar) == last_action
                         && *edit_origin == EditOrigin::UserTyped
                     {
                         let buffer_text = editor.buffer_text(ctx);
@@ -7328,8 +7278,7 @@ impl Input {
                 let buffer_text = self.buffer_text(ctx);
 
                 // If the last buffer didn't start with the AI input prefix and the current buffer does, then enable AI input.
-                if FeatureFlag::AgentMode.is_enabled()
-                    && !FeatureFlag::AgentView.is_enabled()
+                if !FeatureFlag::AgentView.is_enabled()
                     && AISettings::as_ref(ctx).is_any_ai_enabled()
                     && (!is_ai_input_enabled || !is_input_mode_locked)
                 {
@@ -7418,8 +7367,7 @@ impl Input {
                     .block_list()
                     .active_block()
                     .is_agent_in_control_or_tagged_in();
-                if FeatureFlag::AgentMode.is_enabled()
-                    && !is_locked_shell_mode
+                if !is_locked_shell_mode
                     && (!FeatureFlag::AgentView.is_enabled() || is_agent_view_active)
                     && !is_agent_in_control_or_tagged_in
                 {
@@ -7640,8 +7588,7 @@ impl Input {
             }
             EditorEvent::BufferReplaced => {
                 let ai_input_model = self.ai_input_model.as_ref(ctx);
-                if FeatureFlag::AgentMode.is_enabled()
-                    && AISettings::as_ref(ctx).is_any_ai_enabled()
+                if AISettings::as_ref(ctx).is_any_ai_enabled()
                     && !ai_input_model.is_ai_input_enabled()
                     && ai_input_model.is_input_type_locked()
                 {
@@ -9885,8 +9832,8 @@ impl Input {
             });
         } else if self
             .queued_prompts_panel
-            .as_ref()
-            .is_some_and(|panel| panel.as_ref(ctx).enter_sends_queued_prompt(ctx))
+            .as_ref(ctx)
+            .enter_sends_queued_prompt(ctx)
         {
             // An empty-buffer Enter sends the top queued row, mirroring its send-now button.
             // The locked initial cloud-mode head row is not sendable, so Enter does nothing
@@ -9924,8 +9871,7 @@ impl Input {
             self.input_suggestions.update(ctx, |suggestions, ctx| {
                 suggestions.confirm(ctx);
             });
-        } else if FeatureFlag::AgentMode.is_enabled()
-            && AISettings::as_ref(ctx).is_any_ai_enabled()
+        } else if AISettings::as_ref(ctx).is_any_ai_enabled()
             && self.ai_input_model.as_ref(ctx).is_ai_input_enabled()
         {
             self.submit_ai_query_with_routing(ctx);
@@ -9964,9 +9910,7 @@ impl Input {
             }
             self.emit_input_buffer_submitted_telemetry(ctx);
 
-            if FeatureFlag::AgentMode.is_enabled()
-                && AISettings::as_ref(ctx).is_ai_autodetection_enabled()
-            {
+            if AISettings::as_ref(ctx).is_ai_autodetection_enabled() {
                 self.ai_input_model.update(ctx, |input, ctx| {
                     input.abort_in_progress_detection();
 
@@ -10214,16 +10158,9 @@ impl Input {
         &mut self,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
-        if !FeatureFlag::QueueSlashCommand.is_enabled() {
-            return false;
-        }
-
         // A shell-mode submission queues as a command; an AI-mode submission queues as a prompt.
         // Command queueing is gated on the V2 surface.
         let is_command = !self.ai_input_model.as_ref(ctx).is_ai_input_enabled();
-        if is_command && !FeatureFlag::QueuedPromptsV2.is_enabled() {
-            return false;
-        }
 
         let Some(conversation_id) = self
             .ai_context_model
@@ -10236,9 +10173,6 @@ impl Input {
         let is_summarizing = BlocklistAIHistoryModel::as_ref(ctx)
             .conversation(&conversation_id)
             .is_some_and(|c| c.is_summarizing());
-        // Summarization only routes a prompt into the queued-prompts panel under QueuedPromptsV2;
-        // with the flag off, only the auto-queue toggle queues (pre-V2 behavior).
-        let queue_for_summarize = is_summarizing && FeatureFlag::QueuedPromptsV2.is_enabled();
 
         let queue_model = QueuedQueryModel::as_ref(ctx);
         let queue_head_allows_lrc = match queue_model.queue(conversation_id).first() {
@@ -10266,7 +10200,7 @@ impl Input {
         // When queue mode is not normally active but an agent-requested run_shell_command
         // action is still pending (snapshot not yet fired), queue as PendingLrcAutoQueue
         // to prevent the CliAgentUserQuery / LRC snapshot race.
-        let queued_for_pending_lrc = !queue_enabled && !queue_for_summarize && !is_command && {
+        let queued_for_pending_lrc = !queue_enabled && !is_summarizing && !is_command && {
             let pending_action_id = {
                 let terminal_model = self.model.lock();
                 let active_block = terminal_model.block_list().active_block();
@@ -10284,7 +10218,7 @@ impl Input {
             })
         };
 
-        if !queue_enabled && !queue_for_summarize && !queued_for_pending_lrc {
+        if !queue_enabled && !is_summarizing && !queued_for_pending_lrc {
             return false;
         }
 

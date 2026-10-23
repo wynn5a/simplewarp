@@ -515,9 +515,7 @@ fn all_commands() -> Vec<StaticCommand> {
         MODEL.clone(),
     ];
 
-    if FeatureFlag::LocalDockerSandbox.is_enabled() {
-        commands.push(CREATE_DOCKER_SANDBOX);
-    }
+    commands.push(CREATE_DOCKER_SANDBOX);
 
     commands.push(OPEN_CODE_REVIEW);
     commands.push(NEW_WORKTREE);
@@ -525,34 +523,23 @@ fn all_commands() -> Vec<StaticCommand> {
 
     commands.push(CREATE_NEW_PROJECT.clone());
 
-    if FeatureFlag::SummarizationConversationCommand.is_enabled() {
-        commands.push(COMPACT.clone());
-        commands.push(COMPACT_AND.clone());
-    }
+    commands.push(COMPACT.clone());
+    commands.push(COMPACT_AND.clone());
 
-    if FeatureFlag::QueueSlashCommand.is_enabled() {
-        commands.push(QUEUE.clone());
-    }
+    commands.push(QUEUE.clone());
 
     commands.extend([FORK.clone(), FORK_AND_COMPACT.clone()]);
 
-    if FeatureFlag::ForkFromCommand.is_enabled() {
-        commands.push(FORK_FROM);
-    }
+    commands.push(FORK_FROM);
 
     commands.extend([EDIT.clone(), EXPORT_TO_FILE.clone()]);
 
-    if FeatureFlag::ListSkills.is_enabled() {
-        commands.push(EDIT_SKILL.clone());
-        commands.push(INVOKE_SKILL.clone());
-    }
+    commands.push(EDIT_SKILL.clone());
+    commands.push(INVOKE_SKILL.clone());
 
     commands.push(PROFILE.clone());
 
-    if FeatureFlag::RevertToCheckpoints.is_enabled() && FeatureFlag::RewindSlashCommand.is_enabled()
-    {
-        commands.push(REWIND);
-    }
+    commands.push(REWIND);
 
     commands.push(OPEN_REPO);
 

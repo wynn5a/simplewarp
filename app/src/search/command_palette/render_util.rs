@@ -48,7 +48,3 @@ fn render_search_item_icon_inner(
     .with_margin_right(12.)
     .finish()
 }
-
-pub mod colors {
-    pub const WARP_AI: u32 = 0xF3B911FF;
-}

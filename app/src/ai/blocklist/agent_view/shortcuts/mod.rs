@@ -4,7 +4,6 @@ use std::borrow::Cow;
 
 pub use model::*;
 use pathfinder_color::ColorU;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warpui::elements::{
     Border, Container, CrossAxisAlignment, Expanded, Flex, ParentElement, Text,
@@ -148,9 +147,8 @@ pub fn render_agent_shortcuts_view(app: &AppContext) -> Box<dyn Element> {
         ));
     }
 
-    if FeatureFlag::AgentViewConversationListView.is_enabled()
-        && let Some(keystroke) =
-            keybinding_name_to_keystroke(TOGGLE_CONVERSATION_LIST_VIEW_BINDING_NAME, app)
+    if let Some(keystroke) =
+        keybinding_name_to_keystroke(TOGGLE_CONVERSATION_LIST_VIEW_BINDING_NAME, app)
     {
         shortcuts.push(render_shortcut(
             ShortcutProps {

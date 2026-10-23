@@ -11,162 +11,18 @@ pub enum FeatureFlag {
     /// If set, generators are executed using cmd.exe on Windows.
     RunGeneratorsWithCmdExe,
 
-    /// Warp Agent Mode.
-    AgentMode,
-
-    /// Enables workflows for use with Agent Mode.
-    AgentModeWorkflows,
-
-    /// Enables AI rules for use with Agent Mode.
-    AIRules,
-
     DragTabsToWindows,
 
     /// Enables Kitty image rendering
     KittyImages,
 
-    /// MCP server v0 functionality.
-    McpServer,
-
-    /// Enables image as context for AM.
-    ImageAsContext,
-
     /// UNIX shells running "natively" on Windows via MSYS2.
     MSYS2Shells,
-
-    /// Enables reading images with the `read_files` tool.
-    ReadImageFiles,
-
-    /// Enables the AI context menu, or at-menu.
-    AIContextMenuEnabled,
-
-    /// Enables the AI context menu outside of AI input mode.
-    AtMenuOutsideOfAIMode,
-
-    /// Enables the resume button for cancelled AI conversations.
-    AIResumeButton,
-
-    /// Enables the agent to decide whether to execute a command.
-    AgentDecidesCommandExecution,
-
-    /// Enables the fast-forward autoexecute button
-    FastForwardAutoexecuteButton,
-
-    /// Remembers the per-conversation fast-forward state across local session restoration.
-    RememberFastForwardState,
-
-    /// Enables the AI context menu nesting and commands
-    AIContextMenuCommands,
-
-    /// Enables sending stderr warnings in FileGlobV2 results.
-    FileGlobV2Warnings,
-
-    /// Enables code symbols in AI context menu
-    AIContextMenuCode,
-    /// Enables fallback model load output messaging in the warping indicator.
-    FallbackModelLoadOutputMessaging,
-
-    /// Enables selection-as-context functionality in the code editor.
-    SelectionAsContext,
-
-    /// Enables the prompt chip that displays the GitHub PR for the current branch.
-    GithubPrPromptChip,
 
     /// Enables vim keybindings in the code editor.
     VimCodeEditor,
 
-    /// Enables OAuth support for MCP.
-    McpOauth,
-
-    /// Enables attaching diff sets (multiple hunks from multiple files) as context in Agent Mode.
-    DiffSetAsContext,
-
-    /// Shows a confirmation dialog when cancelling an active summarization via Ctrl-C or stop.
-    SummarizationCancellationConfirmation,
-
-    /// Enables the local docker sandbox entrypoints in the client.
-    LocalDockerSandbox,
-
-    /// Enables the /compact slash command.
-    SummarizationConversationCommand,
-
-    /// Enables the /fork-from slash command.
-    ForkFromCommand,
-
-    /// Enables the revert to checkpoints feature.
-    RevertToCheckpoints,
-
-    /// Enables the /rewind slash command.
-    RewindSlashCommand,
-
     AgentView,
-
-    /// Enables block context functionality in Agent View.
-    AgentViewBlockContext,
-
-    /// Enables support for AM file diffs backed by the V4A patch format.
-    V4AFileDiffs,
-
-    /// Enables loading conversations in the Agent Management View.
-    InteractiveConversationManagementView,
-
-    /// Enables agent tips displayed below the warping indicator in Agent Mode.
-    AgentTips,
-
-    /// Enables the "New agent" prompt chip in terminal mode when AgentView is enabled.
-    ///
-    /// When disabled (the default), the terminal message bar is shown instead.
-    AgentViewPromptChip,
-
-    /// Enables editing the agent input footer layout from the prompt context menu.
-    AgentToolbarEditor,
-
-    // Enables a side panel conversation list view for AgentView mode.
-    AgentViewConversationListView,
-
-    /// Enables sending the server a list of Skills that the client has access to.
-    ///
-    /// If disabled, the server will send None as the SkillsContext.
-    ListSkills,
-
-    /// Enables loading and returning bundled skills in the SkillManager.
-    BundledSkills,
-
-    /// Enables file-based MCP server support via .mcp.json files in repo roots.
-    FileBasedMcp,
-
-    /// Enables passing user query arguments to skill invocations ($ARGUMENTS, $N).
-    SkillArguments,
-
-    /// When enabled, a conversation is only considered "active" once a new query has been
-    /// sent since opening (rather than the moment its agent view is expanded).
-    ActiveConversationRequiresInteraction,
-
-    /// Enables attaching conversations as context in Agent Mode via the @ menu.
-    ConversationsAsContext,
-
-    /// Shows a pending user query indicator during summarization when a follow-up
-    /// prompt is queued via `/fork-and-compact` or `/compact-and`.
-    PendingUserQueryIndicator,
-
-    /// Gates the `/queue` slash command, which lets users queue a follow-up prompt
-    /// while the agent is mid-response.
-    QueueSlashCommand,
-    /// Extends queued prompts to shell commands, summarization, and follow-up draining.
-    QueuedPromptsV2,
-
-    /// Clears the current prompt when opening the inline model selector from the
-    /// model chip, then restores that prompt when the selector closes.
-    RestorePromptOnInlineModelSelectorSearch,
-
-    /// Enables the `--harness` flag for `oz agent run`, allowing external agent
-    /// CLIs (e.g. `claude`) to execute prompts instead of Warp's agent harness.
-    AgentHarness,
-
-    /// Renders MCP tool-call request and response JSON as an interactive
-    /// collapsible tree with typed colors and per-row Copy JSON, instead of
-    /// a flat pretty-printed blob.
-    McpJsonTreeView,
 }
 
 static FLAG_STATES: [AtomicBool; cardinality::<FeatureFlag>()] =

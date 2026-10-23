@@ -7,7 +7,6 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::Vector2F;
-use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
 use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
 use warpui::elements::{
@@ -204,7 +203,7 @@ impl CommandSearchView {
                 );
             }
 
-            if FeatureFlag::AgentMode.is_enabled() && AISettings::as_ref(ctx).is_any_ai_enabled() {
+            if AISettings::as_ref(ctx).is_any_ai_enabled() {
                 mixer.add_sync_source(
                     AIQueriesDataSource::new(),
                     HashSet::from([QueryFilter::PromptHistory]),

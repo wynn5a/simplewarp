@@ -1,7 +1,6 @@
 //! The "Knowledge" settings page, shown under the Agents umbrella.
 
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
-use warp_core::features::FeatureFlag;
 use warp_core::settings::ToggleableSetting as _;
 use warpui::elements::{
     Container, Element, Flex, FormattedTextElement, HighlightedHyperlink, MouseStateHandle,
@@ -37,11 +36,10 @@ impl KnowledgePageView {
     }
 
     fn build_page() -> PageType<Self> {
-        let mut widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = Vec::new();
-        if FeatureFlag::AIRules.is_enabled() {
-            widgets.push(Box::new(RulesWidget::default()));
-            widgets.push(Box::new(ManageRulesWidget::default()));
-        }
+        let widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![
+            Box::new(RulesWidget::default()),
+            Box::new(ManageRulesWidget::default()),
+        ];
         PageType::new_uncategorized(widgets, Some(PAGE_TITLE))
     }
 }
@@ -94,7 +92,7 @@ impl SettingsPageMeta for KnowledgePageView {
     }
 
     fn should_render(&self, _ctx: &AppContext) -> bool {
-        FeatureFlag::AgentMode.is_enabled()
+        true
     }
 
     fn update_filter(&mut self, query: &str, ctx: &mut ViewContext<Self>) -> MatchData {
@@ -129,8 +127,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 &(context.clone() & id!(flags::IS_ANY_AI_ENABLED)),
                 flags::AI_RULES_FLAG,
             )
-            .with_group(bindings::BindingGroup::WarpAi)
-            .with_enabled(|| FeatureFlag::AIRules.is_enabled()),
+            .with_group(bindings::BindingGroup::WarpAi),
         ],
         app,
     );

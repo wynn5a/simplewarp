@@ -705,7 +705,6 @@ pub fn init(app: &mut AppContext) {
                 ),
             TerminalAction::ContextMenu(ContextMenuAction::AskAI(AskAISource::SelectedBlocks)),
         )
-        .with_enabled(|| FeatureFlag::AgentMode.is_enabled())
         .with_custom_action(CustomAction::AttachSelectionAsAgentModeContext)
         .with_group(bindings::BindingGroup::WarpAi.as_str())
         // When possible, prioritize the text selection action over attaching a block as
@@ -728,7 +727,6 @@ pub fn init(app: &mut AppContext) {
                 AskAISource::SelectedTerminalText,
             )),
         )
-        .with_enabled(|| FeatureFlag::AgentMode.is_enabled())
         .with_custom_action(CustomAction::AttachSelectionAsAgentModeContext)
         .with_group(bindings::BindingGroup::WarpAi.as_str())
         .with_context_predicate(
@@ -736,48 +734,6 @@ pub fn init(app: &mut AppContext) {
                 & (id!("ActiveBlockTextSelection") | id!("ActiveAltScreenSelection"))
                 & id!(flags::IS_ANY_AI_ENABLED),
         ),
-        // We register a single binding for either a selected block or selected text
-        // to avoid cluttering the keybindings UI. At the end of the day, these
-        // map to the same logic, and we should be able to distinguish whether
-        // this is a block selection or text selection later on.
-        EditableBinding::new(
-            "terminal:ask_ai_assistant",
-            "Ask Warp AI about Selection",
-            TerminalAction::ContextMenu(ContextMenuAction::AskAI(AskAISource::SelectedBlockOrText)),
-        )
-        .with_enabled(|| !FeatureFlag::AgentMode.is_enabled())
-        .with_custom_action(CustomAction::AttachSelectionAsAgentModeContext)
-        .with_group(bindings::BindingGroup::WarpAi.as_str())
-        .with_context_predicate(
-            id!("Terminal")
-                & id!(flags::IS_ANY_AI_ENABLED)
-                & (eq!("TerminalView_BlockSelectionCardinality", "One")
-                    | id!("ActiveBlockTextSelection")
-                    | id!("ActiveAltScreenSelection")),
-        ),
-    ]);
-
-    app.register_editable_bindings([
-        EditableBinding::new(
-            "terminal:ask_ai_assistant_last_block",
-            "Ask Warp AI about last block",
-            TerminalAction::ContextMenu(ContextMenuAction::AskAI(AskAISource::LastBlock)),
-        )
-        .with_enabled(|| !FeatureFlag::AgentMode.is_enabled())
-        .with_key_binding("ctrl-shift->")
-        .with_group(bindings::BindingGroup::WarpAi.as_str())
-        .with_context_predicate(
-            id!("Terminal") & id!("TerminalView_NonEmptyBlockList") & id!(flags::IS_ANY_AI_ENABLED),
-        ),
-        EditableBinding::new(
-            "terminal:ask_ai_assistant",
-            "Ask Warp AI",
-            TerminalAction::ContextMenu(ContextMenuAction::AskAI(AskAISource::SelectedInputText)),
-        )
-        .with_enabled(|| !FeatureFlag::AgentMode.is_enabled())
-        .with_group(bindings::BindingGroup::WarpAi.as_str())
-        .with_key_binding("ctrl-shift-space")
-        .with_context_predicate(id!("Input") & id!(flags::IS_ANY_AI_ENABLED)),
     ]);
 
     app.register_editable_bindings([EditableBinding::new(
@@ -817,8 +773,7 @@ pub fn init(app: &mut AppContext) {
         )
         .with_key_binding("cmdorctrl-shift-I")
         .with_group(bindings::BindingGroup::WarpAi.as_str())
-        .with_context_predicate(id!(flags::IS_ANY_AI_ENABLED) & id!("Terminal"))
-        .with_enabled(|| FeatureFlag::FastForwardAutoexecuteButton.is_enabled()),
+        .with_context_predicate(id!(flags::IS_ANY_AI_ENABLED) & id!("Terminal")),
         EditableBinding::new(
             TOGGLE_QUEUE_NEXT_PROMPT_KEYBINDING,
             "Toggle Queue Next Prompt",
@@ -826,8 +781,7 @@ pub fn init(app: &mut AppContext) {
         )
         .with_key_binding("cmdorctrl-shift-J")
         .with_group(bindings::BindingGroup::WarpAi.as_str())
-        .with_context_predicate(id!(flags::IS_ANY_AI_ENABLED) & id!("Terminal"))
-        .with_enabled(|| FeatureFlag::QueueSlashCommand.is_enabled()),
+        .with_context_predicate(id!(flags::IS_ANY_AI_ENABLED) & id!("Terminal")),
     ]);
 
     app.register_editable_bindings([EditableBinding::new(

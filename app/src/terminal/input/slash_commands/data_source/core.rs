@@ -436,7 +436,7 @@ impl SlashCommandDataSource {
     /// Fuzzy-match skills for the current working directory against `query_text`. Returns an empty
     /// vector when skills are globally unavailable.
     pub fn match_skills(&self, query_text: &str, app: &AppContext) -> Vec<InlineItem> {
-        if !FeatureFlag::ListSkills.is_enabled() || !AISettings::as_ref(app).is_any_ai_enabled() {
+        if !AISettings::as_ref(app).is_any_ai_enabled() {
             return Vec::new();
         }
 

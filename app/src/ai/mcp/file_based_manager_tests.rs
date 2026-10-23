@@ -6,7 +6,6 @@ use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::watcher::DirectoryWatcher;
 use settings::Setting as _;
 use uuid::Uuid;
-use warp_core::features::FeatureFlag;
 use warpui::{App, Entity, ModelHandle, SingletonEntity as _};
 use watcher::HomeDirectoryWatcher;
 
@@ -407,7 +406,6 @@ fn test_update_file_based_servers_removes_unreferenced_servers() {
 /// auto-spawns.
 #[test]
 fn test_global_warp_server_from_managed_home_root_always_spawns() {
-    let _flag_guard = FeatureFlag::FileBasedMcp.override_enabled(true);
     let Some(warp_mcp_config_path) = warp_managed_mcp_config_path() else {
         return;
     };
@@ -452,7 +450,6 @@ fn test_global_warp_server_from_managed_home_root_always_spawns() {
 /// A globally-scoped non-Warp installation only auto-spawns when the toggle is on.
 #[test]
 fn test_global_non_warp_server_respects_toggle() {
-    let _flag_guard = FeatureFlag::FileBasedMcp.override_enabled(true);
     let Some(home_dir) = dirs::home_dir() else {
         // Skip on platforms where a home dir isn't available (shouldn't happen on
         // our supported platforms, but guard to avoid false failures).
@@ -507,7 +504,6 @@ fn test_global_non_warp_server_respects_toggle() {
 /// detection, and the toggle must not spawn or despawn them either.
 #[test]
 fn test_project_scoped_servers_never_auto_spawn() {
-    let _flag_guard = FeatureFlag::FileBasedMcp.override_enabled(true);
     let repo_path = PathBuf::from("/tmp/warp-test-repo");
     let claude_parsed =
         parse_mcp_json(r#"{"proj-claude": {"command": "npx", "args": ["proj-claude"]}}"#);
@@ -563,7 +559,6 @@ fn test_project_scoped_servers_never_auto_spawn() {
 /// is considered global (and thus gated only by the toggle for non-Warp providers).
 #[test]
 fn test_server_referenced_from_both_global_and_project_is_global() {
-    let _flag_guard = FeatureFlag::FileBasedMcp.override_enabled(true);
     let Some(home_dir) = dirs::home_dir() else {
         return;
     };

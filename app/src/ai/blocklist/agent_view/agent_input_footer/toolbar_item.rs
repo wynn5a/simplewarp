@@ -3,7 +3,6 @@ use warpui::SingletonEntity;
 
 use super::editor::AgentToolbarEditorMode;
 use crate::context_chips::{ContextChipKind, available_chips};
-use crate::features::FeatureFlag;
 use crate::settings::CodeSettings;
 use crate::ui_components::icons::Icon;
 
@@ -156,9 +155,7 @@ impl AgentToolbarItemKind {
             Self::ContextChip(ContextChipKind::ShellGitBranch),
             Self::ContextChip(ContextChipKind::GitDiffStats),
         ];
-        if FeatureFlag::GithubPrPromptChip.is_enabled() {
-            items.push(Self::ContextChip(ContextChipKind::GithubPullRequest));
-        }
+        items.push(Self::ContextChip(ContextChipKind::GithubPullRequest));
         items.push(Self::NLDToggle);
         items
     }
@@ -181,9 +178,7 @@ impl AgentToolbarItemKind {
             // Opt-in only: deliberately absent from `default_left`/`default_right`.
             Self::FileExplorer,
         ]);
-        if FeatureFlag::FastForwardAutoexecuteButton.is_enabled() {
-            items.push(Self::FastForwardToggle);
-        }
+        items.push(Self::FastForwardToggle);
         items
     }
 

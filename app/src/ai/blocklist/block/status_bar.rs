@@ -382,9 +382,7 @@ impl BlocklistAIStatusBar {
         };
 
         // Show confirmation dialog if summarization is active and feature flag enabled
-        if FeatureFlag::SummarizationCancellationConfirmation.is_enabled()
-            && model.is_conversation_summarization_active(ctx)
-        {
+        if model.is_conversation_summarization_active(ctx) {
             // If the dialog is already open, treat Ctrl-C as confirm-cancel
             if self.is_summarization_cancel_dialog_open {
                 // Confirm cancel the running/pending action/request, then close the dialog overlay.
@@ -450,9 +448,7 @@ impl BlocklistAIStatusBar {
             self.is_summarization_cancel_dialog_open = false;
             self.stop_summarization_timer();
 
-            if FeatureFlag::AgentTips.is_enabled() {
-                self.update_agent_tip(ctx);
-            }
+            self.update_agent_tip(ctx);
         }
     }
 
@@ -673,7 +669,7 @@ impl BlocklistAIStatusBar {
     }
 
     fn update_agent_tip(&mut self, ctx: &mut ViewContext<Self>) {
-        if FeatureFlag::AgentTips.is_enabled() && *InputSettings::as_ref(ctx).show_agent_tips {
+        if *InputSettings::as_ref(ctx).show_agent_tips {
             let current_working_directory = self
                 .terminal_model
                 .lock()
@@ -697,7 +693,7 @@ impl BlocklistAIStatusBar {
     }
 
     fn render_tip(&self, app: &AppContext) -> Option<Box<dyn Element>> {
-        if FeatureFlag::AgentTips.is_enabled() && *InputSettings::as_ref(app).show_agent_tips {
+        if *InputSettings::as_ref(app).show_agent_tips {
             self.current_tip
                 .as_ref()
                 .map(|tip| render_agent_tip(tip, app))
@@ -792,17 +788,15 @@ impl BlocklistAIStatusBar {
                         .unwrap_or(false),
                     is_locked: terminal_model.is_conversation_transcript_viewer(),
                 }),
-                queue_next_prompt_button: FeatureFlag::QueueSlashCommand.is_enabled().then_some(
-                    ButtonProps {
-                        button_handle: &self.state_handles.queue_next_prompt_button,
-                        keystroke: self.queue_next_prompt_keystroke.as_ref(),
-                        is_active: QueuedQueryModel::as_ref(app).is_queue_next_prompt_enabled(
-                            conversation.id(),
-                            active_block,
-                            app,
-                        ),
-                    },
-                ),
+                queue_next_prompt_button: Some(ButtonProps {
+                    button_handle: &self.state_handles.queue_next_prompt_button,
+                    keystroke: self.queue_next_prompt_keystroke.as_ref(),
+                    is_active: QueuedQueryModel::as_ref(app).is_queue_next_prompt_enabled(
+                        conversation.id(),
+                        active_block,
+                        app,
+                    ),
+                }),
                 stop_button: Some(ButtonProps {
                     button_handle: &self.state_handles.stop_button,
                     keystroke: self.stop_keystroke.as_ref(),
@@ -947,9 +941,6 @@ fn resolve_fallback_warping_message<V: View>(
     model: &dyn AIBlockModel<View = V>,
     app: &AppContext,
 ) -> Option<String> {
-    if !FeatureFlag::FallbackModelLoadOutputMessaging.is_enabled() {
-        return None;
-    }
     let mut is_fallback = current_is_fallback;
     let mut display_name = current_display_name;
     let is_new_user_query = model

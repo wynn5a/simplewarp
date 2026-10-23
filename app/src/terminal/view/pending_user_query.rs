@@ -1,4 +1,3 @@
-use warp_core::features::FeatureFlag;
 use warpui::ViewContext;
 
 use super::rich_content::RichContentMetadata;
@@ -136,20 +135,16 @@ impl TerminalView {
         show_send_now_button: bool,
         ctx: &mut ViewContext<Self>,
     ) {
-        if FeatureFlag::PendingUserQueryIndicator.is_enabled() {
-            self.insert_pending_user_query_block(
-                prompt.clone(),
-                show_close_button,
-                show_send_now_button,
-                PendingUserQueryKind::QueuedPrompt,
-                ctx,
-            );
-        }
+        self.insert_pending_user_query_block(
+            prompt.clone(),
+            show_close_button,
+            show_send_now_button,
+            PendingUserQueryKind::QueuedPrompt,
+            ctx,
+        );
         // Replace any previously queued prompt so the latest one always wins.
         self.queued_prompt_callback = Some(Box::new(move |terminal_view, reason, ctx| {
-            if FeatureFlag::PendingUserQueryIndicator.is_enabled() {
-                terminal_view.remove_pending_user_query_block(ctx);
-            }
+            terminal_view.remove_pending_user_query_block(ctx);
             match reason {
                 FinishReason::Complete => {
                     terminal_view.input.update(ctx, |input, ctx| {

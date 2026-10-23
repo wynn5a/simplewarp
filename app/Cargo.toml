@@ -338,65 +338,17 @@ embed-resource = "3.0"
 
 # Note that we support channel-specific enables for these features
 [features]
-ai_resume_button = []
-bundled_skills = []
-agent_mode = []
 # SimpleWarp: a local-only build. No cloud, no login, no billing, and no Warp Drive.
 # It is the app's only feature set; `default` just forwards to it.
 simplewarp = [
-    "agent_mode",
     "render_continuous_block_selections_with_single_border",
     "external_agent_mode_context",
-    "ai_rules",
-    "am_workflows",
     "render_agent_mode_output_markdown",
     "kitty_images",
-    "mcp_server",
-    "fast_forward_autoexecute_button",
-    "image_as_context",
-    "ai_context_menu",
-    "at_menu_outside_of_ai_mode",
-    "interactive_conversation_management_view",
-    "ai_resume_button",
-    "ai_context_menu_code",
-    "agent_decides_command_execution",
-    "read_image_files",
-    "selection_as_context",
     "vim_code_editor",
-    "mcp_oauth",
-    "fallback_model_load_output_messaging",
-    "summarization_cancellation_confirmation",
-    "diff_set_as_context",
-    "summarize_conversation_command",
-    "fork_from_command",
-    "v4a_file_diffs",
-    "agent_tips",
-    "list_skills",
-    "bundled_skills",
     "agent_view",
-    "agent_view_block_context",
-    "agent_view_conversation_list_view",
     "inline_slash_commands",
     "inline_model_selector",
-    "skill_arguments",
-    "active_conversation_requires_interaction",
-    "file_based_mcp",
-    "github_pr_prompt_chip",
-    "conversations_as_context",
-    "local_docker_sandbox",
-    "revert_to_checkpoints",
-    "rewind_slash_command",
-    "agent_toolbar_editor",
-    "pending_user_query_indicator",
-    "queue_slash_command",
-    "queued_prompts_v2",
-    "agent_harness",
-    "mcp_json_tree_view",
-    "file_glob_v2_warnings",
-    "remember_fast_forward_state",
-    "agent_view_prompt_chip",
-    "ai_context_menu_commands",
-    "restore_prompt_on_inline_model_selector_search",
     "drag_tabs_to_windows",
 ]
 default = ["simplewarp"]
@@ -404,12 +356,10 @@ default = ["simplewarp"]
 # substantially slow down program execution.
 dhat_heap_profiling = ["dep:dhat"]
 drag_tabs_to_windows = []
-interactive_conversation_management_view = []
 extern_plist = []
 nld_heuristic_v1 = ["input_classifier/nld_heuristic_v1"]
 nld_heuristic_v2 = ["input_classifier/nld_heuristic_v2"]
 msys2_shells = []
-github_pr_prompt_chip = []
 agent_mode_evals = [
     "integration_tests",
     "warpui/defer_scene_build",
@@ -421,21 +371,15 @@ inline_slash_commands = ["agent_view"]
 # Enable this feature to add a "Write heap profile to disk" command backed by
 # jemalloc heap profiling.
 heap_usage_tracking = ["jemalloc_pprof"]
-image_as_context = []
 jemalloc = ["dep:tikv-jemallocator", "ai/jemalloc"]
 jemalloc_with_profiling = ["jemalloc", "tikv-jemallocator/profiling"]
 jemalloc_auto_heap_profiling = ["jemalloc_with_profiling"]
 jemalloc_pprof = ["jemalloc_with_profiling", "dep:jemalloc_pprof"]
 run_generators_with_cmd_exe = []
 kitty_images = []
-list_skills = []
-local_docker_sandbox = []
-mcp_server = []
-mcp_oauth = []
 # Remote-backed tty that connects to a PTY-like interface via a server.
 # Fix for cursor reflow bug during window resize, from Alacritty resizing logic.
 # This enables `read_files` to support images.
-read_image_files = []
 # Enable this feature to automatically perform CPU profiling via pprof.  The
 # generated profile will be written to profile.pb in the current directory.
 # NOTE: This may slow down program execution.
@@ -448,9 +392,6 @@ test-util = [
     "warp_core/test-util",
     "cloud_objects/test-util",
 ]
-mcp_json_tree_view = []
-file_glob_v2_warnings = []
-remember_fast_forward_state = []
 # Feature enabled only when app is compiled for integration tests.
 integration_tests = [
     "warp_cli/integration_tests",
@@ -459,41 +400,10 @@ integration_tests = [
     "warp_core/integration_tests",
 ]
 traces = []
-ai_rules = []
-am_workflows = []
 external_agent_mode_context = []
-ai_context_menu = []
-at_menu_outside_of_ai_mode = []
-agent_decides_command_execution = []
-fast_forward_autoexecute_button = []
-ai_context_menu_commands = []
-ai_context_menu_code = []
-fallback_model_load_output_messaging = []
-selection_as_context = []
-conversations_as_context = []
 vim_code_editor = []
-diff_set_as_context = []
-summarization_cancellation_confirmation = []
-summarize_conversation_command = []
-fork_from_command = []
-revert_to_checkpoints = []
-rewind_slash_command = []
 agent_view = []
-agent_view_block_context = ["agent_view"]
-v4a_file_diffs = []
-agent_tips = []
-agent_toolbar_editor = ["agent_view"]
-agent_view_prompt_chip = ["agent_view"]
-agent_view_conversation_list_view = ["agent_view"]
 inline_model_selector = ["agent_view"]
-restore_prompt_on_inline_model_selector_search = []
-file_based_mcp = []
-skill_arguments = []
-active_conversation_requires_interaction = []
-pending_user_query_indicator = []
-queue_slash_command = []
-queued_prompts_v2 = ["queue_slash_command"]
-agent_harness = []
 
 [package.metadata.bundle.bin.simplewarp]
 category = "public.app-category.developer-tools"

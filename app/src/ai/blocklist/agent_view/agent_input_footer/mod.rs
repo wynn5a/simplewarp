@@ -33,7 +33,6 @@ use crate::completer::SessionContext;
 use crate::context_chips::display_chip::{DisplayChip, DisplayChipConfig, PromptChipShellCommand};
 use crate::context_chips::prompt_type::PromptType;
 use crate::context_chips::{self, ContextChipKind};
-use crate::features::FeatureFlag;
 use crate::network::NetworkStatus;
 use crate::settings::{AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent};
 use crate::settings_view::SettingsSection;
@@ -662,9 +661,9 @@ impl AgentInputFooter {
             }
             AgentToolbarItemKind::NLDToggle => Some(ChildView::new(&self.nld_button).finish()),
             AgentToolbarItemKind::FileAttach => Some(ChildView::new(&self.file_button).finish()),
-            AgentToolbarItemKind::FastForwardToggle => FeatureFlag::FastForwardAutoexecuteButton
-                .is_enabled()
-                .then(|| ChildView::new(&self.fast_forward_button).finish()),
+            AgentToolbarItemKind::FastForwardToggle => {
+                Some(ChildView::new(&self.fast_forward_button).finish())
+            }
             // Local-to-cloud handoff was removed when `FeatureFlag::OzHandoff`
             // was folded permanently off (round 4an, part 2/2) — it required
             // a Warp account/server, which this build never has. The variant

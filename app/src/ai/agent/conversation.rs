@@ -9,7 +9,6 @@ use uuid::Uuid;
 use vec1::{Size0Error, Vec1};
 use warp_core::command::ExitCode;
 use warp_core::execution_mode::AppExecutionMode;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::WarpTheme;
 use warp_core::ui::theme::color::internal_colors;
@@ -329,13 +328,10 @@ impl AIConversation {
                         .ok()
                 })
                 .unwrap_or_default();
-            let autoexecute_override = if FeatureFlag::RememberFastForwardState.is_enabled() {
-                data.autoexecute_override
-                    .map(Into::into)
-                    .unwrap_or_default()
-            } else {
-                AIConversationAutoexecuteMode::default()
-            };
+            let autoexecute_override = data
+                .autoexecute_override
+                .map(Into::into)
+                .unwrap_or_default();
             (
                 server_conversation_token,
                 forked_from_server_conversation_token,

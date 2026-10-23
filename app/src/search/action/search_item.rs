@@ -14,10 +14,9 @@ use warpui::{AppContext, Element, SingletonEntity};
 use crate::appearance::Appearance;
 use crate::cloud_object::DriveObjectType;
 use crate::cloud_object::cloud_object_styling::warp_drive_icon_color;
-use crate::features::FeatureFlag;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::render_util::{
-    colors, render_search_item_icon, render_search_item_icon_placeholder,
+    render_search_item_icon, render_search_item_icon_placeholder,
 };
 use crate::search::item::SearchItem;
 use crate::search::result_renderer::ItemHighlightState;
@@ -182,13 +181,7 @@ impl SearchItemIcon for BindingGroup {
     fn icon(&self) -> Icon {
         match self {
             Self::Settings => Icon::Gear,
-            Self::WarpAi => {
-                if !FeatureFlag::AgentMode.is_enabled() {
-                    Icon::AiAssistant
-                } else {
-                    Icon::Agent
-                }
-            }
+            Self::WarpAi => Icon::Agent,
             Self::Close => Icon::X,
             Self::Navigation => Icon::Navigation,
             Self::Workflow => Icon::Workflow,
@@ -210,9 +203,6 @@ impl SearchItemIcon for BindingGroup {
             | Self::Folders
             | Self::Terminal
             | Self::Notifications => appearance.theme().foreground().into_solid(),
-            Self::WarpAi if !FeatureFlag::AgentMode.is_enabled() => {
-                ColorU::from_u32(colors::WARP_AI)
-            }
             Self::WarpAi => appearance.theme().foreground().into_solid(),
             Self::Workflow => warp_drive_icon_color(appearance, DriveObjectType::Workflow),
             Self::Notebooks => warp_drive_icon_color(

@@ -5,7 +5,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use chrono::{Duration, Utc};
 use parking_lot::Mutex;
 use persistence::model::AgentConversationData;
-use warp_core::features::FeatureFlag;
 use warpui::{App, EntityId, ModelHandle, SingletonEntity};
 
 use super::entry::{AgentConversationEntryId, AgentConversationProvenance};
@@ -57,8 +56,6 @@ fn subscribe_to_conversation_updated(
 #[test]
 fn test_restored_conversation_emits_restored_kind() {
     App::test((), |mut app| async move {
-        let _interactive_management_guard =
-            FeatureFlag::InteractiveConversationManagementView.override_enabled(true);
         let agent_model = app.add_singleton_model(|_| create_test_model());
         let captured = subscribe_to_conversation_updated(&mut app, &agent_model);
 
@@ -82,8 +79,6 @@ fn test_restored_conversation_emits_restored_kind() {
 #[test]
 fn test_status_transition_emits_status_set_with_filter_buckets() {
     App::test((), |mut app| async move {
-        let _interactive_management_guard =
-            FeatureFlag::InteractiveConversationManagementView.override_enabled(true);
         let agent_model = app.add_singleton_model(|_| create_test_model());
         let captured = subscribe_to_conversation_updated(&mut app, &agent_model);
 
@@ -115,8 +110,6 @@ fn test_status_transition_emits_status_set_with_filter_buckets() {
 #[test]
 fn test_same_bucket_re_emission_emits_status_set_with_equal_filters() {
     App::test((), |mut app| async move {
-        let _interactive_management_guard =
-            FeatureFlag::InteractiveConversationManagementView.override_enabled(true);
         let agent_model = app.add_singleton_model(|_| create_test_model());
         let captured = subscribe_to_conversation_updated(&mut app, &agent_model);
 
@@ -328,8 +321,6 @@ fn test_get_entries_includes_local_only_entry() {
 #[test]
 fn test_server_token_assignment_emits_conversation_updated() {
     App::test((), |mut app| async move {
-        let _interactive_management_guard =
-            FeatureFlag::InteractiveConversationManagementView.override_enabled(true);
         add_entry_projection_test_models(&mut app);
 
         let conversation_id = AIConversationId::new();

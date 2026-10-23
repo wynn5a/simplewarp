@@ -2,7 +2,6 @@
 //! profiles, each opening its own editor.
 
 use settings::ToggleableSetting;
-use warp_core::features::FeatureFlag;
 use warpui::elements::{
     ChildView, Container, CrossAxisAlignment, Element, Flex, MainAxisSize, ParentElement,
     Shrinkable,
@@ -12,7 +11,7 @@ use warpui::{
     Action, AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle, id,
 };
 
-use super::ai_shared::{render_ai_setting_description, should_show_mcp_servers, styles};
+use super::ai_shared::{render_ai_setting_description, styles};
 use super::execution_profile_view::{ExecutionProfileView, ExecutionProfileViewEvent};
 use super::settings_page::{
     MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget, build_sub_header,
@@ -186,7 +185,7 @@ impl SettingsPageMeta for AgentProfilesPageView {
     }
 
     fn should_render(&self, _ctx: &AppContext) -> bool {
-        FeatureFlag::AgentMode.is_enabled()
+        true
     }
 
     fn update_filter(&mut self, query: &str, ctx: &mut ViewContext<Self>) -> MatchData {
@@ -233,11 +232,7 @@ impl SettingsWidget for AgentsWidget {
     type View = AgentProfilesPageView;
 
     fn search_terms(&self) -> &str {
-        if should_show_mcp_servers() {
-            "ai a.i. agent autonomy profiles allowlist denylist autoexecute permissions models llms planning mcp server"
-        } else {
-            "ai a.i. agent autonomy profiles allowlist denylist autoexecute permissions models llms planning"
-        }
+        "ai a.i. agent autonomy profiles allowlist denylist autoexecute permissions models llms planning mcp server"
     }
 
     fn render(

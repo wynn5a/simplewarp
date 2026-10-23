@@ -638,23 +638,21 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             ),
         );
     }
-    if FeatureFlag::AIContextMenuCode.is_enabled() {
-        toggle_binding_pairs.push(
-            ToggleSettingActionPair::new(
-                "codebase symbols in the '@' context menu",
-                builder(SettingsAction::FeaturesPageToggle(
-                    FeaturesPageAction::ToggleOutlineCodebaseSymbolsForAtContextMenu,
-                )),
-                context,
-                flags::OUTLINE_CODEBASE_SYMBOLS_FOR_AT_CONTEXT_MENU_FLAG,
-            )
-            .is_supported_on_current_platform(
-                InputSettings::as_ref(app)
-                    .outline_codebase_symbols_for_at_context_menu
-                    .is_supported_on_current_platform(),
-            ),
-        );
-    }
+    toggle_binding_pairs.push(
+        ToggleSettingActionPair::new(
+            "codebase symbols in the '@' context menu",
+            builder(SettingsAction::FeaturesPageToggle(
+                FeaturesPageAction::ToggleOutlineCodebaseSymbolsForAtContextMenu,
+            )),
+            context,
+            flags::OUTLINE_CODEBASE_SYMBOLS_FOR_AT_CONTEXT_MENU_FLAG,
+        )
+        .is_supported_on_current_platform(
+            InputSettings::as_ref(app)
+                .outline_codebase_symbols_for_at_context_menu
+                .is_supported_on_current_platform(),
+        ),
+    );
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
             "global workflows in Command Search",
@@ -2332,7 +2330,6 @@ impl FeaturesPageView {
         if input_settings
             .outline_codebase_symbols_for_at_context_menu
             .is_supported_on_current_platform()
-            && FeatureFlag::AIContextMenuCode.is_enabled()
         {
             editor_widgets.push(Box::new(
                 OutlineCodebaseSymbolsForAtContextMenuWidget::default(),
@@ -3069,15 +3066,10 @@ impl FeaturesPageView {
                 let current_tab_config_path = ai_settings.default_tab_config_path().to_string();
 
                 // Build items: built-in modes (skip TabConfig since configs are listed individually,
-                // skip CloudAgent since cloud tabs can no longer be created,
-                // and skip DockerSandbox when its feature flag is disabled).
-                let docker_sandbox_enabled = FeatureFlag::LocalDockerSandbox.is_enabled();
+                // and skip CloudAgent since cloud tabs can no longer be created).
                 let mut items: Vec<DropdownItem<FeaturesPageAction>> = DefaultSessionMode::iter()
                     .filter(|val| *val != DefaultSessionMode::TabConfig)
                     .filter(|val| *val != DefaultSessionMode::CloudAgent)
-                    .filter(|val| {
-                        *val != DefaultSessionMode::DockerSandbox || docker_sandbox_enabled
-                    })
                     .map(|val| {
                         DropdownItem::new(
                             val.display_name(),

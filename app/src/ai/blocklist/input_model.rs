@@ -436,9 +436,7 @@ impl BlocklistAIInputModel {
     /// Returns `false` if the input type is locked and we will not attempt to automatically detect
     /// and change the input type.
     pub fn should_run_input_autodetection(&self, app: &AppContext) -> bool {
-        FeatureFlag::AgentMode.is_enabled()
-            && self.is_autodetection_enabled_for_current_context(app)
-            && !self.input_config.is_locked
+        self.is_autodetection_enabled_for_current_context(app) && !self.input_config.is_locked
     }
 
     /// Returns whether autodetection is enabled for the current context, layering view-agnostic

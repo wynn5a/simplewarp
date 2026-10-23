@@ -325,8 +325,6 @@ impl PromptConfiguration {
     }
 
     pub fn default_prompt_with_pr_chip_suppressed(suppress_pr_chip: bool) -> Self {
-        use crate::features::FeatureFlag;
-
         let mut chips = vec![
             ContextChipKind::CondaEnvironment,
             ContextChipKind::VirtualEnvironment,
@@ -338,7 +336,7 @@ impl PromptConfiguration {
             ContextChipKind::GitDiffStats,
             ContextChipKind::KubernetesContext,
         ];
-        if FeatureFlag::GithubPrPromptChip.is_enabled() && !suppress_pr_chip {
+        if !suppress_pr_chip {
             chips.push(ContextChipKind::GithubPullRequest);
         }
 

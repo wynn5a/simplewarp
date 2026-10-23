@@ -10,7 +10,6 @@ use std::collections::HashMap;
 
 use pathfinder_color::ColorU;
 use pathfinder_geometry::rect::RectF;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::new_scrollable::{NewScrollable, ScrollableAppearance, SingleAxisConfig};
 use warpui::elements::{
@@ -578,9 +577,6 @@ impl QueuedPromptsPanelView {
 
     /// Visibility predicate used by the host to decide whether to render the panel.
     pub fn should_render(&self, ctx: &AppContext) -> bool {
-        if !FeatureFlag::QueueSlashCommand.is_enabled() {
-            return false;
-        }
         if self
             .suggestions_mode_model
             .as_ref(ctx)

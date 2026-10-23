@@ -3,7 +3,6 @@ use std::sync::Arc;
 use pathfinder_geometry::vector::vec2f;
 use vim::vim::{VimMode, VimState};
 use warp_completer::completer::Description;
-use warp_core::features::FeatureFlag;
 use warpui::elements::{
     AnchorPair, Border, ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
     DispatchEventResult, Element, EventHandler, Flex, OffsetPositioning, OffsetType, ParentAnchor,
@@ -13,23 +12,12 @@ use warpui::elements::{
 use warpui::fonts::Weight;
 use warpui::presenter::ChildView;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
-use warpui::{AppContext, SingletonEntity, ViewHandle};
+use warpui::{AppContext, ViewHandle};
 
 use crate::appearance::Appearance;
-use crate::settings::{AISettings, InputSettings};
 use crate::terminal::input::{Input, InputAction, InputSuggestionsMode, MenuPositioning};
 use crate::terminal::view::{PADDING_LEFT, TerminalAction};
 use crate::ui_components::icons::Icon;
-
-/// Whether the terminal input message bar should be shown.
-///
-/// The message bar is hidden when AI is disabled or the user has turned it off in settings.
-pub(super) fn should_show_terminal_input_message_bar(app: &AppContext) -> bool {
-    FeatureFlag::AgentView.is_enabled()
-        && !FeatureFlag::AgentViewPromptChip.is_enabled()
-        && InputSettings::as_ref(app).is_terminal_input_message_bar_enabled()
-        && AISettings::as_ref(app).is_any_ai_enabled()
-}
 
 /// Renders vim status bar
 /// Used by: agent.rs, terminal.rs, universal.rs, legacy.rs

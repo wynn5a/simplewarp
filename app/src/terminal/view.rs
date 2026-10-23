@@ -202,7 +202,7 @@ use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::ai::predict::prompt_suggestions::{
     is_accept_prompt_suggestion_bound_to_cmd_enter, is_accept_prompt_suggestion_bound_to_ctrl_enter,
 };
-use crate::ai_assistant::{ASK_AI_ASSISTANT_TEXT, AskAIType};
+use crate::ai_assistant::AskAIType;
 use crate::appearance::{Appearance, AppearanceEvent};
 use crate::banner::{
     Banner, BannerAction, BannerEvent, BannerState, BannerTextButton, BannerTextContent,
@@ -1104,19 +1104,14 @@ pub enum InputContextMenuAction {
     Paste,
     ShowCommandSearch,
     ShowAICommandSearch,
-    AskWarpAI,
     ToggleInputHintText,
 }
 
-/// Where a user's question for AI originated. Handled by blocklist AI if the feature flag is
-/// enabled and the AI Assistant panel otherwise.
+/// Where a user's question for AI originated.
 #[derive(Clone)]
 pub enum AskAISource {
     Block(BlockIndex),
     LastBlock,
-    /// The source is some selected text or selected block, but we're not yet sure which.
-    /// There should never be any cases where both are simultaneously selected.
-    SelectedBlockOrText,
     /// Question for block list AI about text selected form the terminal or input.
     SelectedInputText,
     SelectedTerminalText,
@@ -1177,7 +1172,6 @@ impl fmt::Debug for InputContextMenuAction {
             Paste => f.write_str("Paste"),
             ShowCommandSearch => f.write_str("CommandSearch"),
             ShowAICommandSearch => f.write_str("AICommandSearch"),
-            AskWarpAI => f.write_str("AskWarpAI"),
             ToggleInputHintText => f.write_str("ToggleInputHintText"),
         }
     }
@@ -3669,8 +3663,7 @@ impl TerminalView {
 
     fn should_retry_default_pr_chip_validation(ctx: &AppContext) -> bool {
         let settings = SessionSettings::as_ref(ctx);
-        FeatureFlag::GithubPrPromptChip.is_enabled()
-            && settings.github_pr_chip_default_validation.is_suppressed()
+        settings.github_pr_chip_default_validation.is_suppressed()
             && matches!(*settings.saved_prompt, PromptSelection::Default)
     }
 
@@ -3855,8 +3848,7 @@ impl TerminalView {
     /// Files a follow-up prompt that will run after the next conversation finishes on
     /// `conversation_id`. Used by `/compact-and` (targets the active conversation) and
     /// `/fork-and-compact` (targets the newly forked conversation, which may differ from the
-    /// currently selected one). Falls back to the legacy pending-user-query block when
-    /// `QueuedPromptsV2` is disabled.
+    /// currently selected one).
     pub fn enqueue_followup_prompt(
         &mut self,
         prompt: String,
@@ -3864,23 +3856,16 @@ impl TerminalView {
         conversation_id: AIConversationId,
         ctx: &mut ViewContext<Self>,
     ) {
-        if FeatureFlag::QueuedPromptsV2.is_enabled() {
-            let attachments = self.ai_context_model.update(ctx, |context_model, ctx| {
-                context_model.take_pending_attachments(ctx)
-            });
-            QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
-                model.append(
-                    conversation_id,
-                    QueuedQuery::new_with_attachments(prompt, origin, attachments),
-                    ctx,
-                );
-            });
-        } else {
-            self.send_user_query_after_next_conversation_finished(
-                prompt, /* show_close_button */ true, /* show_send_now_button */ false,
+        let attachments = self.ai_context_model.update(ctx, |context_model, ctx| {
+            context_model.take_pending_attachments(ctx)
+        });
+        QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
+            model.append(
+                conversation_id,
+                QueuedQuery::new_with_attachments(prompt, origin, attachments),
                 ctx,
             );
-        }
+        });
     }
 
     /// Drains one prompt from the queued-query singleton for `conversation_id` when that
@@ -4047,10 +4032,7 @@ impl TerminalView {
                     })
             });
         if editing_front_lrc_row {
-            let queued_prompts_panel = self.input.as_ref(ctx).queued_prompts_panel().cloned();
-            let Some(queued_prompts_panel) = queued_prompts_panel else {
-                return;
-            };
+            let queued_prompts_panel = self.input.as_ref(ctx).queued_prompts_panel().clone();
             queued_prompts_panel.update(ctx, |panel, ctx| {
                 panel.commit_edit(ctx);
             });
@@ -7687,13 +7669,9 @@ impl TerminalView {
                                         input.update_repo_path(Some(repo_path.clone()), ctx);
                                     });
 
-                                    if FeatureFlag::AIContextMenuEnabled.is_enabled() {
-                                        me.input.update(ctx, |input, ctx| {
-                                            input.check_and_update_ai_context_menu_disabled_state(
-                                                ctx,
-                                            );
-                                        });
-                                    }
+                                    me.input.update(ctx, |input, ctx| {
+                                        input.check_and_update_ai_context_menu_disabled_state(ctx);
+                                    });
 
                                     me.start_lsp_server_in_active_pwd(ctx);
 
@@ -9519,8 +9497,7 @@ impl TerminalView {
         let is_repo = DetectedRepositories::as_ref(ctx)
             .get_root_for_path(&LocalOrRemotePath::Local(directory.to_path_buf()))
             .is_some();
-        let is_any_ai_enabled =
-            FeatureFlag::AgentMode.is_enabled() && AISettings::as_ref(ctx).is_any_ai_enabled();
+        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled();
         // Check if the current session is remote - don't show setup in remote sessions.
         let is_remote_session = !self.active_session_is_local(ctx).unwrap_or(false);
 
@@ -10794,20 +10771,12 @@ impl TerminalView {
                 if AISettings::as_ref(ctx).is_any_ai_enabled() {
                     fields.extend([
                         MenuItem::Separator,
-                        MenuItemFields::new(if FeatureFlag::AgentMode.is_enabled() {
-                            *ATTACH_AS_AGENT_MODE_CONTEXT_TEXT
-                        } else {
-                            ASK_AI_ASSISTANT_TEXT
-                        })
-                        .with_on_select_action(TerminalAction::ContextMenu(
-                            ContextMenuAction::AskAI(if FeatureFlag::AgentMode.is_enabled() {
-                                AskAISource::SelectedTerminalText
-                            } else {
-                                AskAISource::SelectedBlockOrText
-                            }),
-                        ))
-                        .with_key_shortcut_label(Some("⌃ ⇧ Space"))
-                        .into_item(),
+                        MenuItemFields::new(*ATTACH_AS_AGENT_MODE_CONTEXT_TEXT)
+                            .with_on_select_action(TerminalAction::ContextMenu(
+                                ContextMenuAction::AskAI(AskAISource::SelectedTerminalText),
+                            ))
+                            .with_key_shortcut_label(Some("⌃ ⇧ Space"))
+                            .into_item(),
                     ]);
                 }
                 fields
@@ -10854,9 +10823,6 @@ impl TerminalView {
                     "Scroll to bottom of blocks"
                 };
 
-                // currently, we don't support share for multi selections
-                let is_ask_ai_disabled = !is_single_selection;
-
                 let is_copy_commands_disabled =
                     is_single_selection && tail_block.command_to_string().trim().is_empty();
                 let is_copy_both_disabled =
@@ -10886,34 +10852,18 @@ impl TerminalView {
                 ];
 
                 if AISettings::as_ref(ctx).is_any_ai_enabled() {
-                    if FeatureFlag::AgentMode.is_enabled() {
-                        // We can only attach selected blocks if the input box is visible.
-                        if self.is_input_box_visible(&model, ctx) {
-                            items.extend([
-                                MenuItem::Separator,
-                                MenuItemFields::new(*ATTACH_AS_AGENT_MODE_CONTEXT_TEXT)
-                                    .with_on_select_action(TerminalAction::ContextMenu(
-                                        ContextMenuAction::AskAI(AskAISource::SelectedBlocks),
-                                    ))
-                                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                                        "terminal:ask_ai_assistant",
-                                        ctx,
-                                    ))
-                                    .into_item(),
-                            ]);
-                        }
-                    } else {
+                    // We can only attach selected blocks if the input box is visible.
+                    if self.is_input_box_visible(&model, ctx) {
                         items.extend([
                             MenuItem::Separator,
-                            MenuItemFields::new("Ask Warp AI")
+                            MenuItemFields::new(*ATTACH_AS_AGENT_MODE_CONTEXT_TEXT)
                                 .with_on_select_action(TerminalAction::ContextMenu(
-                                    ContextMenuAction::AskAI(AskAISource::SelectedBlockOrText),
+                                    ContextMenuAction::AskAI(AskAISource::SelectedBlocks),
                                 ))
                                 .with_key_shortcut_label(keybinding_name_to_display_string(
                                     "terminal:ask_ai_assistant",
                                     ctx,
                                 ))
-                                .with_disabled(is_ask_ai_disabled)
                                 .into_item(),
                         ]);
                     }
@@ -11113,9 +11063,7 @@ impl TerminalView {
                         );
 
                         // We can't revert restored blocks since we don't restore the full diff
-                        if FeatureFlag::RevertToCheckpoints.is_enabled()
-                            && !ai_metadata.ai_block_handle.as_ref(ctx).is_restored()
-                        {
+                        if !ai_metadata.ai_block_handle.as_ref(ctx).is_restored() {
                             items.push(
                                 MenuItemFields::new("Rewind to before here")
                                     .with_on_select_action(TerminalAction::RewindAIConversation {
@@ -11387,29 +11335,21 @@ impl TerminalView {
             .agent_view_state()
             .is_active();
         let edit_menu_item = if has_cli_agent_session {
-            FeatureFlag::AgentToolbarEditor.is_enabled().then(|| {
-                MenuItemFields::new("Edit CLI agent toolbelt")
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::EditCLIAgentToolbar,
-                    ))
-                    .into_item()
-            })
+            MenuItemFields::new("Edit CLI agent toolbelt")
+                .with_on_select_action(TerminalAction::ContextMenu(
+                    ContextMenuAction::EditCLIAgentToolbar,
+                ))
+                .into_item()
         } else if is_agent_view_active {
-            FeatureFlag::AgentToolbarEditor.is_enabled().then(|| {
-                MenuItemFields::new("Edit agent toolbelt")
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::EditAgentToolbar,
-                    ))
-                    .into_item()
-            })
+            MenuItemFields::new("Edit agent toolbelt")
+                .with_on_select_action(TerminalAction::ContextMenu(
+                    ContextMenuAction::EditAgentToolbar,
+                ))
+                .into_item()
         } else {
-            Some(
-                MenuItemFields::new("Edit prompt")
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::EditPrompt,
-                    ))
-                    .into_item(),
-            )
+            MenuItemFields::new("Edit prompt")
+                .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::EditPrompt))
+                .into_item()
         };
 
         if *SessionSettings::as_ref(ctx).honor_ps1 {
@@ -11423,9 +11363,7 @@ impl TerminalView {
                         .into_item(),
                 );
             }
-            if let Some(edit_menu_item) = edit_menu_item {
-                items.extend([MenuItem::Separator, edit_menu_item]);
-            }
+            items.extend([MenuItem::Separator, edit_menu_item]);
             items
         } else {
             let mut items = vec![copy_prompt];
@@ -11437,9 +11375,7 @@ impl TerminalView {
                 items.push(MenuItem::Separator);
                 items.extend(current_prompt_menu_items);
             }
-            if let Some(edit_menu_item) = edit_menu_item {
-                items.extend([MenuItem::Separator, edit_menu_item]);
-            }
+            items.extend([MenuItem::Separator, edit_menu_item]);
             items
         }
     }
@@ -11537,16 +11473,6 @@ impl TerminalView {
                     ))
                     .into_item(),
             );
-
-            if !selected_input_text.is_empty() && !FeatureFlag::AgentMode.is_enabled() {
-                items.push(
-                    MenuItemFields::new("Ask Warp AI")
-                        .with_on_select_action(TerminalAction::InputContextMenuItem(
-                            InputContextMenuAction::AskWarpAI,
-                        ))
-                        .into_item(),
-                );
-            }
         }
 
         // Section 4: input hint text toggle
@@ -11676,16 +11602,12 @@ impl TerminalView {
             if AISettings::as_ref(ctx).is_any_ai_enabled() {
                 menu_items.extend([
                     MenuItem::Separator,
-                    MenuItemFields::new(if FeatureFlag::AgentMode.is_enabled() {
-                        *ATTACH_AS_AGENT_MODE_CONTEXT_TEXT
-                    } else {
-                        ASK_AI_ASSISTANT_TEXT
-                    })
-                    .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::AskAI(
-                        AskAISource::SelectedTerminalText,
-                    )))
-                    .with_key_shortcut_label(Some("⌃-⇧-Space"))
-                    .into_item(),
+                    MenuItemFields::new(*ATTACH_AS_AGENT_MODE_CONTEXT_TEXT)
+                        .with_on_select_action(TerminalAction::ContextMenu(
+                            ContextMenuAction::AskAI(AskAISource::SelectedTerminalText),
+                        ))
+                        .with_key_shortcut_label(Some("⌃-⇧-Space"))
+                        .into_item(),
                 ]);
             }
         }
@@ -13159,10 +13081,7 @@ impl TerminalView {
         );
 
         let ask_data = match (ask_source, selection_string) {
-            (
-                AskAISource::SelectedBlockOrText | AskAISource::SelectedTerminalText,
-                Some(selection_string),
-            ) => {
+            (AskAISource::SelectedTerminalText, Some(selection_string)) => {
                 // Explicitly snapshot and attach the selected text as pending context.
                 // This decouples context from the live selection so the text persists
                 // even if the user changes their selection afterward.
@@ -13182,18 +13101,10 @@ impl TerminalView {
                     populate_input_box: !self.is_input_box_visible(&self.model.lock(), ctx),
                 }
             }
-            (
-                AskAISource::Block { .. }
-                | AskAISource::LastBlock
-                | AskAISource::SelectedBlockOrText,
-                _,
-            ) => {
+            (AskAISource::Block { .. } | AskAISource::LastBlock, _) => {
                 let model = self.model.lock();
                 let block_index = match ask_source {
                     AskAISource::Block(block_index) => Some(*block_index),
-                    // Since we already checked the match arm for SelectedBlockOrText where there is text selection,
-                    // we must be in the selected block case now.
-                    AskAISource::SelectedBlockOrText => self.selected_blocks.tail(),
                     AskAISource::LastBlock => model.block_list().last_non_hidden_block_by_index(),
                     AskAISource::SelectedInputText
                     | AskAISource::SelectedTerminalText
@@ -14966,10 +14877,6 @@ impl TerminalView {
                 self.clone_repository(url, ctx);
             }
             InputEvent::CreateDockerSandbox => {
-                if !FeatureFlag::LocalDockerSandbox.is_enabled() {
-                    log::warn!("Local docker sandbox feature flag is disabled");
-                    return;
-                }
                 self.create_and_push_docker_sandbox(ctx);
             }
             InputEvent::Escape => {
@@ -17635,14 +17542,10 @@ impl TerminalView {
             CopyRprompt => self.copy_rprompt(ctx),
             EditPrompt => self.edit_prompt(ctx),
             EditAgentToolbar => {
-                if FeatureFlag::AgentToolbarEditor.is_enabled() {
-                    ctx.emit(Event::OpenAgentToolbarEditor);
-                }
+                ctx.emit(Event::OpenAgentToolbarEditor);
             }
             EditCLIAgentToolbar => {
-                if FeatureFlag::AgentToolbarEditor.is_enabled() {
-                    ctx.emit(Event::OpenCLIAgentToolbarEditor);
-                }
+                ctx.emit(Event::OpenCLIAgentToolbarEditor);
             }
             AskAI(ask_source) => {
                 self.ask_ai(ask_source, ctx);
@@ -17896,7 +17799,6 @@ impl TerminalView {
             SelectAll => self.select_all_text_from_input(ctx),
             Paste => self.paste_in_input(ctx),
             ShowCommandSearch => self.command_search_from_input(ctx),
-            AskWarpAI => self.ask_ai(&AskAISource::SelectedInputText, ctx),
             ShowAICommandSearch => self.ai_command_search_from_input(ctx),
             ToggleInputHintText => self.toggle_input_hint_text(ctx),
         }
@@ -20444,15 +20346,13 @@ impl View for TerminalView {
         };
         // Set CanResumeConversation flag if the latest exchange (across all tasks,
         // including subtasks) was manually cancelled or finished with an error.
-        if FeatureFlag::AIResumeButton.is_enabled() {
-            let latest_exchange = active_conversation.and_then(|c| c.latest_exchange());
-            let was_manually_cancelled = latest_exchange
-                .and_then(|e| e.output_status.cancel_reason())
-                .is_some_and(|reason| reason.is_manually_cancelled());
-            let has_error = active_conversation.is_some_and(|c| c.status().is_error());
-            if was_manually_cancelled || has_error {
-                context.set.insert(init::CAN_RESUME_CONVERSATION_KEY);
-            }
+        let latest_exchange = active_conversation.and_then(|c| c.latest_exchange());
+        let was_manually_cancelled = latest_exchange
+            .and_then(|e| e.output_status.cancel_reason())
+            .is_some_and(|reason| reason.is_manually_cancelled());
+        let has_error = active_conversation.is_some_and(|c| c.status().is_error());
+        if was_manually_cancelled || has_error {
+            context.set.insert(init::CAN_RESUME_CONVERSATION_KEY);
         }
         if active_conversation
             .as_ref()

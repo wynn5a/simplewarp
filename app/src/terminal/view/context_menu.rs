@@ -2,7 +2,7 @@ use warpui::{SingletonEntity, UpdateView};
 
 use super::{
     AIAgentExchangeId, AIConversationId, AppContext, BlocklistAIHistoryModel, CONTEXT_MENU_WIDTH,
-    ClipboardContent, ContextMenuAction, ContextMenuState, ContextMenuType, EntityId, FeatureFlag,
+    ClipboardContent, ContextMenuAction, ContextMenuState, ContextMenuType, EntityId,
     ForkAIConversationParams, ForkFromExchange, ForkedConversationDestination, MenuItem,
     MenuItemFields, RichContentLink, ServerConversationToken, ServerOutputId, TerminalAction,
     TerminalModel, TerminalView, Vector2F, ViewContext, fork_label_for_query,
@@ -353,7 +353,7 @@ impl TerminalView {
         );
 
         // We can't revert restored blocks since we don't restore the full diff
-        if FeatureFlag::RevertToCheckpoints.is_enabled() && !is_restored {
+        if !is_restored {
             menu_items.push(
                 MenuItemFields::new("Rewind to before here")
                     .with_on_select_action(TerminalAction::RewindAIConversation {

@@ -6,7 +6,6 @@ use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use settings::ToggleableSetting as _;
 use strum::IntoEnumIterator;
 use uuid::Uuid;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::Icon;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_error;
@@ -913,9 +912,7 @@ impl MCPServersListPageView {
         } else {
             page.add_child(self.render_controls());
 
-            if FeatureFlag::FileBasedMcp.is_enabled() {
-                page.add_child(self.render_file_based_mcp_section(appearance, app));
-            }
+            page.add_child(self.render_file_based_mcp_section(appearance, app));
 
             if filtered_server_cards.is_empty() && filtered_file_based_cards.is_empty() {
                 page.add_child(Self::render_no_search_results(appearance));

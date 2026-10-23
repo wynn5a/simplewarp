@@ -9,7 +9,6 @@ use driver::AgentDriverError;
 use tracing::Instrument as _;
 use warp_cli::agent::{AgentCommand, Harness, OutputFormat, Prompt, RunAgentArgs};
 use warp_cli::{CliCommand, GlobalOptions};
-use warp_core::features::FeatureFlag;
 use warp_logging::log_file_path;
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelSpawner, SingletonEntity};
@@ -64,9 +63,6 @@ fn run_agent(
 ) -> anyhow::Result<()> {
     match command {
         AgentCommand::Run(args) => {
-            if args.harness != Harness::Oz && !FeatureFlag::AgentHarness.is_enabled() {
-                return Err(anyhow::anyhow!("unexpected argument '--harness' found"));
-            }
             if args.harness == Harness::OpenCode {
                 return Err(anyhow::anyhow!(
                     "The opencode harness is only supported for local child agent launches."

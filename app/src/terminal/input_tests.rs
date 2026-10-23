@@ -1235,7 +1235,6 @@ fn seed_active_conversation(app: &mut App, terminal_view_id: EntityId) -> AIConv
 #[test]
 fn empty_buffer_enter_sends_top_queued_prompt_then_next_on_repeat() {
     App::test((), |mut app| async move {
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -1290,7 +1289,6 @@ fn empty_buffer_enter_sends_top_queued_prompt_then_next_on_repeat() {
 #[test]
 fn empty_buffer_enter_executes_top_queued_command() {
     App::test((), |mut app| async move {
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
 
         let session_info = SessionInfo::new_for_test();
@@ -1339,7 +1337,6 @@ fn empty_buffer_enter_executes_top_queued_command() {
 #[test]
 fn enter_with_nonempty_buffer_does_not_send_queued_row() {
     App::test((), |mut app| async move {
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -1490,7 +1487,6 @@ fn select_conversation(
 fn prompt_submission_auto_queues_during_agent_requested_lrc() {
     App::test((), |mut app| async move {
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -1521,7 +1517,6 @@ fn prompt_submission_auto_queues_during_agent_requested_lrc() {
 fn lrc_queued_prompts_wait_while_subagent_is_active() {
     App::test((), |mut app| async move {
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -1592,7 +1587,6 @@ fn lrc_queued_prompts_wait_while_subagent_is_active() {
 fn prompt_submission_during_lrc_with_non_lrc_queue_head_uses_generic_origin() {
     App::test((), |mut app| async move {
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -1646,7 +1640,6 @@ fn prompt_submission_during_lrc_with_non_lrc_queue_head_uses_generic_origin() {
 fn prompt_submission_during_lrc_with_lrc_queue_head_uses_lrc_origin() {
     App::test((), |mut app| async move {
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -1700,7 +1693,6 @@ fn prompt_submission_during_lrc_with_lrc_queue_head_uses_lrc_origin() {
 fn prompt_submission_does_not_auto_queue_for_user_tagged_lrc() {
     App::test((), |mut app| async move {
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -1724,7 +1716,6 @@ fn prompt_submission_does_not_auto_queue_for_user_tagged_lrc() {
 fn prompt_submission_is_not_queued_during_lrc_when_set_to_send_immediately() {
     App::test((), |mut app| async move {
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -1755,7 +1746,6 @@ fn prompt_submission_is_not_queued_during_lrc_when_set_to_send_immediately() {
 fn prompt_submission_during_lrc_with_queue_default_uses_generic_origin() {
     App::test((), |mut app| async move {
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -1787,7 +1777,6 @@ fn prompt_submission_during_lrc_with_queue_default_uses_generic_origin() {
 fn lrc_queued_prompts_fire_from_queue_head_when_command_finishes() {
     App::test((), |mut app| async move {
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -1841,7 +1830,6 @@ fn lrc_queued_prompts_fire_from_queue_head_when_command_finishes() {
 fn ghost_text_shows_queue_hint_during_agent_requested_lrc() {
     App::test((), |mut app| async move {
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -1860,14 +1848,12 @@ fn ghost_text_shows_queue_hint_during_agent_requested_lrc() {
 }
 
 #[test]
-fn shell_submission_queues_as_command_row_when_gated_under_v2() {
+fn shell_submission_queues_as_command_row() {
     // A shell-mode submission while a queued command is already in flight is captured as a
     // command row (not executed and not interrupting the queue), carries no attachments, and
     // clears the editor.
     App::test((), |mut app| async move {
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_slash_command = FeatureFlag::QueueSlashCommand.override_enabled(true);
-        let _queued_prompts_v2 = FeatureFlag::QueuedPromptsV2.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -1902,39 +1888,6 @@ fn shell_submission_queues_as_command_row_when_gated_under_v2() {
     });
 }
 
-#[test]
-fn shell_submission_is_not_queued_when_v2_disabled() {
-    // With QueuedPromptsV2 off, a shell submission is never captured as a command row even when
-    // every other queue condition is met; it falls through to normal execution.
-    App::test((), |mut app| async move {
-        let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_slash_command = FeatureFlag::QueueSlashCommand.override_enabled(true);
-        let _queued_prompts_v2 = FeatureFlag::QueuedPromptsV2.override_enabled(false);
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |view, _| view.input().clone());
-
-        let terminal_view_id = terminal.read(&app, |view, _| view.id());
-        let conversation_id = seed_active_conversation(&mut app, terminal_view_id);
-        select_conversation(&mut app, &terminal, conversation_id);
-        QueuedQueryModel::handle(&app).update(&mut app, |model, ctx| {
-            model.toggle_queue_next_prompt(conversation_id, ctx);
-            model.arm_command_in_flight(conversation_id);
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.set_input_mode_terminal(/* steal_focus */ false, ctx);
-            input.replace_buffer_content("echo 1", ctx);
-            input.input_enter(ctx);
-        });
-
-        QueuedQueryModel::handle(&app).read(&app, |model, _| {
-            assert!(model.queue(conversation_id).is_empty());
-        });
-    });
-}
-
 /// `/fork` emits an action and does not reiterate input into the conversation, so it must bypass
 /// prompt queuing and run immediately even while an agent is in progress with queued-prompts mode
 /// on.
@@ -1942,7 +1895,6 @@ fn shell_submission_is_not_queued_when_v2_disabled() {
 fn slash_fork_bypasses_prompt_queue_while_in_progress() {
     App::test((), |mut app| async move {
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -1977,7 +1929,6 @@ fn slash_fork_bypasses_prompt_queue_while_in_progress() {
 fn slash_compact_still_queues_while_in_progress() {
     App::test((), |mut app| async move {
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -3547,7 +3498,6 @@ fn test_new_conversation_keybinding_requires_double_press_in_non_empty_agent_vie
 fn question_mark_does_not_toggle_shortcuts_while_editing_queued_prompt() {
     App::test((), |mut app| async move {
         let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
 
         let (window_id, terminal) =
@@ -3756,7 +3706,6 @@ fn test_new_conversation_input_trigger_remains_single_step_in_non_empty_agent_vi
 #[test]
 fn test_create_docker_sandbox_slash_command_executes_and_clears_buffer() {
     App::test((), |mut app| async move {
-        let _docker_sandbox_flag = FeatureFlag::LocalDockerSandbox.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(
@@ -6413,8 +6362,6 @@ fn run_input_mode_prefix_test(udi_enabled: bool, input_type: InputType) {
     };
 
     App::test((), |mut app| async move {
-        let _am_flag = FeatureFlag::AgentMode.override_enabled(true);
-
         initialize_app(&mut app);
 
         // Ensure the AI autodetection is enabled.
@@ -6502,7 +6449,6 @@ fn enter_fullscreen_agent_view_for_test(terminal: &ViewHandle<TerminalView>, app
 #[test]
 fn test_terminal_prefix_sets_shell_prefix_decision_source() {
     App::test((), |mut app| async move {
-        let _am_flag = FeatureFlag::AgentMode.override_enabled(true);
         let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
 
         initialize_app(&mut app);
@@ -6663,8 +6609,6 @@ fn test_image_attachment_preserves_lock_state() {
 
 #[test]
 fn test_ai_context_menu_closes_when_space_immediately_after_at_symbol() {
-    let _ai_context_menu_enabled = FeatureFlag::AIContextMenuEnabled.override_enabled(true);
-
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -7001,7 +6945,6 @@ fn test_remove_ignored_suggestion_on_ai_query_execution() {
 #[test]
 fn test_agent_view_terminal_only_initial_input_config_unlocked_when_autodetection_enabled() {
     App::test((), |mut app| async move {
-        let _am_flag = FeatureFlag::AgentMode.override_enabled(true);
         let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
 
         initialize_app(&mut app);
@@ -7037,7 +6980,6 @@ fn test_terminal_only_ai_enter_enters_agent_view_and_clears_buffer() {
     use crate::ai::blocklist::InputConfig;
 
     App::test((), |mut app| async move {
-        let _am_flag = FeatureFlag::AgentMode.override_enabled(true);
         let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
 
         initialize_app(&mut app);
@@ -7095,7 +7037,6 @@ fn test_terminal_only_escape_locks_shell_mode() {
     use crate::ai::blocklist::InputConfig;
 
     App::test((), |mut app| async move {
-        let _am_flag = FeatureFlag::AgentMode.override_enabled(true);
         let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
 
         initialize_app(&mut app);

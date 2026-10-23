@@ -25,7 +25,7 @@ use crate::ai::mcp::templatable_manager::{FigmaMcpStatus, TemplatableMCPServerMa
 use crate::search::slash_command_menu::static_commands::commands;
 use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
 use crate::terminal::input::message_bar::attached_context::{
-    AttachedBlocksMessageProducer, AttachedContextArgs, AttachedTextSelectionMessageProducer,
+    AttachedContextArgs, AttachedTextSelectionMessageProducer,
 };
 use crate::terminal::input::message_bar::common::{
     disableable_message_item_color_overrides, render_standard_message_bar,
@@ -292,7 +292,6 @@ impl View for AgentMessageBar {
             .produce_message(args)
             .or_else(|| BootstrappingMessageProducer.produce_message(args))
             .or_else(|| ForkSlashCommandMessageProducer.produce_message(args))
-            .or_else(|| AttachedBlocksMessageProducer.produce_message(args))
             .or_else(|| AttachedTextSelectionMessageProducer.produce_message(args))
             .or_else(|| AutodetectedBashModeMessageProducer.produce_message(args))
             .or_else(|| ExitBashModeMessageProducer.produce_message(args))

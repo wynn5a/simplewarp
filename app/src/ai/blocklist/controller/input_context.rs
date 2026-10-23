@@ -4,7 +4,6 @@ use std::sync::Arc;
 use chrono::Local;
 use lazy_static::lazy_static;
 use regex::Regex;
-use warp_core::features::FeatureFlag;
 use warpui::{AppContext, SingletonEntity};
 
 use crate::ai::agent::conversation::AIConversationId;
@@ -60,18 +59,16 @@ pub(super) fn input_context_for_request(
         context.push(AIAgentContext::ExecutionEnvironment(env));
     }
 
-    if FeatureFlag::ListSkills.is_enabled() {
-        let path_origin = SessionContext::from_session(active_session, app).skill_path_origin();
-        let skills = list_skills_if_changed(
-            current_working_directory_location.as_ref(),
-            &path_origin,
-            conversation_id,
-            app,
-        );
+    let path_origin = SessionContext::from_session(active_session, app).skill_path_origin();
+    let skills = list_skills_if_changed(
+        current_working_directory_location.as_ref(),
+        &path_origin,
+        conversation_id,
+        app,
+    );
 
-        if let Some(skills) = skills {
-            context.push(AIAgentContext::Skills { skills });
-        }
+    if let Some(skills) = skills {
+        context.push(AIAgentContext::Skills { skills });
     }
 
     context.extend(additional_context);

@@ -345,14 +345,6 @@ impl<T> MessageProvider<T> for EmptyMessageProducer {
     }
 }
 
-use crate::util::truncation::truncate_from_end;
-
-/// Returns a truncated command string for display in message bars.
-/// Limits to 27 characters (including ellipsis) if truncated.
-pub fn truncated_command_for_block(command: &str) -> String {
-    truncate_from_end(command, 27)
-}
-
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod tests;

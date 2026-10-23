@@ -238,7 +238,7 @@ impl SlashCommandRequest {
                 vec![AIAgentInput::SummarizeConversation { prompt, context }]
             }
             SlashCommandRequest::InvokeSkill { skill, user_query } => {
-                let user_query = if FeatureFlag::SkillArguments.is_enabled() {
+                let user_query = {
                     let query = user_query
                         .map(|query| query.trim().to_string())
                         .unwrap_or_default();
@@ -251,8 +251,6 @@ impl SlashCommandRequest {
                             query,
                         }
                     })
-                } else {
-                    None
                 };
                 vec![AIAgentInput::InvokeSkill {
                     skill,

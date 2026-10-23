@@ -50,7 +50,6 @@ use crate::editor::{
     EditOrigin, EditorView, Event as EditorEvent, InteractionState, SingleLineEditorOptions,
     TextOptions,
 };
-use crate::features::FeatureFlag;
 use crate::gpu_state::{GPUState, GPUStateEvent};
 use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::settings::app_icon::{AppIcon, AppIconSettings};
@@ -1378,18 +1377,12 @@ impl AppearanceSettingsPageView {
         // Tools panel tab visibility toggles. These control which of the four
         // tabs appear in the tools panel, and the tools panel already recomputes its available
         // views live when these settings change (see `Workspace::new`).
-        // Each toggle is gated only on compile-time / feature-flag availability
-        // of the corresponding tab (not on transient login/AI state), so the
-        // section stays stable regardless of when the page is built.
-        let mut tools_panel_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![];
-        tools_panel_widgets.push(Box::new(ToolsPanelProjectExplorerWidget::default()));
-        if FeatureFlag::AgentViewConversationListView.is_enabled() {
-            tools_panel_widgets.push(Box::new(ToolsPanelConversationHistoryWidget::default()));
-        }
-        tools_panel_widgets.push(Box::new(ToolsPanelGlobalSearchWidget::default()));
-        if !tools_panel_widgets.is_empty() {
-            categories.push(Category::new("Tools panel", tools_panel_widgets));
-        }
+        let tools_panel_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![
+            Box::new(ToolsPanelProjectExplorerWidget::default()),
+            Box::new(ToolsPanelConversationHistoryWidget::default()),
+            Box::new(ToolsPanelGlobalSearchWidget::default()),
+        ];
+        categories.push(Category::new("Tools panel", tools_panel_widgets));
 
         // Create the Input category with all widgets
         // The PromptWidget and InputModeWidget will handle their own visibility

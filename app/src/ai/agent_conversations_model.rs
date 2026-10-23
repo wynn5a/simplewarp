@@ -10,7 +10,6 @@ use fuzzy_match::FuzzyMatchResult;
 use itertools::Itertools;
 pub use query::query_conversation_entries;
 use serde::{Deserialize, Serialize};
-use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::WarpTheme;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::color::ColorU;
@@ -208,10 +207,6 @@ impl AgentConversationsModel {
     /// This function will loop through all active panes, recently closed panes, and historical
     /// conversations to construct a complete snapshot of conversations.
     pub fn sync_conversations(&mut self, ctx: &mut ModelContext<Self>) {
-        if !FeatureFlag::InteractiveConversationManagementView.is_enabled() {
-            return;
-        }
-
         let nav_data_list = ConversationNavigationData::all_conversations(ctx);
 
         self.conversations.clear();
@@ -357,9 +352,6 @@ impl AgentConversationsModel {
         event: &BlocklistAIHistoryEvent,
         ctx: &mut ModelContext<Self>,
     ) {
-        if !FeatureFlag::InteractiveConversationManagementView.is_enabled() {
-            return;
-        }
         match event {
             // Events that affect conversation navigation data - need full sync
             BlocklistAIHistoryEvent::StartedNewConversation { .. }

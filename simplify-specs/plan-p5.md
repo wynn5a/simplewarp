@@ -118,8 +118,18 @@ ruling: delete the mode and open the inline history menu in that case, as with n
 **C4 — code editor, code review, notebooks, markdown** — 22 flags, 181 refs (**done 2026-10-23**):
 `AutoOpenCodeReviewPane`, `BlocklistMarkdownImages`, `BlocklistMarkdownTableRendering`, `CodeFindReplace`, `CodeLaunchModal`, `CodeReviewFind`, `CodeReviewSaveChanges`, `CodeReviewScrollPreservation`, `DiscardPerFileAndAllChanges`, `EditableMarkdownMermaid`, `ExpandEditToPane`, `FigmaDetection`, `GitOperationsInCodeReview`, `InlineCodeReview`, `JupyterNotebookRendering`, `LinkedCodeBlocks`, `MarkdownMermaid`, `MarkdownTables`, `PRCommentsV2`, `RevertDiffHunk`, `RichTextMultiselect`, `TabbedEditorView`.
 
-**C5 — AI, agent mode, MCP, skills (everything else)** — 45 flags, 303 refs:
+**C5 — AI, agent mode, MCP, skills (everything else)** — 45 flags, 303 refs (**done 2026-10-23**):
 `AIContextMenuCode`, `AIContextMenuCommands`, `AIContextMenuEnabled`, `AIResumeButton`, `AIRules`, `ActiveConversationRequiresInteraction`, `AgentDecidesCommandExecution`, `AgentHarness`, `AgentMode`, `AgentModeWorkflows`, `AgentTips`, `AgentToolbarEditor`, `AgentViewBlockContext`, `AgentViewConversationListView`, `AgentViewPromptChip`, `AtMenuOutsideOfAIMode`, `BundledSkills`, `ConversationsAsContext`, `DiffSetAsContext`, `FallbackModelLoadOutputMessaging`, `FastForwardAutoexecuteButton`, `FileBasedMcp`, `FileGlobV2Warnings`, `ForkFromCommand`, `GithubPrPromptChip`, `ImageAsContext`, `InteractiveConversationManagementView`, `ListSkills`, `LocalDockerSandbox`, `McpJsonTreeView`, `McpOauth`, `McpServer`, `PendingUserQueryIndicator`, `QueueSlashCommand`, `QueuedPromptsV2`, `ReadImageFiles`, `RememberFastForwardState`, `RestorePromptOnInlineModelSelectorSearch`, `RevertToCheckpoints`, `RewindSlashCommand`, `SelectionAsContext`, `SkillArguments`, `SummarizationCancellationConfirmation`, `SummarizationConversationCommand`, `V4AFileDiffs`.
+
+**C5b — legacy pending-user-query block (follow-up of C5)** — with `QueuedPromptsV2` gone, every
+follow-up prompt goes through the queued-prompts panel, and nothing calls
+`TerminalView::send_user_query_after_next_conversation_finished`. Dead with it:
+`insert_pending_user_query_block`, `queued_prompt_callback` and its firing in
+`fire_conversation_finished_callbacks`, `PendingUserQueryKind::QueuedPrompt`, and possibly
+`PendingUserQueryBlock` itself if no other kind still inserts one. Not mechanical (rich-content
+and conversation-finished lifecycle), so it gets its own round. Also decide on the inert
+"Show terminal input message line" setting (`show_terminal_input_message_bar`): its only
+reader was the terminal input message bar, which C5 deleted as never shown.
 
 **C6 — VimCodeEditor (alone)** — 1 flag, 74 refs:
 `VimCodeEditor`.

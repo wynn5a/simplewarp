@@ -3,7 +3,6 @@
 //! Queries are not rendered in blocks corresponding to requested command or requested action responses.
 
 use pathfinder_geometry::vector::vec2f;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::color::Opacity;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
@@ -124,9 +123,7 @@ pub(crate) fn render_query(
     let appearance = Appearance::as_ref(app);
     let mut query = Flex::column().with_child(text_element.finish());
 
-    if FeatureFlag::ImageAsContext.is_enabled() {
-        query = query.with_child(render_attachments(attachments, appearance));
-    }
+    query = query.with_child(render_attachments(attachments, appearance));
 
     Flex::row()
         .with_cross_axis_alignment(warpui::elements::CrossAxisAlignment::Start)

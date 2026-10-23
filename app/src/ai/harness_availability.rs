@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use warp_cli::agent::Harness;
-use warp_core::features::FeatureFlag;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::ai::harness_display;
@@ -54,7 +53,7 @@ impl HarnessAvailabilityModel {
 
     /// Whether the harness selector should be shown (>1 known harness, including disabled).
     pub fn should_show_harness_selector(&self) -> bool {
-        FeatureFlag::AgentHarness.is_enabled() && self.harnesses.len() > 1
+        self.harnesses.len() > 1
     }
 }
 

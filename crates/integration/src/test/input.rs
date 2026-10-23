@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use command::blocking::Command;
-use warp::features::FeatureFlag;
 use warp::integration_testing::clipboard::write_to_clipboard;
 use warp::integration_testing::input::{
     AutosuggestionState, assert_autosuggestion_state, input_contains_string,
@@ -88,8 +87,6 @@ pub fn test_autosuggestions_are_hidden_when_opening_tab_completions() -> Builder
 }
 
 pub fn test_inline_model_selector_restores_prompt_on_dismissal() -> Builder {
-    FeatureFlag::RestorePromptOnInlineModelSelectorSearch.set_enabled(true);
-
     let original_prompt = "explain this tricky rust lifetime";
     new_builder()
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
@@ -121,8 +118,6 @@ pub fn test_inline_model_selector_restores_prompt_on_dismissal() -> Builder {
 }
 
 pub fn test_inline_model_selector_restores_prompt_on_model_selection() -> Builder {
-    FeatureFlag::RestorePromptOnInlineModelSelectorSearch.set_enabled(true);
-
     let original_prompt = "summarize this output without losing details";
     new_builder()
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
@@ -154,8 +149,6 @@ pub fn test_inline_model_selector_restores_prompt_on_model_selection() -> Builde
 }
 
 pub fn test_inline_model_selector_restores_prompt_on_chip_toggle_close() -> Builder {
-    FeatureFlag::RestorePromptOnInlineModelSelectorSearch.set_enabled(true);
-
     let original_prompt = "refactor this into smaller modules";
     new_builder()
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))

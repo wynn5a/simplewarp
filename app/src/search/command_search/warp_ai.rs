@@ -3,17 +3,13 @@ use warp_core::ui::builder;
 use warpui::elements::{ConstrainedBox, Container, Text};
 use warpui::{AppContext, Element, SingletonEntity};
 
-use crate::ai_assistant::AI_ASSISTANT_LOGO_COLOR;
 use crate::appearance::Appearance;
-use crate::features::FeatureFlag;
 use crate::search::command_search::searcher::CommandSearchItemAction;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::item::SearchItem;
 use crate::search::mixer::{DataSourceRunErrorWrapper, SyncDataSource};
 use crate::search::result_renderer::ItemHighlightState;
-use crate::themes::theme::Blend;
 use crate::ui_components::icons::Icon as UIIcon;
-use crate::util::color::{ContrastingColor, MinimumAllowedContrast};
 
 const OPEN_WARP_AI_ITEM_BODY_TEXT: &str = "Ask Warp AI for command suggestions";
 const TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT: &str = "Translate into shell command using Warp AI";
@@ -41,32 +37,16 @@ impl SearchItem for WarpAISearchItem {
 
     fn render_icon(
         &self,
-        highlight_state: ItemHighlightState,
+        _highlight_state: ItemHighlightState,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
-        // Since the Warp AI logo color is hardcoded, let's find the best
-        // contrasting color depending on the user's theme and the item's selected state.
-        let command_search_background = appearance.theme().surface_1();
-        let item_background_color = match highlight_state.container_background_fill(appearance) {
-            None => command_search_background,
-            Some(highlight) => command_search_background.blend(&highlight),
-        };
-
-        let icon = if FeatureFlag::AgentMode.is_enabled() {
-            UIIcon::Agent
-                .to_warpui_icon(
-                    appearance
-                        .theme()
-                        .main_text_color(appearance.theme().accent()),
-                )
-                .finish()
-        } else {
-            let color = (AI_ASSISTANT_LOGO_COLOR).on_background(
-                item_background_color.into_solid(),
-                MinimumAllowedContrast::NonText,
-            );
-            UIIcon::AiAssistant.to_warpui_icon(color.into()).finish()
-        };
+        let icon = UIIcon::Agent
+            .to_warpui_icon(
+                appearance
+                    .theme()
+                    .main_text_color(appearance.theme().accent()),
+            )
+            .finish();
 
         Container::new(
             ConstrainedBox::new(icon)

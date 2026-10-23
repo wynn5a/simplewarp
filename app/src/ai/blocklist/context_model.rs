@@ -93,9 +93,8 @@ pub struct BlocklistAIContextModel {
     /// The ID of the terminal view this model is associated with.
     terminal_view_id: EntityId,
 
-    /// Block IDs of user-executed commands to be auto-attached as context.
-    /// When `AgentViewBlockContext` is enabled, completed user commands are tracked here
-    /// and automatically included as context with the next user query.
+    /// Block IDs of user-executed commands, automatically included as context with the next user
+    /// query.
     auto_attached_agent_view_user_block_ids: Vec<BlockId>,
 }
 
@@ -150,25 +149,15 @@ impl BlocklistAIContextModel {
                     block_id,
                     ..
                 }) => {
-                    // If AgentViewBlockContext is enabled and we're in agent view, track user-executed
-                    // blocks for auto-attachment as context.
-                    if FeatureFlag::AgentViewBlockContext.is_enabled()
-                        && me
-                            .conversation_selection
-                            .as_ref(ctx)
-                            .is_conversation_fullscreen(ctx)
+                    // In agent view, track user-executed blocks for auto-attachment as context.
+                    if me
+                        .conversation_selection
+                        .as_ref(ctx)
+                        .is_conversation_fullscreen(ctx)
                         && !user_block_completed.was_part_of_agent_interaction
                     {
                         me.auto_attached_agent_view_user_block_ids
                             .push(block_id.clone());
-                    }
-
-                    // If the block that finished was part of an agent interaction (i.e. LRC finishing),
-                    // we should preserve input context.
-                    if !FeatureFlag::AgentViewBlockContext.is_enabled()
-                        && !user_block_completed.was_part_of_agent_interaction
-                    {
-                        me.reset_context_to_default(ctx);
                     }
                 }
                 ModelEvent::BlockMetadataReceived(e) => {
@@ -379,15 +368,13 @@ impl BlocklistAIContextModel {
                 }
             }
 
-            // Add auto-attached user-executed blocks (when AgentViewBlockContext is enabled)
-            if FeatureFlag::AgentViewBlockContext.is_enabled() {
-                for block_id in &self.auto_attached_agent_view_user_block_ids {
-                    // Skip if already in pending_context_block_ids to avoid duplicates
-                    if !self.pending_context_block_ids.contains(block_id)
-                        && let Some(block_context) = self.transform_block_to_context(block_id, true)
-                    {
-                        context.push(block_context);
-                    }
+            // Add auto-attached user-executed blocks.
+            for block_id in &self.auto_attached_agent_view_user_block_ids {
+                // Skip if already in pending_context_block_ids to avoid duplicates
+                if !self.pending_context_block_ids.contains(block_id)
+                    && let Some(block_context) = self.transform_block_to_context(block_id, true)
+                {
+                    context.push(block_context);
                 }
             }
 

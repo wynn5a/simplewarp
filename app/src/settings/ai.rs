@@ -17,7 +17,6 @@ use serde::{Deserialize, Serialize};
 use settings::{Setting, SupportedPlatforms, define_settings_group};
 use strum_macros::EnumIter;
 use warp_core::execution_mode::AppExecutionMode;
-use warp_core::features::FeatureFlag;
 use warp_errors::report_if_error;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
@@ -53,7 +52,6 @@ pub enum DefaultSessionMode {
     /// The specific config is identified by the companion `default_tab_config_path` setting.
     TabConfig,
     /// New sessions open in a local Docker sandbox.
-    /// Requires the `LocalDockerSandbox` feature flag; falls back to `Terminal` when disabled.
     DockerSandbox,
 }
 
@@ -183,7 +181,6 @@ settings::macros::implement_setting_for_enum!(
     private: false,
     toml_path: "agents.warp_agent.other.default_prompt_submission_mode",
     description: "Default behavior when submitting a new prompt while the agent is still responding.",
-    feature_flag: FeatureFlag::QueueSlashCommand,
 );
 
 impl PromptSubmissionMode {
@@ -244,7 +241,6 @@ settings::macros::implement_setting_for_enum!(
     private: false,
     toml_path: "agents.warp_agent.other.long_running_command_submission_mode",
     description: "What happens when a prompt is submitted while an agent controls an agent-requested long-running command.",
-    feature_flag: FeatureFlag::QueueSlashCommand,
 );
 
 impl LongRunningCommandSubmissionMode {
@@ -762,8 +758,10 @@ impl AISettings {
     pub fn default_session_mode(&self) -> DefaultSessionMode {
         let mode = *self.default_session_mode_internal.value();
         match mode {
-            // Terminal and TabConfig don't require AI.
-            DefaultSessionMode::Terminal | DefaultSessionMode::TabConfig => mode,
+            // Terminal, TabConfig and DockerSandbox don't require AI.
+            DefaultSessionMode::Terminal
+            | DefaultSessionMode::TabConfig
+            | DefaultSessionMode::DockerSandbox => mode,
             // Agent requires AI to be enabled.
             DefaultSessionMode::Agent => {
                 if self.is_any_ai_enabled() {
@@ -774,15 +772,6 @@ impl AISettings {
             }
             // Cloud agent tabs can no longer be created; a persisted value degrades to Terminal.
             DefaultSessionMode::CloudAgent => DefaultSessionMode::Terminal,
-            // DockerSandbox is gated on its feature flag; fall back to Terminal
-            // when disabled so a stale stored value doesn't wedge the user.
-            DefaultSessionMode::DockerSandbox => {
-                if FeatureFlag::LocalDockerSandbox.is_enabled() {
-                    mode
-                } else {
-                    DefaultSessionMode::Terminal
-                }
-            }
         }
     }
 
@@ -845,7 +834,7 @@ impl AISettings {
     }
 
     pub fn is_file_based_mcp_enabled(&self) -> bool {
-        if !FeatureFlag::FileBasedMcp.is_enabled() || !self.is_any_ai_enabled() {
+        if !self.is_any_ai_enabled() {
             return false;
         }
         // NOTE: we intentionally do not force-enable this in Cloud Mode. Previously

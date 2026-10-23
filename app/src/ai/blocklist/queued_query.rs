@@ -5,7 +5,6 @@ use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity};
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel, PendingAttachment};
-use crate::features::FeatureFlag;
 use crate::settings::{
     AISettings, AISettingsChangedEvent, LongRunningCommandSubmissionMode, PromptSubmissionMode,
 };
@@ -757,8 +756,7 @@ pub(crate) fn is_lrc_auto_queue_active(
     app: &AppContext,
 ) -> bool {
     let ai_settings = AISettings::as_ref(app);
-    FeatureFlag::QueueSlashCommand.is_enabled()
-        && ai_settings.default_prompt_submission_mode == PromptSubmissionMode::Interrupt
+    ai_settings.default_prompt_submission_mode == PromptSubmissionMode::Interrupt
         && ai_settings.long_running_command_submission_mode
             == LongRunningCommandSubmissionMode::QueueUntilCommandCompletes
         && active_block.is_agent_in_control()

@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use warp_core::features::FeatureFlag;
 use warpui::{AppContext, EntityId, SingletonEntity};
 
 use super::History;
@@ -122,8 +121,7 @@ impl History {
 
         let should_include_prompts = config.include_prompts
             && if app.has_singleton_model::<AISettings>() {
-                FeatureFlag::AgentMode.is_enabled()
-                    && AISettings::handle(app).as_ref(app).is_any_ai_enabled()
+                AISettings::handle(app).as_ref(app).is_any_ai_enabled()
             } else {
                 true
             };

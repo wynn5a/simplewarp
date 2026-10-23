@@ -6,7 +6,6 @@ use async_channel::Sender;
 use itertools::Itertools;
 use repo_metadata::repositories::DetectedRepositories;
 use settings::Setting as _;
-use warp_core::features::FeatureFlag;
 use warpui::elements::{
     AnchorPair, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Dismiss,
     Empty, Fill, Flex, Hoverable, Icon, MouseStateHandle, OffsetPositioning, OffsetType,
@@ -347,10 +346,9 @@ impl AIContextMenu {
             } else {
                 categories.push(AIContextMenuCategory::CurrentFolderFiles);
             }
-            if FeatureFlag::AIContextMenuCode.is_enabled()
-                && *InputSettings::as_ref(app)
-                    .outline_codebase_symbols_for_at_context_menu
-                    .value()
+            if *InputSettings::as_ref(app)
+                .outline_codebase_symbols_for_at_context_menu
+                .value()
                 && is_active_dir_in_git_repo
             {
                 categories.push(AIContextMenuCategory::Code);
@@ -366,24 +364,19 @@ impl AIContextMenu {
                 categories.push(AIContextMenuCategory::CurrentFolderFiles);
             }
 
-            if FeatureFlag::AIContextMenuCommands.is_enabled() {
-                categories.push(AIContextMenuCategory::Commands);
-            }
+            categories.push(AIContextMenuCategory::Commands);
             categories.push(AIContextMenuCategory::Blocks);
-            if FeatureFlag::AIContextMenuCode.is_enabled()
-                && *InputSettings::as_ref(app)
-                    .outline_codebase_symbols_for_at_context_menu
-                    .value()
+            if *InputSettings::as_ref(app)
+                .outline_codebase_symbols_for_at_context_menu
+                .value()
                 && is_active_dir_in_git_repo
             {
                 categories.push(AIContextMenuCategory::Code);
             }
-            if FeatureFlag::DiffSetAsContext.is_enabled() && is_active_dir_in_git_repo {
+            if is_active_dir_in_git_repo {
                 categories.push(AIContextMenuCategory::DiffSet);
             }
-            if FeatureFlag::ConversationsAsContext.is_enabled() {
-                categories.push(AIContextMenuCategory::Conversations);
-            }
+            categories.push(AIContextMenuCategory::Conversations);
             categories.push(AIContextMenuCategory::Skills);
             categories
         } else {
@@ -395,10 +388,9 @@ impl AIContextMenu {
             };
 
             // Also show Code category in terminal mode when enabled
-            if FeatureFlag::AIContextMenuCode.is_enabled()
-                && *InputSettings::as_ref(app)
-                    .outline_codebase_symbols_for_at_context_menu
-                    .value()
+            if *InputSettings::as_ref(app)
+                .outline_codebase_symbols_for_at_context_menu
+                .value()
                 && is_active_dir_in_git_repo
             {
                 categories.push(AIContextMenuCategory::Code);

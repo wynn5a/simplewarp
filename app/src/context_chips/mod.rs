@@ -32,7 +32,6 @@ pub use self::context_chip::{ChipAvailability, ChipRuntimeCapabilities};
 use self::context_chip::{ChipFingerprintInput, ChipRuntimePolicy, ContextChip, RefreshConfig};
 use self::renderer::RendererStyles;
 use crate::appearance::Appearance;
-use crate::features::FeatureFlag;
 use crate::themes::theme::PromptColors;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
@@ -317,7 +316,6 @@ impl ContextChipKind {
                 )
                 .with_allow_empty_value(),
             ),
-            Self::GithubPullRequest if !FeatureFlag::GithubPrPromptChip.is_enabled() => None,
             Self::GithubPullRequest => Some(ContextChip::builtin(
                 "GitHub Pull Request",
                 |_| None,
@@ -533,9 +531,7 @@ pub fn available_chips() -> Vec<ContextChipKind> {
         ContextChipKind::GitBranchStatus,
         ContextChipKind::GitDiffStats,
     ];
-    if FeatureFlag::GithubPrPromptChip.is_enabled() {
-        chips.push(ContextChipKind::GithubPullRequest);
-    }
+    chips.push(ContextChipKind::GithubPullRequest);
     chips.extend([
         ContextChipKind::Date,
         ContextChipKind::Time12,

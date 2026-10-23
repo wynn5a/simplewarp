@@ -2,21 +2,11 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use lazy_static::lazy_static;
-use pathfinder_color::ColorU;
 use warp_core::command::ExitCode;
 
 use crate::terminal::model::terminal_model::BlockIndex;
 
 pub mod execution_context;
-pub const ASK_AI_ASSISTANT_TEXT: &str = "Ask Warp AI";
-
-pub const AI_ASSISTANT_SVG_PATH: &str = "bundled/svg/ai-assistant.svg";
-
-lazy_static! {
-    pub static ref AI_ASSISTANT_LOGO_COLOR: ColorU = ColorU::new(243, 185, 17, 255);
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AskAIType {
     /// Covers all possible origins of text selection, including the block list terminal,

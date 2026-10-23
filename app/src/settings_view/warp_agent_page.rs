@@ -134,8 +134,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 &(context.clone() & id!(flags::IS_ANY_AI_ENABLED)),
                 flags::AI_INPUT_AUTODETECTION_FLAG,
             )
-            .with_group(bindings::BindingGroup::WarpAi)
-            .with_enabled(|| FeatureFlag::AgentMode.is_enabled()),
+            .with_group(bindings::BindingGroup::WarpAi),
         ],
         app,
     );
@@ -199,8 +198,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 ),
                 None,
             )
-            .with_group(bindings::BindingGroup::WarpAi)
-            .with_enabled(|| FeatureFlag::AgentTips.is_enabled()),
+            .with_group(bindings::BindingGroup::WarpAi),
         ],
         app,
     );
@@ -231,54 +229,50 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             .collect();
         app.register_fixed_bindings(mode_bindings);
     }
-    if FeatureFlag::QueueSlashCommand.is_enabled() {
-        use warpui::keymap::FixedBinding;
+    use warpui::keymap::FixedBinding;
 
-        let ai_context = context.clone() & id!(flags::IS_ANY_AI_ENABLED);
-        let mode_bindings: Vec<FixedBinding> = PromptSubmissionMode::iter()
-            .map(|mode| {
-                let context_flag = match mode {
-                    PromptSubmissionMode::Interrupt => flags::PROMPT_SUBMISSION_INTERRUPT,
-                    PromptSubmissionMode::Queue => flags::PROMPT_SUBMISSION_QUEUE,
-                };
-                FixedBinding::empty(
-                    mode.command_palette_description(),
-                    builder(SettingsAction::WarpAgent(
-                        WarpAgentPageAction::SetPromptSubmissionMode(mode),
-                    )),
-                    ai_context.clone() & !id!(context_flag),
-                )
-                .with_group(bindings::BindingGroup::WarpAi.as_str())
-            })
-            .collect();
-        app.register_fixed_bindings(mode_bindings);
+    let ai_context = context.clone() & id!(flags::IS_ANY_AI_ENABLED);
+    let mode_bindings: Vec<FixedBinding> = PromptSubmissionMode::iter()
+        .map(|mode| {
+            let context_flag = match mode {
+                PromptSubmissionMode::Interrupt => flags::PROMPT_SUBMISSION_INTERRUPT,
+                PromptSubmissionMode::Queue => flags::PROMPT_SUBMISSION_QUEUE,
+            };
+            FixedBinding::empty(
+                mode.command_palette_description(),
+                builder(SettingsAction::WarpAgent(
+                    WarpAgentPageAction::SetPromptSubmissionMode(mode),
+                )),
+                ai_context.clone() & !id!(context_flag),
+            )
+            .with_group(bindings::BindingGroup::WarpAi.as_str())
+        })
+        .collect();
+    app.register_fixed_bindings(mode_bindings);
 
-        // The LRC submission mode only applies (and is only shown) when the default
-        // prompt submission mode is Interrupt, so its palette entries are gated on it.
-        let lrc_mode_bindings: Vec<FixedBinding> = LongRunningCommandSubmissionMode::iter()
-            .map(|mode| {
-                let context_flag = match mode {
-                    LongRunningCommandSubmissionMode::SendImmediately => {
-                        flags::LRC_SUBMISSION_SEND_IMMEDIATELY
-                    }
-                    LongRunningCommandSubmissionMode::QueueUntilCommandCompletes => {
-                        flags::LRC_SUBMISSION_QUEUE_UNTIL_COMMAND_COMPLETES
-                    }
-                };
-                FixedBinding::empty(
-                    mode.command_palette_description(),
-                    builder(SettingsAction::WarpAgent(
-                        WarpAgentPageAction::SetLongRunningCommandSubmissionMode(mode),
-                    )),
-                    ai_context.clone()
-                        & id!(flags::PROMPT_SUBMISSION_INTERRUPT)
-                        & !id!(context_flag),
-                )
-                .with_group(bindings::BindingGroup::WarpAi.as_str())
-            })
-            .collect();
-        app.register_fixed_bindings(lrc_mode_bindings);
-    }
+    // The LRC submission mode only applies (and is only shown) when the default
+    // prompt submission mode is Interrupt, so its palette entries are gated on it.
+    let lrc_mode_bindings: Vec<FixedBinding> = LongRunningCommandSubmissionMode::iter()
+        .map(|mode| {
+            let context_flag = match mode {
+                LongRunningCommandSubmissionMode::SendImmediately => {
+                    flags::LRC_SUBMISSION_SEND_IMMEDIATELY
+                }
+                LongRunningCommandSubmissionMode::QueueUntilCommandCompletes => {
+                    flags::LRC_SUBMISSION_QUEUE_UNTIL_COMMAND_COMPLETES
+                }
+            };
+            FixedBinding::empty(
+                mode.command_palette_description(),
+                builder(SettingsAction::WarpAgent(
+                    WarpAgentPageAction::SetLongRunningCommandSubmissionMode(mode),
+                )),
+                ai_context.clone() & id!(flags::PROMPT_SUBMISSION_INTERRUPT) & !id!(context_flag),
+            )
+            .with_group(bindings::BindingGroup::WarpAi.as_str())
+        })
+        .collect();
+    app.register_fixed_bindings(lrc_mode_bindings);
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
         vec![
             ToggleSettingActionPair::custom(
@@ -355,10 +349,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 &(context.clone() & id!(flags::IS_ANY_AI_ENABLED)),
                 flags::FILE_BASED_MCP_FLAG,
             )
-            .with_group(bindings::BindingGroup::WarpAi)
-            .with_enabled(|| {
-                FeatureFlag::McpServer.is_enabled() && FeatureFlag::FileBasedMcp.is_enabled()
-            }),
+            .with_group(bindings::BindingGroup::WarpAi),
         ],
         app,
     );
@@ -1203,7 +1194,7 @@ impl SettingsPageMeta for WarpAgentPageView {
     }
 
     fn should_render(&self, _ctx: &AppContext) -> bool {
-        FeatureFlag::AgentMode.is_enabled()
+        true
     }
 
     fn update_filter(&mut self, query: &str, ctx: &mut ViewContext<Self>) -> MatchData {
@@ -1479,17 +1470,15 @@ impl SettingsWidget for AIInputWidget {
             show_input_hint_text,
         ];
 
-        if FeatureFlag::AgentTips.is_enabled() {
-            let agent_tips_toggle = render_ai_setting_toggle(
-                "Show agent tips",
-                WarpAgentPageAction::ToggleShowAgentTips,
-                *InputSettings::as_ref(app).show_agent_tips,
-                is_any_ai_enabled,
-                self.show_agent_tips_toggle.clone(),
-                app,
-            );
-            widget_children.push(agent_tips_toggle);
-        }
+        let agent_tips_toggle = render_ai_setting_toggle(
+            "Show agent tips",
+            WarpAgentPageAction::ToggleShowAgentTips,
+            *InputSettings::as_ref(app).show_agent_tips,
+            is_any_ai_enabled,
+            self.show_agent_tips_toggle.clone(),
+            app,
+        );
+        widget_children.push(agent_tips_toggle);
 
         widget_children.push(render_ai_setting_toggle(
             "Include agent-executed commands in history",
@@ -1519,40 +1508,38 @@ impl SettingsWidget for AIInputWidget {
                 .finish(),
         );
 
-        if FeatureFlag::QueueSlashCommand.is_enabled() {
-            widget_children.push(render_dropdown_item(
-                appearance,
-                "Default prompt submission mode",
-                Some(
-                    "What happens when you submit a new prompt while the agent is still \
-                     responding. You can override this per conversation using the auto-queue \
-                     toggle.",
-                ),
-                None,
-                (!is_any_ai_enabled).then(|| appearance.theme().disabled_ui_text_color()),
-                &view.default_prompt_submission_mode_dropdown,
-            ));
+        widget_children.push(render_dropdown_item(
+            appearance,
+            "Default prompt submission mode",
+            Some(
+                "What happens when you submit a new prompt while the agent is still \
+                 responding. You can override this per conversation using the auto-queue \
+                 toggle.",
+            ),
+            None,
+            (!is_any_ai_enabled).then(|| appearance.theme().disabled_ui_text_color()),
+            &view.default_prompt_submission_mode_dropdown,
+        ));
 
-            // Only meaningful in Interrupt mode: with Queue selected, prompts already
-            // queue until the end of the full response, so the LRC mode is hidden.
-            if ai_settings.default_prompt_submission_mode == PromptSubmissionMode::Interrupt {
-                widget_children.push(
-                    Container::new(render_dropdown_item(
-                        appearance,
-                        "Default long-running command submission mode",
-                        Some(
-                            "What happens when you submit a prompt while an agent is driving an \
-                             agent-requested long-running command. Queued prompts are sent to the \
-                             agent when the command finishes.",
-                        ),
-                        None,
-                        (!is_any_ai_enabled).then(|| appearance.theme().disabled_ui_text_color()),
-                        &view.lrc_submission_mode_dropdown,
-                    ))
-                    .with_margin_top(styles::DESCRIPTION_MARGIN_BOTTOM)
-                    .finish(),
-                );
-            }
+        // Only meaningful in Interrupt mode: with Queue selected, prompts already
+        // queue until the end of the full response, so the LRC mode is hidden.
+        if ai_settings.default_prompt_submission_mode == PromptSubmissionMode::Interrupt {
+            widget_children.push(
+                Container::new(render_dropdown_item(
+                    appearance,
+                    "Default long-running command submission mode",
+                    Some(
+                        "What happens when you submit a prompt while an agent is driving an \
+                         agent-requested long-running command. Queued prompts are sent to the \
+                         agent when the command finishes.",
+                    ),
+                    None,
+                    (!is_any_ai_enabled).then(|| appearance.theme().disabled_ui_text_color()),
+                    &view.lrc_submission_mode_dropdown,
+                ))
+                .with_margin_top(styles::DESCRIPTION_MARGIN_BOTTOM)
+                .finish(),
+            );
         }
 
         Flex::column().with_children(widget_children).finish()
@@ -1787,7 +1774,7 @@ impl SettingsWidget for OtherAIWidget {
                     app,
                 ));
 
-            if is_toggleable && FeatureFlag::AgentToolbarEditor.is_enabled() {
+            if is_toggleable {
                 agent_view_column.add_child(render_toolbar_layout_editor(
                     &view.agent_toolbar_inline_editor,
                     appearance,

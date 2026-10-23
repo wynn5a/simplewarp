@@ -4037,15 +4037,13 @@ impl Workspace {
         }
 
         // 3b. Local Docker Sandbox
-        if FeatureFlag::LocalDockerSandbox.is_enabled() {
-            let mut docker_item = MenuItemFields::new("Local Docker Sandbox")
-                .with_on_select_action(WorkspaceAction::AddDockerSandboxTab)
-                .with_icon(icons::Icon::Docker);
-            if effective_default == DefaultSessionMode::DockerSandbox {
-                docker_item = docker_item.with_key_shortcut_label(shortcut_label.clone());
-            }
-            menu_items.push(docker_item.into_item());
+        let mut docker_item = MenuItemFields::new("Local Docker Sandbox")
+            .with_on_select_action(WorkspaceAction::AddDockerSandboxTab)
+            .with_icon(icons::Icon::Docker);
+        if effective_default == DefaultSessionMode::DockerSandbox {
+            docker_item = docker_item.with_key_shortcut_label(shortcut_label.clone());
         }
+        menu_items.push(docker_item.into_item());
 
         // 4. User tab configs
         let tab_configs = WarpConfig::as_ref(ctx).tab_configs().to_vec();
@@ -8298,10 +8296,6 @@ impl Workspace {
     }
 
     fn add_docker_sandbox_tab(&mut self, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::LocalDockerSandbox.is_enabled() {
-            log::warn!("Local docker sandbox feature flag is disabled");
-            return;
-        }
         {
             // Resolve sbx via the user's interactive shell PATH (same mechanism
             // MCP servers use) so we find it when installed via homebrew on Apple
@@ -8555,10 +8549,7 @@ impl Workspace {
 
         // If the previous tab's left panel was open, maintain that state with the new tab
         // (unless we're restoring the tab from a persisted snapshot).
-        if FeatureFlag::AgentViewConversationListView.is_enabled()
-            && !is_restoration
-            && left_panel_was_open
-        {
+        if !is_restoration && left_panel_was_open {
             self.active_tab_pane_group().update(ctx, |pg, ctx| {
                 pg.set_left_panel_open(true, ctx);
             });
@@ -12229,9 +12220,6 @@ impl Workspace {
         mode: AgentToolbarEditorMode,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !FeatureFlag::AgentToolbarEditor.is_enabled() {
-            return;
-        }
         self.agent_toolbar_editor_modal
             .update(ctx, |modal, ctx| modal.open(mode, ctx));
         self.close_all_overlays(ctx);
@@ -15201,9 +15189,7 @@ impl Workspace {
         if *CodeSettings::as_ref(ctx).show_project_explorer.value() {
             views.push(ToolPanelView::ProjectExplorer);
         }
-        if FeatureFlag::AgentViewConversationListView.is_enabled()
-            && *AISettings::as_ref(ctx).show_conversation_history
-        {
+        if *AISettings::as_ref(ctx).show_conversation_history {
             views.push(ToolPanelView::ConversationListView);
         }
         if *CodeSettings::as_ref(ctx).show_global_search.value() {
@@ -16367,15 +16353,13 @@ impl TypedActionView for Workspace {
                 }
             }
             ToggleConversationListView => {
-                if FeatureFlag::AgentViewConversationListView.is_enabled() {
-                    let is_showing = self.left_panel_view.as_ref(ctx).active_view()
-                        == ToolPanelView::ConversationListView;
-                    self.toggle_left_panel_view(
-                        &LeftPanelAction::ConversationListView,
-                        is_showing,
-                        ctx,
-                    );
-                }
+                let is_showing = self.left_panel_view.as_ref(ctx).active_view()
+                    == ToolPanelView::ConversationListView;
+                self.toggle_left_panel_view(
+                    &LeftPanelAction::ConversationListView,
+                    is_showing,
+                    ctx,
+                );
             }
             ShowRewindConfirmationDialog {
                 ai_block_view_id,
@@ -17183,9 +17167,7 @@ impl View for Workspace {
             stack.add_child(ChildView::new(&self.prompt_editor_modal).finish());
         }
 
-        if FeatureFlag::AgentToolbarEditor.is_enabled()
-            && self.current_workspace_state.is_agent_toolbar_editor_open
-        {
+        if self.current_workspace_state.is_agent_toolbar_editor_open {
             stack.add_child(ChildView::new(&self.agent_toolbar_editor_modal).finish());
         }
 

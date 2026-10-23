@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use futures_util::StreamExt;
-use warp_core::features::FeatureFlag;
 use warp_multi_agent_api as api;
 
 use super::convert_to::convert_input;
@@ -75,13 +74,13 @@ pub async fn generate_multi_agent_output(
             supports_long_running_commands: true,
             should_preserve_file_content_in_history: true,
             supports_linked_code_blocks: true,
-            supports_read_image_files: FeatureFlag::ReadImageFiles.is_enabled(),
+            supports_read_image_files: true,
             supports_reasoning_message: true,
             api_keys: params.api_keys,
             autonomy_level: params.autonomy_level.into(),
             isolation_level: params.isolation_level.into(),
-            supports_v4a_file_diffs: FeatureFlag::V4AFileDiffs.is_enabled(),
-            supports_bundled_skills: FeatureFlag::BundledSkills.is_enabled(),
+            supports_v4a_file_diffs: true,
+            supports_bundled_skills: true,
             custom_model_providers: params.custom_model_providers,
             ..Default::default()
         }),

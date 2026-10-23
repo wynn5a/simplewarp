@@ -1,9 +1,8 @@
 use pathfinder_geometry::vector::vec2f;
 use settings::Setting;
 use warpui::elements::{
-    Border, ChildAnchor, ChildView, Clipped, Container, DropTarget, Element, Empty, Flex,
-    Hoverable, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, SavePosition,
-    Stack,
+    Border, ChildAnchor, ChildView, Container, DropTarget, Element, Empty, Flex, Hoverable,
+    OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, SavePosition, Stack,
 };
 use warpui::{AppContext, SingletonEntity};
 
@@ -17,7 +16,7 @@ use crate::terminal::block_list_settings::BlockListSettings;
 use crate::terminal::block_list_viewport::InputMode;
 use crate::terminal::input::common::{
     add_command_xray_overlay, add_input_suggestions_overlays, add_vim_status_to_stack,
-    add_voltron_overlay, add_workflow_info_overlay, should_show_terminal_input_message_bar,
+    add_voltron_overlay, add_workflow_info_overlay,
     wrap_input_with_terminal_padding_and_focus_handler,
 };
 use crate::terminal::input::{InputDropTargetData, get_input_box_top_border_width};
@@ -113,8 +112,7 @@ impl Input {
 
         let ai_input_model = self.ai_input_model.as_ref(app);
 
-        if FeatureFlag::ImageAsContext.is_enabled()
-            && matches!(ai_input_model.input_type(), InputType::AI)
+        if matches!(ai_input_model.input_type(), InputType::AI)
             && !FeatureFlag::AgentView.is_enabled()
             && let Some(images) = self.render_attachment_chips(appearance)
         {
@@ -127,11 +125,7 @@ impl Input {
 
         column.add_child(self.render_input_box(show_vim_status, appearance, app));
 
-        if should_show_terminal_input_message_bar(app) {
-            column.add_child(
-                Clipped::new(ChildView::new(&self.terminal_input_message_bar).finish()).finish(),
-            );
-        } else if !(matches!(input_mode, InputMode::PinnedToTop)
+        if !(matches!(input_mode, InputMode::PinnedToTop)
             && self
                 .suggestions_mode_model
                 .as_ref(app)
@@ -300,7 +294,7 @@ impl Input {
                             Some(ChildView::new(&self.inline_slash_commands_view).finish())
                         } else if is_conversation_menu {
                             Some(ChildView::new(&self.inline_conversation_menu_view).finish())
-                        } else if FeatureFlag::ListSkills.is_enabled() && is_skill_menu {
+                        } else if is_skill_menu {
                             Some(ChildView::new(&self.inline_skill_selector_view).finish())
                         } else if is_inline_history_menu {
                             Some(ChildView::new(&self.inline_history_menu_view).finish())
@@ -327,7 +321,7 @@ impl Input {
                             Some(ChildView::new(&self.inline_slash_commands_view).finish())
                         } else if is_conversation_menu {
                             Some(ChildView::new(&self.inline_conversation_menu_view).finish())
-                        } else if FeatureFlag::ListSkills.is_enabled() && is_skill_menu {
+                        } else if is_skill_menu {
                             Some(ChildView::new(&self.inline_skill_selector_view).finish())
                         } else if is_inline_history_menu {
                             Some(ChildView::new(&self.inline_history_menu_view).finish())
@@ -351,10 +345,7 @@ impl Input {
                     column.add_child(ChildView::new(&self.inline_slash_commands_view).finish());
                 } else if is_conversation_menu && !should_render_below {
                     column.add_child(ChildView::new(&self.inline_conversation_menu_view).finish());
-                } else if FeatureFlag::ListSkills.is_enabled()
-                    && is_skill_menu
-                    && !should_render_below
-                {
+                } else if is_skill_menu && !should_render_below {
                     column.add_child(ChildView::new(&self.inline_skill_selector_view).finish());
                 } else if is_inline_history_menu && !should_render_below {
                     column.add_child(ChildView::new(&self.inline_history_menu_view).finish());
@@ -370,10 +361,7 @@ impl Input {
                     column.add_child(ChildView::new(&self.inline_slash_commands_view).finish());
                 } else if is_conversation_menu && should_render_below {
                     column.add_child(ChildView::new(&self.inline_conversation_menu_view).finish());
-                } else if FeatureFlag::ListSkills.is_enabled()
-                    && is_skill_menu
-                    && should_render_below
-                {
+                } else if is_skill_menu && should_render_below {
                     column.add_child(ChildView::new(&self.inline_skill_selector_view).finish());
                 } else if is_inline_history_menu && should_render_below {
                     column.add_child(ChildView::new(&self.inline_history_menu_view).finish());

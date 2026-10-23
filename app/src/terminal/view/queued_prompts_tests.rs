@@ -334,7 +334,6 @@ fn complete_drain_with_non_empty_input_preserves_edited_head_row() {
 fn commit_edit_saves_current_editor_text_for_lrc_row() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
         let terminal_view_id = terminal.read(&app, |view, _| view.view_id);
@@ -359,11 +358,7 @@ fn commit_edit_saves_current_editor_text_for_lrc_row() {
         });
 
         let queued_prompts_panel = terminal.read(&app, |view, ctx| {
-            view.input()
-                .as_ref(ctx)
-                .queued_prompts_panel()
-                .cloned()
-                .expect("queue panel should exist")
+            view.input().as_ref(ctx).queued_prompts_panel().clone()
         });
         queued_prompts_panel.update(&mut app, |panel, ctx| {
             panel.set_edit_buffer_text_for_test("edited before finish", ctx);
@@ -383,7 +378,6 @@ fn commit_edit_saves_current_editor_text_for_lrc_row() {
 fn lrc_finish_commits_edited_lrc_row_before_sending() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
         let terminal_view_id = terminal.read(&app, |view, _| view.view_id);
@@ -408,11 +402,7 @@ fn lrc_finish_commits_edited_lrc_row_before_sending() {
         });
 
         let queued_prompts_panel = terminal.read(&app, |view, ctx| {
-            view.input()
-                .as_ref(ctx)
-                .queued_prompts_panel()
-                .cloned()
-                .expect("queue panel should exist")
+            view.input().as_ref(ctx).queued_prompts_panel().clone()
         });
         queued_prompts_panel.update(&mut app, |panel, ctx| {
             panel.set_edit_buffer_text_for_test("edited before finish", ctx);
@@ -462,9 +452,6 @@ fn lrc_finish_queued_compact_and_sends_followup_after_summary() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
-        let _queued_prompts_v2 = FeatureFlag::QueuedPromptsV2.override_enabled(true);
-        let _summarization = FeatureFlag::SummarizationConversationCommand.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
         let terminal_view_id = terminal.read(&app, |view, _| view.view_id);
@@ -581,12 +568,11 @@ fn error_or_cancel_drain_leaves_queue_intact_when_input_is_non_empty() {
 }
 
 #[test]
-fn enqueue_followup_prompt_appends_compact_and_row_when_v2_is_enabled() {
-    // /compact-and follow-ups land in the queue with the CompactAndSlashCommand origin under V2.
+fn enqueue_followup_prompt_appends_compact_and_row() {
+    // /compact-and follow-ups land in the queue with the CompactAndSlashCommand origin.
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _queued_prompts_v2 = FeatureFlag::QueuedPromptsV2.override_enabled(true);
 
         let (terminal, conversation_id) = add_window_with_local_conversation(&mut app);
         terminal.update(&mut app, |view, ctx| {
@@ -614,12 +600,11 @@ fn enqueue_followup_prompt_appends_compact_and_row_when_v2_is_enabled() {
 }
 
 #[test]
-fn enqueue_followup_prompt_appends_fork_and_compact_row_when_v2_is_enabled() {
+fn enqueue_followup_prompt_appends_fork_and_compact_row() {
     // /fork-and-compact follow-ups land in the queue with the ForkAndCompactSlashCommand origin.
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _queued_prompts_v2 = FeatureFlag::QueuedPromptsV2.override_enabled(true);
 
         let (terminal, conversation_id) = add_window_with_local_conversation(&mut app);
         terminal.update(&mut app, |view, ctx| {
@@ -646,13 +631,12 @@ fn enqueue_followup_prompt_appends_fork_and_compact_row_when_v2_is_enabled() {
 }
 
 #[test]
-fn enqueue_followup_prompt_uses_supplied_conversation_id_when_v2_is_enabled() {
+fn enqueue_followup_prompt_uses_supplied_conversation_id() {
     // /fork-and-compact passes the newly forked conversation id directly, which can differ from
     // the currently selected conversation. The helper must respect that explicit id.
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _queued_prompts_v2 = FeatureFlag::QueuedPromptsV2.override_enabled(true);
 
         let (terminal, selected_conversation_id) = add_window_with_local_conversation(&mut app);
         terminal.update(&mut app, |view, ctx| {
@@ -674,38 +658,6 @@ fn enqueue_followup_prompt_uses_supplied_conversation_id_when_v2_is_enabled() {
                 other_queue[0].origin(),
                 QueuedQueryOrigin::ForkAndCompactSlashCommand
             );
-        });
-    });
-}
-
-#[test]
-fn enqueue_followup_prompt_falls_back_to_pending_block_when_v2_is_disabled() {
-    // With V2 off, the helper must call into the legacy send_user_query_after_next_conversation_finished
-    // path: no row gets appended to the queue model, and the queued_prompt_callback is armed so the
-    // pending-user-query block lifecycle continues to handle the follow-up exactly as today.
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _queued_prompts_v2 = FeatureFlag::QueuedPromptsV2.override_enabled(false);
-        let _pending_user_query_indicator =
-            FeatureFlag::PendingUserQueryIndicator.override_enabled(true);
-
-        let (terminal, conversation_id) = add_window_with_local_conversation(&mut app);
-        terminal.update(&mut app, |view, ctx| {
-            view.enqueue_followup_prompt(
-                "legacy follow up".to_owned(),
-                QueuedQueryOrigin::CompactAndSlashCommand,
-                conversation_id,
-                ctx,
-            );
-
-            assert!(
-                QueuedQueryModel::as_ref(ctx)
-                    .queue(conversation_id)
-                    .is_empty()
-            );
-            assert!(view.queued_prompt_callback.is_some());
-            assert!(view.pending_user_query_view_id.is_some());
         });
     });
 }
@@ -778,9 +730,9 @@ fn send_now_action_emits_row_kind_and_leaves_rows_for_host_to_fire() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
 
-        // The panel keys its queue lookups on the history model's active conversation for its
-        // terminal view, so seed one and build the panel as a child of that terminal view.
-        let (panel, conversation_id, _) = build_panel_with_active_conversation(&mut app);
+        // The host input fires and removes a row on SendNow, so this test drives a second panel
+        // the host isn't subscribed to.
+        let (panel, conversation_id) = build_standalone_panel_with_active_conversation(&mut app);
 
         let (prompt_id, command_id) =
             QueuedQueryModel::handle(&app).update(&mut app, |model, ctx| {
@@ -834,21 +786,12 @@ fn send_now_action_emits_row_kind_and_leaves_rows_for_host_to_fire() {
     });
 }
 
-/// Builds a panel keyed to a fresh terminal view with an active conversation, mirroring the
-/// construction the host `Input` performs. Returns the panel, the conversation id, and the
-/// host input.
-///
-/// When the QueueSlashCommand flag is on, the host input already owns a panel for this
-/// terminal view, and that panel is returned instead of constructing a second one: two panels
-/// on the same terminal view both react to `EditEntered` and fight over edit-editor focus, and
-/// the loser's `Blurred` handler commits the edit on the shared model out from under the test.
-fn build_panel_with_active_conversation(
+/// Builds a queued-prompts panel keyed to a fresh terminal view with an active conversation,
+/// mirroring the construction the host `Input` performs, but not subscribed to by the host.
+/// Returns the panel and the conversation id.
+fn build_standalone_panel_with_active_conversation(
     app: &mut App,
-) -> (
-    ViewHandle<QueuedPromptsPanelView>,
-    AIConversationId,
-    ViewHandle<Input>,
-) {
+) -> (ViewHandle<QueuedPromptsPanelView>, AIConversationId) {
     let terminal = add_window_with_terminal(app, None);
     let terminal_view_id = terminal.read(app, |view, _| view.view_id);
     let conversation_id = BlocklistAIHistoryModel::handle(app).update(app, |history, ctx| {
@@ -857,9 +800,6 @@ fn build_panel_with_active_conversation(
         id
     });
     let input = terminal.read(app, |view, _| view.input.clone());
-    if let Some(panel) = input.read(app, |input, _| input.queued_prompts_panel().cloned()) {
-        return (panel, conversation_id, input);
-    }
     let (suggestions_mode_model, host_editor) = input.read(app, |input, _| {
         (
             input.suggestions_mode_model().clone(),
@@ -879,13 +819,33 @@ fn build_panel_with_active_conversation(
             )
         })
     });
+    (panel, conversation_id)
+}
+
+/// Returns the host input's queued-prompts panel for a fresh terminal view with an active
+/// conversation, the conversation id, and the host input.
+fn build_panel_with_active_conversation(
+    app: &mut App,
+) -> (
+    ViewHandle<QueuedPromptsPanelView>,
+    AIConversationId,
+    ViewHandle<Input>,
+) {
+    let terminal = add_window_with_terminal(app, None);
+    let terminal_view_id = terminal.read(app, |view, _| view.view_id);
+    let conversation_id = BlocklistAIHistoryModel::handle(app).update(app, |history, ctx| {
+        let id = history.start_new_conversation(terminal_view_id, false, false, ctx);
+        history.set_active_conversation_id(id, terminal_view_id, ctx);
+        id
+    });
+    let input = terminal.read(app, |view, _| view.input.clone());
+    let panel = input.read(app, |input, _| input.queued_prompts_panel().clone());
     (panel, conversation_id, input)
 }
 
 #[test]
 fn redetermine_terminal_focus_preserves_focused_queued_prompt_editor() {
     App::test((), |mut app| async move {
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app_for_terminal_view(&mut app);
 
         let terminal = add_window_with_terminal(&mut app, None);
@@ -897,9 +857,7 @@ fn redetermine_terminal_focus_preserves_focused_queued_prompt_editor() {
                 id
             });
         let input = terminal.read(&app, |view, _| view.input.clone());
-        let panel = input
-            .read(&app, |input, _| input.queued_prompts_panel().cloned())
-            .expect("queue flag should create a queued prompts panel");
+        let panel = input.read(&app, |input, _| input.queued_prompts_panel().clone());
         let row_id = QueuedQueryModel::handle(&app).update(&mut app, |model, ctx| {
             model.append(conversation_id, user_query("edit me"), ctx)
         });
@@ -930,7 +888,6 @@ fn redetermine_terminal_focus_preserves_focused_queued_prompt_editor() {
 #[test]
 fn nonempty_input_hides_the_hint_but_leaves_send_now_enabled() {
     App::test((), |mut app| async move {
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app_for_terminal_view(&mut app);
 
         let (panel, conversation_id, input) = build_panel_with_active_conversation(&mut app);
@@ -966,7 +923,6 @@ fn nonempty_input_hides_the_hint_but_leaves_send_now_enabled() {
 fn enter_hint_hidden_during_inline_edit() {
     // The enter hint hides while a row is in inline edit mode.
     App::test((), |mut app| async move {
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app_for_terminal_view(&mut app);
 
         let (panel, conversation_id, _) = build_panel_with_active_conversation(&mut app);

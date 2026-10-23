@@ -14,7 +14,6 @@ use crate::ai::blocklist::InputType;
 use crate::ai::blocklist::agent_view::shortcuts::render_agent_shortcuts_view;
 use crate::appearance::Appearance;
 use crate::context_chips::spacing::{self};
-use crate::features::FeatureFlag;
 use crate::settings::InputModeSettings;
 use crate::terminal::settings::TerminalSettings;
 use crate::terminal::view::TerminalAction;
@@ -47,8 +46,7 @@ impl Input {
 
         let ai_input_model = self.ai_input_model.as_ref(app);
 
-        if FeatureFlag::ImageAsContext.is_enabled()
-            && matches!(ai_input_model.input_type(), InputType::AI)
+        if matches!(ai_input_model.input_type(), InputType::AI)
             && let Some(images) = self.render_attachment_chips(appearance)
         {
             column.add_child(
@@ -168,9 +166,7 @@ impl Input {
             .is_conversation_menu()
         {
             column.add_child(ChildView::new(&self.inline_conversation_menu_view).finish());
-        } else if FeatureFlag::ListSkills.is_enabled()
-            && self.suggestions_mode_model.as_ref(app).is_skill_menu()
-        {
+        } else if self.suggestions_mode_model.as_ref(app).is_skill_menu() {
             column.add_child(ChildView::new(&self.inline_skill_selector_view).finish());
         } else if self.suggestions_mode_model.as_ref(app).is_user_query_menu() {
             column.add_child(ChildView::new(&self.user_query_menu_view).finish());
@@ -194,10 +190,8 @@ impl Input {
             column.add_child(render_agent_shortcuts_view(app));
         }
         column.add_child(ChildView::new(&self.agent_status_view).finish());
-        if let Some(panel) = self.queued_prompts_panel.as_ref()
-            && panel.as_ref(app).should_render(app)
-        {
-            column.add_child(ChildView::new(panel).finish());
+        if self.queued_prompts_panel.as_ref(app).should_render(app) {
+            column.add_child(ChildView::new(&self.queued_prompts_panel).finish());
         }
         column.add_child(input);
 

@@ -16,7 +16,6 @@ use url::Url;
 use uuid::Uuid;
 use warp_core::channel::ChannelState;
 use warp_core::execution_mode::AppExecutionMode;
-use warp_core::features::FeatureFlag;
 use warp_core::settings::Setting as _;
 use warp_errors::report_error;
 use warpui::windowing::WindowManager;
@@ -337,13 +336,9 @@ impl TemplatableMCPServerManager {
                 TEMPLATABLE_MCP_CREDENTIALS_KEY,
             );
 
-            if FeatureFlag::FileBasedMcp.is_enabled() {
-                me.file_based_server_credentials = load_credentials_from_secure_storage::<
-                    FileBasedPersistedCredentialsMap,
-                >(
-                    ctx, FILE_BASED_MCP_CREDENTIALS_KEY
-                );
-            }
+            me.file_based_server_credentials = load_credentials_from_secure_storage::<
+                FileBasedPersistedCredentialsMap,
+            >(ctx, FILE_BASED_MCP_CREDENTIALS_KEY);
         }
 
         if AppExecutionMode::as_ref(ctx).can_autostart_mcp_servers() {
@@ -795,20 +790,19 @@ impl TemplatableMCPServerManager {
         let is_headless = AppExecutionMode::as_ref(ctx).is_autonomous();
 
         let mut persisted_credentials = self.server_credentials.get(&template_uuid).cloned();
-        if persisted_credentials.is_none() && FeatureFlag::FileBasedMcp.is_enabled() {
+        if persisted_credentials.is_none() {
             persisted_credentials = installation
                 .hash()
                 .and_then(|hash| self.file_based_server_credentials.get(&hash).cloned());
         }
 
-        let is_file_based = FeatureFlag::FileBasedMcp.is_enabled()
-            && FileBasedMCPManager::as_ref(ctx)
-                .get_hash_by_uuid(installation_uuid)
-                .is_some();
+        let is_file_based = FileBasedMCPManager::as_ref(ctx)
+            .get_hash_by_uuid(installation_uuid)
+            .is_some();
 
         let server_name = server.name.clone();
         let description = installation.templatable_mcp_server().description.clone();
-        let auth_context = FeatureFlag::McpOauth.is_enabled().then(|| {
+        let auth_context = Some({
             let persist_spawner = ctx.spawner();
             let requires_authentication_spawner = ctx.spawner();
             let authenticated_spawner = ctx.spawner();
@@ -852,11 +846,13 @@ impl TemplatableMCPServerManager {
                                     manager.pending_oauth_csrf.insert(csrf_state, uuid);
                                 }
                                 manager.authorization_urls.insert(uuid, auth_url.clone());
-                                ctx.emit(
-                                    TemplatableMCPServerManagerEvent::AuthenticationRequired,
-                                );
+                                ctx.emit(TemplatableMCPServerManagerEvent::AuthenticationRequired);
                                 ctx.open_url(&auth_url);
-                                manager.change_server_state(uuid, MCPServerState::Authenticating, ctx);
+                                manager.change_server_state(
+                                    uuid,
+                                    MCPServerState::Authenticating,
+                                    ctx,
+                                );
                             })
                             .await
                             .map_err(|err| {

@@ -14,7 +14,6 @@ use super::common::{
 use crate::ai::blocklist::InputType;
 use crate::appearance::Appearance;
 use crate::context_chips::spacing;
-use crate::features::FeatureFlag;
 use crate::settings::{AppEditorSettings, InputModeSettings};
 use crate::terminal::block_list_viewport::InputMode;
 use crate::terminal::input::{InputAction, InputDropTargetData};
@@ -67,8 +66,7 @@ impl Input {
 
         let ai_input_model = self.ai_input_model.as_ref(app);
 
-        if FeatureFlag::ImageAsContext.is_enabled()
-            && matches!(ai_input_model.input_type(), InputType::AI)
+        if matches!(ai_input_model.input_type(), InputType::AI)
             && let Some(images) = self.render_attachment_chips(appearance)
         {
             column.add_child(

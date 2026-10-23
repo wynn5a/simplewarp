@@ -311,7 +311,6 @@ fn test_shell_chip_is_disabled_when_required_executable_is_missing() {
 
 #[test]
 fn test_github_pr_chip_runtime_policy_configuration() {
-    let _flag_guard = FeatureFlag::GithubPrPromptChip.override_enabled(true);
     let chip = ContextChipKind::GithubPullRequest
         .to_chip()
         .expect("github pr chip should exist");
@@ -928,7 +927,6 @@ fn test_git_status_change_updates_branch_status_chip_value() {
 
 #[test]
 fn test_git_status_pr_info_updates_github_pr_chip_value() {
-    let _flag_guard = FeatureFlag::GithubPrPromptChip.override_enabled(true);
     App::test((), |mut app| async move {
         app.add_singleton_model(|_| {
             Prompt::mock_with(

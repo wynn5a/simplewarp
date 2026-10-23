@@ -1,20 +1,17 @@
 use warp_core::settings::Setting;
 use warpui::elements::{
-    Border, Clipped, Container, DropTarget, Element, Flex, Hoverable, ParentElement, SavePosition,
-    Stack,
+    Border, Container, DropTarget, Element, Flex, Hoverable, ParentElement, SavePosition, Stack,
 };
 use warpui::presenter::ChildView;
 use warpui::{AppContext, SingletonEntity};
 
 use super::common::{
     add_command_xray_overlay, add_input_suggestions_overlays, add_voltron_overlay,
-    add_workflow_info_overlay, should_show_terminal_input_message_bar,
-    wrap_input_with_terminal_padding_and_focus_handler,
+    add_workflow_info_overlay, wrap_input_with_terminal_padding_and_focus_handler,
 };
 use super::{Input, InputAction, InputDropTargetData};
 use crate::appearance::Appearance;
 use crate::context_chips::spacing;
-use crate::features::FeatureFlag;
 use crate::settings::{AppEditorSettings, InputModeSettings};
 use crate::terminal::block_list_settings::BlockListSettings;
 use crate::terminal::block_list_viewport::InputMode;
@@ -68,11 +65,7 @@ impl Input {
                 .finish(),
         );
 
-        if should_show_terminal_input_message_bar(app) {
-            column.add_child(
-                Clipped::new(ChildView::new(&self.terminal_input_message_bar).finish()).finish(),
-            );
-        } else if !(matches!(input_mode, InputMode::PinnedToTop)
+        if !(matches!(input_mode, InputMode::PinnedToTop)
             && self
                 .suggestions_mode_model
                 .as_ref(app)
@@ -188,7 +181,7 @@ impl Input {
                             Some(ChildView::new(&self.inline_slash_commands_view).finish())
                         } else if is_conversation_menu {
                             Some(ChildView::new(&self.inline_conversation_menu_view).finish())
-                        } else if FeatureFlag::ListSkills.is_enabled() && is_skill_menu {
+                        } else if is_skill_menu {
                             Some(ChildView::new(&self.inline_skill_selector_view).finish())
                         } else if is_inline_history_menu {
                             Some(ChildView::new(&self.inline_history_menu_view).finish())
@@ -215,7 +208,7 @@ impl Input {
                             Some(ChildView::new(&self.inline_slash_commands_view).finish())
                         } else if is_conversation_menu {
                             Some(ChildView::new(&self.inline_conversation_menu_view).finish())
-                        } else if FeatureFlag::ListSkills.is_enabled() && is_skill_menu {
+                        } else if is_skill_menu {
                             Some(ChildView::new(&self.inline_skill_selector_view).finish())
                         } else if is_inline_history_menu {
                             Some(ChildView::new(&self.inline_history_menu_view).finish())
@@ -242,10 +235,7 @@ impl Input {
                         column.add_child(
                             ChildView::new(&self.inline_conversation_menu_view).finish(),
                         );
-                    } else if FeatureFlag::ListSkills.is_enabled()
-                        && is_skill_menu
-                        && !should_render_below
-                    {
+                    } else if is_skill_menu && !should_render_below {
                         column.add_child(ChildView::new(&self.inline_skill_selector_view).finish());
                     } else if is_inline_history_menu && !should_render_below {
                         column.add_child(ChildView::new(&self.inline_history_menu_view).finish());
@@ -263,10 +253,7 @@ impl Input {
                         column.add_child(
                             ChildView::new(&self.inline_conversation_menu_view).finish(),
                         );
-                    } else if FeatureFlag::ListSkills.is_enabled()
-                        && is_skill_menu
-                        && should_render_below
-                    {
+                    } else if is_skill_menu && should_render_below {
                         column.add_child(ChildView::new(&self.inline_skill_selector_view).finish());
                     } else if is_inline_history_menu && should_render_below {
                         column.add_child(ChildView::new(&self.inline_history_menu_view).finish());

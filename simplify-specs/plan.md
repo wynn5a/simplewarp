@@ -39,8 +39,9 @@ No cloud, no login, no subscription, no Warp Drive.
 | 4 — Delete the dead cloud code and the TUI | DONE through 4id: the 4hp remote-only queue (R1–R7) and its follow-ups are done; what remains under Next is product decisions |
 
 Enabled in the simplewarp build: `jupyter_notebook_rendering` (2026-09-15) and, since 4id
-(2026-09-29), EditableMarkdownMermaid, ImeMarkedText, ITermImages and LocalDockerSandbox — all
-pinned by `features::tests`. The enable-candidate list is empty. Local computer use, enabled in
+(2026-09-29), EditableMarkdownMermaid, ImeMarkedText, ITermImages and LocalDockerSandbox. All five have
+since been removed as always-on flags (C1, C4, C5), so their code is unconditional and the
+`features::tests` pins are gone. The enable-candidate list is empty. Local computer use, enabled in
 4id, was later deleted with the rest of computer use (plan-p2 §1c).
 
 ## Phase 4 progress
@@ -109,8 +110,8 @@ preferred route; D2 dropped the common-skills lock (user ruling). H4 was wrong a
 
 **Leftovers survey (2026-10-22):** queued in [plan-p5.md](plan-p5.md) — A `cargo machete` ignore
 lists (no real unused deps), B "GUI" names left from the two-front-end design, C the 132 always-on
-feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c, C2, C2b, C3 and C4 done (see the
-round log); C5–C7 next.
+feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c, C2, C2b, C3, C4 and C5 done (see the
+round log); C5b, C6 and C7 next.
 
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
@@ -1750,6 +1751,37 @@ Verification: format and all three clippy gates clean; `cargo nextest run --work
 (−9 deleted), 6,254 passed, 1 failed (the clone-slash-command flake), 86 skipped. `cargo run`
 smoke: the app starts with no errors in `simplewarp.log`; code review, notebooks and agent tables
 were not exercised by hand.
+
+### Round: C5 — AI, agent mode, MCP, skills flags (2026-10-23)
+
+- The 45 C5 flags are gone (enum variants, cargo features including the `agent_view`-dependent
+  `agent_view_block_context`, `agent_toolbar_editor`, `agent_view_prompt_chip`,
+  `agent_view_conversation_list_view` and `queued_prompts_v2 = ["queue_slash_command"]`,
+  `features.rs` mappings). `features_tests.rs` is deleted: all seven of its pins were C5 flags.
+  Every gate keeps its on-branch; the `LocalDockerSandbox` gates were removed alongside the
+  sbx-missing toast fix (`f5da76412`) without touching it.
+- Dead with the off-branches: the terminal input message bar (`terminal_message_bar.rs`,
+  `should_show_terminal_input_message_bar`; `AgentViewPromptChip` hid it) and
+  `AttachedBlocksMessageProducer` (blocks are always auto-attached); the attached-blocks header
+  chip and `num_attached_context_blocks` (only selected text gets a chip); the non-Agent-Mode
+  "Ask Warp AI" bindings, menu entries, `AskAISource::SelectedBlockOrText`,
+  `InputContextMenuAction::AskWarpAI`, the AI-assistant icon/text/colour constants and the
+  `#` command-search placeholder; the cmdorctrl-i Inspect Command binding that was enabled only
+  without Agent Mode; `should_show_mcp_servers`; the context-reset-on-block-completion path.
+  `Input::queued_prompts_panel` is no longer an `Option`.
+- Tests: the flag-off tests went (`restored_conversation_ignores_persisted_autoexecute_override_when_disabled`,
+  `enqueue_followup_prompt_falls_back_to_pending_block_when_v2_is_disabled`,
+  `shell_submission_is_not_queued_when_v2_disabled`, the flag-off half of the agent-toolbelt
+  context-menu test, the features pin test); the three left-panel window-scoped tests lose their
+  conversation-list-off override and pass on the on-branch. `send_now_action_emits_row_kind_…`
+  now builds a standalone panel, since the host input fires and removes a row on SendNow.
+- Queued as C5b: the legacy pending-user-query block, now unreachable (see plan-p5.md).
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,251 run
+(−4 deleted), 6,249 passed, 2 failed (the clone-slash-command flake and
+`test_synced_inputs_terminal_mode_change_view_focus`, which passes on re-run in isolation, twice),
+86 skipped. `cargo run` smoke: the app starts and stays up with no errors in `simplewarp.log`;
+the AI surfaces were not exercised by hand.
 
 ## Risks
 

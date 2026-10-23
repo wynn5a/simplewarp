@@ -4,7 +4,6 @@ use std::collections::{HashMap, HashSet};
 
 use ai::skills::{ParsedSkill, SkillPathOrigin, SkillReference, SkillScope};
 pub use file_watchers::{SkillWatcher, SkillWatcherEvent, extract_skill_parent_directory};
-use warp_core::features::FeatureFlag;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
@@ -52,11 +51,9 @@ impl SkillManager {
         // Create skill watcher
         let skill_watcher = ctx.add_model(|ctx| SkillWatcher::new(ctx, skill_watcher_tx));
 
-        if FeatureFlag::BundledSkills.is_enabled() {
-            ctx.spawn(BundledSkill::detect(), |me, result, _| {
-                me.bundled_skills.set_local(result);
-            });
-        }
+        ctx.spawn(BundledSkill::detect(), |me, result, _| {
+            me.bundled_skills.set_local(result);
+        });
 
         Self {
             directory_skills: HashMap::new(),
@@ -140,9 +137,7 @@ impl SkillManager {
 
         // Append bundled skills whose activation condition is met. Only local execution hosts
         // see the local catalog; SSH sessions never see the local client's bundled skills.
-        if FeatureFlag::BundledSkills.is_enabled() {
-            skills.extend(self.bundled_skills.active_descriptors(path_origin, ctx));
-        }
+        skills.extend(self.bundled_skills.active_descriptors(path_origin, ctx));
 
         skills
     }

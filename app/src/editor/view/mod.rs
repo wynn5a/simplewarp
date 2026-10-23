@@ -906,25 +906,14 @@ pub fn init(ctx: &mut AppContext) {
         ),
     ]);
 
-    ctx.register_editable_bindings([
-        // With Agent Mode, cmdorctrl-i toggles AI input mode (same as GH Copilot) -- so
-        // reassign command x ray to something else.
-        EditableBinding::new(
-            "editor_view:inspect_command",
-            "Inspect Command",
-            EditorAction::InspectCommand,
-        )
-        .with_enabled(|| FeatureFlag::AgentMode.is_enabled())
-        .with_context_predicate(id!("EditorView") & !id!("IMEOpen")),
-        EditableBinding::new(
-            "editor_view:inspect_command",
-            "Inspect Command",
-            EditorAction::InspectCommand,
-        )
-        .with_enabled(|| !FeatureFlag::AgentMode.is_enabled())
-        .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-        .with_key_binding("cmdorctrl-i"),
-    ]);
+    // cmdorctrl-i toggles AI input mode (same as GH Copilot), so Inspect Command has no default
+    // key binding.
+    ctx.register_editable_bindings([EditableBinding::new(
+        "editor_view:inspect_command",
+        "Inspect Command",
+        EditorAction::InspectCommand,
+    )
+    .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))]);
 
     ctx.register_editable_bindings([EditableBinding::new(
         "editor_view:clear_buffer",
@@ -3137,9 +3126,6 @@ impl EditorView {
 
     pub fn set_is_ai_input(&mut self, is_ai_input: bool, ctx: &mut ViewContext<Self>) {
         self.is_ai_input = is_ai_input;
-        if !self.is_ai_input && !FeatureFlag::AtMenuOutsideOfAIMode.is_enabled() {
-            ctx.emit(Event::SetAIContextMenuOpen(false));
-        }
         ctx.notify();
     }
 

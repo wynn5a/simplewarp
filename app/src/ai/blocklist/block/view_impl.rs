@@ -708,11 +708,7 @@ impl View for AIBlock {
                 ))
             });
         let query_and_index_is_some = query_and_index.is_some();
-        let attachment_name_list = if FeatureFlag::ImageAsContext.is_enabled() {
-            attachment_names(self.model.inputs_to_render(app))
-        } else {
-            vec![]
-        };
+        let attachment_name_list = attachment_names(self.model.inputs_to_render(app));
         if let Some((
             query_for_display,
             input_index,
@@ -728,7 +724,6 @@ impl View for AIBlock {
                         .attached_blocks_chip_state_handle,
                     overflow_menu_mouse_state: &self.state_handles.overflow_menu_handle,
                     rewind_button: &self.rewind_button,
-                    num_attached_context_blocks: self.num_attached_context_blocks,
                     has_attached_context_selected_text: self.has_attached_context_selected_text,
                     directory_context: &self.directory_context,
                     view_id: &self.view_id,

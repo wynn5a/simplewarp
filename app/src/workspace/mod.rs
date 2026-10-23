@@ -39,7 +39,6 @@ use warpui::keymap::{BindingDescription, EditableBinding, FixedBinding};
 
 use crate::ai::blocklist::NEW_AGENT_PANE_LABEL;
 use crate::channel::{Channel, ChannelState};
-use crate::features::FeatureFlag;
 use crate::palette::PaletteMode;
 use crate::search::command_palette::PaletteSource;
 use crate::settings_view::{self, SettingsSection, flags};
@@ -500,7 +499,6 @@ pub fn init(app: &mut AppContext) {
         )
         .with_group(bindings::BindingGroup::Navigation.as_str())
         .with_context_predicate(id!("Workspace") & id!(flags::SHOW_CONVERSATION_HISTORY))
-        .with_enabled(|| FeatureFlag::AgentViewConversationListView.is_enabled())
         .with_custom_action(CustomAction::ToggleConversationListView),
         EditableBinding::new(
             LEFT_PANEL_GLOBAL_SEARCH_BINDING_NAME,
@@ -544,7 +542,6 @@ pub fn init(app: &mut AppContext) {
             ),
             WorkspaceAction::ToggleConversationListView,
         )
-        .with_enabled(|| FeatureFlag::AgentViewConversationListView.is_enabled())
         .with_context_predicate(id!("Workspace") & id!(flags::SHOW_CONVERSATION_HISTORY))
         .with_mac_key_binding("cmd-shift-A")
         .with_linux_or_windows_key_binding("ctrl-shift-A")
@@ -887,7 +884,6 @@ pub fn init(app: &mut AppContext) {
         *NEW_AGENT_PANE_LABEL,
         WorkspaceAction::NewPaneInAgentMode,
     )
-    .with_enabled(|| FeatureFlag::AgentMode.is_enabled())
     .with_context_predicate(id!("Workspace") & id!(flags::IS_ANY_AI_ENABLED))
     .with_group(bindings::BindingGroup::WarpAi.as_str())
     .with_custom_action(CustomAction::NewAgentModePane)]);
@@ -932,7 +928,6 @@ pub fn init(app: &mut AppContext) {
                 .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Open AI Rules"),
             WorkspaceAction::OpenAIFactCollection,
         )
-        .with_enabled(|| FeatureFlag::AIRules.is_enabled())
         .with_custom_action(CustomAction::OpenAIFactCollection)
         .with_context_predicate(id!("Workspace") & id!(flags::IS_ANY_AI_ENABLED))
         .with_group(bindings::BindingGroup::WarpAi.as_str()),
@@ -944,7 +939,6 @@ pub fn init(app: &mut AppContext) {
             .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Open MCP Servers"),
         WorkspaceAction::OpenMCPServerCollection,
     )
-    .with_enabled(|| FeatureFlag::McpServer.is_enabled())
     .with_custom_action(CustomAction::OpenMCPServerCollection)
     .with_context_predicate(id!("Workspace") & id!(flags::IS_ANY_AI_ENABLED))
     .with_group(bindings::BindingGroup::WarpAi.as_str())]);
@@ -954,7 +948,6 @@ pub fn init(app: &mut AppContext) {
         "Jump to latest agent task",
         WorkspaceAction::JumpToLatestToast,
     )
-    .with_enabled(|| FeatureFlag::AgentMode.is_enabled())
     .with_context_predicate(id!("Workspace") & id!(flags::IS_ANY_AI_ENABLED))
     .with_mac_key_binding("cmd-shift-G")
     .with_linux_or_windows_key_binding("ctrl-shift-G")
@@ -1034,7 +1027,6 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
             BindingDescription::new("Open Settings: AI"),
             WorkspaceAction::ShowSettingsPage(SettingsSection::WarpAgent),
         )
-        .with_enabled(|| FeatureFlag::AgentMode.is_enabled())
         .with_group(bindings::BindingGroup::Settings.as_str())
         .with_context_predicate(id!("Workspace")),
         EditableBinding::new(

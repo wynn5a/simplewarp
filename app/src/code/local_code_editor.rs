@@ -28,7 +28,6 @@ use string_offset::CharOffset;
 use vec1::Vec1;
 use vim::vim::{MotionType, VimMode};
 use warp_core::r#async::debounce;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::icons::Icon;
 use warp_editor::content::buffer::InitialBufferState;
@@ -2266,10 +2265,7 @@ impl View for LocalCodeEditorView {
             // When a single terminal exists in the window and the user has made a selection (but isn't currently selecting),
             // we render a tooltip that allows them to add the selected text to the terminal context.
             let is_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled();
-            if is_ai_enabled
-                && FeatureFlag::SelectionAsContext.is_enabled()
-                && !editor.is_selecting()
-            {
+            if is_ai_enabled && !editor.is_selecting() {
                 let tooltip = self.render_selection_tooltip(app);
                 if let Some(tooltip) = tooltip {
                     stack.add_positioned_child(tooltip, editor.selection_position_anchor(app))
