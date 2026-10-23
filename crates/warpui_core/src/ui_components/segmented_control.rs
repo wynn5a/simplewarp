@@ -26,9 +26,6 @@ pub struct SegmentedControl<T> {
     build_option_config: BuildRenderableOptionConfig<T>,
     mouse_states: Vec<MouseStateHandle>,
     styles: UiComponentStyles,
-
-    /// If Some, we will set the control to disabled and use the tooltip text provided
-    disabled_tooltip: Option<Cow<'static, str>>,
 }
 
 #[derive(Debug)]
@@ -116,7 +113,6 @@ impl<T: SegmentedControlOption> SegmentedControl<T> {
             selected_option: default_option,
             mouse_states,
             styles,
-            disabled_tooltip: None,
         }
     }
 
@@ -138,16 +134,6 @@ impl<T: SegmentedControlOption> SegmentedControl<T> {
 
     pub fn set_styles(&mut self, styles: UiComponentStyles, ctx: &mut ViewContext<Self>) {
         self.styles = styles;
-        ctx.notify();
-    }
-
-    /// Enable/disable the segmented control (disables click selection but retains hover/tooltip)
-    pub fn set_disabled_tooltip(
-        &mut self,
-        disabled_tooltip: Option<Cow<'static, str>>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.disabled_tooltip = disabled_tooltip;
         ctx.notify();
     }
 
@@ -190,7 +176,6 @@ impl<T: SegmentedControlOption> View for SegmentedControl<T> {
     }
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
-        let is_disabled = self.disabled_tooltip.is_some();
         let mut options_container = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_main_axis_alignment(MainAxisAlignment::Start);
@@ -201,16 +186,6 @@ impl<T: SegmentedControlOption> View for SegmentedControl<T> {
             else {
                 continue;
             };
-
-            // If globally disabled and an override tooltip is set, replace the tooltip text
-            if let Some(disabled_text) = self.disabled_tooltip.clone() {
-                // Override tooltip text with disabled text
-                if let Some(tooltip_config) = option_config.tooltip.as_mut() {
-                    tooltip_config.text = disabled_text;
-                    // Clear keybinding/subtext when disabled
-                    tooltip_config.sub_text = None;
-                }
-            }
 
             let mouse_state = self.mouse_states[index].clone();
 
@@ -262,7 +237,7 @@ impl<T: SegmentedControlOption> View for SegmentedControl<T> {
                 if let Some(width_override) = label_config.width_override {
                     // Scale label width by the same ratio as font size for proper zoom behavior
                     let font_size = self.styles.font_size.unwrap_or(12.0);
-                    let base_font_size = 10.0; // Match the base font size used in universal_developer_input.rs
+                    let base_font_size = 10.0;
                     let ui_scalar = font_size / base_font_size;
                     text = text.with_width(width_override * ui_scalar);
                 }
@@ -332,22 +307,15 @@ impl<T: SegmentedControlOption> View for SegmentedControl<T> {
             button = button.with_tooltip_position(ButtonTooltipPosition::AboveLeft);
 
             let option_copy = *option;
-            let mut hoverable = button.build().with_cursor(if is_disabled {
-                Cursor::Arrow
-            } else {
-                Cursor::PointingHand
-            });
-
-            // Buttons should not be clickable if they are disabled
-            if !is_disabled {
-                hoverable = hoverable.on_click({
-                    move |ctx, _, _| {
+            let hoverable =
+                button
+                    .build()
+                    .with_cursor(Cursor::PointingHand)
+                    .on_click(move |ctx, _, _| {
                         ctx.dispatch_typed_action(SegmentedControlAction::SelectOption(
                             option_copy,
                         ));
-                    }
-                });
-            }
+                    });
 
             options_container = options_container.with_child(hoverable.finish());
         }

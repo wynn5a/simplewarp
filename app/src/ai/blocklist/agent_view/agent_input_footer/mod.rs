@@ -226,14 +226,12 @@ impl AgentInputFooter {
         );
 
         let profile_model_selector_full = ctx.add_typed_action_view(|ctx| {
-            let mut selector = ProfileModelSelector::new(
+            ProfileModelSelector::new(
                 menu_positioning_provider.clone(),
                 terminal_view_id,
                 terminal_model.clone(),
                 ctx,
-            );
-            selector.set_render_compact(false, ctx);
-            selector
+            )
         });
 
         ctx.subscribe_to_view(&profile_model_selector_full, |me, _, event, ctx| {

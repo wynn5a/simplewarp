@@ -69,7 +69,6 @@ mod secret_regex_updater;
 pub mod session_settings;
 pub mod settings;
 mod shell_launch_state;
-pub mod universal_developer_input;
 
 pub mod ssh;
 pub mod terminal_manager;

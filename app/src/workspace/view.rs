@@ -15025,12 +15025,6 @@ impl Workspace {
             }
         }
 
-        if input_settings.is_terminal_input_message_bar_enabled() {
-            context
-                .set
-                .insert(flags::SHOW_TERMINAL_INPUT_MESSAGE_LINE_FLAG);
-        }
-
         if *input_settings.enable_slash_commands_in_terminal.value() {
             context.set.insert(flags::SLASH_COMMANDS_IN_TERMINAL_FLAG);
         }

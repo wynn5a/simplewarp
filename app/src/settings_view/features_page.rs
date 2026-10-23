@@ -584,14 +584,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         );
     }
 
-    toggle_binding_pairs.push(ToggleSettingActionPair::new(
-        "terminal input message line",
-        builder(SettingsAction::FeaturesPageToggle(
-            FeaturesPageAction::ToggleShowTerminalInputMessageLine,
-        )),
-        context,
-        flags::SHOW_TERMINAL_INPUT_MESSAGE_LINE_FLAG,
-    ));
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
             "'@' context menu in terminal mode",
@@ -802,7 +794,6 @@ pub enum FeaturesPageAction {
     ToggleSlashCommandsInTerminalMode,
     ToggleOutlineCodebaseSymbolsForAtContextMenu,
     ToggleAutoOpenCodeReviewPane,
-    ToggleShowTerminalInputMessageLine,
     TogglePreserveInputFocusOnBlockSelection,
     MakeWarpDefaultTerminal,
     SetCodeEditorLineNumberMode(CodeEditorLineNumberMode),
@@ -1364,15 +1355,6 @@ impl TypedActionView for FeaturesPageView {
             ToggleShowInputHintText => {
                 InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
                     report_if_error!(input_settings.show_hint_text.toggle_and_save_value(ctx));
-                });
-            }
-            ToggleShowTerminalInputMessageLine => {
-                InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
-                    report_if_error!(
-                        input_settings
-                            .show_terminal_input_message_bar
-                            .toggle_and_save_value(ctx)
-                    );
                 });
             }
             ToggleLinkTooltip => {
@@ -2330,8 +2312,6 @@ impl FeaturesPageView {
                 OutlineCodebaseSymbolsForAtContextMenuWidget::default(),
             ));
         }
-
-        editor_widgets.push(Box::new(ShowTerminalInputMessageLineWidget::default()));
 
         editor_widgets.push(Box::new(TabKeyBehaviorWidget::default()));
 
@@ -5373,45 +5353,6 @@ impl SettingsWidget for OutlineCodebaseSymbolsForAtContextMenuWidget {
                 .on_click(move |ctx, _, _| {
                     ctx.dispatch_typed_action(
                         FeaturesPageAction::ToggleOutlineCodebaseSymbolsForAtContextMenu,
-                    );
-                })
-                .finish(),
-            None,
-        )
-    }
-}
-
-#[derive(Default)]
-struct ShowTerminalInputMessageLineWidget {
-    switch_state: SwitchStateHandle,
-}
-
-impl SettingsWidget for ShowTerminalInputMessageLineWidget {
-    type View = FeaturesPageView;
-
-    fn search_terms(&self) -> &str {
-        "terminal input message line bar agent"
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let ui_builder = appearance.ui_builder();
-        render_body_item::<FeaturesPageAction>(
-            "Show terminal input message line".into(),
-            None,
-            ToggleState::Enabled,
-            appearance,
-            ui_builder
-                .switch(self.switch_state.clone())
-                .check(InputSettings::as_ref(app).is_terminal_input_message_bar_enabled())
-                .build()
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(
-                        FeaturesPageAction::ToggleShowTerminalInputMessageLine,
                     );
                 })
                 .finish(),

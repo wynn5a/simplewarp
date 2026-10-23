@@ -2278,8 +2278,6 @@ impl AppearanceSettingsPageView {
             self.input_type_radio_state
                 .set_selected_idx(new_type as usize);
 
-            let _is_udi_enabled = new_type == InputBoxType::Universal;
-
             // Selecting classic mode must also enable honor_ps1 so the mode takes
             // effect immediately (input_type() requires honor_ps1 to return classic).
             SessionSettings::handle(ctx).update(ctx, |session_settings, ctx| {

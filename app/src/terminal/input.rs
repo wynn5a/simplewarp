@@ -95,7 +95,7 @@ use super::model::block::{
     AgentInteractionMetadata, BlockId, BlockMetadata, BlocklistEnvVarMetadata,
 };
 use super::model::completions::ShellCompletion;
-use super::model::session::{Session, SessionId, Sessions};
+use super::model::session::{Session, SessionId, SessionType, Sessions};
 use super::prompt_render_helper::{
     PromptRenderHelper, SameLinePromptElements, should_render_prompt_on_same_line,
 };
@@ -105,9 +105,6 @@ use super::safe_mode_settings::{
 use super::session_settings::{SessionSettings, SessionSettingsChangedEvent};
 use super::settings::{TerminalSettings, TerminalSettingsChangedEvent};
 use super::shell::ShellType;
-use super::universal_developer_input::{
-    UniversalDeveloperInputButtonBar, UniversalDeveloperInputButtonBarEvent,
-};
 use super::view::inline_banner::PromptSuggestionBannerState;
 use super::view::queued_prompts_panel::{QueuedPromptsPanelEvent, QueuedPromptsPanelView};
 use super::view::{
@@ -183,7 +180,7 @@ use crate::prefix::longest_common_prefix;
 use crate::search::QueryFilter;
 use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
 use crate::search::ai_context_menu::search::is_valid_search_query;
-use crate::search::ai_context_menu::view::AIContextMenuAction;
+use crate::search::ai_context_menu::view::{AIContextMenu, AIContextMenuAction};
 use crate::search::command_palette::PaletteSource;
 use crate::search::slash_command_menu::static_commands::commands::{self, COMMAND_REGISTRY};
 use crate::server::cloud_objects::update_manager::UpdateManager;
@@ -225,7 +222,6 @@ use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::session::shell_quote_arg;
 use crate::terminal::package_installers::command_at_cursor_has_common_package_installer_prefix;
 use crate::terminal::prompt_render_helper::should_render_ps1_prompt;
-use crate::terminal::universal_developer_input::AtContextMenuDisabledReason;
 use crate::terminal::view::inline_banner::PromptSuggestionsView;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
@@ -810,9 +806,6 @@ pub enum InputAction {
     /// Clears the AI context menu search query back to the @ character and resets menu state.
     ClearAndResetAIContextMenuQuery,
 
-    /// Sets the hover state of the Universal Developer Input
-    SetUDIHovered(bool),
-
     /// Persist the completions menu width when the user resizes it.
     UpdateCompletionsMenuWidth(f32),
 
@@ -1321,8 +1314,6 @@ pub struct Input {
 
     is_processing_attached_images: bool,
 
-    universal_developer_input_button_bar: ViewHandle<UniversalDeveloperInputButtonBar>,
-
     agent_input_footer: ViewHandle<AgentInputFooter>,
     prompt_suggestions_view: ViewHandle<PromptSuggestionsView>,
 
@@ -1738,22 +1729,6 @@ impl Input {
         let input_render_state_model_handle: ModelHandle<InputRenderStateModel> =
             ctx.add_model(|_| InputRenderStateModel::new(false, size_info));
 
-        let universal_developer_input_button_bar = ctx.add_typed_action_view(|ctx| {
-            UniversalDeveloperInputButtonBar::new(
-                menu_positioning_provider.clone(),
-                terminal_view_id,
-                ai_input_model.clone(),
-                cli_subagent_controller.clone(),
-                model.clone(),
-                ctx,
-            )
-        });
-        ctx.subscribe_to_view(
-            &universal_developer_input_button_bar,
-            |me, _, event, ctx| {
-                me.handle_universal_developer_input_button_bar_event(event, ctx);
-            },
-        );
         let agent_input_footer = ctx.add_typed_action_view(|ctx| {
             AgentInputFooter::new(
                 menu_positioning_provider.clone(),
@@ -1841,7 +1816,6 @@ impl Input {
             ctx.subscribe_to_model(&ai_input_model, |me, _, _, ctx| {
                 me.update_image_context_options(ctx);
                 me.update_ai_context_menu(ctx);
-                me.check_slash_menu_disabled_state(ctx);
             });
 
             let ai_input_model_clone = ai_input_model.clone();
@@ -2591,7 +2565,6 @@ impl Input {
             autosuggestions_abort_handle: None,
             completions_abort_handle: None,
             menu_positioning_provider,
-            universal_developer_input_button_bar,
             prompt_render_helper,
             prompt_type: current_prompt,
             ai_controller,
@@ -2655,7 +2628,6 @@ impl Input {
     fn update_ai_context_menu(&mut self, ctx: &mut ViewContext<Self>) {
         let ai_input_model = self.ai_input_model.as_ref(ctx);
         let is_ai_input = ai_input_model.input_type().is_ai();
-        self.check_and_update_ai_context_menu_disabled_state(ctx);
         self.editor.update(ctx, move |editor, ctx| {
             editor.set_is_ai_input(is_ai_input, ctx);
             ctx.notify();
@@ -2771,30 +2743,6 @@ impl Input {
         } else {
             InputPrefixMode::None
         }
-    }
-
-    /// Update the at button's disabled state based on whether AI context menu should render
-    pub fn check_and_update_ai_context_menu_disabled_state(&mut self, ctx: &mut ViewContext<Self>) {
-        let disable_reason = AtContextMenuDisabledReason::get_disable_reason(
-            self.active_block_metadata.as_ref(),
-            self.sessions.as_ref(ctx),
-            &self.ai_input_model.as_ref(ctx).input_config(),
-            ctx,
-        );
-
-        self.universal_developer_input_button_bar
-            .update(ctx, |button_bar, ctx| {
-                button_bar.set_at_button_disabled(disable_reason, ctx);
-            });
-    }
-
-    fn check_slash_menu_disabled_state(&mut self, ctx: &mut ViewContext<Self>) {
-        let should_disable =
-            !self.editor().as_ref(ctx).is_empty(ctx) || self.is_locked_in_shell_mode(ctx);
-        self.universal_developer_input_button_bar
-            .update(ctx, |button_bar, ctx| {
-                button_bar.set_slash_button_disabled(should_disable, ctx);
-            });
     }
 
     fn handle_ai_context_menu_search(&mut self, is_navigation: bool, ctx: &mut ViewContext<Self>) {
@@ -2984,11 +2932,6 @@ impl Input {
                     ctx,
                 );
             });
-
-            // Emit telemetry for @ menu opened
-            let _is_udi_enabled =
-                InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx);
-            let _current_input_mode = self.ai_input_model.as_ref(ctx).input_type();
         } else if self.suggestions_mode_model.as_ref(ctx).is_ai_context_menu() {
             self.close_ai_context_menu(ctx);
         }
@@ -4182,14 +4125,6 @@ impl Input {
                 });
 
             me.set_zero_state_hint_text(ctx);
-
-            // Update the universal developer input button bar blurred state when focus changes
-            if me.should_show_universal_developer_input(ctx) {
-                me.universal_developer_input_button_bar
-                    .update(ctx, |button_bar, ctx| {
-                        button_bar.set_is_in_active_terminal(is_focused, ctx);
-                    });
-            }
         });
     }
 
@@ -4362,7 +4297,6 @@ impl Input {
                 ctx.notify();
             }
             InputSettingsChangedEvent::AtContextMenuInTerminalMode => {
-                self.check_and_update_ai_context_menu_disabled_state(ctx);
                 ctx.notify();
             }
             InputSettingsChangedEvent::CompletionsMenuWidth => {
@@ -4480,80 +4414,6 @@ impl Input {
                 InputBackgroundJobOptions::default().with_ai_input_detection(),
                 ctx,
             );
-        }
-    }
-
-    fn handle_universal_developer_input_button_bar_event(
-        &mut self,
-        event: &UniversalDeveloperInputButtonBarEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            UniversalDeveloperInputButtonBarEvent::InputTypeSelected(input_type) => {
-                if self.is_input_mode_toggle_disabled(ctx) {
-                    return;
-                }
-
-                self.focus_input_box(ctx);
-
-                let is_input_buffer_empty = self.editor.as_ref(ctx).buffer_text(ctx).is_empty();
-
-                let switch_to_auto = self.ai_input_model.update(ctx, |model, ctx| {
-                    let is_autodetection_enabled =
-                        AISettings::as_ref(ctx).is_ai_autodetection_enabled();
-                    let input_type = *input_type;
-
-                    // If the user clicked on the button to "unlock" the current mode,
-                    // we want to enable autodetection.
-                    if input_type == model.input_type()
-                        && is_autodetection_enabled
-                        && model.is_input_type_locked()
-                    {
-                        true
-                    } else {
-                        let new_config = InputConfig {
-                            input_type,
-                            is_locked: true,
-                        };
-                        model.set_input_config(
-                            new_config,
-                            is_input_buffer_empty,
-                            Some(InputTypeAutoDetectionSource::ManualToggle),
-                            ctx,
-                        );
-                        false
-                    }
-                });
-
-                if switch_to_auto {
-                    self.set_input_mode_natural_language_detection(ctx);
-                } else if *input_type == InputType::AI {
-                }
-            }
-            UniversalDeveloperInputButtonBarEvent::EnableAutoDetection => {
-                self.enable_auto_detection(ctx);
-            }
-            UniversalDeveloperInputButtonBarEvent::SelectFile => {
-                self.select_image(ctx);
-            }
-            UniversalDeveloperInputButtonBarEvent::SetAIContextMenuOpen(open) => {
-                self.focus_input_box(ctx);
-                self.set_ai_context_menu_open(*open, ctx);
-            }
-            UniversalDeveloperInputButtonBarEvent::ModelSelectorOpened => {
-                self.close_overlays(ctx);
-            }
-            UniversalDeveloperInputButtonBarEvent::ModelSelectorClosed => {
-                // When the model selector menu closes (model was selected), focus the input field
-                self.focus_input_box(ctx);
-            }
-            UniversalDeveloperInputButtonBarEvent::OpenSettings(section) => {
-                ctx.emit(Event::OpenSettings(*section));
-            }
-            UniversalDeveloperInputButtonBarEvent::OpenSlashCommandMenu => {
-                self.focus_input_box(ctx);
-                self.toggle_legacy_slash_commands_menu(ctx);
-            }
         }
     }
 
@@ -6951,8 +6811,6 @@ impl Input {
             self.close_ai_context_menu(ctx);
         }
 
-        self.check_slash_menu_disabled_state(ctx);
-
         match event {
             EditorEvent::Edited(edit_origin) => {
                 // We should ideally be handling all `Edited` events, not just those that are
@@ -8486,15 +8344,7 @@ impl Input {
             return false;
         }
 
-        let is_disabled = AtContextMenuDisabledReason::get_disable_reason(
-            self.active_block_metadata.as_ref(),
-            self.sessions.as_ref(app),
-            &self.ai_input_model.as_ref(app).input_config(),
-            app,
-        )
-        .is_some();
-
-        if is_disabled {
+        if self.is_ai_context_menu_disabled(app) {
             return false;
         }
 
@@ -8510,6 +8360,43 @@ impl Input {
             );
 
         !looks_like_package_install
+    }
+
+    fn is_ai_context_menu_disabled(&self, app: &AppContext) -> bool {
+        let input_config = self.ai_input_model.as_ref(app).input_config();
+        if input_config.input_type == InputType::Shell
+            && !*InputSettings::as_ref(app)
+                .at_context_menu_in_terminal_mode
+                .value()
+        {
+            return true;
+        }
+
+        let sessions = self.sessions.as_ref(app);
+        let is_ssh_or_subshell = self
+            .active_block_metadata
+            .as_ref()
+            .and_then(|metadata| metadata.session_id())
+            .and_then(|session_id| sessions.get(session_id))
+            .is_some_and(|session| {
+                // The @ menu requires repo metadata, which is only available for local sessions.
+                session.is_ssh_wrapper_session()
+                    || matches!(session.session_type(), SessionType::WarpifiedRemote)
+                    || session.subshell_info().is_some()
+            });
+        if is_ssh_or_subshell {
+            return true;
+        }
+
+        // Outside a git repository categories may still be available; repo-based restrictions are
+        // enforced per category (e.g. Code needs a repository). Locked shell mode outside a
+        // repository leaves no categories at all.
+        AIContextMenu::get_categories_for_mode(
+            input_config.input_type.is_ai() || !input_config.is_locked,
+            false, /* is_cli_agent_input */
+            app,
+        )
+        .is_empty()
     }
 
     fn should_expand_aliases(&self, ctx: &mut ViewContext<Self>) -> bool {
@@ -10501,12 +10388,6 @@ impl Input {
                 self.buffer_block_id = latest_block_id;
             }
 
-            // Update the segmented control disabled state based on the new state.
-            self.universal_developer_input_button_bar
-                .update(ctx, |button_bar, ctx| {
-                    button_bar.update_segmented_control_disabled_state(ctx);
-                });
-
             // Generate autosuggestion if the input is not empty (user had type-ahead).
             self.maybe_generate_autosuggestion(ctx);
         }
@@ -11118,13 +10999,6 @@ impl Input {
         format!("status_free_input_{}", self.view_id)
     }
 
-    /// Returns a reference to the universal developer input button bar, if it exists
-    pub fn universal_developer_input_button_bar(
-        &self,
-    ) -> &ViewHandle<UniversalDeveloperInputButtonBar> {
-        &self.universal_developer_input_button_bar
-    }
-
     pub fn should_show_universal_developer_input(&self, app: &AppContext) -> bool {
         InputSettings::as_ref(app).is_universal_developer_input_enabled(app)
     }
@@ -11190,11 +11064,7 @@ impl TypedActionView for Input {
                 self.cycle_next_command_suggestion(ctx);
             }
             InputAction::EnableAutoDetection => {
-                // Call the same logic that clicking the lightbulb icon triggers
-                self.handle_universal_developer_input_button_bar_event(
-                    &UniversalDeveloperInputButtonBarEvent::EnableAutoDetection,
-                    ctx,
-                );
+                self.enable_auto_detection(ctx);
             }
             InputAction::ToggleAgentViewShortcuts => {
                 self.agent_shortcut_view_model.update(ctx, |model, ctx| {
@@ -11207,12 +11077,6 @@ impl TypedActionView for Input {
             }
             InputAction::ClearAndResetAIContextMenuQuery => {
                 self.clear_and_reset_ai_context_menu_query(ctx);
-            }
-            InputAction::SetUDIHovered(is_hovered) => {
-                self.universal_developer_input_button_bar
-                    .update(ctx, |button_bar, ctx| {
-                        button_bar.set_udi_hovered(*is_hovered, ctx);
-                    });
             }
             InputAction::UpdateCompletionsMenuWidth(width) => {
                 InputSettings::handle(ctx).update(ctx, |settings, ctx| {
@@ -11383,16 +11247,11 @@ impl View for Input {
             ctx.set.insert("WorkflowInfoBox");
         }
 
-        let is_profile_model_selector_open = self.should_show_universal_developer_input(app)
-            && self
-                .universal_developer_input_button_bar
-                .as_ref(app)
-                .is_profile_model_selector_open(app);
-        let is_agent_footer_model_selector_open = self
+        if self
             .agent_input_footer
             .as_ref(app)
-            .is_model_selector_open(app);
-        if is_profile_model_selector_open || is_agent_footer_model_selector_open {
+            .is_model_selector_open(app)
+        {
             ctx.set.insert("ProfileModelSelectorOpen");
         }
 

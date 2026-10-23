@@ -9,7 +9,7 @@ use super::common::{
     add_command_xray_overlay, add_input_suggestions_overlays, add_voltron_overlay,
     add_workflow_info_overlay, wrap_input_with_terminal_padding_and_focus_handler,
 };
-use super::{Input, InputAction, InputDropTargetData};
+use super::{Input, InputDropTargetData};
 use crate::appearance::Appearance;
 use crate::context_chips::spacing;
 use crate::settings::InputModeSettings;
@@ -130,9 +130,6 @@ impl Input {
         .finish();
 
         let hoverable_input = Hoverable::new(self.hoverable_handle.clone(), |_| drop_target)
-            .on_hover(|is_hovered, ctx, _app, _position| {
-                ctx.dispatch_typed_action(InputAction::SetUDIHovered(is_hovered));
-            })
             .on_middle_click(|ctx, _app, _position| {
                 ctx.dispatch_typed_action(TerminalAction::MiddleClickOnInput)
             })

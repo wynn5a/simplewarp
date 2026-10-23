@@ -81,7 +81,6 @@ use crate::terminal::model_events::ModelEvent;
 use crate::terminal::program_status::ProgramStatusModel;
 use crate::terminal::resizable_data::ResizableData;
 use crate::terminal::shell::ShellType;
-use crate::terminal::universal_developer_input::UniversalDeveloperInputButtonBarEvent;
 use crate::terminal::writeable_pty::command_history::update_command_history;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::themes::theme::AnsiColorIdentifier;
@@ -6101,10 +6100,7 @@ fn test_ai_context_menu_closes_when_space_immediately_after_at_symbol() {
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
         input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::SetAIContextMenuOpen(true),
-                ctx,
-            );
+            input.set_ai_context_menu_open(true, ctx);
         });
 
         input.read(&app, |input, ctx| {
@@ -6157,10 +6153,7 @@ fn test_ai_context_menu_preserves_lock_state() {
 
         // Open AI context menu (should no longer switch to AI mode)
         input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::SetAIContextMenuOpen(true),
-                ctx,
-            );
+            input.set_ai_context_menu_open(true, ctx);
         });
 
         // Verify we stay in Shell mode with lock state preserved
@@ -6192,10 +6185,7 @@ fn test_ai_context_menu_preserves_lock_state() {
 
         // Open AI context menu again
         input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::SetAIContextMenuOpen(true),
-                ctx,
-            );
+            input.set_ai_context_menu_open(true, ctx);
         });
 
         // Verify we stay in Shell mode and unlocked (@ button no longer switches to AI mode)
@@ -6212,10 +6202,7 @@ fn test_ai_context_menu_preserves_lock_state() {
 
         // Closing context menu should not change input config
         input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::SetAIContextMenuOpen(false),
-                ctx,
-            );
+            input.set_ai_context_menu_open(false, ctx);
         });
 
         let config_after_close = input.read(&app, |input, _| {

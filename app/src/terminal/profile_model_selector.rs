@@ -23,11 +23,9 @@ use warpui::{
 const SIDECAR_HORIZONTAL_GAP: f32 = 8.;
 const SIDECAR_POSITION_ID: &str = "model_sidecar_panel";
 
-use warp_core::ui::color::{Opacity, coloru_with_opacity};
 use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
 
-use crate::ai::blocklist::prompt::PromptIconButtonTheme;
 use crate::ai::execution_profiles::ExecutionProfileId;
 use crate::ai::execution_profiles::model_menu_items::{
     available_model_menu_items, has_reasoning_variants, is_auto,
@@ -53,7 +51,6 @@ use crate::view_components::action_button::{
 use crate::workspace::WorkspaceAction;
 
 const MENU_WIDTH: f32 = 280.;
-const BLURRED_OPACITY: Opacity = 50;
 const SEPARATOR_WIDTH: f32 = 1.0;
 const CORNER_RADIUS: f32 = 4.0;
 const BORDER_WIDTH: f32 = 1.0;
@@ -94,7 +91,6 @@ impl ButtonTextColor {
 #[derive(Clone)]
 struct SelectorChipTheme {
     text_color: ButtonTextColor,
-    is_blurred: bool,
 }
 
 impl ActionButtonTheme for SelectorChipTheme {
@@ -113,12 +109,7 @@ impl ActionButtonTheme for SelectorChipTheme {
         _background: Option<Fill>,
         appearance: &Appearance,
     ) -> pathfinder_color::ColorU {
-        let color = self.text_color.to_color_u(appearance);
-        if self.is_blurred {
-            coloru_with_opacity(color, BLURRED_OPACITY)
-        } else {
-            color
-        }
+        self.text_color.to_color_u(appearance)
     }
 
     fn font_properties(&self) -> Option<warpui::fonts::Properties> {
@@ -134,8 +125,6 @@ impl ActionButtonTheme for SelectorChipTheme {
 pub struct ProfileModelSelector {
     profile_button: ViewHandle<ActionButton>,
     model_button: ViewHandle<ActionButton>,
-    profile_compact_button: ViewHandle<ActionButton>,
-    model_compact_button: ViewHandle<ActionButton>,
     profile_dropdown: ViewHandle<Menu<ProfileModelSelectorAction>>,
     model_dropdown: ViewHandle<Menu<ProfileModelSelectorAction>>,
     model_spec_sidecar: ModelSpecSidecar,
@@ -145,8 +134,6 @@ pub struct ProfileModelSelector {
     profile_mouse_state: MouseStateHandle,
     model_mouse_state: MouseStateHandle,
     menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
-    is_blurred: bool,
-    render_compact: bool,
     hovered_llm_info: Option<LLMInfo>,
     manage_api_key_button: ViewHandle<ActionButton>,
     terminal_model: Arc<FairMutex<TerminalModel>>,
@@ -216,7 +203,6 @@ impl ProfileModelSelector {
                             .theme()
                             .sub_text_color(appearance.theme().surface_1()),
                     ),
-                    is_blurred: false,
                 },
             )
             .with_disabled_theme(SelectorChipTheme {
@@ -227,7 +213,6 @@ impl ProfileModelSelector {
                     )
                     .into(),
                 ),
-                is_blurred: false,
             })
             .with_tooltip(PROFILE_PICKER_TOOLTIP)
             .with_size(ButtonSize::UDIButton)
@@ -244,7 +229,6 @@ impl ProfileModelSelector {
                             .theme()
                             .sub_text_color(appearance.theme().surface_1()),
                     ),
-                    is_blurred: false,
                 },
             )
             .with_disabled_theme(SelectorChipTheme {
@@ -255,30 +239,9 @@ impl ProfileModelSelector {
                     )
                     .into(),
                 ),
-                is_blurred: false,
             })
             .with_tooltip(MODEL_PICKER_TOOLTIP)
             .with_size(ButtonSize::UDIButton)
-        });
-
-        let profile_compact_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("", PromptIconButtonTheme::new(false))
-                .with_icon(Icon::Psychology)
-                .with_tooltip(PROFILE_PICKER_TOOLTIP)
-                .with_size(ButtonSize::UDIButton)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(ProfileModelSelectorAction::ToggleProfileMenu);
-                })
-        });
-
-        let model_compact_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("", PromptIconButtonTheme::new(false))
-                .with_icon(Icon::Neurology)
-                .with_tooltip(MODEL_PICKER_TOOLTIP)
-                .with_size(ButtonSize::UDIButton)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(ProfileModelSelectorAction::ToggleModelMenu);
-                })
         });
 
         let profile_dropdown = ctx.add_typed_action_view(|_ctx| {
@@ -418,8 +381,6 @@ impl ProfileModelSelector {
         let mut me = Self {
             profile_button,
             model_button,
-            profile_compact_button,
-            model_compact_button,
             profile_dropdown,
             model_dropdown,
             model_spec_sidecar: ModelSpecSidecar {
@@ -433,8 +394,6 @@ impl ProfileModelSelector {
             profile_mouse_state: Default::default(),
             model_mouse_state: Default::default(),
             menu_positioning_provider,
-            is_blurred: false,
-            render_compact: false,
             hovered_llm_info: None,
             manage_api_key_button,
             terminal_model,
@@ -528,29 +487,11 @@ impl ProfileModelSelector {
             button.set_disabled(false, ctx);
             button.set_tooltip(Some(MODEL_PICKER_TOOLTIP), ctx);
         });
-        self.model_compact_button.update(ctx, |button, ctx| {
-            button.set_disabled(false, ctx);
-            button.set_tooltip(Some(MODEL_PICKER_TOOLTIP), ctx);
-        });
         ctx.notify();
-    }
-
-    pub fn set_blurred(&mut self, is_blurred: bool, ctx: &mut ViewContext<Self>) {
-        self.is_blurred = is_blurred;
-        self.update_chip_themes(ctx);
-        self.update_compact_button_themes(ctx);
-    }
-
-    pub fn set_render_compact(&mut self, render_compact: bool, ctx: &mut ViewContext<Self>) {
-        if self.render_compact != render_compact {
-            self.render_compact = render_compact;
-            ctx.notify();
-        }
     }
 
     fn handle_appearance_change(&mut self, ctx: &mut ViewContext<Self>) {
         self.update_chip_themes(ctx);
-        self.update_compact_button_themes(ctx);
     }
 
     fn update_chip_themes(&self, ctx: &mut ViewContext<Self>) {
@@ -564,14 +505,12 @@ impl ProfileModelSelector {
                     .theme()
                     .sub_text_color(appearance.theme().surface_1()),
             ),
-            is_blurred: self.is_blurred,
         };
         let new_disabled_theme = SelectorChipTheme {
             text_color: ButtonTextColor::Fill(
                 internal_colors::text_disabled(appearance.theme(), appearance.theme().surface_1())
                     .into(),
             ),
-            is_blurred: self.is_blurred,
         };
 
         // Only update profile button if there are multiple profiles
@@ -579,31 +518,14 @@ impl ProfileModelSelector {
             self.profile_button.update(ctx, |button, ctx| {
                 button.set_theme(new_theme.clone(), ctx);
                 button.set_disabled_theme(new_disabled_theme.clone(), ctx);
-                button.set_disabled(self.is_blurred, ctx);
+                button.set_disabled(false, ctx);
             });
         }
 
         self.model_button.update(ctx, |button, ctx| {
             button.set_theme(new_theme.clone(), ctx);
             button.set_disabled_theme(new_disabled_theme.clone(), ctx);
-            button.set_disabled(self.is_blurred, ctx);
-        });
-        ctx.notify();
-    }
-
-    fn update_compact_button_themes(&self, ctx: &mut ViewContext<Self>) {
-        let theme = PromptIconButtonTheme::new(self.is_blurred);
-        let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
-        let has_multiple_profiles = profiles_model.has_multiple_profiles();
-
-        if has_multiple_profiles {
-            self.profile_compact_button.update(ctx, |button, ctx| {
-                button.set_theme(theme.clone(), ctx);
-            });
-        }
-
-        self.model_compact_button.update(ctx, |button, ctx| {
-            button.set_theme(theme.clone(), ctx);
+            button.set_disabled(false, ctx);
         });
         ctx.notify();
     }
@@ -1110,64 +1032,25 @@ impl ProfileModelSelector {
     fn get_menu_positioning(&self, app: &AppContext, is_profile: bool) -> OffsetPositioning {
         match self.menu_positioning_provider.menu_position(app) {
             MenuPositioning::BelowInputBox => {
-                if self.render_compact {
-                    if is_profile {
-                        OffsetPositioning::offset_from_save_position_element(
-                            "profile_model_selector_profile_compact_button",
-                            vec2f(0., 4.),
-                            PositionedElementOffsetBounds::WindowByPosition,
-                            PositionedElementAnchor::BottomLeft,
-                            ChildAnchor::TopLeft,
-                        )
-                    } else {
-                        OffsetPositioning::offset_from_save_position_element(
-                            "profile_model_selector_model_compact_button",
-                            vec2f(0., 4.),
-                            PositionedElementOffsetBounds::WindowByPosition,
-                            PositionedElementAnchor::BottomLeft,
-                            ChildAnchor::TopLeft,
-                        )
-                    }
+                if is_profile {
+                    OffsetPositioning::offset_from_parent(
+                        vec2f(0., 4.),
+                        ParentOffsetBounds::WindowByPosition,
+                        ParentAnchor::BottomLeft,
+                        ChildAnchor::TopLeft,
+                    )
                 } else {
-                    // In full mode, use the original positioning logic
-                    if is_profile {
-                        OffsetPositioning::offset_from_parent(
-                            vec2f(0., 4.),
-                            ParentOffsetBounds::WindowByPosition,
-                            ParentAnchor::BottomLeft,
-                            ChildAnchor::TopLeft,
-                        )
-                    } else {
-                        OffsetPositioning::offset_from_save_position_element(
-                            "profile_model_selector_model_button",
-                            vec2f(0., 4.),
-                            PositionedElementOffsetBounds::WindowByPosition,
-                            PositionedElementAnchor::BottomLeft,
-                            ChildAnchor::TopLeft,
-                        )
-                    }
+                    OffsetPositioning::offset_from_save_position_element(
+                        "profile_model_selector_model_button",
+                        vec2f(0., 4.),
+                        PositionedElementOffsetBounds::WindowByPosition,
+                        PositionedElementAnchor::BottomLeft,
+                        ChildAnchor::TopLeft,
+                    )
                 }
             }
             MenuPositioning::AboveInputBox => {
-                if self.render_compact {
-                    if is_profile {
-                        OffsetPositioning::offset_from_save_position_element(
-                            "profile_model_selector_profile_compact_button",
-                            vec2f(0., -4.),
-                            PositionedElementOffsetBounds::WindowByPosition,
-                            PositionedElementAnchor::TopLeft,
-                            ChildAnchor::BottomLeft,
-                        )
-                    } else {
-                        OffsetPositioning::offset_from_save_position_element(
-                            "profile_model_selector_model_compact_button",
-                            vec2f(0., -4.),
-                            PositionedElementOffsetBounds::WindowByPosition,
-                            PositionedElementAnchor::TopLeft,
-                            ChildAnchor::BottomLeft,
-                        )
-                    }
-                } else if is_profile {
+                if is_profile {
                     OffsetPositioning::offset_from_parent(
                         vec2f(0., -4.),
                         ParentOffsetBounds::WindowByPosition,
@@ -1225,11 +1108,7 @@ impl ProfileModelSelector {
         let profiles_model = AIExecutionProfilesModel::as_ref(app);
         let active_profile = profiles_model.active_profile(Some(self.terminal_view_id), app);
 
-        let text_color = if self.is_blurred {
-            theme.disabled_text_color(theme.surface_1()).into()
-        } else {
-            theme.sub_text_color(theme.surface_1()).into()
-        };
+        let text_color = theme.sub_text_color(theme.surface_1()).into();
 
         let scaled_font_size = calculate_scaled_font_size(appearance);
         // Use the same icon size as the compact UDI button to ensure consistent height
@@ -1335,11 +1214,7 @@ impl ProfileModelSelector {
                 .menu_display_name()
         };
 
-        let text_color = if self.is_blurred {
-            theme.disabled_text_color(theme.surface_1()).into()
-        } else {
-            theme.sub_text_color(theme.surface_1()).into()
-        };
+        let text_color = theme.sub_text_color(theme.surface_1()).into();
 
         let scaled_font_size = calculate_scaled_font_size(appearance);
         let icon_size = udi_icon_size(appearance, app);
@@ -1773,27 +1648,6 @@ impl View for ProfileModelSelector {
         let profiles_model = AIExecutionProfilesModel::as_ref(app);
         let has_multiple_profiles = profiles_model.has_multiple_profiles();
 
-        let mut compact_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
-
-        // Only add profile button to compact layout if there are multiple profiles.
-        if has_multiple_profiles {
-            let profile_button_with_save_position = SavePosition::new(
-                ChildView::new(&self.profile_compact_button).finish(),
-                "profile_model_selector_profile_compact_button",
-            )
-            .finish();
-            compact_row.add_child(profile_button_with_save_position);
-        }
-
-        let model_button_with_save_position = SavePosition::new(
-            ChildView::new(&self.model_compact_button).finish(),
-            "profile_model_selector_model_compact_button",
-        )
-        .finish();
-        compact_row.add_child(model_button_with_save_position);
-
-        let compact_layout = compact_row.finish();
-
         let mut chip_content = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
 
         // Only add profile section and separator if there are multiple profiles
@@ -1810,7 +1664,7 @@ impl View for ProfileModelSelector {
         }
         chip_content.add_child(self.render_model_section(app));
 
-        let unified_chip = Container::new(
+        let content = Container::new(
             Container::new(chip_content.finish())
                 .with_background(theme.surface_1())
                 .with_border(
@@ -1820,12 +1674,6 @@ impl View for ProfileModelSelector {
                 .finish(),
         )
         .finish();
-
-        let content = if self.render_compact {
-            compact_layout
-        } else {
-            unified_chip
-        };
 
         let mut stack = Stack::new();
         stack.add_child(content);

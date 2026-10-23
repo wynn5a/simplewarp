@@ -95,7 +95,7 @@ use crate::search::ai_context_menu::view::{
 };
 use crate::settings::{
     AppEditorSettings, AppEditorSettingsChangedEvent, CursorBlink, CursorDisplayType,
-    InputSettings, SelectionSettings,
+    SelectionSettings,
 };
 use crate::settings_view::flags;
 use crate::suggestions::ignored_suggestions_model::{IgnoredSuggestionsModel, SuggestionType};
@@ -2958,42 +2958,32 @@ impl EditorView {
 
         let ai_context_menu_state = if options.include_ai_context_menu {
             let ai_context_menu = ctx.add_typed_action_view(AIContextMenu::new);
-            ctx.subscribe_to_view(
-                &ai_context_menu,
-                |me, _, event: &AIContextMenuEvent, ctx| {
-                    let _is_udi_enabled =
-                        InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx);
-                    let _current_input_mode = if me.is_ai_input {
-                        InputType::AI
-                    } else {
-                        InputType::Shell
-                    };
-                    match event {
-                        AIContextMenuEvent::Close {
-                            query_length: _,
-                            item_count: _,
-                        } => {
-                            ctx.emit(Event::SetAIContextMenuOpen(false));
-                            ctx.focus_self();
-                            ctx.notify();
-                        }
-                        AIContextMenuEvent::ResultAccepted {
-                            action,
-                            query_length: _,
-                            item_count: _,
-                        } => {
-                            ctx.emit(Event::AcceptAIContextMenuItem(action.clone()));
-                            ctx.focus_self();
-                            ctx.notify();
-                        }
-                        AIContextMenuEvent::CategorySelected { category } => {
-                            ctx.emit(Event::SelectAIContextMenuCategory(*category));
-                            ctx.focus_self();
-                            ctx.notify();
-                        }
+            ctx.subscribe_to_view(&ai_context_menu, |_, _, event: &AIContextMenuEvent, ctx| {
+                match event {
+                    AIContextMenuEvent::Close {
+                        query_length: _,
+                        item_count: _,
+                    } => {
+                        ctx.emit(Event::SetAIContextMenuOpen(false));
+                        ctx.focus_self();
+                        ctx.notify();
                     }
-                },
-            );
+                    AIContextMenuEvent::ResultAccepted {
+                        action,
+                        query_length: _,
+                        item_count: _,
+                    } => {
+                        ctx.emit(Event::AcceptAIContextMenuItem(action.clone()));
+                        ctx.focus_self();
+                        ctx.notify();
+                    }
+                    AIContextMenuEvent::CategorySelected { category } => {
+                        ctx.emit(Event::SelectAIContextMenuCategory(*category));
+                        ctx.focus_self();
+                        ctx.notify();
+                    }
+                }
+            });
 
             Some(AIContextMenuState { ai_context_menu })
         } else {
@@ -4965,8 +4955,6 @@ impl EditorView {
             }
             return;
         }
-
-        let _is_udi_enabled = InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx);
 
         self.process_attached_images_future_handle = Some(ctx.spawn(
             async move {

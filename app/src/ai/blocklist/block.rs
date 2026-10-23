@@ -100,7 +100,7 @@ use crate::notebooks::editor::view::{EditorViewEvent, RichTextEditorView};
 use crate::server::ids::SyncId;
 use crate::settings::{
     AISettings, AISettingsChangedEvent, AgentModeCodingPermissionsType, FontSettings,
-    InputModeSettings, InputModeSettingsChangedEvent, InputSettings,
+    InputModeSettings, InputModeSettingsChangedEvent,
 };
 use crate::terminal::find::TerminalFindModel;
 use crate::terminal::model::secrets::RichContentSecretTooltipInfo;
@@ -1359,7 +1359,6 @@ impl AIBlock {
             .time_to_last_token
             .map(|duration| duration.num_milliseconds() as u128);
         let status = self.model.status(ctx);
-        let _is_udi_enabled = InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx);
 
         match status {
             AIBlockOutputStatus::Pending => {

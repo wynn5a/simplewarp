@@ -110,8 +110,8 @@ preferred route; D2 dropped the common-skills lock (user ruling). H4 was wrong a
 
 **Leftovers survey (2026-10-22):** queued in [plan-p5.md](plan-p5.md) — A `cargo machete` ignore
 lists (no real unused deps), B "GUI" names left from the two-front-end design, C the 132 always-on
-feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c, C2, C2b, C3, C4, C5, C5b, C6 and C7 done (see the
-round log); C7b (legacy universal developer input) queued.
+feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c, C2, C2b, C3, C4, C5, C5b, C6, C7 and C7b done (see
+the round log).
 
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
@@ -1868,6 +1868,43 @@ Verification: format and all three clippy gates clean; `cargo nextest run --work
 Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,239 run
 (−12 deleted), 6,238 passed, 1 failed (the clone-slash-command flake), 86 skipped.
 `cargo build --bin simplewarp` smoke: the app starts and stays up with no errors in
+`simplewarp.log`.
+
+### Round: C7b — universal developer input button bar and message-line setting (2026-10-23)
+
+- The never-rendered `UniversalDeveloperInputButtonBar` went (`terminal/universal_developer_input.rs`,
+  923 lines): its construction and subscription in `Input`, the field and accessor,
+  `handle_universal_developer_input_button_bar_event`, `InputAction::SetUDIHovered` and the hover
+  dispatch in the terminal and agent inputs, and every update call (focus change, input-empty
+  state, segmented-control disabled state from `Input` and `TerminalView`, the `@` / `/` button
+  disabled checks). The `ProfileModelSelectorOpen` keymap key now reads the agent footer only.
+- Moved: `InputAction::EnableAutoDetection` calls `Input::enable_auto_detection` directly; the
+  `@`-menu gate (`AtContextMenuDisabledReason::get_disable_reason`, whose reasons only fed the
+  bar's tooltip) is `Input::is_ai_context_menu_disabled`. Every other bar event (input type
+  selected, select file, open settings, model selector opened / closed, slash menu) had no other
+  source and went.
+- Dead with the bar: the profile/model selector's blur and compact modes (`set_blurred`,
+  `set_render_compact`, the compact buttons and their positioning), `PromptIconButtonTheme`,
+  `SegmentedControl::set_disabled_tooltip` and its disabled rendering,
+  `BlocklistAIInputEvent::did_update_input_config`, and `Icon::Neurology` / `Icon::SlashCommands`
+  with their SVGs. The `_is_udi_enabled` / `_current_input_mode` telemetry leftovers went from
+  `Input`, the editor, the AI block and the Appearance page.
+- Kept, user decision: `InputBoxType::Universal` ("Warp" vs "Shell (PS1)" in Appearance) with
+  `is_universal_developer_input_enabled` / `should_show_universal_developer_input` and all their
+  live readers, unrenamed.
+- The inert "Show terminal input message line" setting went (user decision): the
+  `terminal.input.show_terminal_input_message_bar` setting and its getter, the Features widget,
+  palette toggle pair, action and context flag. No tombstone: the TOML backend reads registered
+  keys only, so an orphaned key in a user's file is ignored; no checked-in schema lists it.
+- Tests: the `test_ai_context_menu_*` tests call `set_ai_context_menu_open` (the live path from
+  the editor's `SetAIContextMenuOpen` event) instead of the bar event; none deleted.
+- Left for other rounds: the "Vim status bar" setting (a separate round restores its renderer)
+  and `should_use_live_appearance` (pending the Docker sandbox work).
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,239 run,
+6,236 passed, 3 failed (the clone-slash-command flake and `test_with_launch_config_with_active_pane`
+/ `test_with_launch_config_with_no_active_pane`, which each passed three times in isolation),
+86 skipped. `cargo build --bin simplewarp` smoke: the app starts and stays up with no errors in
 `simplewarp.log`.
 
 ## Risks

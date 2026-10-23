@@ -726,13 +726,6 @@ pub enum BlocklistAIInputEvent {
 }
 
 impl BlocklistAIInputEvent {
-    pub fn did_update_input_config(&self) -> bool {
-        match self {
-            BlocklistAIInputEvent::InputTypeChanged { .. }
-            | BlocklistAIInputEvent::LockChanged { .. } => true,
-        }
-    }
-
     pub fn updated_config(&self) -> &InputConfig {
         match self {
             BlocklistAIInputEvent::InputTypeChanged { config }

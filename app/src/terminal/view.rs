@@ -7431,10 +7431,6 @@ impl TerminalView {
                                         input.update_repo_path(Some(repo_path.clone()), ctx);
                                     });
 
-                                    me.input.update(ctx, |input, ctx| {
-                                        input.check_and_update_ai_context_menu_disabled_state(ctx);
-                                    });
-
                                     me.start_lsp_server_in_active_pwd(ctx);
                                 }
                                 None => {
@@ -7833,14 +7829,6 @@ impl TerminalView {
                                     }
 
                                     me.maybe_show_use_agent_footer_in_blocklist(ctx);
-                                    me.input.update(ctx, |input, ctx| {
-                                        input.universal_developer_input_button_bar().update(
-                                            ctx,
-                                            |bar, ctx| {
-                                                bar.update_segmented_control_disabled_state(ctx);
-                                            },
-                                        )
-                                    });
                                     // Update agent view back button state when command becomes long-running
                                     if me.agent_view_controller.as_ref(ctx).is_fullscreen() {
                                         me.update_agent_view_back_button_state(ctx);
@@ -14601,16 +14589,6 @@ impl TerminalView {
             InputEvent::InputStateChanged(_) => {}
             InputEvent::UserTyped => self.dismiss_finished_program_status(ctx),
             InputEvent::InputEmptyStateChanged { is_empty, reason } => {
-                // Update the universal developer input button bar with the new empty state
-                let universal_developer_input_button_bar = self
-                    .input
-                    .as_ref(ctx)
-                    .universal_developer_input_button_bar()
-                    .clone();
-                universal_developer_input_button_bar.update(ctx, |button_bar, ctx| {
-                    button_bar.update_input_empty_state(*is_empty, ctx);
-                });
-
                 // When the buffer is cleared, reset the input type
                 // based on whether there's an active agent view.
                 if *is_empty
