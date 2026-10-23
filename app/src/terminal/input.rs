@@ -10110,9 +10110,8 @@ impl Input {
     }
 
     /// Submits `prompt` immediately as a regular (non-queued) user query — the same controller
-    /// path `submit_ai_query` uses for a typed-and-entered prompt. Used by the `/queue`
-    /// not-in-progress fallback and the legacy pending-user-query submission paths, which are
-    /// immediate sends (not queued-row fires) and therefore reset their live staging.
+    /// path `submit_ai_query` uses for a typed-and-entered prompt. This is an immediate send (not
+    /// a queued-row fire), so it resets the live staging.
     pub(crate) fn submit_user_query_now(&mut self, prompt: String, ctx: &mut ViewContext<Self>) {
         if let Some(conversation_id) = self
             .ai_context_model

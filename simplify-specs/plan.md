@@ -110,8 +110,8 @@ preferred route; D2 dropped the common-skills lock (user ruling). H4 was wrong a
 
 **Leftovers survey (2026-10-22):** queued in [plan-p5.md](plan-p5.md) — A `cargo machete` ignore
 lists (no real unused deps), B "GUI" names left from the two-front-end design, C the 132 always-on
-feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c, C2, C2b, C3, C4 and C5 done (see the
-round log); C5b, C6 and C7 next.
+feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c, C2, C2b, C3, C4, C5 and C5b done (see the
+round log); C6 and C7 next.
 
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
@@ -1782,6 +1782,31 @@ Verification: format and all three clippy gates clean; `cargo nextest run --work
 `test_synced_inputs_terminal_mode_change_view_focus`, which passes on re-run in isolation, twice),
 86 skipped. `cargo run` smoke: the app starts and stays up with no errors in `simplewarp.log`;
 the AI surfaces were not exercised by hand.
+
+### Round: C5b — legacy pending-user-query block (2026-10-23)
+
+- `send_user_query_after_next_conversation_finished` had no caller once C5 routed every follow-up
+  through the queued-prompts panel, and it was the only path to `insert_pending_user_query_block`
+  (`PendingUserQueryKind` had no other variant). Gone with it: `pending_user_query.rs`
+  (`insert_` / `remove_pending_user_query_block`, `send_queued_prompt_now`,
+  `pending_user_query_conversation_id`), `PendingUserQueryKind`, the `pending_user_query_view_id`
+  / `pending_user_query_kind` / `queued_prompt_callback` fields and the callback's firing in
+  `fire_conversation_finished_callbacks`, the block removal on agent-view exit and on a new active
+  exchange, `PendingUserQueryBlock` (view, actions, events), `RichContentMetadata::PendingUserQuery`
+  / `is_pending_user_query` (so `active_ai_block` / `last_ai_block` take the last rich content),
+  its selected-text reads in `blocks/selection.rs` and its mouse-down focus case. The block was
+  the only `PinToBottom` rich content, so `RichContentInsertionPosition::PinToBottom` and the
+  `BlockList` pin (`pinned_to_bottom`, `append_rich_content_pinned_to_bottom`,
+  `maintain_pinned_to_bottom`) went too. Nothing here was persisted.
+- Kept: `submit_user_query_now` (the `/queue` not-in-progress fallback still uses it) and
+  `on_next_conversation_finished` with its callbacks.
+- Not done, product decision: the inert "Show terminal input message line" setting
+  (`show_terminal_input_message_bar`), whose only reader was the message bar C5 deleted.
+- Tests: none deleted; `queued_prompts_tests.rs` drops its `pending_user_query_view_id` assert.
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,251 run,
+6,250 passed, 1 failed (the clone-slash-command flake), 86 skipped. `cargo build --bin simplewarp`
+smoke: the app starts and stays up with no errors in `simplewarp.log`.
 
 ## Risks
 

@@ -383,10 +383,6 @@ pub struct BlockList {
     transcript_scope: TranscriptScope,
     active_conversation_context: Option<ActiveConversationContext>,
 
-    /// The view ID of a rich content item that should always remain at the bottom
-    /// of the blocklist. After any other insertion, this item is automatically
-    /// removed and re-appended so it stays last.
-    pinned_to_bottom: Option<EntityId>,
     is_executing_oz_environment_startup_commands: bool,
 }
 
@@ -680,7 +676,6 @@ impl BlockList {
             is_inverted,
             transcript_scope: TranscriptScope::Terminal,
             active_conversation_context: None,
-            pinned_to_bottom: None,
             is_executing_oz_environment_startup_commands: false,
         }
     }
@@ -986,52 +981,6 @@ impl BlockList {
             insertion_index,
         );
         self.mark_rich_content_dirty(view_id);
-        self.maintain_pinned_to_bottom();
-    }
-
-    /// Insert a rich content `View` at the end of the BlockList and pin it so
-    /// it is automatically kept at the bottom after any subsequent insertion.
-    /// Only one item can be pinned at a time; calling this replaces any
-    /// existing pin.
-    pub fn append_rich_content_pinned_to_bottom(&mut self, item: RichContentItem) {
-        let view_id = item.view_id;
-        self.append_rich_content(item, true);
-        self.pinned_to_bottom = Some(view_id);
-    }
-
-    /// If a rich content item is pinned to the bottom, removes it from its
-    /// current position and re-appends it so it remains last in the blocklist.
-    fn maintain_pinned_to_bottom(&mut self) {
-        // Take the pin to prevent re-entrant calls during the re-append.
-        let Some(pinned_id) = self.pinned_to_bottom.take() else {
-            return;
-        };
-
-        let Some(&index) = self
-            .removable_blocklist_item_positions
-            .get(&RemovableBlocklistItem::RichContent(pinned_id))
-        else {
-            return;
-        };
-
-        // Read the item data from the sum tree before removing it.
-        let item = {
-            let mut cursor = self.block_heights.cursor::<TotalIndex, ()>();
-            cursor.seek(&index, SeekBias::Right);
-            match cursor.item() {
-                Some(BlockHeightItem::RichContent(item)) => *item,
-                _ => return,
-            }
-        };
-
-        // Remove from current position and re-append at the bottom.
-        // pinned_to_bottom is None during this call, so append_rich_content's
-        // call to maintain_pinned_to_bottom is a no-op (no recursion).
-        self.remove_rich_content(pinned_id);
-        self.append_rich_content(item, true);
-
-        // Restore the pin.
-        self.pinned_to_bottom = Some(pinned_id);
     }
 
     fn append_item_to_blocklist(&mut self, item: BlockHeightItem) -> TotalIndex {
@@ -1060,9 +1009,6 @@ impl BlockList {
     pub fn remove_rich_content(&mut self, view_id: EntityId) {
         self.dirty_rich_content_items.remove(&view_id);
         self.remove_item_from_blocklist(RemovableBlocklistItem::RichContent(view_id));
-        if self.pinned_to_bottom == Some(view_id) {
-            self.pinned_to_bottom = None;
-        }
     }
 
     pub fn update_agent_view_conversation_id_for_rich_content(
@@ -3333,7 +3279,6 @@ impl BlockList {
         self.removable_blocklist_item_positions
             .insert(RemovableBlocklistItem::RichContent(view_id), inserted_index);
         self.mark_rich_content_dirty(view_id);
-        self.maintain_pinned_to_bottom();
     }
 
     /// Insert a rich content item immediately after the given removable item.

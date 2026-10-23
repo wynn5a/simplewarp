@@ -6,7 +6,6 @@ use crate::ai::agent::AIAgentExchangeId;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::AIBlock;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
-use crate::ai::blocklist::block::PendingUserQueryBlock;
 use crate::env_vars::env_var_collection_block::EnvVarCollectionBlock;
 use crate::terminal::TerminalView;
 use crate::terminal::block_list_viewport::ScrollPositionUpdate;
@@ -28,10 +27,6 @@ pub enum RichContentInsertionPosition {
     /// Insert after the rich content item with the given view ID, falling back to appending if it
     /// is no longer present.
     AfterRichContent(EntityId),
-    /// Pin to the bottom of the blocklist. The BlockList will automatically
-    /// keep this item at the end by reordering it after any subsequent insertions.
-    /// Only one item can be pinned at a time.
-    PinToBottom,
 }
 
 /// Metadata for an AI block rich content.
@@ -146,13 +141,6 @@ impl RichContent {
         matches!(self.metadata, Some(RichContentMetadata::AgentViewZeroState))
     }
 
-    pub fn is_pending_user_query(&self) -> bool {
-        matches!(
-            self.metadata,
-            Some(RichContentMetadata::PendingUserQuery { .. })
-        )
-    }
-
     pub fn is_init_step(&self) -> bool {
         matches!(self.metadata, Some(RichContentMetadata::InitStep { .. }))
     }
@@ -207,9 +195,6 @@ pub enum RichContentMetadata {
     InlineAgentViewHeader,
     AgentViewZeroState,
     TerminalViewZeroState,
-    PendingUserQuery {
-        pending_user_query_block_handle: ViewHandle<PendingUserQueryBlock>,
-    },
     HarnessSessionHeader,
 }
 
@@ -301,12 +286,6 @@ impl TerminalView {
                 if !inserted {
                     model.block_list_mut().append_rich_content(item, true);
                 }
-            }
-            RichContentInsertionPosition::PinToBottom => {
-                self.model
-                    .lock()
-                    .block_list_mut()
-                    .append_rich_content_pinned_to_bottom(item);
             }
         }
 

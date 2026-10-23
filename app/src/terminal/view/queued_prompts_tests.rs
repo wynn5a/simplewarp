@@ -594,7 +594,6 @@ fn enqueue_followup_prompt_appends_compact_and_row() {
                     QueuedQueryOrigin::CompactAndSlashCommand
                 )]
             );
-            assert!(view.pending_user_query_view_id.is_none());
         });
     });
 }

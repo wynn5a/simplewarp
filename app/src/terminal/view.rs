@@ -27,7 +27,6 @@ mod link_detection;
 mod open_in_warp;
 mod pane_impl;
 mod passive_suggestions;
-mod pending_user_query;
 pub mod rich_content;
 mod shell_terminated_banner;
 pub mod ssh_file_upload;
@@ -1800,11 +1799,6 @@ type ConversationFinishedCallback =
     Box<dyn FnOnce(&mut TerminalView, FinishReason, &mut ViewContext<TerminalView>)>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::terminal::view) enum PendingUserQueryKind {
-    QueuedPrompt,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum AgentTranscriptNavigationDirection {
     Previous,
     Next,
@@ -2030,9 +2024,6 @@ pub struct TerminalView {
     /// The child views that represent rich content. These can be inserted into the block list with
     /// the `insert_rich_content` helper function.
     rich_content_views: Vec<RichContent>,
-    pending_user_query_view_id: Option<EntityId>,
-    pending_user_query_kind: Option<PendingUserQueryKind>,
-    queued_prompt_callback: Option<ConversationFinishedCallback>,
     last_observed_active_subagent: HashMap<AIConversationId, bool>,
 
     /// Cached view ids for usage footers keyed by the AI block view id that owns them.
@@ -2598,22 +2589,6 @@ impl TerminalView {
                             },
                             ctx,
                         );
-                    }
-
-                    let active_conversation_id = me
-                        .agent_view_controller
-                        .as_ref(ctx)
-                        .agent_view_state()
-                        .active_conversation_id();
-                    let pending_user_query_conversation_id =
-                        me.pending_user_query_conversation_id();
-                    let should_keep_pending_user_query = active_conversation_id.is_some()
-                        && active_conversation_id == pending_user_query_conversation_id;
-
-                    // Keep the pending query only when the user is still viewing the conversation
-                    // targeted by that pending query; otherwise cancel it.
-                    if !should_keep_pending_user_query {
-                        me.remove_pending_user_query_block(ctx);
                     }
 
                     ctx.notify();
@@ -3358,9 +3333,6 @@ impl TerminalView {
             block_filter_editor,
             active_filter_editor_block_index: None,
             rich_content_views: Vec::new(),
-            pending_user_query_view_id: None,
-            pending_user_query_kind: None,
-            queued_prompt_callback: None,
             last_observed_active_subagent: Default::default(),
             block_onboarding_active: false,
             onboarding_prompt_block: None,
@@ -3457,22 +3429,17 @@ impl TerminalView {
     }
 
     /// Fires the pane-level one-shot callbacks registered via
-    /// [`Self::on_next_conversation_finished`], plus the queued-prompt
-    /// callback if one is armed.
+    /// [`Self::on_next_conversation_finished`].
     fn fire_conversation_finished_callbacks(
         &mut self,
         finish_reason: FinishReason,
         ctx: &mut ViewContext<Self>,
     ) {
-        let queued_prompt = self.queued_prompt_callback.take();
         let callbacks = self
             .conversation_completed_callbacks
             .drain(..)
             .collect_vec();
         for callback in callbacks {
-            callback(self, finish_reason, ctx);
-        }
-        if let Some(callback) = queued_prompt {
             callback(self, finish_reason, ctx);
         }
     }
@@ -3802,24 +3769,13 @@ impl TerminalView {
                 .conversation(conversation_id)
                 .is_some_and(|c| c.has_active_subagent());
 
+            // A new exchange that is already active means callbacks for the just-finished
+            // exchange are skipped.
             let mut pane_finish_reason: Option<FinishReason> = None;
-            if let Some(active_ai_block) = self.active_ai_block(ctx) {
-                // A new exchange is already active, so callbacks for the
-                // just-finished exchange will be skipped. Clear any pending
-                // user query now to prevent its callback from firing when
-                // the new exchange eventually completes.
-                //
-                // However, if the active block belongs to the same conversation
-                // that has the queued prompt (e.g. a blocked tool-call approval),
-                // keep the pending query — the conversation hasn't truly moved on.
-                let active_block_conversation_id = active_ai_block.as_ref(ctx).conversation_id();
-                let pending_query_conversation_id = self.pending_user_query_conversation_id();
-                let is_same_conversation = pending_query_conversation_id
-                    .is_some_and(|id| id == active_block_conversation_id);
-                if self.pending_user_query_view_id.is_some() && !is_same_conversation {
-                    self.remove_pending_user_query_block(ctx);
-                }
-            } else if !has_active_subagent && let Some(last_ai_block) = self.last_ai_block() {
+            if self.active_ai_block(ctx).is_none()
+                && !has_active_subagent
+                && let Some(last_ai_block) = self.last_ai_block()
+            {
                 pane_finish_reason = last_ai_block.as_ref(ctx).finish_reason();
             }
 
@@ -14294,11 +14250,7 @@ impl TerminalView {
     }
 
     fn active_ai_block(&self, ctx: &AppContext) -> Option<&ViewHandle<AIBlock>> {
-        let candidate = self
-            .rich_content_views
-            .iter()
-            .rev()
-            .find(|rc| !rc.is_pending_user_query());
+        let candidate = self.rich_content_views.last();
 
         candidate.and_then(|rich_content| {
             let ai_metadata = rich_content.ai_block_metadata()?;
@@ -16108,9 +16060,7 @@ impl TerminalView {
 
     pub fn last_ai_block(&self) -> Option<ViewHandle<AIBlock>> {
         self.rich_content_views
-            .iter()
-            .rev()
-            .find(|rc| !rc.is_pending_user_query())
+            .last()
             .and_then(|rich_content| rich_content.ai_block_metadata())
             .map(|ai_metadata| ai_metadata.ai_block_handle.clone())
     }

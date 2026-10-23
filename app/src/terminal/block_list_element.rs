@@ -1493,10 +1493,7 @@ impl BlockListElement {
 
                             if matches!(
                                 self.rich_content_metadata.get(view_id),
-                                Some(
-                                    RichContentMetadata::AIBlock(_)
-                                        | RichContentMetadata::PendingUserQuery { .. }
-                                )
+                                Some(RichContentMetadata::AIBlock(_))
                             ) {
                                 should_redetermine_focus = false;
                             }
