@@ -6786,3 +6786,40 @@ fn test_native_shell_suggestion_results_uses_shell_span_clamped_to_buffer() {
     let results = native_shell_suggestion_results(vec![], Some(Span::new(4, 99)), buffer, 6);
     assert_eq!(results.replacement_span, Span::from((4, 6)));
 }
+
+#[test]
+fn test_vim_status_bar_state_follows_vim_mode_and_setting() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
+        let (input, editor) = terminal.read(&app, |terminal, ctx| {
+            let input = terminal.input().clone();
+            let editor = input.as_ref(ctx).editor().clone();
+            (input, editor)
+        });
+        let vim_status_bar_mode = |app: &App| {
+            input.read(app, |input, ctx| {
+                input.vim_status_bar_state(ctx).map(|state| state.mode)
+            })
+        };
+
+        assert_eq!(vim_status_bar_mode(&app), None);
+
+        enable_vim_mode(&mut app);
+        assert_eq!(vim_status_bar_mode(&app), Some(VimMode::Insert));
+
+        editor.update(&mut app, |editor, ctx| {
+            editor.vim_keystroke(&Keystroke::parse("escape").unwrap(), ctx);
+        });
+        assert_eq!(vim_status_bar_mode(&app), Some(VimMode::Normal));
+
+        AppEditorSettings::handle(&app).update(&mut app, |settings, ctx| {
+            settings
+                .vim_status_bar
+                .set_value(false, ctx)
+                .expect("set value must succeed");
+        });
+        assert_eq!(vim_status_bar_mode(&app), None);
+    });
+}

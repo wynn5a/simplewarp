@@ -42,7 +42,7 @@ use serde::{Deserialize, Serialize};
 use settings::Setting as _;
 use string_offset::{ByteOffset, CharOffset};
 use vec1::Vec1;
-use vim::vim::{VimHandler, VimMode};
+use vim::vim::{VimHandler, VimMode, VimState};
 use warp_completer::completer::{
     self, CompleterOptions, CompletionContext, CompletionsFallbackStrategy, Description,
     ExplicitTabCompletion, MatchStrategy, MatchType, PathSeparators, PreparedSuggestion,
@@ -10863,6 +10863,14 @@ impl Input {
         }
     }
 
+    /// The input editor's vim state when vim mode is on and the vim status bar setting is enabled.
+    fn vim_status_bar_state<'a>(&self, app: &'a AppContext) -> Option<VimState<'a>> {
+        if !*AppEditorSettings::as_ref(app).vim_status_bar.value() {
+            return None;
+        }
+        self.editor.as_ref(app).vim_state(app)
+    }
+
     fn render_input_box(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         // Set editor height to be half of the terminal view height
         let editor_height = self.size_info(app).pane_height_px() / 2.0.into_pixels();
@@ -10882,7 +10890,11 @@ impl Input {
 
         // Always render with UDI-style spacing values, regardless of terminal/agent mode or prompt
         // setting.
-        let bottom_padding = terminal_spacing.editor_bottom_padding - 4.;
+        let mut bottom_padding = terminal_spacing.editor_bottom_padding - 4.;
+        let vim_status_bar_state = self.vim_status_bar_state(app);
+        if vim_status_bar_state.is_some() {
+            bottom_padding = bottom_padding.max(common::VIM_STATUS_BAR_BOTTOM_PADDING);
+        }
 
         let input_box = Container::new(
             ConstrainedBox::new(Clipped::new(ChildView::new(&self.editor).finish()).finish())
@@ -10892,6 +10904,10 @@ impl Input {
         .with_padding_right(*TERMINAL_VIEW_PADDING_LEFT)
         .with_padding_bottom(bottom_padding)
         .finish();
+        let input_box = match vim_status_bar_state {
+            Some(vim_state) => common::with_vim_status_bar(input_box, &vim_state, appearance),
+            None => input_box,
+        };
 
         let input_editor_save_position_id = self.editor_save_position_id();
         SavePosition::new(

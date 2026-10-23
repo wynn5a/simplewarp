@@ -146,7 +146,8 @@ control's disabled tooltip). `InputAction::EnableAutoDetection` calls `enable_au
 directly. The `InputBoxType::Universal` input type ("Warp" in Appearance) stays with its readers
 and names (user decision): it still sets spacing, prompt and chip details. The inert "Show
 terminal input message line" setting went too (user decision). Left for other rounds: the "Vim
-status bar" setting (`vim_status_bar`), whose renderer a separate round restores, and
+status bar" setting (`vim_status_bar`), whose renderer a separate round restores (**done
+2026-10-23**, "vim status bar restored" in the round log), and
 `ConversationRestorationInNewPaneType::Historical::should_use_live_appearance` (always treated
 as `true`; still set by the Docker sandbox code, pending that work).
 

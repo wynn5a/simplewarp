@@ -1907,6 +1907,31 @@ Verification: format and all three clippy gates clean; `cargo nextest run --work
 86 skipped. `cargo build --bin simplewarp` smoke: the app starts and stays up with no errors in
 `simplewarp.log`.
 
+### Round: vim status bar restored (2026-10-23)
+
+- Deliberate behavior change, approved by the user. The "Vim status bar" setting
+  (`text_editing.vim_status_bar`, its Features toggle and palette pair) was shown but inert: its
+  only renderer, `add_vim_status_to_stack`, sat on the flag-off classic path, which upstream
+  stopped reaching once the agent view was unconditional, and C7 deleted it.
+- `render_vim_status` is back in `terminal/input/common.rs` with its old look (`showcmd` text plus
+  the mode icon: NORMAL bright green, INSERT blended foreground, VISUAL bright blue, REPLACE
+  bright red). `with_vim_status_bar` anchors it to the bottom right of the input editor box, and
+  `Input::render_input_box` reserves `VIM_STATUS_BAR_BOTTOM_PADDING` (22px) under the editor text
+  while it shows, so it can't overlap the text. Every live renderer (terminal, agent and classic
+  / PS1 input) goes through `render_input_box`, so the bar sits inside the input box in each:
+  above the agent footer, below the queued-prompts panel and inline menus.
+- Shown only when the input editor's vim mode is on and the setting is true
+  (`Input::vim_status_bar_state`). The existing re-renders on `VimModeEnabled`, `VimStatusBar`
+  and `EditorEvent::VimStatusUpdate` keep it current.
+- Tests: `test_vim_status_bar_state_follows_vim_mode_and_setting` (off without vim mode, follows
+  INSERT/NORMAL, off when the setting is off).
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,240 run,
+6,238 passed, 2 failed (the clone-slash-command flake and
+`test_synced_inputs_terminal_mode_change_view_focus`, which passed twice in isolation), 86
+skipped. `cargo build --bin simplewarp` smoke: the app starts and stays up with no errors in
+`simplewarp.log`.
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the
