@@ -244,7 +244,9 @@ use crate::terminal::session_settings::{
 };
 use crate::terminal::settings::{SpacingMode, TerminalSettings};
 use crate::terminal::shell::ShellType;
-use crate::terminal::view::docker_sandbox::DEFAULT_DOCKER_SANDBOX_BASE_IMAGE;
+use crate::terminal::view::docker_sandbox::{
+    DEFAULT_DOCKER_SANDBOX_BASE_IMAGE, report_sbx_not_found,
+};
 use crate::terminal::view::load_ai_conversation::{
     RestorationDirState, RestoreConversationEntryBehavior, RestoredAIConversation,
 };
@@ -8310,7 +8312,7 @@ impl Workspace {
             let sbx_future = resolve_sbx_path_from_user_shell(ctx);
             ctx.spawn(sbx_future, move |me, sbx_path, ctx| {
                 let Some(sbx_path) = sbx_path else {
-                    report_error!("sbx binary not found; cannot create Docker sandbox");
+                    report_sbx_not_found(window_id, ctx);
                     return;
                 };
                 let shell = AvailableShell::new_docker_sandbox_shell(

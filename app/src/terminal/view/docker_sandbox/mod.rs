@@ -4,7 +4,7 @@ use std::sync::mpsc::SyncSender;
 
 use warp_errors::report_error;
 use warpui::geometry::vector::Vector2F;
-use warpui::{ModelHandle, ViewContext, ViewHandle};
+use warpui::{AppContext, ModelHandle, SingletonEntity as _, ViewContext, ViewHandle, WindowId};
 
 use super::TerminalView;
 use crate::banner::BannerState;
@@ -13,11 +13,29 @@ use crate::terminal::TerminalManager;
 use crate::terminal::available_shells::AvailableShell;
 use crate::terminal::local_tty::docker_sandbox::resolve_sbx_path_from_user_shell;
 use crate::terminal::local_tty::{TerminalManager as LocalTtyTerminalManager, TerminalViewConfig};
+use crate::view_components::DismissibleToast;
+use crate::workspace::ToastStack;
 
 /// Default base Docker image used for newly created sandbox shells.
 ///
 /// `None` means "let sbx pick its own default template".
 pub(crate) const DEFAULT_DOCKER_SANDBOX_BASE_IMAGE: Option<&str> = None;
+
+/// Reports that `sbx` could not be resolved and tells the user to install it.
+pub(crate) fn report_sbx_not_found(window_id: WindowId, ctx: &mut AppContext) {
+    report_error!("sbx binary not found; cannot create Docker sandbox");
+    ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+        toast_stack.add_ephemeral_toast(
+            DismissibleToast::error(
+                "Docker sandbox needs the `sbx` CLI. Install Docker Sandboxes (`sbx`) and make \
+                 sure it is on your PATH, then try again."
+                    .to_owned(),
+            ),
+            window_id,
+            ctx,
+        );
+    });
+}
 
 fn create_docker_sandbox_view(
     initial_size: Vector2F,
@@ -71,10 +89,11 @@ impl TerminalView {
         // The sbx resolution and sandbox creation are only meaningful on
         // platforms with a local tty; other builds log and bail.
         {
+            let window_id = ctx.window_id();
             let sbx_future = resolve_sbx_path_from_user_shell(ctx);
             ctx.spawn(sbx_future, move |me, sbx_path, ctx| {
                 let Some(sbx_path) = sbx_path else {
-                    report_error!("sbx binary not found; cannot create Docker sandbox");
+                    report_sbx_not_found(window_id, ctx);
                     return;
                 };
                 me.create_and_push_docker_sandbox_with_sbx(sbx_path, ctx);
