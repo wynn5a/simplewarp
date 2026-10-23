@@ -172,23 +172,6 @@ impl ReviewCommentBatch {
         });
     }
 
-    /// Stores imported comments that are waiting for diffs and editors to load before they can be flattened,
-    /// relocated, and inserted into `comments`.
-    pub(crate) fn add_pending_imported_comments(
-        &mut self,
-        comments: Vec<PendingImportedReviewComment>,
-        base_branch: DiffMode,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.pending_imported_comments
-            .entry(base_branch)
-            .or_default()
-            .extend(comments);
-        ctx.emit(ReviewCommentBatchEvent::Changed {
-            should_reposition_comments: true,
-        });
-    }
-
     /// Takes all pending imported comments for the given diff mode, leaving the pending list empty.
     /// Used when diffs have loaded and comments can be relocated.
     pub(crate) fn take_pending_imported_comments_for_branch(

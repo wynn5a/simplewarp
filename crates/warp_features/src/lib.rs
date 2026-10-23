@@ -14,9 +14,6 @@ pub enum FeatureFlag {
     /// Warp Agent Mode.
     AgentMode,
 
-    /// Enable multiselect in Notebooks and Warp Text.
-    RichTextMultiselect,
-
     /// Enables workflows for use with Agent Mode.
     AgentModeWorkflows,
 
@@ -58,9 +55,6 @@ pub enum FeatureFlag {
     /// Remembers the per-conversation fast-forward state across local session restoration.
     RememberFastForwardState,
 
-    /// Enables the find/replace in code editor
-    CodeFindReplace,
-
     /// Enables the AI context menu nesting and commands
     AIContextMenuCommands,
 
@@ -69,20 +63,8 @@ pub enum FeatureFlag {
 
     /// Enables code symbols in AI context menu
     AIContextMenuCode,
-
-    /// Expands code diff edits to replace the current pane instead of opening in a new tab.
-    ExpandEditToPane,
     /// Enables fallback model load output messaging in the warping indicator.
     FallbackModelLoadOutputMessaging,
-
-    /// Enables us to render linked code blocks
-    LinkedCodeBlocks,
-
-    /// Enables the tabbed file viewer
-    TabbedEditorView,
-
-    /// Enables displaying imported PR review comments in the blocklist.
-    PRCommentsV2,
 
     /// Enables selection-as-context functionality in the code editor.
     SelectionAsContext,
@@ -93,58 +75,20 @@ pub enum FeatureFlag {
     /// Enables vim keybindings in the code editor.
     VimCodeEditor,
 
-    /// Enables revert button for diff hunks in the gutter.
-    RevertDiffHunk,
-
-    /// Enables saving code review pane changes
-    CodeReviewSaveChanges,
-
-    /// Enables the one-time modal on app startup for existing users for the Code launch.
-    CodeLaunchModal,
-
     /// Enables OAuth support for MCP.
     McpOauth,
 
     /// Enables attaching diff sets (multiple hunks from multiple files) as context in Agent Mode.
     DiffSetAsContext,
 
-    /// Enables discarding per-file and discarding all changes
-    DiscardPerFileAndAllChanges,
-
     /// Shows a confirmation dialog when cancelling an active summarization via Ctrl-C or stop.
     SummarizationCancellationConfirmation,
-
-    /// Enables find/search in code review pane
-    CodeReviewFind,
-
-    /// Enables auto-opening code review pane on first agent change and its setting UI.
-    AutoOpenCodeReviewPane,
-
-    /// Enables inline code review functionality
-    InlineCodeReview,
 
     /// Enables the local docker sandbox entrypoints in the client.
     LocalDockerSandbox,
 
     /// Enables the /compact slash command.
     SummarizationConversationCommand,
-
-    /// Enables rendering Mermaid diagrams in markdown notebooks.
-    MarkdownMermaid,
-    /// Enables editable Mermaid diagrams to behave atomically in notebook and plan editors.
-    EditableMarkdownMermaid,
-
-    /// Enables rendering markdown tables in notebooks.
-    MarkdownTables,
-
-    /// Renders `.ipynb` (Jupyter) files as a formatted, read-only notebook in
-    /// Warp's notebook viewer instead of showing the raw JSON in the code editor.
-    JupyterNotebookRendering,
-
-    /// Enables rendering markdown tables inline in AI block list responses.
-    BlocklistMarkdownTableRendering,
-    /// Enables rendering markdown images inline in AI block list responses.
-    BlocklistMarkdownImages,
 
     /// Enables the /fork-from slash command.
     ForkFromCommand,
@@ -201,10 +145,6 @@ pub enum FeatureFlag {
     /// Enables attaching conversations as context in Agent Mode via the @ menu.
     ConversationsAsContext,
 
-    /// Enables scroll position preservation in the code review pane when file
-    /// content changes via auto-reload.
-    CodeReviewScrollPreservation,
-
     /// Shows a pending user query indicator during summarization when a follow-up
     /// prompt is queued via `/fork-and-compact` or `/compact-and`.
     PendingUserQueryIndicator,
@@ -215,10 +155,6 @@ pub enum FeatureFlag {
     /// Extends queued prompts to shell commands, summarization, and follow-up draining.
     QueuedPromptsV2,
 
-    /// Detects the word "figma" in the terminal input in real-time and shows a
-    /// contextual button above the input.
-    FigmaDetection,
-
     /// Clears the current prompt when opening the inline model selector from the
     /// model chip, then restores that prompt when the selector closes.
     RestorePromptOnInlineModelSelectorSearch,
@@ -226,9 +162,6 @@ pub enum FeatureFlag {
     /// Enables the `--harness` flag for `oz agent run`, allowing external agent
     /// CLIs (e.g. `claude`) to execute prompts instead of Warp's agent harness.
     AgentHarness,
-
-    /// Enables commit, push, and create-PR actions in the code review panel.
-    GitOperationsInCodeReview,
 
     /// Renders MCP tool-call request and response JSON as an interactive
     /// collapsible tree with typed colors and per-row Copy JSON, instead of

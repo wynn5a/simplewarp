@@ -636,10 +636,9 @@ fn test_open_file_markdown_routes_to_editor_when_viewer_disabled() {
 }
 
 #[test]
-fn test_open_file_ipynb_routes_to_notebook_when_enabled() {
+fn test_open_file_ipynb_routes_to_notebook() {
     // A `.ipynb` opened via `file://` (e.g. "Open with Warp" from Finder) opens
     // in the notebook viewer, not the raw-JSON code editor.
-    let _flag = crate::features::FeatureFlag::JupyterNotebookRendering.override_enabled(true);
     let dir = tempfile::tempdir().unwrap();
     let p = dir.path().join("analysis.ipynb");
     std::fs::write(&p, b"{\"nbformat\": 4, \"cells\": []}\n").unwrap();
@@ -647,17 +646,6 @@ fn test_open_file_ipynb_routes_to_notebook_when_enabled() {
         classify_open_file_action(&p, false),
         OpenFileAction::Notebook
     );
-}
-
-#[test]
-fn test_open_file_ipynb_opens_in_editor_when_disabled() {
-    // Without the feature flag, `.ipynb` is not rendered in the notebook viewer
-    // and falls through to the code editor.
-    let _flag = crate::features::FeatureFlag::JupyterNotebookRendering.override_enabled(false);
-    let dir = tempfile::tempdir().unwrap();
-    let p = dir.path().join("analysis.ipynb");
-    std::fs::write(&p, b"{\"nbformat\": 4, \"cells\": []}\n").unwrap();
-    assert_eq!(classify_open_file_action(&p, true), OpenFileAction::Editor);
 }
 
 #[test]

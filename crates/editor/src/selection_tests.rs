@@ -4,7 +4,6 @@ use serde_yaml::Value;
 use string_offset::CharOffset;
 use sum_tree::SumTree;
 use vec1::vec1;
-use warp_core::features::FeatureFlag;
 use warpui_core::assets::asset_cache::AssetSource;
 use warpui_core::text::word_boundaries::WordBoundariesPolicy;
 use warpui_core::units::IntoPixels;
@@ -83,7 +82,6 @@ fn selection_model_with_rendered_mermaid(
 #[test]
 fn test_move_right_skips_rendered_mermaid_block() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let selection = selection_model_with_rendered_mermaid(&mut app);
 
         selection.update(&mut app, |selection, ctx| {
@@ -101,7 +99,6 @@ fn test_move_right_skips_rendered_mermaid_block() {
 #[test]
 fn test_extend_right_expands_across_rendered_mermaid_block() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let selection = selection_model_with_rendered_mermaid(&mut app);
 
         selection.update(&mut app, |selection, ctx| {
@@ -125,7 +122,6 @@ fn test_extend_right_expands_across_rendered_mermaid_block() {
 #[test]
 fn test_move_left_skips_rendered_mermaid_block() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let selection = selection_model_with_rendered_mermaid(&mut app);
 
         selection.update(&mut app, |selection, ctx| {
@@ -143,7 +139,6 @@ fn test_move_left_skips_rendered_mermaid_block() {
 #[test]
 fn test_extend_left_expands_across_rendered_mermaid_block() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let selection = selection_model_with_rendered_mermaid(&mut app);
 
         selection.update(&mut app, |selection, ctx| {
@@ -167,7 +162,6 @@ fn test_extend_left_expands_across_rendered_mermaid_block() {
 #[test]
 fn test_extend_left_reverses_shift_selection_across_rendered_mermaid_block() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let selection = selection_model_with_rendered_mermaid(&mut app);
 
         selection.update(&mut app, |selection, ctx| {
@@ -196,7 +190,6 @@ fn test_extend_left_reverses_shift_selection_across_rendered_mermaid_block() {
 #[test]
 fn test_extend_right_reverses_shift_selection_across_rendered_mermaid_block() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let selection = selection_model_with_rendered_mermaid(&mut app);
 
         selection.update(&mut app, |selection, ctx| {

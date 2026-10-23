@@ -22,7 +22,6 @@ use crate::ai::agent::{
     AIAgentInput, AIAgentTextSection, AgentOutputImage, AgentOutputImageLayout,
     AgentOutputMermaidDiagram, MessageId, UserQueryMode,
 };
-use crate::features::FeatureFlag;
 use crate::search::slash_command_menu::static_commands::commands;
 
 #[test]
@@ -248,10 +247,6 @@ fn lightbox_trigger_returns_none_for_unknown_section() {
 fn collect_visual_markdown_lightbox_collection_includes_mermaid_sections_in_source_order() {
     App::test((), |mut app| async move {
         app.update(|ctx| {
-            let _blocklist_markdown_images =
-                FeatureFlag::BlocklistMarkdownImages.override_enabled(true);
-            let _markdown_mermaid = FeatureFlag::MarkdownMermaid.override_enabled(true);
-
             let sections = vec![
                 AIAgentTextSection::PlainText {
                     text: "before".to_string().into(),

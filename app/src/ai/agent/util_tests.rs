@@ -1,10 +1,8 @@
 use super::parse_markdown_into_text_and_code_sections;
-use crate::ai::agent::{AIAgentTextSection, AgentOutputImageLayout, AgentOutputTableRendering};
-use crate::features::FeatureFlag;
+use crate::ai::agent::{AIAgentTextSection, AgentOutputImageLayout};
 
 #[test]
 fn extracts_gfm_pipe_table_into_table_section() {
-    let _flag = FeatureFlag::BlocklistMarkdownTableRendering.override_enabled(true);
     let input = "Intro\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\nOutro";
     let sections = parse_markdown_into_text_and_code_sections(input);
 
@@ -20,15 +18,8 @@ fn extracts_gfm_pipe_table_into_table_section() {
     match &sections[1] {
         AIAgentTextSection::Table { table } => {
             assert_eq!(table.markdown_source, "| A | B |\n| --- | --- |\n| 1 | 2 |");
-            match &table.rendering {
-                AgentOutputTableRendering::Legacy { .. } => {
-                    panic!("expected structured table rendering")
-                }
-                AgentOutputTableRendering::Structured { table } => {
-                    assert_eq!(table.headers.len(), 2);
-                    assert_eq!(table.rows.len(), 1);
-                }
-            }
+            assert_eq!(table.table.headers.len(), 2);
+            assert_eq!(table.table.rows.len(), 1);
             assert_eq!(
                 table.rendered_lines(),
                 vec!["A\tB".to_string(), "1\t2".to_string()]
@@ -47,7 +38,6 @@ fn extracts_gfm_pipe_table_into_table_section() {
 
 #[test]
 fn does_not_extract_pipe_text_without_separator_row() {
-    let _flag = FeatureFlag::BlocklistMarkdownTableRendering.override_enabled(true);
     let input = "a | b\nc | d";
     let sections = parse_markdown_into_text_and_code_sections(input);
 
@@ -57,7 +47,6 @@ fn does_not_extract_pipe_text_without_separator_row() {
 
 #[test]
 fn table_can_be_followed_immediately_by_text() {
-    let _flag = FeatureFlag::BlocklistMarkdownTableRendering.override_enabled(true);
     let input = "| A | B |\n|---|---|\n| 1 | 2 |\nAfter";
     let sections = parse_markdown_into_text_and_code_sections(input);
 
@@ -68,37 +57,6 @@ fn table_can_be_followed_immediately_by_text() {
             assert!(text.text().contains("After"));
         }
         _ => panic!("expected second section to be PlainText"),
-    }
-}
-
-#[test]
-fn extracts_gfm_pipe_table_into_legacy_table_section_when_flag_disabled() {
-    let _flag = FeatureFlag::BlocklistMarkdownTableRendering.override_enabled(false);
-    let input = "Intro\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nOutro";
-    let sections = parse_markdown_into_text_and_code_sections(input);
-
-    assert_eq!(sections.len(), 3);
-
-    match &sections[1] {
-        AIAgentTextSection::Table { table } => {
-            assert_eq!(
-                table.markdown_source,
-                "| A   | B   |\n| --- | --- |\n| 1   | 2   |"
-            );
-            assert_eq!(
-                table.rendered_lines(),
-                vec![
-                    "| A   | B   |".to_string(),
-                    "| --- | --- |".to_string(),
-                    "| 1   | 2   |".to_string()
-                ]
-            );
-            assert!(matches!(
-                &table.rendering,
-                AgentOutputTableRendering::Legacy { .. }
-            ));
-        }
-        _ => panic!("expected second section to be Table"),
     }
 }
 

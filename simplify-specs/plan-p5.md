@@ -115,7 +115,7 @@ ruling: delete the mode and open the inline history menu in that case, as with n
 **C3 — tabs, workspace, settings, search** — 30 flags, 316 refs (**done 2026-10-23**):
 `AlacrittySettingsImport`, `AllowOpeningFileLinksUsingEditorEnv`, `AvatarInTabBar`, `CommandPaletteFileSearch`, `ConfigurableToolbar`, `CreateProjectFlow`, `DirectoryTabColors`, `FileTree`, `FullScreenZenMode`, `GetStartedTab`, `GlobalSearch`, `GroupedTabs`, `IncrementalAutoReload`, `InlineProfileSelector`, `InlineRepoMenu`, `MinimalistUI`, `MultiProfile`, `NewTabStyling`, `PinnedTabs`, `PluggableNotifications`, `ProfilesDesignRevamp`, `Projects`, `SettingsFile`, `TabCloseButtonOnLeft`, `TabConfigs`, `UIZoom`, `UndoClosedPanes`, `UseTantivySearch`, `VerticalTabs`, `VerticalTabsSummaryMode`.
 
-**C4 — code editor, code review, notebooks, markdown** — 22 flags, 181 refs:
+**C4 — code editor, code review, notebooks, markdown** — 22 flags, 181 refs (**done 2026-10-23**):
 `AutoOpenCodeReviewPane`, `BlocklistMarkdownImages`, `BlocklistMarkdownTableRendering`, `CodeFindReplace`, `CodeLaunchModal`, `CodeReviewFind`, `CodeReviewSaveChanges`, `CodeReviewScrollPreservation`, `DiscardPerFileAndAllChanges`, `EditableMarkdownMermaid`, `ExpandEditToPane`, `FigmaDetection`, `GitOperationsInCodeReview`, `InlineCodeReview`, `JupyterNotebookRendering`, `LinkedCodeBlocks`, `MarkdownMermaid`, `MarkdownTables`, `PRCommentsV2`, `RevertDiffHunk`, `RichTextMultiselect`, `TabbedEditorView`.
 
 **C5 — AI, agent mode, MCP, skills (everything else)** — 45 flags, 303 refs:

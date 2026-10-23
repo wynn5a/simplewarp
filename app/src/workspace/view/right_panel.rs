@@ -4,7 +4,6 @@ use std::sync::Arc;
 use dunce::canonicalize;
 use itertools::Itertools;
 use pathfinder_color::ColorU;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::Icon;
 use warp_errors::report_error;
 use warp_util::path::LineAndColumnArg;
@@ -28,8 +27,8 @@ use crate::appearance::{Appearance, AppearanceEvent};
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code_review::code_review_header::HEADER_BUTTON_PADDING;
 use crate::code_review::code_review_view::{
-    CONTENT_LEFT_MARGIN, CONTENT_RIGHT_MARGIN, CodeReviewAction, CodeReviewCommentDebugState,
-    CodeReviewView, CodeReviewViewEvent, ReviewActionTargetProvider, render_file_navigation_button,
+    CONTENT_LEFT_MARGIN, CONTENT_RIGHT_MARGIN, CodeReviewCommentDebugState, CodeReviewView,
+    CodeReviewViewEvent, ReviewActionTargetProvider,
 };
 use crate::code_review::diff_state::DiffStateModel;
 use crate::code_review::telemetry_event::CodeReviewContextDestination;
@@ -355,7 +354,6 @@ impl CodeReviewState {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum RightPanelAction {
-    ToggleFileSidebar,
     SelectRepo {
         repo_path: LocalOrRemotePath,
         from_dropdown: bool,
@@ -384,7 +382,6 @@ pub enum RightPanelEvent {
 pub struct RightPanelView {
     resizable_state_handle: ResizableStateHandle,
     close_button_mouse_state: MouseStateHandle,
-    file_navigation_button_mouse_state: MouseStateHandle,
     open_repository_button: ViewHandle<ActionButton>,
     pub active_pane_group: Option<ViewHandle<PaneGroup>>,
     working_directories_model: ModelHandle<WorkingDirectoriesModel>,
@@ -470,7 +467,6 @@ impl RightPanelView {
         Self {
             resizable_state_handle,
             close_button_mouse_state: Default::default(),
-            file_navigation_button_mouse_state: Default::default(),
             open_repository_button,
             active_pane_group: None,
             working_directories_model,
@@ -853,11 +849,7 @@ impl RightPanelView {
         });
 
         if let Some(code_review_view) = current_code_review_view {
-            let header = if FeatureFlag::GitOperationsInCodeReview.is_enabled() {
-                self.render_header(&code_review_view, appearance, app)
-            } else {
-                self.render_header_legacy(appearance, app)
-            };
+            let header = self.render_header(&code_review_view, appearance, app);
             let code_review_content =
                 Shrinkable::new(1.0, ChildView::new(&code_review_view).finish()).finish();
 
@@ -967,95 +959,6 @@ impl RightPanelView {
         )
         .with_padding_left(CONTENT_LEFT_MARGIN)
         .with_padding_right(CONTENT_RIGHT_MARGIN)
-        .finish()
-    }
-
-    /// Legacy header layout: "Code review" title + file nav button.
-    fn render_header_legacy(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
-        let file_navigation_button = {
-            let current_code_review_view = self
-                .code_review_state
-                .as_ref()
-                .and_then(|state| state.selected_repo_path.as_ref())
-                .and_then(|repo_path| {
-                    self.active_pane_group.as_ref().and_then(|pane_group| {
-                        let pane_group_id = pane_group.id();
-                        self.working_directories_model
-                            .as_ref(app)
-                            .get_code_review_view(pane_group_id, repo_path)
-                    })
-                });
-
-            let has_files = current_code_review_view
-                .as_ref()
-                .map(|view: &ViewHandle<CodeReviewView>| view.as_ref(app).has_file_states())
-                .unwrap_or(false);
-
-            let file_sidebar_expanded = current_code_review_view
-                .as_ref()
-                .map(|view| view.as_ref(app).file_sidebar_expanded())
-                .unwrap_or(false);
-
-            if has_files {
-                Some(render_file_navigation_button(
-                    appearance,
-                    file_sidebar_expanded,
-                    self.file_navigation_button_mouse_state.clone(),
-                    |ctx| {
-                        ctx.dispatch_typed_action(RightPanelAction::ToggleFileSidebar);
-                    },
-                ))
-            } else {
-                None
-            }
-        };
-
-        let theme = appearance.theme();
-        let sub_text_color = theme.sub_text_color(theme.background());
-
-        let title = Shrinkable::new(
-            1.0,
-            Text::new_inline("Code review".to_string(), appearance.ui_font_family(), 12.)
-                .with_style(Properties::default().weight(Weight::Bold))
-                .with_color(sub_text_color.into())
-                .finish(),
-        )
-        .finish();
-
-        let close_button = self.close_button(appearance, app);
-
-        let mut left_section = Flex::row()
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_main_axis_size(MainAxisSize::Max);
-        let has_nav_button = file_navigation_button.is_some();
-        if let Some(nav_button) = file_navigation_button {
-            left_section.add_child(nav_button);
-        }
-        left_section.add_child(title);
-
-        let mut right_section = Vec::new();
-        if let Some(repo_dropdown) = self.render_repo_dropdown() {
-            right_section.push(repo_dropdown);
-        }
-        right_section.push(self.render_maximize_pane_button());
-        right_section.push(close_button);
-
-        let left_padding = if has_nav_button { 12. } else { 16. };
-
-        Container::new(
-            ConstrainedBox::new(
-                Flex::row()
-                    .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_child(Box::new(Shrinkable::new(1.0, left_section.finish())))
-                    .with_children(right_section)
-                    .finish(),
-            )
-            .with_height(PANE_HEADER_HEIGHT)
-            .finish(),
-        )
-        .with_padding_left(left_padding)
-        .with_padding_right(HEADER_EDGE_PADDING)
         .finish()
     }
 
@@ -1665,23 +1568,6 @@ impl TypedActionView for RightPanelView {
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         match action {
-            RightPanelAction::ToggleFileSidebar => {
-                if let Some(state) = &self.code_review_state
-                    && let Some(repo_path) = &state.selected_repo_path
-                    && let Some(pane_group) = &self.active_pane_group
-                {
-                    let pane_group_id = pane_group.id();
-                    let working_directories_model = self.working_directories_model.clone();
-                    if let Some(code_review_view) = working_directories_model
-                        .as_ref(ctx)
-                        .get_code_review_view(pane_group_id, repo_path)
-                    {
-                        code_review_view.update(ctx, |view, ctx| {
-                            view.handle_action(&CodeReviewAction::ToggleFileSidebar, ctx);
-                        });
-                    }
-                }
-            }
             RightPanelAction::SelectRepo {
                 repo_path,
                 from_dropdown,

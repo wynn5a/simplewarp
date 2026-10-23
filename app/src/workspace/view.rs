@@ -5493,10 +5493,9 @@ impl Workspace {
         additional_paths: &[PathBuf],
         ctx: &mut ViewContext<Self>,
     ) {
-        let grouping_on = FeatureFlag::TabbedEditorView.is_enabled()
-            && *EditorSettings::as_ref(ctx)
-                .prefer_tabbed_editor_view
-                .value();
+        let grouping_on = *EditorSettings::as_ref(ctx)
+            .prefer_tabbed_editor_view
+            .value();
 
         if grouping_on {
             let code_view = self
@@ -5662,22 +5661,15 @@ impl Workspace {
         });
 
         // Check if the ExpandEditToPane feature flag is enabled
-        if FeatureFlag::ExpandEditToPane.is_enabled() {
-            // Try to temporarily replace the current pane with the diff view
-            let new_pane = CodeDiffPane::from_view(view.clone(), ctx);
-            self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
-                if !pane_group.replace_pane(focused_pane_id, new_pane, true, ctx) {
-                    // If replacement failed, remove the pane we just added and fall back
-                    //pane_group.close_pane(new_pane_id, ctx);
-                    log::warn!("Failed to temporarily replace pane, falling back to new tab");
-                }
-            });
-        } else {
-            // Feature flag disabled: use the original behavior of opening in a new tab
-            let new_pane = CodeDiffPane::from_view(view, ctx);
-            let (new_idx, group_id) = self.new_tab_index_and_group(ctx);
-            self.add_tab_from_existing_pane(Box::new(new_pane), new_idx, group_id, ctx);
-        }
+        // Try to temporarily replace the current pane with the diff view
+        let new_pane = CodeDiffPane::from_view(view.clone(), ctx);
+        self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
+            if !pane_group.replace_pane(focused_pane_id, new_pane, true, ctx) {
+                // If replacement failed, remove the pane we just added and fall back
+                //pane_group.close_pane(new_pane_id, ctx);
+                log::warn!("Failed to temporarily replace pane, falling back to new tab");
+            }
+        });
     }
 
     /// Open the AI Fact Collection pane in a split pane (default direction is left).
@@ -8674,7 +8666,6 @@ impl Workspace {
             // Check if we can add the new file to an existing code pane (when using split pane
             // layout).
             if layout == EditorLayout::SplitPane
-                && FeatureFlag::TabbedEditorView.is_enabled()
                 && *EditorSettings::as_ref(ctx)
                     .prefer_tabbed_editor_view
                     .value()
@@ -10643,11 +10634,9 @@ impl Workspace {
                         }
                         TabBarHoverIndex::OverTab(workspace_tab_index) => {
                             {
-                                let prefers_tabbed_editor_view = FeatureFlag::TabbedEditorView
-                                    .is_enabled()
-                                    && *EditorSettings::as_ref(ctx)
-                                        .prefer_tabbed_editor_view
-                                        .value();
+                                let prefers_tabbed_editor_view = *EditorSettings::as_ref(ctx)
+                                    .prefer_tabbed_editor_view
+                                    .value();
 
                                 let target_pane_group =
                                     self.get_pane_group_view(workspace_tab_index);
@@ -10789,10 +10778,9 @@ impl Workspace {
                 pane_id,
                 hidden_pane_preview_direction,
             } => {
-                let prefers_tabbed_editor_view = FeatureFlag::TabbedEditorView.is_enabled()
-                    && *EditorSettings::as_ref(ctx)
-                        .prefer_tabbed_editor_view
-                        .value();
+                let prefers_tabbed_editor_view = *EditorSettings::as_ref(ctx)
+                    .prefer_tabbed_editor_view
+                    .value();
 
                 // If a code pane is being dragged over a workspace tab with an existing code pane,
                 // we don't allow it to be placed freely. Instead, it should be merged into the existing
@@ -11070,27 +11058,6 @@ impl Workspace {
                         left_panel.on_left_panel_visibility_changed(ctx);
                     });
                 }
-            }
-            pane_group::Event::InsertCodeReviewComments {
-                repo_path,
-                comments,
-                diff_mode,
-                open_code_review,
-            } => {
-                if let Some(open_code_review) = open_code_review {
-                    self.open_code_review_panel_from_arg(open_code_review, pane_group.clone(), ctx);
-                }
-
-                self.working_directories_model
-                    .update(ctx, |working_directories, ctx| {
-                        working_directories.insert_code_review_comments(
-                            pane_group.id(),
-                            repo_path,
-                            comments,
-                            diff_mode,
-                            ctx,
-                        )
-                    });
             }
             pane_group::Event::OpenCodeReviewPaneAndScrollToComment {
                 open_code_review,

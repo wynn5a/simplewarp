@@ -9,7 +9,6 @@ use lazy_static::lazy_static;
 use pathfinder_geometry::vector::{Vector2F, vec2f};
 use settings::ToggleableSetting;
 use warp::cmd_or_ctrl_shift;
-use warp::features::FeatureFlag;
 use warp::integration_testing::clipboard::assert_clipboard_contains_string;
 use warp::integration_testing::step::new_step_with_default_assertions;
 use warp::integration_testing::terminal::{
@@ -190,9 +189,6 @@ fn restored_markdown_visuals_conversation_data() -> api::ConversationData {
 }
 
 pub fn test_restored_ai_block_renders_mermaid_and_local_images() -> Builder {
-    FeatureFlag::BlocklistMarkdownImages.set_enabled(true);
-    FeatureFlag::MarkdownMermaid.set_enabled(true);
-
     new_builder()
         .with_real_display()
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))

@@ -24,9 +24,9 @@ use warpui::assets::asset_cache::{AssetCache, AssetSource, AssetState};
 use warpui::elements::new_scrollable::{ScrollableAppearance, SingleAxisConfig};
 use warpui::elements::shimmering_text::ShimmeringTextStateHandle;
 use warpui::elements::{
-    Align, Axis, Border, ChildAnchor, Clipped, ClippedScrollStateHandle, ConstrainedBox, Container,
-    CornerRadius, CrossAxisAlignment, DispatchEventResult, Empty, EventHandler, Expanded, Fill,
-    Flex, FormattedTextElement, HeadingFontSizeMultipliers, Highlight, HighlightedRange, Hoverable,
+    Align, Axis, Border, ChildAnchor, Clipped, ConstrainedBox, Container, CornerRadius,
+    CrossAxisAlignment, DispatchEventResult, Empty, EventHandler, Expanded, Fill, Flex,
+    FormattedTextElement, HeadingFontSizeMultipliers, Highlight, HighlightedRange, Hoverable,
     Image as WarpImage, MainAxisAlignment, MainAxisSize, MouseStateHandle, NewScrollable,
     OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius, SavePosition,
     ScrollTarget, ScrollToPositionMode, ScrollbarWidth, Shrinkable, Stack, Table, TableColumnWidth,
@@ -48,8 +48,8 @@ use crate::ai::agent::icons::red_stop_icon;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionType, AIAgentInput, AIAgentOutputMessageType, AIAgentTextSection,
     AgentOutputImage, AgentOutputImageLayout, AgentOutputMermaidDiagram, AgentOutputTable,
-    AgentOutputTableRendering, MessageId, ProgrammingLanguage, RenderableAIError,
-    ShellCommandDelay, SummarizationType, UserQueryMode, icons,
+    MessageId, ProgrammingLanguage, RenderableAIError, ShellCommandDelay, SummarizationType,
+    UserQueryMode, icons,
 };
 use crate::ai::blocklist::block::find::FindState;
 use crate::ai::blocklist::block::status_bar::BlocklistAIStatusBarAction;
@@ -63,9 +63,6 @@ use crate::ai::blocklist::code_block::{
     render_code_block_with_warp_text,
 };
 use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
-use crate::ai::blocklist::inline_action::inline_action_header::{
-    INLINE_ACTION_HEADER_VERTICAL_PADDING, INLINE_ACTION_HORIZONTAL_PADDING,
-};
 use crate::ai::blocklist::inline_action::inline_action_icons::{self, icon_size};
 use crate::ai::blocklist::inline_action::requested_action::RenderableAction;
 use crate::ai::blocklist::model::{AIBlockModel, AIBlockModelHelper};
@@ -1422,12 +1419,6 @@ fn lightbox_image_for_mermaid_diagram(
     diagram: &AgentOutputMermaidDiagram,
     app: &AppContext,
 ) -> Option<ui_components::lightbox::LightboxImage> {
-    if !FeatureFlag::BlocklistMarkdownImages.is_enabled()
-        || !FeatureFlag::MarkdownMermaid.is_enabled()
-    {
-        return None;
-    }
-
     let asset_source = mermaid_asset_source(&diagram.source);
     let asset_state = AssetCache::as_ref(app).load_asset::<ImageType>(asset_source.clone());
     if matches!(asset_state, AssetState::FailedToLoad(_)) {
@@ -1748,9 +1739,7 @@ fn load_renderable_image_asset(
     resolved_blocklist_image_sources: Option<&ResolvedBlocklistImageSources>,
     app: &AppContext,
 ) -> Option<(AssetSource, AssetState<ImageType>)> {
-    if !FeatureFlag::BlocklistMarkdownImages.is_enabled()
-        || !is_supported_blocklist_image_source(&image.source)
-    {
+    if !is_supported_blocklist_image_source(&image.source) {
         return None;
     }
 
@@ -2029,12 +2018,6 @@ fn render_mermaid_diagram_section<A: Action>(
     lightbox_collection: &VisualMarkdownLightboxCollection,
     app: &AppContext,
 ) -> Box<dyn Element> {
-    if !FeatureFlag::BlocklistMarkdownImages.is_enabled()
-        || !FeatureFlag::MarkdownMermaid.is_enabled()
-    {
-        return render_visual_markdown_fallback(&diagram.markdown_source, text_color, app);
-    }
-
     let asset_source = mermaid_asset_source(&diagram.source);
     let asset_state = AssetCache::as_ref(app).load_asset::<ImageType>(asset_source.clone());
     if matches!(asset_state, AssetState::FailedToLoad(_)) {
@@ -2312,7 +2295,6 @@ fn blocklist_base_line_height(app: &AppContext) -> f32 {
         .as_f32()
 }
 
-const TABLE_BLOCK_CORNER_RADIUS: f32 = 8.0;
 fn render_table_section(
     table: &AgentOutputTable,
     table_handles: TableSectionHandles,
@@ -2322,14 +2304,6 @@ fn render_table_section(
     find_context: Option<FindContext<'_>>,
     app: &AppContext,
 ) -> Box<dyn Element> {
-    if let AgentOutputTableRendering::Legacy { content } = &table.rendering {
-        return render_legacy_table_section(
-            content,
-            table_handles.scroll_handle,
-            is_ai_input_enabled,
-            app,
-        );
-    }
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
     let table_appearance = markdown_table_appearance(appearance);
@@ -2348,9 +2322,7 @@ fn render_table_section(
     };
     let inline_code_text_color = notebook_styles.inline_code_style.font_color;
     let inline_code_bg_color = notebook_styles.inline_code_style.background;
-    let Some(structured_table) = table.structured_table() else {
-        return Empty::new().finish();
-    };
+    let structured_table = &table.table;
     let column_count = structured_table.headers.len();
     let alignments = structured_table.alignments.clone();
     let body_rows = structured_table.rows.clone();
@@ -2454,54 +2426,6 @@ fn render_table_section(
     .with_horizontal_scrollbar(ScrollableAppearance::new(ScrollbarWidth::Auto, true))
     .with_propagate_mousewheel_if_not_handled(true)
     .finish()
-}
-
-fn render_legacy_table_section(
-    content: &str,
-    scroll_handle: ClippedScrollStateHandle,
-    is_ai_input_enabled: bool,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-
-    let text_element = Text::new(
-        content.to_owned(),
-        appearance.monospace_font_family(),
-        appearance.monospace_font_size(),
-    )
-    .with_color(blended_colors::text_main(theme, theme.surface_2()))
-    .with_selection_color(if is_ai_input_enabled {
-        theme.text_selection_as_context_color().into_solid()
-    } else {
-        theme.text_selection_color().into_solid()
-    })
-    .finish();
-
-    let inner_content = Container::new(text_element)
-        .with_vertical_padding(INLINE_ACTION_HEADER_VERTICAL_PADDING)
-        .with_horizontal_padding(INLINE_ACTION_HORIZONTAL_PADDING)
-        .finish();
-
-    let scrollable_content = NewScrollable::horizontal(
-        SingleAxisConfig::Clipped {
-            handle: scroll_handle,
-            child: inner_content,
-        },
-        theme.nonactive_ui_detail().into(),
-        theme.active_ui_detail().into(),
-        Fill::None,
-    )
-    .with_horizontal_scrollbar(ScrollableAppearance::new(ScrollbarWidth::Auto, true))
-    .with_propagate_mousewheel_if_not_handled(true)
-    .finish();
-
-    Container::new(scrollable_content)
-        .with_background(theme.surface_2())
-        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(
-            TABLE_BLOCK_CORNER_RADIUS,
-        )))
-        .finish()
 }
 
 fn render_table_cell(props: TableCellProps, app: &AppContext) -> Box<dyn Element> {

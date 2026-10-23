@@ -339,7 +339,6 @@ embed-resource = "3.0"
 # Note that we support channel-specific enables for these features
 [features]
 ai_resume_button = []
-figma_detection = []
 bundled_skills = []
 agent_mode = []
 # SimpleWarp: a local-only build. No cloud, no login, no billing, and no Warp Drive.
@@ -359,27 +358,16 @@ simplewarp = [
     "at_menu_outside_of_ai_mode",
     "interactive_conversation_management_view",
     "ai_resume_button",
-    "code_find_replace",
     "ai_context_menu_code",
     "agent_decides_command_execution",
-    "linked_code_blocks",
-    "tabbed_editor_view",
     "read_image_files",
     "selection_as_context",
-    "revert_diff_hunk",
-    "code_review_save_changes",
     "vim_code_editor",
-    "code_launch_modal",
     "mcp_oauth",
-    "expand_edit_to_pane",
     "fallback_model_load_output_messaging",
     "summarization_cancellation_confirmation",
-    "discard_per_file_and_all_changes",
-    "auto_open_code_review_pane",
     "diff_set_as_context",
     "summarize_conversation_command",
-    "inline_code_review",
-    "code_review_find",
     "fork_from_command",
     "v4a_file_diffs",
     "agent_tips",
@@ -390,30 +378,19 @@ simplewarp = [
     "agent_view_conversation_list_view",
     "inline_slash_commands",
     "inline_model_selector",
-    "richtext_multiselect",
     "skill_arguments",
     "active_conversation_requires_interaction",
-    "figma_detection",
     "file_based_mcp",
     "github_pr_prompt_chip",
     "conversations_as_context",
-    "markdown_tables",
-    "jupyter_notebook_rendering",
-    "editable_markdown_mermaid",
     "local_docker_sandbox",
-    "blocklist_markdown_table_rendering",
-    "markdown_mermaid",
-    "blocklist_markdown_images",
-    "pr_comments_v2",
     "revert_to_checkpoints",
     "rewind_slash_command",
     "agent_toolbar_editor",
     "pending_user_query_indicator",
     "queue_slash_command",
     "queued_prompts_v2",
-    "git_operations_in_code_review",
     "agent_harness",
-    "code_review_scroll_preservation",
     "mcp_json_tree_view",
     "file_glob_v2_warnings",
     "remember_fast_forward_state",
@@ -426,7 +403,6 @@ default = ["simplewarp"]
 # Enable this feature to automatically perform heap profiling.  NOTE: This will
 # substantially slow down program execution.
 dhat_heap_profiling = ["dep:dhat"]
-editable_markdown_mermaid = []
 drag_tabs_to_windows = []
 interactive_conversation_management_view = []
 extern_plist = []
@@ -454,9 +430,6 @@ run_generators_with_cmd_exe = []
 kitty_images = []
 list_skills = []
 local_docker_sandbox = []
-jupyter_notebook_rendering = []
-markdown_tables = []
-markdown_mermaid = []
 mcp_server = []
 mcp_oauth = []
 # Remote-backed tty that connects to a PTY-like interface via a server.
@@ -470,13 +443,11 @@ pprof_cpu_profiling = ["dep:pprof"]
 recording_mode = []
 render_agent_mode_output_markdown = []
 render_continuous_block_selections_with_single_border = []
-richtext_multiselect = []
 test-util = [
     "http_client/test-util",
     "warp_core/test-util",
     "cloud_objects/test-util",
 ]
-code_review_scroll_preservation = []
 mcp_json_tree_view = []
 file_glob_v2_warnings = []
 remember_fast_forward_state = []
@@ -490,33 +461,19 @@ integration_tests = [
 traces = []
 ai_rules = []
 am_workflows = []
-blocklist_markdown_table_rendering = []
-blocklist_markdown_images = []
 external_agent_mode_context = []
 ai_context_menu = []
 at_menu_outside_of_ai_mode = []
 agent_decides_command_execution = []
 fast_forward_autoexecute_button = []
-code_find_replace = []
 ai_context_menu_commands = []
 ai_context_menu_code = []
-expand_edit_to_pane = []
 fallback_model_load_output_messaging = []
-linked_code_blocks = []
-tabbed_editor_view = []
 selection_as_context = []
-pr_comments_v2 = []
 conversations_as_context = []
 vim_code_editor = []
-revert_diff_hunk = []
-code_review_save_changes = []
-code_launch_modal = []
 diff_set_as_context = []
-discard_per_file_and_all_changes = []
 summarization_cancellation_confirmation = []
-code_review_find = []
-auto_open_code_review_pane = []
-inline_code_review = []
 summarize_conversation_command = []
 fork_from_command = []
 revert_to_checkpoints = []
@@ -537,7 +494,6 @@ pending_user_query_indicator = []
 queue_slash_command = []
 queued_prompts_v2 = ["queue_slash_command"]
 agent_harness = []
-git_operations_in_code_review = []
 
 [package.metadata.bundle.bin.simplewarp]
 category = "public.app-category.developer-tools"

@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 
 use indexmap::IndexSet;
 use repo_metadata::repositories::DetectedRepositories;
-use warp_errors::report_error;
 use warpui::{
     AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _, ViewHandle,
 };
@@ -11,10 +10,8 @@ use warpui::{
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code::file_tree::FileTreeView;
 use crate::code_review::code_review_view::CodeReviewView;
-use crate::code_review::comments::{
-    AttachedReviewComment, PendingImportedReviewComment, ReviewCommentBatch,
-};
-use crate::code_review::diff_state::{DiffMode, DiffStateModel};
+use crate::code_review::comments::{AttachedReviewComment, ReviewCommentBatch};
+use crate::code_review::diff_state::DiffStateModel;
 use crate::workspace::view::global_search::view::GlobalSearchView;
 
 /// Bidirectional map of pane groups to the repository roots they reference.
@@ -702,35 +699,6 @@ impl WorkingDirectoriesModel {
                 .unwrap_or_default(),
             focused_repo,
         });
-    }
-
-    pub(crate) fn insert_code_review_comments(
-        &mut self,
-        pane_group_id: EntityId,
-        repo_path: &LocalOrRemotePath,
-        comments: &Vec<PendingImportedReviewComment>,
-        diff_mode: &DiffMode,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match self.get_code_review_view(pane_group_id, repo_path) {
-            Some(code_review_view) => code_review_view.update(ctx, |code_review_view, ctx| {
-                code_review_view.set_diff_base(diff_mode.to_owned(), ctx);
-                code_review_view.expand_comment_list(ctx);
-            }),
-            _ => {
-                report_error!(
-                    "WorkingDirectoriesModel did not find CodeReviewView for repo path",
-                    extra: { "repo_path" => ?repo_path }
-                );
-            }
-        }
-
-        if let Some(comment_batch) = self.get_or_create_code_review_comments(repo_path, ctx) {
-            let comments = comments.to_owned();
-            comment_batch.update(ctx, |comment_batch, ctx| {
-                comment_batch.add_pending_imported_comments(comments, diff_mode.to_owned(), ctx);
-            })
-        }
     }
 
     /// Inserts pre-flattened (already attached) review comments into the comment batch for the

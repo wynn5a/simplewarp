@@ -143,7 +143,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.17",
  "typed-path",
- "unicode-width 0.1.14",
  "uuid",
  "virtual-fs",
  "warp_core",

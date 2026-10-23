@@ -25,7 +25,6 @@ use super::{EditorViewAction, LayoutAffectingAssetLoad, RichTextEditorConfig, Ri
 use crate::appearance::Appearance;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::editor::InteractionState;
-use crate::features::FeatureFlag;
 use crate::notebooks::editor::keys::NotebookKeybindings;
 use crate::notebooks::editor::link_editor::LinkEditorAction;
 use crate::notebooks::editor::model::NotebooksEditorModel;
@@ -171,7 +170,6 @@ fn rendered_mermaid_block_range(
 #[test]
 fn test_loaded_mermaid_diagram_with_placeholder_height_needs_relayout() {
     App::test((), |app| async move {
-        let _flag = FeatureFlag::MarkdownMermaid.override_enabled(true);
         let contents = "graph TD\nA[Start] --> B[Finish]\n";
         let asset_source = mermaid_asset_source(contents);
 
@@ -342,8 +340,6 @@ fn test_appearance_changes() {
 #[test]
 fn test_omnibar_is_hidden_for_rendered_mermaid_selection() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::MarkdownMermaid.override_enabled(true);
-        let _editable_flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let (_, editor_view, _) = initialize_editor(&mut app);
         let markdown = "Before\n```mermaid\ngraph TD\nA --> B\n```\nAfter";
         reset_editor_with_markdown(&mut app, &editor_view, markdown).await;
@@ -381,8 +377,6 @@ fn test_omnibar_is_hidden_for_rendered_mermaid_selection() {
 #[test]
 fn test_shift_click_on_rendered_mermaid_dispatches_selection_update_to_block_boundary() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::MarkdownMermaid.override_enabled(true);
-        let _editable_flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let (_, editor_view, _) = initialize_editor(&mut app);
         let markdown = "Before\n```mermaid\ngraph TD\nA --> B\n```\nAfter";
         reset_editor_with_markdown(&mut app, &editor_view, markdown).await;
@@ -477,8 +471,6 @@ fn test_shift_click_on_rendered_mermaid_dispatches_selection_update_to_block_bou
 #[test]
 fn test_drag_on_rendered_mermaid_dispatches_selection_update_to_block_boundary() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::MarkdownMermaid.override_enabled(true);
-        let _editable_flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let (_, editor_view, _) = initialize_editor(&mut app);
         let markdown = "Before\n```mermaid\ngraph TD\nA --> B\n```\nAfter";
         reset_editor_with_markdown(&mut app, &editor_view, markdown).await;

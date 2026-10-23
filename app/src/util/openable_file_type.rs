@@ -3,7 +3,6 @@
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
-use warp_core::features::FeatureFlag;
 pub use warp_util::file_type::{
     is_binary_file, is_file_content_binary, is_jupyter_notebook_file, is_markdown_file,
 };
@@ -66,12 +65,10 @@ pub fn is_supported_code_file(path: impl AsRef<Path>) -> bool {
 }
 
 /// Whether `path` renders in Warp's notebook viewer (with a Rendered/Raw
-/// toggle): Markdown files always, Jupyter notebooks when the feature flag is
-/// enabled.
+/// toggle): Markdown files and Jupyter notebooks.
 pub fn renders_in_warp_notebook_viewer(path: impl AsRef<Path>) -> bool {
     let path = path.as_ref();
-    is_markdown_file(path)
-        || (FeatureFlag::JupyterNotebookRendering.is_enabled() && is_jupyter_notebook_file(path))
+    is_markdown_file(path) || is_jupyter_notebook_file(path)
 }
 
 pub fn is_supported_image_file(path: impl AsRef<Path>) -> bool {
@@ -174,12 +171,9 @@ pub fn resolve_file_target_to_open_in_warp(
     let is_markdown = matches!(openable_file_type, Some(OpenableFileType::Markdown));
     let layout = layout.unwrap_or(*settings.open_file_layout);
 
-    // Jupyter notebooks render in Warp's notebook viewer unconditionally when
-    // the feature flag is enabled (the whole point is to avoid raw JSON).
-    if openable_file_type.is_some()
-        && FeatureFlag::JupyterNotebookRendering.is_enabled()
-        && is_jupyter_notebook_file(path)
-    {
+    // Jupyter notebooks render in Warp's notebook viewer unconditionally (the whole point is to
+    // avoid raw JSON).
+    if openable_file_type.is_some() && is_jupyter_notebook_file(path) {
         return FileTarget::MarkdownViewer(layout);
     }
     if is_markdown && *settings.prefer_markdown_viewer {
@@ -215,13 +209,10 @@ pub fn resolve_file_target_with_editor_choice(
     let layout = layout.unwrap_or(default_layout);
     let is_openable_in_warp = is_openable_in_warp.is_some();
 
-    // 0. Jupyter notebooks render in Warp's notebook viewer unconditionally
-    // when the feature flag is enabled (not gated on `prefer_markdown_viewer`
-    // or `editor_choice`, since rendering-instead-of-JSON is the whole point).
-    if is_openable_in_warp
-        && FeatureFlag::JupyterNotebookRendering.is_enabled()
-        && is_jupyter_notebook_file(path)
-    {
+    // 0. Jupyter notebooks render in Warp's notebook viewer unconditionally (not gated on
+    // `prefer_markdown_viewer` or `editor_choice`, since rendering-instead-of-JSON is the whole
+    // point).
+    if is_openable_in_warp && is_jupyter_notebook_file(path) {
         return FileTarget::MarkdownViewer(layout);
     }
 

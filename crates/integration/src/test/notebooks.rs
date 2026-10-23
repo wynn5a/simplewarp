@@ -1,5 +1,4 @@
 use warp::cmd_or_ctrl_shift;
-use warp::features::FeatureFlag;
 use warp::integration_testing::command_palette::open_command_palette_and_run_action;
 use warp::integration_testing::notebook::{
     assert_notebook_contents, assert_notebook_id, assert_notebook_not_open, assert_notebook_open,
@@ -173,9 +172,6 @@ pub fn test_open_in_warp_banner() -> Builder {
 }
 
 pub fn test_backspace_inside_raw_mermaid_block_edits_text_without_removing_block() -> Builder {
-    FeatureFlag::MarkdownMermaid.set_enabled(true);
-    FeatureFlag::EditableMarkdownMermaid.set_enabled(true);
-
     let markdown = "Before\n```mermaid\ngraph TD\nA --> B\n```\nAfter";
     let cursor_offset = markdown
         .find("graph TD")

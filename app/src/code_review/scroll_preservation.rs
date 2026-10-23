@@ -1,4 +1,3 @@
-use warp_core::features::FeatureFlag;
 use warpui::elements::ScrollOffset;
 use warpui::units::Pixels;
 use warpui::{AppContext, ViewContext, ViewHandle, WeakViewHandle};
@@ -36,10 +35,6 @@ impl CodeReviewView {
         captured_context: &RelocatableScrollContext,
         app: &AppContext,
     ) -> Option<Pixels> {
-        if !FeatureFlag::CodeReviewScrollPreservation.is_enabled() {
-            return None;
-        }
-
         // The adjustment function returns item-relative offsets (offset_from_start),
         // NOT absolute positions. The ListState stores the result directly in
         // scroll_top.offset_from_start, which is relative to the current scroll item.
@@ -183,13 +178,10 @@ impl CodeReviewView {
     /// Sets up scroll tracking from a scroll event receiver.
     /// Calls [`Self::on_scroll_settled`] on every scroll event so the
     /// scroll context is always up-to-date.
-    /// No-op when [`FeatureFlag::CodeReviewScrollPreservation`] is disabled.
     pub(super) fn setup_scroll_tracking(
         scroll_rx: async_channel::Receiver<ScrollOffset>,
         ctx: &mut ViewContext<Self>,
     ) {
-        if FeatureFlag::CodeReviewScrollPreservation.is_enabled() {
-            ctx.spawn_stream_local(scroll_rx, Self::on_scroll_settled, |_, _| {});
-        }
+        ctx.spawn_stream_local(scroll_rx, Self::on_scroll_settled, |_, _| {});
     }
 }

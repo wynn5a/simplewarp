@@ -1284,32 +1284,12 @@ impl From<String> for AgentOutputText {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum AgentOutputTableRendering {
-    Legacy { content: String },
-    Structured { table: FormattedTable },
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct AgentOutputTable {
     pub markdown_source: String,
-    pub rendering: AgentOutputTableRendering,
+    pub table: FormattedTable,
 }
 
 impl AgentOutputTable {
-    pub fn legacy(content: String) -> Self {
-        Self {
-            markdown_source: content.clone(),
-            rendering: AgentOutputTableRendering::Legacy { content },
-        }
-    }
-
-    pub fn structured(markdown_source: String, table: FormattedTable) -> Self {
-        Self {
-            markdown_source,
-            rendering: AgentOutputTableRendering::Structured { table },
-        }
-    }
-
     fn plain_text_for_cell(cell: &FormattedTextInline) -> String {
         cell.iter().map(|fragment| fragment.text.as_str()).collect()
     }
@@ -1323,24 +1303,15 @@ impl AgentOutputTable {
     }
 
     pub fn rendered_lines(&self) -> Vec<String> {
-        match &self.rendering {
-            AgentOutputTableRendering::Legacy { content } => {
-                content.lines().map(str::to_owned).collect()
-            }
-            AgentOutputTableRendering::Structured { table } => {
-                let mut lines = Vec::with_capacity(1 + table.rows.len());
-                lines.push(Self::plain_text_for_row(&table.headers));
-                lines.extend(table.rows.iter().map(|row| Self::plain_text_for_row(row)));
-                lines
-            }
-        }
-    }
-
-    pub fn structured_table(&self) -> Option<&FormattedTable> {
-        match &self.rendering {
-            AgentOutputTableRendering::Legacy { .. } => None,
-            AgentOutputTableRendering::Structured { table } => Some(table),
-        }
+        let mut lines = Vec::with_capacity(1 + self.table.rows.len());
+        lines.push(Self::plain_text_for_row(&self.table.headers));
+        lines.extend(
+            self.table
+                .rows
+                .iter()
+                .map(|row| Self::plain_text_for_row(row)),
+        );
+        lines
     }
 }
 

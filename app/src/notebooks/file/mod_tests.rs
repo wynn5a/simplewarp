@@ -6,7 +6,6 @@ use repo_metadata::RepoMetadataModel;
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::watcher::DirectoryWatcher;
 use string_offset::CharOffset;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_editor::render::model::BlockItem;
 use warp_files::FileModel;
@@ -92,7 +91,6 @@ fn test_load_local() {
 fn test_load_jupyter_notebook_renders_cells() {
     App::test((), |mut app| async move {
         init_app(&mut app);
-        let _flag = FeatureFlag::JupyterNotebookRendering.override_enabled(true);
 
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("analysis.ipynb");
@@ -159,7 +157,6 @@ fn test_load_jupyter_notebook_renders_cells() {
 fn test_malformed_jupyter_notebook_falls_back_to_raw() {
     App::test((), |mut app| async move {
         init_app(&mut app);
-        let _flag = FeatureFlag::JupyterNotebookRendering.override_enabled(true);
 
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("broken.ipynb");
@@ -295,8 +292,6 @@ fn test_load_static() {
 fn test_file_notebook_mermaid_blocks_default_to_rendered() {
     App::test((), |mut app| async move {
         init_app(&mut app);
-        let _flag = FeatureFlag::MarkdownMermaid.override_enabled(true);
-        let _editable_flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let (_, handle) = app.add_window(WindowStyle::NotStealFocus, FileNotebookView::new);
 
         handle.update(&mut app, |file_notebook, ctx| {

@@ -109,8 +109,8 @@ preferred route; D2 dropped the common-skills lock (user ruling). H4 was wrong a
 
 **Leftovers survey (2026-10-22):** queued in [plan-p5.md](plan-p5.md) — A `cargo machete` ignore
 lists (no real unused deps), B "GUI" names left from the two-front-end design, C the 132 always-on
-feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c, C2, C2b and C3 done (see the round
-log); C4–C7 next.
+feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c, C2, C2b, C3 and C4 done (see the
+round log); C5–C7 next.
 
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
@@ -1720,6 +1720,36 @@ Verification: format and all three clippy gates clean; `cargo nextest run --work
 clone-slash-command flake), 86 skipped. `cargo run` smoke: the app starts with no errors in
 `simplewarp.log`; tabs, settings and the palette were not exercised by hand (no screen-capture
 permission in the session).
+
+### Round: C4 — code editor, code review, notebooks, markdown flags (2026-10-23)
+
+- The 22 C4 flags are gone: `AutoOpenCodeReviewPane`, `BlocklistMarkdownImages`,
+  `BlocklistMarkdownTableRendering`, `CodeFindReplace`, `CodeLaunchModal`, `CodeReviewFind`,
+  `CodeReviewSaveChanges`, `CodeReviewScrollPreservation`, `DiscardPerFileAndAllChanges`,
+  `EditableMarkdownMermaid`, `ExpandEditToPane`, `FigmaDetection`, `GitOperationsInCodeReview`,
+  `InlineCodeReview`, `JupyterNotebookRendering`, `LinkedCodeBlocks`, `MarkdownMermaid`,
+  `MarkdownTables`, `PRCommentsV2`, `RevertDiffHunk`, `RichTextMultiselect`, `TabbedEditorView`,
+  with the Jupyter-rendering pin in `features_tests.rs`. Every gate keeps its on-branch.
+- Dead with the off-branches: the legacy code-review header (`CodeReviewHeader::render` and its
+  wide/compact layouts, branch tooltip, discard and diff-set buttons; the revamp's `render_new` is
+  now `render`), the left-hand file sidebar, `header_menu_items_legacy`,
+  `render_file_navigation_button`, the right panel's legacy header and `ToggleFileSidebar`; the
+  PR-comments v1 route (`handle_insert_code_review_comments_event` and the terminal → pane group →
+  workspace `InsertCodeReviewComments` events, `insert_code_review_comments`,
+  `add_pending_imported_comments`); the legacy agent-output table (`AgentOutputTableRendering`,
+  `render_legacy_table_section`, `ai::gfm_table::format_gfm_table` with its tests and the
+  `unicode-width` dependency of `crates/ai`; `AgentOutputTable` now holds the `FormattedTable`
+  directly); the non-GFM markdown parse path.
+- Tests: the flag-off tests went (`test_layout_text_block_uses_plain_text_when_flag_disabled`,
+  `test_resolve_file_target_jupyter_notebook_flag_off`,
+  `test_open_file_ipynb_opens_in_editor_when_disabled`,
+  `extracts_gfm_pipe_table_into_legacy_table_section_when_flag_disabled`, the four
+  `format_gfm_table_*` tests); mixed tests keep their on-path half and lose the flag suffix.
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,255 run
+(−9 deleted), 6,254 passed, 1 failed (the clone-slash-command flake), 86 skipped. `cargo run`
+smoke: the app starts with no errors in `simplewarp.log`; code review, notebooks and agent tables
+were not exercised by hand.
 
 ## Risks
 

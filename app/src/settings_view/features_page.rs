@@ -2174,9 +2174,7 @@ impl FeaturesPageView {
             general_widgets.push(Box::new(MouseScrollMultiplierWidget::default()));
         }
 
-        if FeatureFlag::AutoOpenCodeReviewPane.is_enabled() {
-            general_widgets.push(Box::new(AutoOpenCodeReviewPaneWidget::default()));
-        }
+        general_widgets.push(Box::new(AutoOpenCodeReviewPaneWidget::default()));
 
         if DefaultTerminal::can_warp_become_default() {
             general_widgets.push(Box::new(DefaultTerminalWidget::default()));

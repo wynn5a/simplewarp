@@ -10,7 +10,6 @@ use markdown_parser::{
 use pathfinder_geometry::vector::Vector2F;
 use string_offset::CharOffset;
 use vec1::vec1;
-use warp_core::features::FeatureFlag;
 use warp_editor::content::buffer::{AutoScrollBehavior, BufferSelectAction, SelectionOffsets};
 use warp_editor::content::text::{BlockType, BufferBlockStyle, CodeBlockType, TextStyles};
 use warp_editor::model::{CoreEditorModel, RichTextEditorModel};
@@ -673,8 +672,6 @@ fn test_plain_text_pasting() {
 fn test_delete_inside_raw_mermaid_block_edits_text_without_removing_block() {
     App::test((), |mut app| async move {
         initialize_deps(&mut app);
-        let _flag = FeatureFlag::MarkdownMermaid.override_enabled(true);
-        let _editable_flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let markdown = "Text
 ```mermaid
 graph TD
@@ -2209,8 +2206,6 @@ More text"#,
 fn test_delete_with_mermaid_command_selection() {
     App::test((), |mut app| async move {
         initialize_deps(&mut app);
-        let _flag = FeatureFlag::MarkdownMermaid.override_enabled(true);
-        let _editable_flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let model_handle = model_from_markdown(
             "Text\n```mermaid\ngraph TD\nA --> B\n```\nMore text",
             &mut app,
@@ -2241,8 +2236,6 @@ fn test_delete_with_mermaid_command_selection() {
 fn test_adjacent_delete_with_rendered_mermaid_block_is_atomic() {
     App::test((), |mut app| async move {
         initialize_deps(&mut app);
-        let _flag = FeatureFlag::MarkdownMermaid.override_enabled(true);
-        let _editable_flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let markdown = "Text
 ```mermaid
 graph TD
@@ -2321,8 +2314,6 @@ More text";
 fn test_backspace_with_cursor_inside_rendered_mermaid_block_is_atomic() {
     App::test((), |mut app| async move {
         initialize_deps(&mut app);
-        let _flag = FeatureFlag::MarkdownMermaid.override_enabled(true);
-        let _editable_flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let markdown = "Text
 ```mermaid
 graph TD
@@ -2376,8 +2367,6 @@ More text";
 fn test_move_up_from_below_rendered_mermaid_block_lands_on_block_start() {
     App::test((), |mut app| async move {
         initialize_deps(&mut app);
-        let _flag = FeatureFlag::MarkdownMermaid.override_enabled(true);
-        let _editable_flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let markdown = "Before\n```mermaid\ngraph TD\nA --> B\n```\nAfter";
 
         let model_handle = model_from_markdown(markdown, &mut app, true);
@@ -2419,8 +2408,6 @@ fn test_move_up_from_below_rendered_mermaid_block_lands_on_block_start() {
 fn test_shift_select_across_rendered_mermaid_block_is_reversible_from_below() {
     App::test((), |mut app| async move {
         initialize_deps(&mut app);
-        let _flag = FeatureFlag::MarkdownMermaid.override_enabled(true);
-        let _editable_flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let markdown = "Before\n```mermaid\ngraph TD\nA --> B\n```\nAfter";
 
         let model_handle = model_from_markdown(markdown, &mut app, true);
@@ -2475,8 +2462,6 @@ fn test_shift_select_across_rendered_mermaid_block_is_reversible_from_below() {
 fn test_move_down_from_rendered_mermaid_block_start_returns_below_block() {
     App::test((), |mut app| async move {
         initialize_deps(&mut app);
-        let _flag = FeatureFlag::MarkdownMermaid.override_enabled(true);
-        let _editable_flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let markdown = "Before\n```mermaid\ngraph TD\nA --> B\n```\nAfter";
 
         let model_handle = model_from_markdown(markdown, &mut app, true);
@@ -2580,8 +2565,6 @@ fn test_cut_code_block() {
 fn test_cut_mermaid_code_block_uses_fenced_markdown_plain_text() {
     App::test((), |mut app| async move {
         initialize_deps(&mut app);
-        let _flag = FeatureFlag::MarkdownMermaid.override_enabled(true);
-        let _editable_flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let model_handle = model_from_markdown(
             "Text\n```mermaid\ngraph TD\nA --> B\n```\n* List",
             &mut app,
@@ -2619,8 +2602,6 @@ fn test_cut_mermaid_code_block_uses_fenced_markdown_plain_text() {
 fn test_copy_mermaid_code_block_adds_html_without_image_clipboard_data() {
     App::test((), |mut app| async move {
         initialize_deps(&mut app);
-        let _flag = FeatureFlag::MarkdownMermaid.override_enabled(true);
-        let _editable_flag = FeatureFlag::EditableMarkdownMermaid.override_enabled(true);
         let model_handle = model_from_markdown(
             "Text\n```mermaid\ngraph TD\nA --> B\n```\n* List",
             &mut app,
@@ -2687,44 +2668,20 @@ fn test_copy_selection_with_markdown_image_omits_image_clipboard_data() {
 }
 
 #[test]
-fn test_mermaid_feature_flag_disables_rendering_and_toggle() {
-    // With the flag disabled, Mermaid blocks never render as diagrams.
-    // With the flag enabled, blocks default to Raw mode — no auto-rendering.
-    // Diagram rendering only happens when the user explicitly selects Rendered.
+fn test_mermaid_blocks_default_to_raw() {
+    // Blocks default to Raw mode — no auto-rendering. Diagram rendering only happens when the
+    // user explicitly selects Rendered.
     App::test((), |mut app| async move {
         initialize_deps(&mut app);
         let markdown = "```mermaid\ngraph TD\nA --> B\n```";
 
-        let _disabled = FeatureFlag::MarkdownMermaid.override_enabled(false);
         let model_handle = model_from_markdown(markdown, &mut app, true);
-        model_handle.update(&mut app, |model, ctx| {
-            model.set_interaction_state(InteractionState::Selectable, ctx);
-        });
-        layout_model(&mut app, &model_handle).await;
-
-        let disabled_is_mermaid_diagram = model_handle.read(&app, |model, ctx| {
-            matches!(
-                model
-                    .render_state
-                    .as_ref(ctx)
-                    .content()
-                    .block_at_height(0.)
-                    .map(|item| item.item),
-                Some(BlockItem::MermaidDiagram { .. })
-            )
-        });
-        assert!(!disabled_is_mermaid_diagram);
-
-        drop(_disabled);
-
-        let _enabled = FeatureFlag::MarkdownMermaid.override_enabled(true);
         model_handle.update(&mut app, |model, ctx| {
             model.reset_with_markdown(markdown, ctx);
             model.set_interaction_state(InteractionState::Selectable, ctx);
         });
         layout_model(&mut app, &model_handle).await;
 
-        // Even with the flag enabled, blocks default to Raw mode — not auto-rendered.
         let enabled_defaults_to_raw = model_handle.read(&app, |model, ctx| {
             !matches!(
                 model
@@ -2744,7 +2701,6 @@ fn test_mermaid_feature_flag_disables_rendering_and_toggle() {
 fn test_default_mermaid_display_mode_renders_initial_mermaid_blocks() {
     App::test((), |mut app| async move {
         initialize_deps(&mut app);
-        let _enabled = FeatureFlag::MarkdownMermaid.override_enabled(true);
         let markdown = "```mermaid\ngraph TD\nA --> B\n```";
 
         let model_handle = model_from_markdown(markdown, &mut app, true);

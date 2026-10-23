@@ -25,7 +25,6 @@ use crate::code::editor::model::CodeEditorModel;
 use crate::code::editor::view::{CodeEditorEvent, CodeEditorView, VimMode};
 use crate::code_review::comments::CommentId;
 use crate::editor::InteractionState;
-use crate::features::FeatureFlag;
 use crate::notebooks::editor::model::word_unit;
 use crate::util::bindings::CustomAction;
 
@@ -598,8 +597,7 @@ pub fn init(app: &mut AppContext) {
     )
     .with_key_binding(cmd_or_ctrl_shift("f"))
     .with_custom_action(CustomAction::Find)
-    .with_context_predicate(text_entry.clone() & id!("FindBarAvailable"))
-    .with_enabled(|| FeatureFlag::CodeFindReplace.is_enabled())]);
+    .with_context_predicate(text_entry.clone() & id!("FindBarAvailable"))]);
 
     // Editable Go to Line keybinding
     app.register_editable_bindings([EditableBinding::new(
@@ -966,14 +964,14 @@ impl TypedActionView for CodeEditorView {
             }),
             SelectWord { offset, modifiers } => {
                 self.is_selecting = true;
-                let multiselect = modifiers.alt && FeatureFlag::RichTextMultiselect.is_enabled();
+                let multiselect = modifiers.alt;
                 self.model.update(ctx, |model, ctx| {
                     model.select_word_at(*offset, multiselect, ctx);
                 });
             }
             SelectLine { offset, modifiers } => {
                 self.is_selecting = true;
-                let multiselect = modifiers.alt && FeatureFlag::RichTextMultiselect.is_enabled();
+                let multiselect = modifiers.alt;
                 self.model.update(ctx, |model, ctx| {
                     model.select_line_at(*offset, multiselect, ctx);
                 });
@@ -1061,41 +1059,35 @@ impl TypedActionView for CodeEditorView {
                 ctx.notify();
             }
             RevertDiffHunk { line_range } => {
-                if FeatureFlag::RevertDiffHunk.is_enabled() {
-                    // Convert line range to diff hunk index and revert it
-                    let hunk_index = self
-                        .model
-                        .as_ref(ctx)
-                        .diff()
-                        .as_ref(ctx)
-                        .diff_hunk_count_before_line(line_range.start.as_usize());
+                // Convert line range to diff hunk index and revert it
+                let hunk_index = self
+                    .model
+                    .as_ref(ctx)
+                    .diff()
+                    .as_ref(ctx)
+                    .diff_hunk_count_before_line(line_range.start.as_usize());
 
-                    self.model.update(ctx, |model, ctx| {
-                        model.reverse_diff_by_index(hunk_index, ctx);
-                    });
+                self.model.update(ctx, |model, ctx| {
+                    model.reverse_diff_by_index(hunk_index, ctx);
+                });
 
-                    // Emit event for parent to handle
-                    ctx.emit(CodeEditorEvent::DiffReverted);
+                // Emit event for parent to handle
+                ctx.emit(CodeEditorEvent::DiffReverted);
 
-                    // Notify to re-render
-                    ctx.notify();
-                }
+                // Notify to re-render
+                ctx.notify();
             }
             NewCommentOnLine { line: line_info } => {
-                if FeatureFlag::InlineCodeReview.is_enabled() {
-                    self.model.update(ctx, |model: &mut CodeEditorModel, ctx| {
-                        model.open_comment_line(line_info, ctx);
-                    });
-                    ctx.emit(CodeEditorEvent::CommentEditorOpened);
+                self.model.update(ctx, |model: &mut CodeEditorModel, ctx| {
+                    model.open_comment_line(line_info, ctx);
+                });
+                ctx.emit(CodeEditorEvent::CommentEditorOpened);
 
-                    ctx.focus(&self.active_comment_editor);
-                    ctx.notify();
-                }
+                ctx.focus(&self.active_comment_editor);
+                ctx.notify();
             }
             RequestOpenSavedComment { uuid } => {
-                if FeatureFlag::InlineCodeReview.is_enabled() {
-                    ctx.emit(CodeEditorEvent::RequestOpenComment(*uuid))
-                }
+                ctx.emit(CodeEditorEvent::RequestOpenComment(*uuid))
             }
             MouseHovered {
                 offset,

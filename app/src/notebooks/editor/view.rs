@@ -1459,9 +1459,6 @@ impl RichTextEditorView {
         block_range: Range<CharOffset>,
         ctx: &AppContext,
     ) -> Option<CharOffset> {
-        if !FeatureFlag::EditableMarkdownMermaid.is_enabled() {
-            return None;
-        }
         let selection_head_in_render_coordinates = self.selection_head_in_render_coordinates(ctx);
         if selection_head_in_render_coordinates <= block_range.start {
             Some(block_range.end)
@@ -3053,7 +3050,7 @@ impl RichTextAction<RichTextEditorView> for EditorViewAction {
             modifiers.cmd,
             modifiers.shift
         );
-        let multiselect = modifiers.alt && FeatureFlag::RichTextMultiselect.is_enabled();
+        let multiselect = modifiers.alt;
 
         // The first mouse down to bring focus to a Warp window will not have a corresponding mouse up.
         // We ignore it, and they can click again.

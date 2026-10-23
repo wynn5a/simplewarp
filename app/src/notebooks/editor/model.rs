@@ -16,7 +16,6 @@ use string_offset::CharOffset;
 use url::Url;
 use vec1::{Vec1, vec1};
 use warp_core::r#async::debounce;
-use warp_core::features::FeatureFlag;
 use warp_core::semantic_selection::SemanticSelection;
 use warp_editor::content::buffer::{
     AutoScrollBehavior, Buffer, BufferEditAction, BufferEvent, BufferSelectAction, EditOrigin,
@@ -136,11 +135,6 @@ fn render_mermaid_clipboard_html(source: &str) -> Option<String> {
 }
 
 impl NotebooksEditorModel {
-    fn editable_markdown_mermaid_enabled() -> bool {
-        FeatureFlag::MarkdownMermaid.is_enabled()
-            && FeatureFlag::EditableMarkdownMermaid.is_enabled()
-    }
-
     pub fn new(
         text_styles: RichTextStyles,
         rte_window_id: WindowId,
@@ -1208,7 +1202,6 @@ impl NotebooksEditorModel {
                     MarkdownDisplayMode::Rendered
                 )
             })
-            && Self::editable_markdown_mermaid_enabled()
             && matches!(
                 self.interaction_state(ctx),
                 InteractionState::Selectable
@@ -1641,9 +1634,7 @@ impl NotebooksEditorModel {
         let Some(source) = self.mermaid_block_source(start, ctx) else {
             return clipboard;
         };
-        if Self::editable_markdown_mermaid_enabled() {
-            clipboard.plain_text = format!("```mermaid\n{source}\n```");
-        }
+        clipboard.plain_text = format!("```mermaid\n{source}\n```");
         let Some(image_html) = render_mermaid_clipboard_html(&source) else {
             return clipboard;
         };

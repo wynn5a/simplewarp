@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use command::blocking::Command;
-use warp::features::FeatureFlag;
 use warp::integration_testing::code_review::{
     ScrollRegion, assert_code_review_anchor, assert_code_review_line_text,
     assert_code_review_loaded, assert_code_review_scroll_region, assert_min_hidden_sections,
@@ -135,7 +134,6 @@ fn code_review_scroll_anchor_builder(
     insertion_line_number: usize,
     insertion_prefix: &'static str,
 ) -> Builder {
-    FeatureFlag::CodeReviewScrollPreservation.set_enabled(true);
     let inserted_line_text = inserted_lines(insertion_prefix)
         .into_iter()
         .next()
@@ -290,8 +288,6 @@ fn deleted_range_diff_contents() -> String {
 }
 
 pub fn test_code_review_scroll_preserved_deleted_range() -> Builder {
-    FeatureFlag::CodeReviewScrollPreservation.set_enabled(true);
-
     let inserted_line_text = inserted_lines("above")
         .into_iter()
         .next()
@@ -369,8 +365,6 @@ pub fn test_code_review_scroll_preserved_deleted_range() -> Builder {
 // This exercises the Header variant of RelocatableScrollContext.
 
 pub fn test_code_review_scroll_preserved_header_range() -> Builder {
-    FeatureFlag::CodeReviewScrollPreservation.set_enabled(true);
-
     let inserted_line_text = inserted_lines("above")
         .into_iter()
         .next()
@@ -449,8 +443,6 @@ pub fn test_code_review_scroll_preserved_header_range() -> Builder {
 // has second_file.txt below it, making the footer reachable.
 
 pub fn test_code_review_scroll_preserved_footer_range() -> Builder {
-    FeatureFlag::CodeReviewScrollPreservation.set_enabled(true);
-
     let inserted_line_text = inserted_lines("first")
         .into_iter()
         .next()
@@ -543,8 +535,6 @@ pub fn test_code_review_scroll_preserved_footer_range() -> Builder {
 }
 
 pub fn test_code_review_scroll_preserved_second_file() -> Builder {
-    FeatureFlag::CodeReviewScrollPreservation.set_enabled(true);
-
     let inserted_line_text = inserted_lines("second")
         .into_iter()
         .next()

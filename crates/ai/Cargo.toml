@@ -45,7 +45,6 @@ chrono.workspace = true
 persistence.workspace = true
 repo_metadata.workspace = true
 uuid.workspace = true
-unicode-width.workspace = true
 async-fs.workspace = true
 arborium.workspace = true
 languages.workspace = true

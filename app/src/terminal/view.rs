@@ -11,7 +11,6 @@ pub(crate) mod queued_prompts_panel;
 #[cfg(test)]
 #[path = "view/queued_prompts_tests.rs"]
 mod queued_prompts_tests;
-use ai::agent::action::InsertReviewComment;
 pub use load_ai_conversation::ConversationRestorationInNewPaneType;
 // TODO(advait): if we align on prompt suggestions banner in Input, move code out of inline_banner mod.
 mod init_project;
@@ -215,9 +214,7 @@ use crate::cloud_object::{
 };
 use crate::code::editor_management::CodeSource;
 use crate::code_review::DiffSetScope;
-use crate::code_review::comments::{
-    AttachedReviewComment, PendingImportedReviewComment, convert_insert_review_comments,
-};
+use crate::code_review::comments::AttachedReviewComment;
 use crate::code_review::context::{
     convert_file_diffs_to_diffset_hunks, create_attachment_reference_and_key,
     register_diffset_attachment,
@@ -1360,12 +1357,6 @@ pub enum Event {
     },
     OpenCodeReviewPane(CodeReviewPanelArg),
     ToggleCodeReviewPane(CodeReviewPanelArg),
-    InsertCodeReviewComments {
-        repo_path: LocalOrRemotePath,
-        comments: Vec<PendingImportedReviewComment>,
-        diff_mode: DiffMode,
-        open_code_review: Option<CodeReviewPanelArg>,
-    },
     OpenCodeReviewPaneAndScrollToComment {
         open_code_review: CodeReviewPanelArg,
         comment: Box<AttachedReviewComment>,
@@ -5214,7 +5205,6 @@ impl TerminalView {
 
                         if !already_opened
                             && should_auto_open
-                            && FeatureFlag::AutoOpenCodeReviewPane.is_enabled()
                             && self.can_auto_open_code_review_panel(ctx)
                         {
                             self.open_code_review_pane(
@@ -5228,65 +5218,9 @@ impl TerminalView {
                     }
                 }
             }
-            BlocklistAIActionEvent::InsertCodeReviewComments {
-                action_id: _,
-                repo_path,
-                comments,
-                base_branch,
-            } => {
-                if !FeatureFlag::PRCommentsV2.is_enabled() {
-                    self.handle_insert_code_review_comments_event(
-                        repo_path,
-                        comments,
-                        base_branch.as_deref(),
-                        ctx,
-                    );
-                }
-            }
+            BlocklistAIActionEvent::InsertCodeReviewComments { .. } => {}
             BlocklistAIActionEvent::QueuedAction(_) => {}
         }
-    }
-
-    fn handle_insert_code_review_comments_event(
-        &mut self,
-        repo_path: &Path,
-        comments: &[InsertReviewComment],
-        base_branch: Option<&str>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let pending_comments = convert_insert_review_comments(comments);
-
-        if pending_comments.is_empty() {
-            log::warn!("No valid comments to insert");
-            return;
-        }
-
-        // Determine DiffMode from the base branch.
-        if self.current_repo_path.is_none() {
-            log::warn!("Cannot insert PR comments: not in a git repository");
-            return;
-        }
-
-        let diff_mode = self.diff_mode_for_branch(base_branch, ctx);
-
-        let open_code_review = if FeatureFlag::PRCommentsV2.is_enabled() {
-            None
-        } else {
-            Some(CodeReviewPanelArg {
-                repo_path: Some(LocalOrRemotePath::Local(repo_path.to_path_buf())),
-                terminal_view: self.view_handle.clone(),
-                entrypoint: CodeReviewPaneEntrypoint::InvokedByAgent,
-                focus_new_pane: false,
-                cli_agent: None,
-            })
-        };
-
-        ctx.emit(Event::InsertCodeReviewComments {
-            repo_path: LocalOrRemotePath::Local(repo_path.to_path_buf()),
-            comments: pending_comments,
-            diff_mode,
-            open_code_review,
-        });
     }
 
     /// Gets the DiffMode for the given branch name by fetching the main branch name
@@ -8322,44 +8256,38 @@ impl TerminalView {
 
                     // If the completed command was a `gh` or `gt` invocation, eagerly refresh PR
                     // info since these don't touch .git/ and won't be caught by the filesystem watcher.
-                    if (FeatureFlag::GitOperationsInCodeReview.is_enabled()
-                        || FeatureFlag::GithubPrPromptChip.is_enabled())
-                        && match &block_type {
-                            BlockType::User(user_block_completed) => {
-                                let command = user_block_completed.command.as_str();
-                                let top_level = user_block_completed
-                                    .serialized_block
-                                    .session_id
-                                    .and_then(|session_id| {
-                                        self.sessions.as_ref(ctx).get(session_id)
-                                    })
-                                    .and_then(|session| {
-                                        let escape_char = session.shell_family().escape_char();
-                                        let cmd =
+                    if match &block_type {
+                        BlockType::User(user_block_completed) => {
+                            let command = user_block_completed.command.as_str();
+                            let top_level = user_block_completed
+                                .serialized_block
+                                .session_id
+                                .and_then(|session_id| self.sessions.as_ref(ctx).get(session_id))
+                                .and_then(|session| {
+                                    let escape_char = session.shell_family().escape_char();
+                                    let cmd = warp_completer::parsers::simple::top_level_command(
+                                        command,
+                                        escape_char,
+                                    )?;
+                                    let cmd = session
+                                        .alias_value(cmd.as_str())
+                                        .and_then(|alias| {
                                             warp_completer::parsers::simple::top_level_command(
-                                                command,
+                                                alias,
                                                 escape_char,
-                                            )?;
-                                        let cmd = session
-                                            .alias_value(cmd.as_str())
-                                            .and_then(|alias| {
-                                                warp_completer::parsers::simple::top_level_command(
-                                                    alias,
-                                                    escape_char,
-                                                )
-                                            })
-                                            .unwrap_or(cmd);
-                                        Some(cmd)
-                                    })
-                                    .or_else(|| {
-                                        command.split_whitespace().next().map(|cmd| cmd.to_owned())
-                                    });
+                                            )
+                                        })
+                                        .unwrap_or(cmd);
+                                    Some(cmd)
+                                })
+                                .or_else(|| {
+                                    command.split_whitespace().next().map(|cmd| cmd.to_owned())
+                                });
 
-                                matches!(top_level.as_deref(), Some("gh" | "gt"))
-                            }
-                            _ => false,
+                            matches!(top_level.as_deref(), Some("gh" | "gt"))
                         }
-                    {
+                        _ => false,
+                    } {
                         self.refresh_pr_info_after_gh_or_gt_command(ctx);
                     }
                 }

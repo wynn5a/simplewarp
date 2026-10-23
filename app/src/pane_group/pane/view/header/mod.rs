@@ -2,7 +2,6 @@ use std::fmt::Debug;
 
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::{Vector2F, vec2f};
-use warp_core::features::FeatureFlag;
 use warp_core::settings::Setting;
 use warp_errors::report_error;
 use warpui::elements::{
@@ -423,8 +422,7 @@ impl<P: BackingView> PaneHeader<P> {
         // Check if tooltip has been dismissed already.
         // We should only trigger this if we are in a git repository,
         // but the pane header will only render if we are already in one.
-        let should_show_tooltip = FeatureFlag::CodeLaunchModal.is_enabled()
-            && !*CodeSettings::as_ref(app)
+        let should_show_tooltip = !*CodeSettings::as_ref(app)
                 .dismissed_code_toolbelt_new_feature_popup
                 .value()
                 // We should not render the tooltip if no code toolbelt buttons are present.

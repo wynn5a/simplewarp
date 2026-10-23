@@ -1,12 +1,7 @@
-//! Header layout used when the `GitOperationsInCodeReview` feature flag is
-//! enabled. This replaces the legacy header (which lives in the parent module)
-//! with a simplified layout: the diff-mode dropdown on the left, and file-nav /
-//! overflow / maximize buttons on the right.
-//!
-//! Separated into its own module so the two codepaths are easy to distinguish.
+//! Code review header layout: the diff-mode dropdown on the left, and file-nav / overflow /
+//! maximize buttons on the right.
 
 use pathfinder_geometry::vector::vec2f;
-use warp_core::features::FeatureFlag;
 use warpui::elements::{
     ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CrossAxisAlignment, Flex,
     MainAxisAlignment, MainAxisSize, OffsetPositioning, ParentAnchor, ParentElement,
@@ -27,7 +22,7 @@ impl CodeReviewHeader {
     /// Entry-point for the new header layout (feature-flagged behind
     /// `GitOperationsInCodeReview`). Renders a single row: diff-mode dropdown
     /// on the left, action buttons on the right.
-    pub fn render_new(
+    pub fn render(
         &self,
         appearance: &Appearance,
         code_review_header_fields: &CodeReviewHeaderFields,
@@ -96,10 +91,6 @@ impl CodeReviewHeader {
     fn render_git_operations_button(
         code_review_header_fields: &CodeReviewHeaderFields,
     ) -> Option<Box<dyn Element>> {
-        if !FeatureFlag::GitOperationsInCodeReview.is_enabled() {
-            return None;
-        }
-
         let mut row = Flex::row().with_child(
             ChildView::new(&code_review_header_fields.git_primary_action_button).finish(),
         );

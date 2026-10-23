@@ -108,7 +108,6 @@ use crate::terminal::input::MenuPositioning;
 use crate::terminal::view::{InitProjectModel, TerminalAction, TerminalView};
 use crate::themes::theme::WarpTheme;
 use crate::ui_components::blended_colors::{neutral_2, neutral_3};
-use crate::ui_components::buttons::icon_button_with_color;
 use crate::ui_components::dialog::{Dialog, dialog_styles};
 use crate::ui_components::icons::Icon;
 use crate::ui_components::render_file_search_row::{FileSearchRowOptions, render_file_search_row};
@@ -121,7 +120,7 @@ use crate::util::openable_file_type::{FileTarget, resolve_file_target_with_edito
 use crate::view_components::DismissibleToast;
 use crate::view_components::action_button::{
     ActionButton, ActionButtonTheme, AdjoinedSide, ButtonSize, DangerPrimaryTheme, KeystrokeSource,
-    NakedTheme, PaneHeaderTheme, SecondaryTheme, TooltipAlignment,
+    NakedTheme, SecondaryTheme, TooltipAlignment,
 };
 use crate::view_components::find::{Event as FindViewEvent, Find, FindEvent, FindWithinBlockState};
 use crate::workspace::view::right_panel::{ReviewDestination, ReviewSubmissionResult};
@@ -133,7 +132,6 @@ pub struct CodeReviewHeaderFields {
     pub header_dropdown_button: ViewHandle<ActionButton>,
     pub has_header_menu_items: bool,
     pub is_in_split_pane: bool,
-    pub diff_state_model: ModelHandle<DiffStateModel>,
     pub maximize_button: ViewHandle<ActionButton>,
     pub diff_selector: ViewHandle<DiffSelector>,
     pub file_nav_button: Option<ViewHandle<ActionButton>>,
@@ -149,57 +147,6 @@ pub struct CodeReviewCommentDebugState {
     pub repo_path: Option<LocalOrRemotePath>,
     pub has_active_comment_model: bool,
     pub comment_list: CommentListDebugState,
-}
-
-/// Renders a file navigation button (sidebar toggle) that can be reused across views.
-pub fn render_file_navigation_button<F>(
-    appearance: &Appearance,
-    is_sidebar_expanded: bool,
-    mouse_state: MouseStateHandle,
-    on_click: F,
-) -> Box<dyn Element>
-where
-    F: Fn(&mut warpui::EventContext<'_>) + 'static,
-{
-    let ui_builder = appearance.ui_builder().clone();
-    let icon_color = appearance
-        .theme()
-        .sub_text_color(appearance.theme().background());
-    let button = icon_button_with_color(
-        appearance,
-        if is_sidebar_expanded {
-            Icon::LeftSidebarClose
-        } else {
-            Icon::LeftSidebarOpen
-        },
-        false,
-        mouse_state,
-        icon_color,
-    )
-    .with_tooltip(move || {
-        ui_builder
-            .tool_tip(if is_sidebar_expanded {
-                "Hide file navigation".to_owned()
-            } else {
-                "Show file navigation".to_owned()
-            })
-            .build()
-            .finish()
-    })
-    .with_tooltip_position(warpui::ui_components::button::ButtonTooltipPosition::BelowLeft)
-    .build()
-    .on_click(move |ctx: &mut warpui::EventContext<'_>, _, _| {
-        on_click(ctx);
-    });
-
-    Container::new(
-        ConstrainedBox::new(button.finish())
-            .with_height(24.)
-            .with_width(24.)
-            .finish(),
-    )
-    .with_margin_right(4.)
-    .finish()
 }
 
 /// Determines which primary git action the code review header should present.
@@ -1066,12 +1013,7 @@ impl CodeReviewView {
         });
 
         let header_dropdown_button = ctx.add_typed_action_view(|_ctx| {
-            let theme: Arc<dyn ActionButtonTheme> =
-                if FeatureFlag::GitOperationsInCodeReview.is_enabled() {
-                    Arc::new(NakedTheme)
-                } else {
-                    Arc::new(PaneHeaderTheme)
-                };
+            let theme: Arc<dyn ActionButtonTheme> = Arc::new(NakedTheme);
             ActionButton::new_with_boxed_theme("", theme)
                 .with_icon(Icon::DotsVertical)
                 .on_click(|ctx| ctx.dispatch_typed_action(CodeReviewAction::OpenHeaderMenu))
@@ -2169,15 +2111,11 @@ impl CodeReviewView {
                 load_duration,
             } => {
                 self.invalidate_all(diffs.as_ref().map(|d| d.as_ref()), *load_duration, ctx);
-                if FeatureFlag::GitOperationsInCodeReview.is_enabled() {
-                    self.update_git_operations_ui(ctx);
-                }
+                self.update_git_operations_ui(ctx);
             }
             DiffStateModelEvent::SingleFileUpdated { path, diff } => {
                 self.update_from_single_file_diff_result(path.clone(), diff.clone(), ctx);
-                if FeatureFlag::GitOperationsInCodeReview.is_enabled() {
-                    self.update_git_operations_ui(ctx);
-                }
+                self.update_git_operations_ui(ctx);
             }
             DiffStateModelEvent::MetadataRefreshed(metadata) => {
                 let mode = self.diff_state_model.as_ref(ctx).diff_mode();
@@ -2196,9 +2134,7 @@ impl CodeReviewView {
                         loaded_state.files_changed = stats.files_changed;
                     }
                 }
-                if FeatureFlag::GitOperationsInCodeReview.is_enabled() {
-                    self.update_git_operations_ui(ctx);
-                }
+                self.update_git_operations_ui(ctx);
                 ctx.notify();
             }
             DiffStateModelEvent::BranchesReceived(branches) => {
@@ -3223,11 +3159,7 @@ impl CodeReviewView {
                     }
 
                     if is_initial_setup {
-                        if FeatureFlag::CodeReviewSaveChanges.is_enabled() {
-                            editor.set_interaction_state(InteractionState::Editable, ctx);
-                        } else {
-                            editor.set_interaction_state(InteractionState::Selectable, ctx);
-                        }
+                        editor.set_interaction_state(InteractionState::Editable, ctx);
                     }
                 });
             });
@@ -3735,7 +3667,7 @@ impl CodeReviewView {
         let top_section = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_main_axis_alignment(MainAxisAlignment::Start)
-            .with_child(self.render_header(state, appearance, is_in_split_pane, app))
+            .with_child(self.render_header(appearance, is_in_split_pane, app))
             .with_child(self.render_content(state, appearance, app));
 
         let top_section_with_margin = ConstrainedBox::new(
@@ -3893,16 +3825,11 @@ impl CodeReviewView {
     /// Renders the header with diff mode dropdown and overflow menu.
     fn render_header(
         &self,
-        state: &LoadedState,
         appearance: &Appearance,
         is_in_split_pane: bool,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let has_menu_flags = FeatureFlag::DiscardPerFileAndAllChanges.is_enabled()
-            || FeatureFlag::DiffSetAsContext.is_enabled();
-        let has_changes = matches!(self.state(), CodeReviewViewState::Loaded(loaded) if !loaded.to_diff_stats().has_no_changes());
-        let has_header_menu_items =
-            has_menu_flags && (!FeatureFlag::GitOperationsInCodeReview.is_enabled() || has_changes);
+        let has_header_menu_items = matches!(self.state(), CodeReviewViewState::Loaded(loaded) if !loaded.to_diff_stats().has_no_changes());
 
         let code_review_header_fields = CodeReviewHeaderFields {
             header_menu: self.header_menu.clone(),
@@ -3912,10 +3839,7 @@ impl CodeReviewView {
             is_in_split_pane,
             maximize_button: self.maximize_button.clone(),
             diff_selector: self.diff_selector.clone(),
-            diff_state_model: self.diff_state_model.clone(),
-            file_nav_button: if FeatureFlag::GitOperationsInCodeReview.is_enabled()
-                && self.has_file_states()
-            {
+            file_nav_button: if self.has_file_states() {
                 Some(self.file_nav_button.clone())
             } else {
                 None
@@ -3927,13 +3851,7 @@ impl CodeReviewView {
             git_operations_menu_open: self.git_operations_menu_open,
         };
 
-        let header = if FeatureFlag::GitOperationsInCodeReview.is_enabled() {
-            self.header
-                .render_new(appearance, &code_review_header_fields)
-        } else {
-            self.header
-                .render(state, appearance, &code_review_header_fields, app)
-        };
+        let header = self.header.render(appearance, &code_review_header_fields);
         SavePosition::new(header, &self.header_position_id).finish()
     }
 
@@ -4190,24 +4108,6 @@ impl CodeReviewView {
         let mut sidebar_and_diffs_row =
             Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
 
-        let sidebar_on_right = FeatureFlag::GitOperationsInCodeReview.is_enabled();
-
-        // When the flag is off, sidebar goes on the left (legacy).
-        if !sidebar_on_right && self.file_sidebar_expanded && !state.file_states.is_empty() {
-            sidebar_and_diffs_row
-                .add_child(Container::new(self.render_file_sidebar(state, appearance)).finish());
-
-            let vertical_separator = ConstrainedBox::new(
-                Rect::new()
-                    .with_background(appearance.theme().outline())
-                    .finish(),
-            )
-            .with_width(1.)
-            .finish();
-
-            sidebar_and_diffs_row.add_child(vertical_separator);
-        }
-
         let axis_config = SingleAxisConfig::Manual {
             handle: self.scroll_state.clone(),
             child: NewScrollableElement::finish_scrollable(List::new(
@@ -4228,20 +4128,16 @@ impl CodeReviewView {
             SavePosition::new(scrollable_diffs, &self.code_review_list_position_id).finish();
 
         let diffs_container = if self.file_sidebar_expanded && !state.file_states.is_empty() {
-            let margin = if sidebar_on_right {
-                Container::new(scrollable_diffs).with_margin_right(15.)
-            } else {
-                Container::new(scrollable_diffs).with_margin_left(15.)
-            };
-            margin.finish()
+            Container::new(scrollable_diffs)
+                .with_margin_right(15.)
+                .finish()
         } else {
             scrollable_diffs
         };
 
         sidebar_and_diffs_row.add_child(Shrinkable::new(1., diffs_container).finish());
 
-        // When the flag is on, sidebar goes on the right (new layout).
-        if sidebar_on_right && self.file_sidebar_expanded && !state.file_states.is_empty() {
+        if self.file_sidebar_expanded && !state.file_states.is_empty() {
             let vertical_separator = ConstrainedBox::new(
                 Rect::new()
                     .with_background(appearance.theme().outline())
@@ -4305,29 +4201,19 @@ impl CodeReviewView {
 
         // We need an Align to ensure the Resizable takes up the full height of the sidebar.
         // This way, the click target for resizing doesn't shrink with a short or empty file list.
-        let sidebar_on_right = FeatureFlag::GitOperationsInCodeReview.is_enabled();
-        let sidebar_content = if sidebar_on_right {
-            Container::new(scrollable_content)
-                .with_padding_left(8.)
-                .finish()
-        } else {
-            Container::new(scrollable_content)
-                .with_padding_right(8.)
-                .finish()
-        };
-        let mut resizable = Resizable::new(
+        let sidebar_content = Container::new(scrollable_content)
+            .with_padding_left(8.)
+            .finish();
+        Resizable::new(
             self.ui_state_handles.sidebar_resizable_state.clone(),
             sidebar_content,
-        );
-        if sidebar_on_right {
-            resizable = resizable.with_dragbar_side(DragBarSide::Left);
-        }
-        resizable
-            .on_resize(move |ctx, _| {
-                ctx.notify();
-            })
-            .with_bounds_callback(Box::new(Self::file_sidebar_bounds_callback))
-            .finish()
+        )
+        .with_dragbar_side(DragBarSide::Left)
+        .on_resize(move |ctx, _| {
+            ctx.notify();
+        })
+        .with_bounds_callback(Box::new(Self::file_sidebar_bounds_callback))
+        .finish()
     }
 
     fn file_sidebar_bounds_callback(_window_bounds: Vector2F) -> (f32, f32) {
@@ -4716,18 +4602,16 @@ impl CodeReviewView {
             );
         }
 
-        if FeatureFlag::DiscardPerFileAndAllChanges.is_enabled() {
-            right_row.add_child(
-                EventHandler::new(
-                    Container::new(ChildView::new(&file.discard_button).finish())
-                        .with_margin_left(4.)
-                        .finish(),
-                )
-                .on_left_mouse_up(|_, _, _| DispatchEventResult::StopPropagation)
-                .on_left_mouse_down(|_, _, _| DispatchEventResult::StopPropagation)
-                .finish(),
-            );
-        }
+        right_row.add_child(
+            EventHandler::new(
+                Container::new(ChildView::new(&file.discard_button).finish())
+                    .with_margin_left(4.)
+                    .finish(),
+            )
+            .on_left_mouse_up(|_, _, _| DispatchEventResult::StopPropagation)
+            .on_left_mouse_down(|_, _, _| DispatchEventResult::StopPropagation)
+            .finish(),
+        );
 
         right_row.add_child(
             EventHandler::new(
@@ -5399,9 +5283,7 @@ impl CodeReviewView {
                         }
                     }
 
-                    if self.find_model.as_ref(ctx).is_find_bar_open()
-                        && FeatureFlag::CodeReviewFind.is_enabled()
-                    {
+                    if self.find_model.as_ref(ctx).is_find_bar_open() {
                         self.find_model.update(ctx, |model, model_ctx| {
                             model.run_search(self.editor_handles(), model_ctx);
                         });
@@ -6320,42 +6202,6 @@ impl CodeReviewView {
 
     /// Items for the header overflow menu (three-dots button).
     fn header_menu_items(&self, ctx: &mut ViewContext<Self>) -> Vec<MenuItem<CodeReviewAction>> {
-        if FeatureFlag::GitOperationsInCodeReview.is_enabled() {
-            self.header_menu_items_new(ctx)
-        } else {
-            self.header_menu_items_legacy(ctx)
-        }
-    }
-
-    /// Legacy menu items — shown when git operations in code review are off.
-    fn header_menu_items_legacy(
-        &self,
-        _ctx: &mut ViewContext<Self>,
-    ) -> Vec<MenuItem<CodeReviewAction>> {
-        let mut items = Vec::new();
-
-        let mut has_changes = false;
-        if let CodeReviewViewState::Loaded(loaded) = self.state() {
-            has_changes = !loaded.to_diff_stats().has_no_changes();
-        }
-
-        if FeatureFlag::DiffSetAsContext.is_enabled() && has_changes {
-            items.push(
-                MenuItemFields::new("Add diff set as context")
-                    .with_icon(Icon::Paperclip)
-                    .with_on_select_action(CodeReviewAction::AddDiffSetAsContext(DiffSetScope::All))
-                    .into_item(),
-            );
-        }
-
-        items
-    }
-
-    /// New menu items — individually gated, includes discard and AI check.
-    fn header_menu_items_new(
-        &self,
-        ctx: &mut ViewContext<Self>,
-    ) -> Vec<MenuItem<CodeReviewAction>> {
         let mut items = Vec::new();
 
         let has_changes = matches!(self.state(), CodeReviewViewState::Loaded(loaded) if !loaded.to_diff_stats().has_no_changes());
@@ -6370,7 +6216,7 @@ impl CodeReviewView {
             );
         }
 
-        if FeatureFlag::DiscardPerFileAndAllChanges.is_enabled() && has_changes {
+        if has_changes {
             items.push(
                 MenuItemFields::new("Discard all")
                     .with_icon(Icon::ReverseLeft)
@@ -6715,9 +6561,7 @@ impl TypedActionView for CodeReviewView {
                     self.viewported_list_state.scroll_to(file_index);
                 }
 
-                if self.find_model.as_ref(ctx).is_find_bar_open()
-                    && FeatureFlag::CodeReviewFind.is_enabled()
-                {
+                if self.find_model.as_ref(ctx).is_find_bar_open() {
                     self.find_model.update(ctx, |model, model_ctx| {
                         model.run_search(self.editor_handles(), model_ctx);
                     });
@@ -6763,10 +6607,7 @@ impl TypedActionView for CodeReviewView {
                 self.viewported_list_state
                     .invalidate_height_for_index(*file_index);
 
-                if !was_expanded
-                    && self.find_model.as_ref(ctx).is_find_bar_open()
-                    && FeatureFlag::CodeReviewFind.is_enabled()
-                {
+                if !was_expanded && self.find_model.as_ref(ctx).is_find_bar_open() {
                     self.find_model.update(ctx, |model, model_ctx| {
                         model.run_search(self.editor_handles(), model_ctx);
                     });

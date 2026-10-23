@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pathfinder_geometry::vector::vec2f;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::icons::ICON_DIMENSIONS;
 use warp_editor::model::CoreEditorModel;
 use warp_files::{FileModel, FileModelEvent};
@@ -299,12 +298,9 @@ impl FileNotebookView {
     }
 
     /// Reset the rich text contents based on the given file content.
-    ///
-    /// Jupyter notebook rendering stays behind a feature flag until it launches.
     pub fn set_content(&mut self, content: &str, ctx: &mut ViewContext<Self>) {
         let doc_path = self.file_state.local_path().map(|p| p.to_path_buf());
-        let render_as_ipynb =
-            FeatureFlag::JupyterNotebookRendering.is_enabled() && self.is_jupyter_notebook_file();
+        let render_as_ipynb = self.is_jupyter_notebook_file();
         self.editor.update(ctx, |editor, ctx| {
             if render_as_ipynb {
                 editor.reset_with_ipynb(content, ctx);
@@ -538,9 +534,7 @@ impl FileNotebookView {
     }
 
     fn shows_markdown_toggle(&self) -> bool {
-        self.is_markdown_file()
-            || (FeatureFlag::JupyterNotebookRendering.is_enabled()
-                && self.is_jupyter_notebook_file())
+        self.is_markdown_file() || self.is_jupyter_notebook_file()
     }
 
     fn update_editor_display_mode(&mut self, ctx: &mut ViewContext<Self>) {
