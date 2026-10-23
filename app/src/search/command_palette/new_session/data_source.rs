@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use fuzzy_match::{FuzzyMatchResult, match_indices_case_insensitive};
-use warp_core::features::FeatureFlag;
+use fuzzy_match::FuzzyMatchResult;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use super::new_session_option::{
@@ -47,19 +46,7 @@ pub struct NewSessionDataSource {
 
 impl NewSessionDataSource {
     pub fn new(binding_source: ModelHandle<BindingSource>, ctx: &mut ModelContext<Self>) -> Self {
-        if FeatureFlag::UseTantivySearch.is_enabled() {
-            Self::new_full_text(binding_source, ctx)
-        } else {
-            Self::new_fuzzy(binding_source, ctx)
-        }
-    }
-
-    fn new_fuzzy(binding_source: ModelHandle<BindingSource>, ctx: &mut ModelContext<Self>) -> Self {
-        ctx.observe(&binding_source, Self::on_binding_source_changed);
-        Self {
-            searcher: Box::new(FuzzyNewSessionSearcher::default()),
-            allowed: Default::default(),
-        }
+        Self::new_full_text(binding_source, ctx)
     }
 
     fn new_full_text(
@@ -203,74 +190,6 @@ trait NewSessionSearcher {
     /// for any base strings that match the query. All variant
     /// matches should have this value as a ceiling.
     fn compute_max_match(&self, query_str: &str) -> Option<f64>;
-}
-#[derive(Default)]
-struct FuzzyNewSessionSearcher {
-    shell_id_to_options: HashMap<NewSessionOptionId, Arc<NewSessionOption>>,
-}
-
-impl NewSessionSearcher for FuzzyNewSessionSearcher {
-    fn search(&self, search_term: &str) -> anyhow::Result<Vec<QueryResult<SearcherAction>>> {
-        let max_match = self.compute_max_match(search_term);
-
-        Ok(self
-            .shell_id_to_options
-            .values()
-            .filter_map(move |new_session_option| {
-                // Binding descriptions are almost always upper case. If a user searches with
-                // lowercase text, the fuzzy matcher will weight this match lower because the case
-                // between the search term and the description differ. As a result, we lowercase
-                // both the search term and the description to ensure that we are matching the two
-                // with the same casing.
-                match_indices_case_insensitive(
-                    new_session_option.description().to_lowercase().as_str(),
-                    search_term.to_lowercase().as_str(),
-                )
-                .map(|result| {
-                    // If for some reason the variant (ex: "Create New Tab: Powershell") ranks higher
-                    // than a match for a base string (ex: "Create New Tab"), we want to cap the score
-                    // to be one less than the base string.
-                    if let Some(max_match) = max_match {
-                        FuzzyMatchResult {
-                            score: std::cmp::min(result.score, max_match.round() as i64 - 1),
-                            matched_indices: result.matched_indices,
-                        }
-                    } else {
-                        result
-                    }
-                })
-                .map(|result| (result, new_session_option))
-            })
-            .map(|(match_result, new_session_config)| {
-                SearchItem::new(new_session_config.clone(), match_result).into()
-            })
-            .collect())
-    }
-
-    /// This method is a no-op for the fuzzy searcher since it does not maintain an index.
-    fn build_index(&mut self) {}
-
-    fn bindings(&self) -> &HashMap<NewSessionOptionId, Arc<NewSessionOption>> {
-        &self.shell_id_to_options
-    }
-
-    fn bindings_mut(&mut self) -> &mut HashMap<NewSessionOptionId, Arc<NewSessionOption>> {
-        &mut self.shell_id_to_options
-    }
-
-    fn compute_max_match(&self, query_str: &str) -> Option<f64> {
-        SEARCHER_BASE_STRINGS
-            .iter()
-            .filter_map(|base| {
-                match_indices_case_insensitive(
-                    base.to_lowercase().as_str(),
-                    query_str.to_lowercase().as_str(),
-                )
-                .map(|result| result.score)
-            })
-            .min()
-            .map(|score| score as f64)
-    }
 }
 
 mod full_text_searcher {

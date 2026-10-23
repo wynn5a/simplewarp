@@ -3,7 +3,7 @@ use warpui::{AppContext, Entity, ModelHandle};
 use crate::search::SyncDataSource;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::navigation::search::{
-    FuzzySessionSearcher, MatchedSession, SessionMatchResult, SessionSearcher,
+    MatchedSession, SessionMatchResult, SessionSearcher,
 };
 use crate::search::command_palette::navigation::search_item::SearchItem;
 use crate::search::data_source::{DataSourceSearchError, Query, QueryResult};
@@ -18,23 +18,12 @@ pub struct DataSource {
 
 impl DataSource {
     pub fn new(active_session_handle: ModelHandle<SessionSource>) -> Self {
-        if warp_core::features::FeatureFlag::UseTantivySearch.is_enabled() {
-            Self::new_full_text(active_session_handle)
-        } else {
-            Self::new_fuzzy(active_session_handle)
-        }
+        Self::new_full_text(active_session_handle)
     }
 
     fn new_full_text(active_session_handle: ModelHandle<SessionSource>) -> Self {
         use crate::search::command_palette::navigation::search::FullTextSessionSearcher;
         let searcher = Box::new(FullTextSessionSearcher::new(active_session_handle));
-        Self { searcher }
-    }
-
-    fn new_fuzzy(active_session_handle: ModelHandle<SessionSource>) -> Self {
-        let searcher = Box::new(FuzzySessionSearcher {
-            session_source_handle: active_session_handle,
-        });
         Self { searcher }
     }
 }

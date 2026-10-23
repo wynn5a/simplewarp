@@ -850,7 +850,6 @@ pub fn init(app: &mut AppContext) {
         BindingDescription::new("Add current folder as project"),
         TerminalAction::AddProjectAtCurrentDirectory,
     )
-    .with_enabled(|| FeatureFlag::Projects.is_enabled())
     .with_context_predicate(id!("Workspace") & id!(flags::IS_ANY_AI_ENABLED))]);
 
     app.register_editable_bindings([EditableBinding::new(

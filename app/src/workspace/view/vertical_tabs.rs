@@ -402,7 +402,7 @@ fn render_pane_row_element(
         container_is_hovered,
     } = props;
     let is_selected = is_active_tab && is_focused;
-    let show_pin = FeatureFlag::PinnedTabs.is_enabled() && is_pinned && !container_is_hovered;
+    let show_pin = is_pinned && !container_is_hovered;
     let mut row = Hoverable::new(mouse_state, move |state| {
         // Hovered or selected rows always fully round; otherwise derive the
         // resting radius from the row's stack position.
@@ -467,9 +467,9 @@ fn render_pane_row_element(
         };
         // Shift-click extends the range selection; cmd/ctrl-click toggles a
         // single tab in/out of the selection; plain click focuses the pane.
-        if modifiers.shift && FeatureFlag::GroupedTabs.is_enabled() {
+        if modifiers.shift {
             ctx.dispatch_typed_action(WorkspaceAction::ShiftSelectTabRange { locator });
-        } else if modifiers.cmd && FeatureFlag::GroupedTabs.is_enabled() {
+        } else if modifiers.cmd {
             ctx.dispatch_typed_action(WorkspaceAction::ToggleTabMultiSelection { locator });
         } else {
             ctx.dispatch_typed_action(WorkspaceAction::FocusPane(locator));
@@ -978,13 +978,7 @@ fn resolve_vertical_tabs_mode(app: &AppContext) -> VerticalTabsResolvedMode {
         VerticalTabsDisplayGranularity::Tabs => match *settings.vertical_tabs_tab_item_mode.value()
         {
             VerticalTabsTabItemMode::FocusedSession => VerticalTabsResolvedMode::FocusedSession,
-            VerticalTabsTabItemMode::Summary => {
-                if FeatureFlag::VerticalTabsSummaryMode.is_enabled() {
-                    VerticalTabsResolvedMode::Summary
-                } else {
-                    VerticalTabsResolvedMode::FocusedSession
-                }
-            }
+            VerticalTabsTabItemMode::Summary => VerticalTabsResolvedMode::Summary,
         },
     }
 }
@@ -1704,11 +1698,9 @@ fn render_vertical_tabs_panel(
         ctx.dispatch_typed_action(WorkspaceAction::CancelActiveRename);
     })
     .on_right_click(|ctx, _, position| {
-        if FeatureFlag::GroupedTabs.is_enabled() {
-            ctx.dispatch_typed_action(WorkspaceAction::OpenNewSessionMenu {
-                anchor: NewSessionMenuAnchor::Pointer(position),
-            });
-        }
+        ctx.dispatch_typed_action(WorkspaceAction::OpenNewSessionMenu {
+            anchor: NewSessionMenuAnchor::Pointer(position),
+        });
     })
     .on_double_click(|ctx, _, _| {
         ctx.dispatch_typed_action(WorkspaceAction::AddDefaultTab);
@@ -2146,8 +2138,8 @@ fn render_tab_group_internal(
 
     let mut group_element = Hoverable::new(group_mouse_state, move |group_state| {
         // GroupedTabs: stack panes flush in Panes view.
-        let stack_panes_flush = FeatureFlag::GroupedTabs.is_enabled()
-            && matches!(display_granularity, VerticalTabsDisplayGranularity::Panes);
+        let stack_panes_flush =
+            matches!(display_granularity, VerticalTabsDisplayGranularity::Panes);
         let row_spacing = if stack_panes_flush {
             0.
         } else {
@@ -2346,14 +2338,9 @@ fn render_tab_group_internal(
             }
             container.finish()
         } else {
-            // Inside a tab group the surrounding container already paints
-            // hover/active state for the whole group, so suppress the
-            // per-tab background here and let each row show its own
-            // selected/hovered state.
-            let allow_per_tab_highlight = !in_tab_group || FeatureFlag::GroupedTabs.is_enabled();
             let background = if is_drag_target {
                 internal_colors::fg_overlay_2(theme)
-            } else if allow_per_tab_highlight && (is_active || group_state.is_hovered()) {
+            } else if is_active || group_state.is_hovered() {
                 internal_colors::fg_overlay_1(theme)
             } else {
                 ThemeFill::Solid(ColorU::transparent_black())
@@ -2362,18 +2349,13 @@ fn render_tab_group_internal(
             const GROUPED_TAB_ACTION_BUTTON_BAND: f32 = 4.;
             let needs_action_button_band = in_tab_group
                 && matches!(display_granularity, VerticalTabsDisplayGranularity::Panes);
-            let action_button_band = if FeatureFlag::GroupedTabs.is_enabled() {
-                GROUPED_TAB_ACTION_BUTTON_BAND
-            } else {
-                GROUP_BODY_BOTTOM_PADDING
-            };
             let mut container = Container::new(build_rows()).with_background(background);
-            if FeatureFlag::GroupedTabs.is_enabled() && stack_panes_flush {
+            if stack_panes_flush {
                 container = container
                     .with_corner_radius(CornerRadius::with_all(Radius::Pixels(ROW_CORNER_RADIUS)));
             }
             if needs_action_button_band {
-                container = container.with_margin_top(action_button_band);
+                container = container.with_margin_top(GROUPED_TAB_ACTION_BUTTON_BAND);
             }
             if is_drag_target {
                 container = container.with_foreground_border(
@@ -2450,8 +2432,7 @@ fn render_tab_group_internal(
             -4.
         };
         // GroupedTabs: pull the action buttons up to match the band of padding.
-        let action_button_y_offset = if FeatureFlag::GroupedTabs.is_enabled()
-            && in_tab_group
+        let action_button_y_offset = if in_tab_group
             && matches!(display_granularity, VerticalTabsDisplayGranularity::Panes)
         {
             0.
@@ -2827,7 +2808,7 @@ fn render_grouped_tabs_header(
         Empty::new().finish()
     };
 
-    let group_pinned = FeatureFlag::PinnedTabs.is_enabled() && group.pinned;
+    let group_pinned = group.pinned;
     let row = Flex::row()
         .with_main_axis_size(MainAxisSize::Max)
         .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
@@ -2966,9 +2947,7 @@ fn render_grouped_tab_container(
 
     // GroupedTabs: zero inter-tab gap in Panes mode (each tab already has
     // its own wrapper). Other modes keep `TABS_MODE_ITEM_SPACING`.
-    let member_tab_spacing = if FeatureFlag::GroupedTabs.is_enabled()
-        && matches!(resolved_mode, VerticalTabsResolvedMode::Panes)
-    {
+    let member_tab_spacing = if matches!(resolved_mode, VerticalTabsResolvedMode::Panes) {
         0.
     } else {
         TABS_MODE_ITEM_SPACING
@@ -5642,8 +5621,7 @@ pub(super) fn render_settings_popup(
     let show_details_on_hover = *TabSettings::as_ref(app)
         .vertical_tabs_show_details_on_hover
         .value();
-    let show_tab_item_section = matches!(current_granularity, VerticalTabsDisplayGranularity::Tabs)
-        && FeatureFlag::VerticalTabsSummaryMode.is_enabled();
+    let show_tab_item_section = matches!(current_granularity, VerticalTabsDisplayGranularity::Tabs);
     let show_focused_session_controls = !matches!(
         resolve_vertical_tabs_mode(app),
         VerticalTabsResolvedMode::Summary
@@ -5733,18 +5711,14 @@ pub(super) fn render_settings_popup(
         theme,
     );
 
-    let summary_option = if FeatureFlag::VerticalTabsSummaryMode.is_enabled() {
-        Some(render_tab_item_mode_option(
-            "Summary",
-            matches!(current_tab_item_mode, VerticalTabsTabItemMode::Summary),
-            state.summary_option_mouse_state.clone(),
-            VerticalTabsTabItemMode::Summary,
-            appearance,
-            theme,
-        ))
-    } else {
-        None
-    };
+    let summary_option = render_tab_item_mode_option(
+        "Summary",
+        matches!(current_tab_item_mode, VerticalTabsTabItemMode::Summary),
+        state.summary_option_mouse_state.clone(),
+        VerticalTabsTabItemMode::Summary,
+        appearance,
+        theme,
+    );
 
     let density_header = Container::new(
         Text::new_inline(
@@ -5876,9 +5850,7 @@ pub(super) fn render_settings_popup(
         popup_col.add_child(make_divider(theme));
         popup_col.add_child(tab_item_header);
         popup_col.add_child(focused_session_option);
-        if let Some(summary_option) = summary_option {
-            popup_col.add_child(summary_option);
-        }
+        popup_col.add_child(summary_option);
     }
 
     if show_focused_session_controls {

@@ -293,8 +293,6 @@ impl LeftPanelView {
         });
 
         // Fall back to the neutral tool panel when `compute_left_panel_views` pushed nothing.
-        // `GlobalSearch` is additionally gated behind `FeatureFlag::GlobalSearch`, so the
-        // project explorer is the only fallback that renders harmlessly in every build.
         let active_view = views
             .first()
             .copied()

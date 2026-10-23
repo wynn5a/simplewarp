@@ -25,7 +25,6 @@ pub(super) struct WorkspaceMouseStates {
     pub(super) banner_secondary_button: MouseStateHandle,
     pub(super) more_info_banner_button: MouseStateHandle,
     pub(super) left_panel_icon: MouseStateHandle,
-    pub(super) settings_icon: MouseStateHandle,
     pub(super) dismiss_banner_button: MouseStateHandle,
     pub(super) offline_icon: MouseStateHandle,
     pub(super) avatar_icon: MouseStateHandle,

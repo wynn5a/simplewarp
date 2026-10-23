@@ -343,85 +343,81 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         ),
     );
 
-    if FeatureFlag::FullScreenZenMode.is_enabled() {
-        // Add bindings for each visibility option.
-        app.register_fixed_bindings([
-            FixedBinding::empty(
-                "Always show tab bar".to_string(),
-                builder(SettingsAction::AppearancePageToggle(
-                    AppearancePageAction::SetWorkspaceDecorationVisibility(
-                        WorkspaceDecorationVisibility::AlwaysShow,
-                    ),
-                )),
-                context.to_owned(),
-            )
-            .with_group(bindings::BindingGroup::Settings.as_str()),
-            FixedBinding::empty(
-                "Hide tab bar if fullscreen".to_string(),
-                builder(SettingsAction::AppearancePageToggle(
-                    AppearancePageAction::SetWorkspaceDecorationVisibility(
-                        WorkspaceDecorationVisibility::HideFullscreen,
-                    ),
-                )),
-                context.to_owned(),
-            )
-            .with_group(bindings::BindingGroup::Settings.as_str()),
-            FixedBinding::empty(
-                "Only show tab bar on hover".to_string(),
-                builder(SettingsAction::AppearancePageToggle(
-                    AppearancePageAction::SetWorkspaceDecorationVisibility(
-                        WorkspaceDecorationVisibility::OnHover,
-                    ),
-                )),
-                context.to_owned(),
-            )
-            .with_group(bindings::BindingGroup::Settings.as_str()),
-        ]);
-
-        // Add a toggle alias for "Zen mode".
-        toggle_binding_pairs.push(
-            ToggleSettingActionPair::new(
-                "zen mode",
-                builder(SettingsAction::AppearancePageToggle(
-                    AppearancePageAction::ToggleWorkspaceDecorationVisibility,
-                )),
-                context,
-                flags::HIDE_WORKSPACE_DECORATIONS_CONTEXT_FLAG,
-            )
-            .is_supported_on_current_platform(
-                TabSettings::as_ref(app)
-                    .workspace_decoration_visibility
-                    .is_supported_on_current_platform(),
-            ),
+    // Add bindings for each visibility option.
+    app.register_fixed_bindings([
+        FixedBinding::empty(
+            "Always show tab bar".to_string(),
+            builder(SettingsAction::AppearancePageToggle(
+                AppearancePageAction::SetWorkspaceDecorationVisibility(
+                    WorkspaceDecorationVisibility::AlwaysShow,
+                ),
+            )),
+            context.to_owned(),
         )
-    }
+        .with_group(bindings::BindingGroup::Settings.as_str()),
+        FixedBinding::empty(
+            "Hide tab bar if fullscreen".to_string(),
+            builder(SettingsAction::AppearancePageToggle(
+                AppearancePageAction::SetWorkspaceDecorationVisibility(
+                    WorkspaceDecorationVisibility::HideFullscreen,
+                ),
+            )),
+            context.to_owned(),
+        )
+        .with_group(bindings::BindingGroup::Settings.as_str()),
+        FixedBinding::empty(
+            "Only show tab bar on hover".to_string(),
+            builder(SettingsAction::AppearancePageToggle(
+                AppearancePageAction::SetWorkspaceDecorationVisibility(
+                    WorkspaceDecorationVisibility::OnHover,
+                ),
+            )),
+            context.to_owned(),
+        )
+        .with_group(bindings::BindingGroup::Settings.as_str()),
+    ]);
 
-    if FeatureFlag::VerticalTabs.is_enabled() {
-        toggle_binding_pairs.push(ToggleSettingActionPair::new(
-            "vertical tab layout",
+    // Add a toggle alias for "Zen mode".
+    toggle_binding_pairs.push(
+        ToggleSettingActionPair::new(
+            "zen mode",
             builder(SettingsAction::AppearancePageToggle(
-                AppearancePageAction::ToggleVerticalTabs,
+                AppearancePageAction::ToggleWorkspaceDecorationVisibility,
             )),
             context,
-            flags::USE_VERTICAL_TABS_FLAG,
-        ));
-        toggle_binding_pairs.push(ToggleSettingActionPair::new(
-            "show vertical tabs panel in restored windows",
-            builder(SettingsAction::AppearancePageToggle(
-                AppearancePageAction::ToggleShowVerticalTabPanelInRestoredWindows,
-            )),
-            context,
-            flags::SHOW_VERTICAL_TAB_PANEL_IN_RESTORED_WINDOWS_FLAG,
-        ));
-        toggle_binding_pairs.push(ToggleSettingActionPair::new(
-            "latest user prompt as conversation title in tab names",
-            builder(SettingsAction::AppearancePageToggle(
-                AppearancePageAction::ToggleUseLatestUserPromptAsConversationTitleInTabNames,
-            )),
-            context,
-            flags::USE_LATEST_USER_PROMPT_AS_CONVERSATION_TITLE_IN_TAB_NAMES_FLAG,
-        ));
-    }
+            flags::HIDE_WORKSPACE_DECORATIONS_CONTEXT_FLAG,
+        )
+        .is_supported_on_current_platform(
+            TabSettings::as_ref(app)
+                .workspace_decoration_visibility
+                .is_supported_on_current_platform(),
+        ),
+    );
+
+    toggle_binding_pairs.push(ToggleSettingActionPair::new(
+        "vertical tab layout",
+        builder(SettingsAction::AppearancePageToggle(
+            AppearancePageAction::ToggleVerticalTabs,
+        )),
+        context,
+        flags::USE_VERTICAL_TABS_FLAG,
+    ));
+    toggle_binding_pairs.push(ToggleSettingActionPair::new(
+        "show vertical tabs panel in restored windows",
+        builder(SettingsAction::AppearancePageToggle(
+            AppearancePageAction::ToggleShowVerticalTabPanelInRestoredWindows,
+        )),
+        context,
+        flags::SHOW_VERTICAL_TAB_PANEL_IN_RESTORED_WINDOWS_FLAG,
+    ));
+    toggle_binding_pairs.push(ToggleSettingActionPair::new(
+        "latest user prompt as conversation title in tab names",
+        builder(SettingsAction::AppearancePageToggle(
+            AppearancePageAction::ToggleUseLatestUserPromptAsConversationTitleInTabNames,
+        )),
+        context,
+        flags::USE_LATEST_USER_PROMPT_AS_CONVERSATION_TITLE_IN_TAB_NAMES_FLAG,
+    ));
 
     toggle_binding_pairs.push(ToggleSettingActionPair::new(
         "ligature rendering",
@@ -1366,9 +1362,7 @@ impl AppearanceSettingsPageView {
             window_settings_widgets.push(Box::new(WindowBlurTextureWidget::default()));
         }
 
-        if FeatureFlag::UIZoom.is_enabled() {
-            window_settings_widgets.push(Box::new(ZoomLevelWidget));
-        }
+        window_settings_widgets.push(Box::new(ZoomLevelWidget));
 
         if window_settings
             .left_panel_visibility_across_tabs
@@ -1392,9 +1386,7 @@ impl AppearanceSettingsPageView {
         if FeatureFlag::AgentViewConversationListView.is_enabled() {
             tools_panel_widgets.push(Box::new(ToolsPanelConversationHistoryWidget::default()));
         }
-        if FeatureFlag::GlobalSearch.is_enabled() {
-            tools_panel_widgets.push(Box::new(ToolsPanelGlobalSearchWidget::default()));
-        }
+        tools_panel_widgets.push(Box::new(ToolsPanelGlobalSearchWidget::default()));
         if !tools_panel_widgets.is_empty() {
             categories.push(Category::new("Tools panel", tools_panel_widgets));
         }
@@ -1422,9 +1414,7 @@ impl AppearanceSettingsPageView {
             Box::new(CompactModeWidget::default()),
             Box::new(JumpToBottomOfBlockWidget::default()),
         ];
-        if FeatureFlag::MinimalistUI.is_enabled() {
-            block_settings_widgets.push(Box::new(ShowBlockDividersWidget::default()));
-        }
+        block_settings_widgets.push(Box::new(ShowBlockDividersWidget::default()));
         categories.push(Category::new("Blocks", block_settings_widgets));
 
         let font_settings = FontSettings::as_ref(ctx);
@@ -1467,41 +1457,32 @@ impl AppearanceSettingsPageView {
         let mut tab_settings_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> =
             vec![Box::new(TabIndicatorWidget::default())];
         tab_settings_widgets.push(Box::new(CodeReviewButtonWidget::default()));
-        if FeatureFlag::FullScreenZenMode.is_enabled()
-            && tab_settings
-                .workspace_decoration_visibility
-                .is_supported_on_current_platform()
+        if tab_settings
+            .workspace_decoration_visibility
+            .is_supported_on_current_platform()
         {
             tab_settings_widgets.push(Box::new(ZenModeWidget::default()));
         }
-        if FeatureFlag::TabCloseButtonOnLeft.is_enabled() {
-            tab_settings_widgets.push(Box::new(TabCloseButtonPositionWidget::default()));
-        }
+        tab_settings_widgets.push(Box::new(TabCloseButtonPositionWidget::default()));
         tab_settings_widgets.push(Box::new(PreserveActiveTabColorWidget::default()));
 
-        if FeatureFlag::VerticalTabs.is_enabled() {
-            tab_settings_widgets.push(Box::new(VerticalTabsWidget::default()));
-            tab_settings_widgets.push(Box::new(
-                ShowVerticalTabPanelInRestoredWindowsWidget::default(),
-            ));
-            tab_settings_widgets.push(Box::new(
-                HideTitleBarSearchBarInVerticalTabsWidget::default(),
-            ));
-            tab_settings_widgets.push(Box::new(
-                UseLatestUserPromptAsConversationTitleInTabNamesWidget::default(),
-            ));
-            if FeatureFlag::ConfigurableToolbar.is_enabled() {
-                tab_settings_widgets.push(Box::new(EditToolbarWidget));
-            }
-        }
+        tab_settings_widgets.push(Box::new(VerticalTabsWidget::default()));
+        tab_settings_widgets.push(Box::new(
+            ShowVerticalTabPanelInRestoredWindowsWidget::default(),
+        ));
+        tab_settings_widgets.push(Box::new(
+            HideTitleBarSearchBarInVerticalTabsWidget::default(),
+        ));
+        tab_settings_widgets.push(Box::new(
+            UseLatestUserPromptAsConversationTitleInTabNamesWidget::default(),
+        ));
+        tab_settings_widgets.push(Box::new(EditToolbarWidget));
 
-        if FeatureFlag::DirectoryTabColors.is_enabled() {
-            let add_picker = ctx.add_typed_action_view(DirectoryColorAddPicker::new);
-            ctx.subscribe_to_view(&add_picker, |me, _, event, ctx| {
-                me.handle_directory_color_add_picker_event(event, ctx);
-            });
-            tab_settings_widgets.push(Box::new(DirectoryTabColorsWidget { add_picker }));
-        }
+        let add_picker = ctx.add_typed_action_view(DirectoryColorAddPicker::new);
+        ctx.subscribe_to_view(&add_picker, |me, _, event, ctx| {
+            me.handle_directory_color_add_picker_event(event, ctx);
+        });
+        tab_settings_widgets.push(Box::new(DirectoryTabColorsWidget { add_picker }));
 
         categories.push(Category::new("Tabs", tab_settings_widgets));
 

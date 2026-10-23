@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use itertools::{Either, Itertools};
-use warp_core::features::FeatureFlag;
 use warpui::{EntityId, UpdateView, ViewContext};
 
 use super::{Workspace, group_member_indices};
@@ -67,9 +66,6 @@ impl Workspace {
         locator: PaneViewLocator,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !FeatureFlag::GroupedTabs.is_enabled() {
-            return;
-        }
         // Identify index of the tab that was shift-clicked.
         if let Some(clicked_index) = self
             .tabs
@@ -87,9 +83,6 @@ impl Workspace {
         locator: PaneViewLocator,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !FeatureFlag::GroupedTabs.is_enabled() {
-            return;
-        }
         if let Some(tab) = self
             .tabs
             .iter_mut()
@@ -124,9 +117,6 @@ impl Workspace {
     /// and the selection covers multiple tabs, show the multi-tab menu;
     /// otherwise fall through to the normal single-pane menu.
     pub(super) fn is_tab_in_multi_tab_selection(&self, tab_index: usize) -> bool {
-        if !FeatureFlag::GroupedTabs.is_enabled() {
-            return false;
-        }
         let indices = self.selected_tab_indices();
         indices.len() > 1 && indices.contains(&tab_index)
     }
@@ -167,9 +157,6 @@ impl Workspace {
         &mut self,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !FeatureFlag::GroupedTabs.is_enabled() {
-            return;
-        }
         if self.selected_tab_indices().len() >= 2 {
             self.new_tab_group_from_selected_tabs(ctx);
         } else {
@@ -185,9 +172,6 @@ impl Workspace {
         &mut self,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !FeatureFlag::GroupedTabs.is_enabled() {
-            return;
-        }
         if self.selected_tab_indices().len() >= 2 {
             self.remove_selected_tabs_from_group(ctx);
         } else {
@@ -202,9 +186,6 @@ impl Workspace {
     /// group, the block is placed just past that group's last remaining
     /// member so the existing group stays contiguous instead of being split.
     pub(super) fn new_tab_group_from_selected_tabs(&mut self, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::GroupedTabs.is_enabled() {
-            return;
-        }
         let selected_indices = self.selected_tab_indices();
 
         // Should be unreachable: the multi-tab menu only opens when 2+ tabs
@@ -309,7 +290,7 @@ impl Workspace {
         group_id: TabGroupId,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !FeatureFlag::GroupedTabs.is_enabled() || !self.tab_groups.contains_key(&group_id) {
+        if !self.tab_groups.contains_key(&group_id) {
             return;
         }
         let selected_indices = self.selected_tab_indices();
@@ -387,9 +368,6 @@ impl Workspace {
     /// from; if the group ends up empty it's pruned and the removed block
     /// anchors at the original position instead.
     pub(super) fn remove_selected_tabs_from_group(&mut self, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::GroupedTabs.is_enabled() {
-            return;
-        }
         let Some(group_id) = self.selection_shared_group() else {
             // Only a single-group selection has an unambiguous group to leave.
             self.clear_tab_multi_selection(ctx);
@@ -521,11 +499,6 @@ impl Workspace {
     /// either because its own `pinned` flag is set (ungrouped pinned tab) or
     /// because it belongs to a pinned group.
     pub(super) fn is_tab_effectively_pinned(&self, tab: &TabData) -> bool {
-        // Safety net, ensures no behavioral changes if feature flag
-        // is off and some tabs have a pinned state saved.
-        if !FeatureFlag::PinnedTabs.is_enabled() {
-            return false;
-        }
         tab.pinned
             || tab
                 .group_id
@@ -559,9 +532,6 @@ impl Workspace {
     /// regardless of whether that group itself is pinned — tab pinning and
     /// group pinning are independent concepts.
     pub(super) fn pin_tab(&mut self, tab_index: usize, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::PinnedTabs.is_enabled() {
-            return;
-        }
         let Some(tab) = self.tabs.get(tab_index) else {
             log::debug!("pin_tab: tab_index {tab_index} out of bounds");
             return;
@@ -589,9 +559,6 @@ impl Workspace {
 
     /// Unpins a pinned tab and moves it to the start of the unpinned region.
     pub(super) fn unpin_tab(&mut self, tab_index: usize, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::PinnedTabs.is_enabled() {
-            return;
-        }
         let Some(tab) = self.tabs.get(tab_index) else {
             log::debug!("unpin_tab: tab_index {tab_index} out of bounds");
             return;
@@ -617,9 +584,6 @@ impl Workspace {
     /// always travels as a unit, and we want to support pinning a tab even if
     /// it already belongs to a (pinned) group.
     pub(super) fn pin_tab_group(&mut self, group_id: TabGroupId, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::PinnedTabs.is_enabled() {
-            return;
-        }
         let Some(group) = self.tab_groups.get(&group_id) else {
             log::debug!("pin_tab_group: unknown group {group_id:?}");
             return;
@@ -642,9 +606,6 @@ impl Workspace {
     /// Unpins the entire tab group: clears the group's `pinned` flag and
     /// moves the group's block to the start of the unpinned region.
     pub(super) fn unpin_tab_group(&mut self, group_id: TabGroupId, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::PinnedTabs.is_enabled() {
-            return;
-        }
         let Some(group) = self.tab_groups.get(&group_id) else {
             log::debug!("unpin_tab_group: unknown group {group_id:?}");
             return;

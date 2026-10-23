@@ -1530,19 +1530,14 @@ impl PaneGroup {
                 ))
             }
             LeafContents::GetStarted => {
-                if !FeatureFlag::GetStartedTab.is_enabled() {
-                    Err(anyhow::anyhow!("GetStarted pane not supported"))
-                } else {
-                    let pane: Box<dyn AnyPaneContent + 'static> =
-                        Box::new(GetStartedPane::new(ctx));
-                    let pane_id = pane.as_pane().id();
-                    pane_contents.insert(pane_id, pane);
-                    let focus = InitialFocus {
-                        focused_pane: leaf.is_focused.then_some(pane_id),
-                        active_session: None,
-                    };
-                    Ok((PaneData::new(pane_id), focus))
-                }
+                let pane: Box<dyn AnyPaneContent + 'static> = Box::new(GetStartedPane::new(ctx));
+                let pane_id = pane.as_pane().id();
+                pane_contents.insert(pane_id, pane);
+                let focus = InitialFocus {
+                    focused_pane: leaf.is_focused.then_some(pane_id),
+                    active_session: None,
+                };
+                Ok((PaneData::new(pane_id), focus))
             }
         };
 
@@ -2600,72 +2595,35 @@ impl PaneGroup {
             return;
         }
 
-        if FeatureFlag::UndoClosedPanes.is_enabled() {
-            // Don't clase a pane that's already been hidden to allow for undo functionality
-            if self.is_pane_hidden_for_close(pane_id) {
-                return;
-            }
-
-            if self.panes.visible_pane_count() == 1 {
-                // Tell the workspace that this pane group is now empty without
-                // doing any additional clean-up work.  This ensures we don't
-                // pre-emptively delete any state that we might want to retain
-                // if the user re-opens the closed tab.
-                ctx.emit(Event::Exited {
-                    add_to_undo_stack: true,
-                });
-
-                return;
-            }
-
-            if let Some(pane_data) = self.pane_contents.get(&pane_id) {
-                let pane = pane_data.as_pane();
-                pane.detach(self, DetachType::HiddenForClose, ctx);
-
-                let pane_group_handle = ctx.handle();
-                UndoCloseStack::handle(ctx).update(ctx, |stack, ctx| {
-                    stack.handle_pane_closed_by_id(pane_group_handle, pane_id, ctx);
-                });
-                self.hide_closed_pane(pane_id, ctx);
-            }
-
-            self.focus_next_terminal_pane_and_activate_session(
-                pane_id,
-                PaneRemovalReason::Close,
-                ctx,
-            );
-        } else {
-            if self.pane_count() == 1 {
-                // Tell the workspace that this pane group is now empty without
-                // doing any additional clean-up work.  This ensures we don't
-                // pre-emptively delete any state that we might want to retain
-                // if the user re-opens the closed tab.
-                ctx.emit(Event::Exited {
-                    add_to_undo_stack: true,
-                });
-
-                return;
-            }
-
-            self.clean_up_pane(pane_id, ctx);
-
-            self.focus_next_terminal_pane_and_activate_session(
-                pane_id,
-                PaneRemovalReason::Close,
-                ctx,
-            );
-
-            self.pane_contents.remove(&pane_id);
-
-            // We should only remove the session id from the tree after we queried
-            // and got the previous session id.
-            if !self.panes.remove(pane_id) {
-                report_error!("Pane not found");
-            }
-
-            // Mirror cleanup_closed_pane's transitive-share map cleanup so
-            // the non-undo close path doesn't leak stale entries.
+        // Don't clase a pane that's already been hidden to allow for undo functionality
+        if self.is_pane_hidden_for_close(pane_id) {
+            return;
         }
+
+        if self.panes.visible_pane_count() == 1 {
+            // Tell the workspace that this pane group is now empty without
+            // doing any additional clean-up work.  This ensures we don't
+            // pre-emptively delete any state that we might want to retain
+            // if the user re-opens the closed tab.
+            ctx.emit(Event::Exited {
+                add_to_undo_stack: true,
+            });
+
+            return;
+        }
+
+        if let Some(pane_data) = self.pane_contents.get(&pane_id) {
+            let pane = pane_data.as_pane();
+            pane.detach(self, DetachType::HiddenForClose, ctx);
+
+            let pane_group_handle = ctx.handle();
+            UndoCloseStack::handle(ctx).update(ctx, |stack, ctx| {
+                stack.handle_pane_closed_by_id(pane_group_handle, pane_id, ctx);
+            });
+            self.hide_closed_pane(pane_id, ctx);
+        }
+
+        self.focus_next_terminal_pane_and_activate_session(pane_id, PaneRemovalReason::Close, ctx);
 
         self.handle_pane_count_change(ctx);
 
@@ -4238,7 +4196,7 @@ impl PaneGroup {
         ctx: &mut ViewContext<Self>,
     ) -> bool {
         // No-op if the pane is hidden-for-close (undo stack) or no longer present.
-        if FeatureFlag::UndoClosedPanes.is_enabled() && self.is_pane_hidden_for_close(id) {
+        if self.is_pane_hidden_for_close(id) {
             return false;
         }
         if !self.pane_contents.contains_key(&id) {

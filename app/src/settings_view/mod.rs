@@ -90,29 +90,11 @@ pub use settings_page::{
     render_input_list, render_separator,
 };
 
-/// Original sidebar width used when the settings-file footer is not
-/// enabled. Preserved for Preview/Stable until `FeatureFlag::SettingsFile`
-/// is promoted.
-const SIDEBAR_WIDTH_DEFAULT: f32 = 200.;
-
-/// Wider sidebar used when the settings-file footer is enabled. Sized to
-/// match Figma's settings nav rail (223px alert + 12px horizontal padding
-/// on each side + 1px right border), giving the error-alert footer enough
-/// room to render its "Open file" and "Fix with Warp Agent" buttons side-by-side
-/// with the designed 24px indent and 8px internal padding.
-const SIDEBAR_WIDTH_WITH_FOOTER: f32 = 248.;
-
-/// Returns the sidebar width, widened only when the settings-file footer
-/// is enabled. This keeps the wider layout gated with the footer itself so
-/// Preview/Stable users don't see an unexplained 48px width bump before
-/// the feature ships.
-fn sidebar_width() -> f32 {
-    if FeatureFlag::SettingsFile.is_enabled() {
-        SIDEBAR_WIDTH_WITH_FOOTER
-    } else {
-        SIDEBAR_WIDTH_DEFAULT
-    }
-}
+/// Sidebar width. Sized to match Figma's settings nav rail (223px alert + 12px horizontal padding
+/// on each side + 1px right border), giving the error-alert footer enough room to render its
+/// "Open file" and "Fix with Warp Agent" buttons side-by-side with the designed 24px indent and
+/// 8px internal padding.
+const SIDEBAR_WIDTH: f32 = 248.;
 
 /// Width of the borders for the header and the sidebar.
 const SECTION_BORDER_WIDTH: f32 = 1.;
@@ -196,7 +178,6 @@ pub enum SettingsViewEvent {
         flavor: ToastFlavor,
     },
     OpenAIFactCollection,
-    OpenMCPServerCollection,
     OpenExecutionProfileEditor(ExecutionProfileId),
 }
 
@@ -454,7 +435,6 @@ pub mod flags {
         "Auto_Approve_Bypasses_Command_Denylist";
     pub const AI_RULES_FLAG: &str = "AI_Rules";
     pub const FILE_BASED_MCP_FLAG: &str = "File_Based_MCP";
-    pub const SHOW_BASE_MODEL_PICKER_IN_PROMPT_FLAG: &str = "Show_Base_Model_Picker_In_Prompt";
     pub const DEBUG_SHOW_MEMORY_STATS_FLAG: &str = "Debug_Memory_Statistics";
     pub const ALLOW_NATIVE_WAYLAND: &str = "Allow_Native_Wayland";
     pub const IS_ANY_AI_ENABLED: &str = "IsAnyAIEnabled";
@@ -1502,9 +1482,6 @@ impl SettingsView {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            AgentProfilesPageEvent::OpenMCPServerCollection => {
-                ctx.emit(SettingsViewEvent::OpenMCPServerCollection)
-            }
             AgentProfilesPageEvent::OpenExecutionProfileEditor(profile_id) => {
                 ctx.emit(SettingsViewEvent::OpenExecutionProfileEditor(
                     profile_id.clone(),
@@ -2041,7 +2018,6 @@ impl View for SettingsView {
         // scrollable nav list but inside the same sidebar column so it
         // shares the right-border and SIDEBAR_WIDTH constraint.
         let footer_kind = SettingsFooterKind::choose(
-            FeatureFlag::SettingsFile.is_enabled(),
             self.settings_file_error.is_some(),
             self.settings_error_banner_dismissed,
         );
@@ -2077,7 +2053,7 @@ impl View for SettingsView {
             .with_border(Border::right(SECTION_BORDER_WIDTH).with_border_fill(theme.outline()))
             .finish(),
         )
-        .with_width(sidebar_width())
+        .with_width(SIDEBAR_WIDTH)
         .finish();
 
         let row = Flex::row()

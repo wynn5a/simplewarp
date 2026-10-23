@@ -7,7 +7,6 @@
 
 use std::time::Duration;
 
-use warp::features::FeatureFlag;
 use warp::integration_testing::step::new_step_with_default_assertions;
 use warp::integration_testing::terminal::wait_until_bootstrapped_single_pane_for_tab;
 use warp::integration_testing::view_getters::workspace_view;
@@ -28,8 +27,6 @@ fn toml_file_path() -> std::path::PathBuf {
 /// Verifies that when `settings.toml` contains invalid TOML syntax on
 /// startup, the workspace shows the settings error banner.
 pub fn test_settings_error_banner_on_startup_with_invalid_toml() -> Builder {
-    FeatureFlag::SettingsFile.set_enabled(true);
-
     new_builder()
         .with_setup(move |_utils| {
             // Write syntactically invalid TOML before the app starts.
@@ -63,8 +60,6 @@ pub fn test_settings_error_banner_on_startup_with_invalid_toml() -> Builder {
 /// file but with an invalid value for a known setting, the workspace shows
 /// the settings error banner.
 pub fn test_settings_error_banner_on_startup_with_invalid_value() -> Builder {
-    FeatureFlag::SettingsFile.set_enabled(true);
-
     new_builder()
         .with_setup(move |_utils| {
             // Write valid TOML with an invalid value for a bool setting.
@@ -100,8 +95,6 @@ pub fn test_settings_error_banner_on_startup_with_invalid_value() -> Builder {
 /// change, the settings error banner appears; and when the file is fixed,
 /// the banner disappears.
 pub fn test_settings_error_banner_on_reload_with_invalid_toml() -> Builder {
-    FeatureFlag::SettingsFile.set_enabled(true);
-
     new_builder()
         .with_setup(move |utils| {
             // Use a short watcher delay so the reload fires quickly.
@@ -182,8 +175,6 @@ pub fn test_settings_error_banner_on_reload_with_invalid_toml() -> Builder {
 /// Verifies that when an individual setting value becomes invalid after a
 /// file change, the settings error banner appears.
 pub fn test_settings_error_banner_on_reload_with_invalid_value() -> Builder {
-    FeatureFlag::SettingsFile.set_enabled(true);
-
     new_builder()
         .with_setup(move |utils| {
             utils.set_env("WARP_CONFIG_WATCHER_DELAY_MS", Some("10".to_string()));

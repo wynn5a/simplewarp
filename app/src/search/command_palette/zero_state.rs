@@ -2,7 +2,6 @@ mod items;
 use std::collections::HashMap;
 
 pub use items::Items;
-use warp_core::features::FeatureFlag;
 use warpui::elements::{Container, Flex, MouseStateHandle, ParentElement, Shrinkable, Wrap};
 use warpui::{
     AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
@@ -73,9 +72,7 @@ impl ZeroState {
     fn valid_query_filters(app: &AppContext) -> impl Iterator<Item = QueryFilter> + use<> {
         let mut valid_filters = vec![];
 
-        if FeatureFlag::CommandPaletteFileSearch.is_enabled() {
-            valid_filters.push(QueryFilter::Files);
-        }
+        valid_filters.push(QueryFilter::Files);
 
         valid_filters.extend([QueryFilter::Actions, QueryFilter::Sessions]);
 

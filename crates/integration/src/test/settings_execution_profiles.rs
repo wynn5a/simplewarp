@@ -3,7 +3,6 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use warp::features::FeatureFlag;
 use warp::integration_testing::settings::{
     active_execution_profile_id, create_and_select_execution_profile, default_execution_profile,
     execution_profile, has_multiple_execution_profiles,
@@ -55,13 +54,7 @@ fn write_settings_file(contents: &str) {
     std::fs::write(path, contents).expect("should write settings file");
 }
 
-fn enable_file_backed_profiles() {
-    FeatureFlag::SettingsFile.set_enabled(true);
-}
-
 pub fn test_execution_profiles_load_from_settings_file() -> Builder {
-    enable_file_backed_profiles();
-
     new_builder()
         .with_setup(|_utils| write_settings_file(INITIAL_PROFILES))
         .with_step(
@@ -91,8 +84,6 @@ pub fn test_execution_profiles_load_from_settings_file() -> Builder {
 }
 
 pub fn test_execution_profile_model_persists_and_hot_reloads_settings_file() -> Builder {
-    enable_file_backed_profiles();
-
     new_builder()
         .with_setup(|utils| {
             utils.set_env("WARP_CONFIG_WATCHER_DELAY_MS", Some("10".to_string()));

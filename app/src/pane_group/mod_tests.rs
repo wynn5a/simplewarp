@@ -6,7 +6,6 @@ use persistence::model::AgentConversation;
 use repo_metadata::RepoMetadataModel;
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::watcher::DirectoryWatcher;
-use warp_core::features::FeatureFlag;
 use warpui::platform::{WindowBounds, WindowStyle};
 use warpui::windowing::WindowManager;
 use warpui::windowing::state::ApplicationStage;
@@ -735,7 +734,6 @@ fn test_initial_widths_are_computed_correctly() {
 
 #[test]
 fn test_navigation_skips_hidden_closed_panes() {
-    let _guard = FeatureFlag::UndoClosedPanes.override_enabled(true);
     App::test((), |mut app| async move {
         initialize_app(&mut app);
         let pane_group = mock_pane_group(&mut app, Default::default());
@@ -820,10 +818,14 @@ fn test_terminal_pane_headers() {
             pane_group.close_pane(pane_group.focused_pane_id(ctx), ctx);
         });
 
+        // The closed pane stays hidden in the group so it can be restored by undo.
         pane_group.read(&app, |pane_group, ctx| {
-            assert_eq!(pane_group.pane_contents.len(), 1);
+            assert_eq!(pane_group.visible_pane_count(), 1);
 
-            let terminal_panes = pane_group.panes_of::<TerminalPane>().collect_vec();
+            let terminal_panes = pane_group
+                .panes_of::<TerminalPane>()
+                .filter(|pane| !pane_group.is_pane_hidden_for_close(pane.id()))
+                .collect_vec();
             assert_eq!(terminal_panes.len(), 1);
 
             let pane_view = terminal_panes[0].pane_view();
@@ -847,9 +849,12 @@ fn test_terminal_pane_headers() {
         });
 
         pane_group.read(&app, |pane_group, ctx| {
-            assert_eq!(pane_group.pane_contents.len(), 2);
+            assert_eq!(pane_group.visible_pane_count(), 2);
 
-            let terminal_panes = pane_group.panes_of::<TerminalPane>().collect_vec();
+            let terminal_panes = pane_group
+                .panes_of::<TerminalPane>()
+                .filter(|pane| !pane_group.is_pane_hidden_for_close(pane.id()))
+                .collect_vec();
             assert_eq!(terminal_panes.len(), 1);
 
             let pane_view = terminal_panes[0].pane_view();
@@ -1099,8 +1104,6 @@ fn test_focused_pane_is_synchronized_with_application_focus() {
 #[test]
 fn test_undo_close_keeps_a_file_pane_watching_its_file() {
     use warp_files::FileModel;
-
-    let _undo_closed_panes = FeatureFlag::UndoClosedPanes.override_enabled(true);
 
     App::test((), |mut app| async move {
         initialize_app(&mut app);

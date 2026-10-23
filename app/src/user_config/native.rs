@@ -15,7 +15,6 @@ use super::{
     LAUNCH_CONFIG_COMMENT, WarpConfigUpdateEvent, launch_configs_dir, tab_configs_dir, themes_dir,
     workflows_dir,
 };
-use crate::features::FeatureFlag;
 use crate::launch_configs::launch_config::LaunchConfig;
 use crate::tab_configs::{TabConfig, TabConfigError};
 use crate::themes::theme::WarpThemeConfig;
@@ -40,19 +39,17 @@ impl super::WarpConfig {
                 ctx.emit(WarpConfigUpdateEvent::LaunchConfigs);
             },
         );
-        if FeatureFlag::TabConfigs.is_enabled() {
-            let _ = ctx.spawn(
-                async move { load_tab_configs(&tab_configs_dir()) },
-                |me, (tab_configs, tab_config_errors), ctx| {
-                    me.tab_configs = tab_configs;
-                    me.tab_config_errors = tab_config_errors;
-                    ctx.emit(WarpConfigUpdateEvent::TabConfigs);
-                    // Don't emit TabConfigErrors on startup — the error toast
-                    // should only appear when the user saves a config file,
-                    // not on app restart.
-                },
-            );
-        }
+        let _ = ctx.spawn(
+            async move { load_tab_configs(&tab_configs_dir()) },
+            |me, (tab_configs, tab_config_errors), ctx| {
+                me.tab_configs = tab_configs;
+                me.tab_config_errors = tab_config_errors;
+                ctx.emit(WarpConfigUpdateEvent::TabConfigs);
+                // Don't emit TabConfigErrors on startup — the error toast
+                // should only appear when the user saves a config file,
+                // not on app restart.
+            },
+        );
         let _ = ctx.spawn(
             async move { load_workflows(&workflows_dir()) },
             |me, user_workflows, ctx| {
@@ -112,7 +109,7 @@ impl super::WarpConfig {
             );
         }
 
-        if FeatureFlag::TabConfigs.is_enabled() && update_touches_dir(update, &tab_configs_dir()) {
+        if update_touches_dir(update, &tab_configs_dir()) {
             let tab_config_dir = tab_configs_dir();
             let _ = ctx.spawn(
                 async move { load_tab_configs(&tab_config_dir) },
@@ -127,9 +124,7 @@ impl super::WarpConfig {
             );
         }
 
-        if FeatureFlag::SettingsFile.is_enabled()
-            && update_touches_path(update, &crate::settings::user_preferences_toml_file_path())
-        {
+        if update_touches_path(update, &crate::settings::user_preferences_toml_file_path()) {
             ctx.emit(WarpConfigUpdateEvent::Settings);
         }
     }

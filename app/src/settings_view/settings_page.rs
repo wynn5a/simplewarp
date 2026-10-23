@@ -257,34 +257,6 @@ pub fn render_sub_sub_header(
         .finish()
 }
 
-pub fn render_custom_size_header(
-    appearance: &Appearance,
-    text_name: impl Into<Cow<'static, str>>,
-    font_size: f32,
-    color_override: Option<Fill>,
-) -> Box<dyn Element> {
-    Flex::row()
-        .with_child(
-            Container::new(
-                Align::new(
-                    Text::new_inline(text_name, appearance.ui_font_family(), font_size)
-                        .with_style(Properties::default().weight(Weight::Bold))
-                        .with_color(
-                            color_override
-                                .unwrap_or(appearance.theme().active_ui_text_color())
-                                .into(),
-                        )
-                        .finish(),
-                )
-                .left()
-                .finish(),
-            )
-            .with_padding_bottom(4.)
-            .finish(),
-        )
-        .finish()
-}
-
 pub fn render_separator(appearance: &Appearance) -> Box<dyn Element> {
     Container::new(Empty::new().finish())
         .with_border(Border::bottom(2.).with_border_fill(appearance.theme().outline()))
@@ -458,24 +430,6 @@ pub fn render_body_item_label<T: Clone + Action>(
     render_body_item_label_internal(
         label_text,
         None,
-        label_color_override,
-        additional_info,
-        toggle_state,
-        appearance,
-    )
-}
-
-pub fn render_body_item_label_with_icon<T: Clone + Action>(
-    label_text: String,
-    icon: Icon,
-    label_color_override: Option<Fill>,
-    additional_info: Option<AdditionalInfo<T>>,
-    toggle_state: ToggleState,
-    appearance: &Appearance,
-) -> Box<dyn Element> {
-    render_body_item_label_internal(
-        label_text,
-        Some(icon),
         label_color_override,
         additional_info,
         toggle_state,

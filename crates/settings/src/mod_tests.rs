@@ -227,7 +227,6 @@ mod reload_all_public_settings_tests {
     #[test]
     fn test_validate_detects_invalid_values() {
         warpui_core::App::test((), |mut app| async move {
-            let _guard = warp_features::FeatureFlag::SettingsFile.override_enabled(true);
             app.update(init_prefs);
             app.add_singleton_model(|_| SettingsManager::default());
             ReloadTestSettings::register(&mut app);
@@ -266,7 +265,6 @@ mod reload_all_public_settings_tests {
     #[test]
     fn test_validate_returns_empty_when_all_valid() {
         warpui_core::App::test((), |mut app| async move {
-            let _guard = warp_features::FeatureFlag::SettingsFile.override_enabled(true);
             app.update(init_prefs);
             app.add_singleton_model(|_| SettingsManager::default());
             ReloadTestSettings::register(&mut app);

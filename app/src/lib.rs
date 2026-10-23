@@ -131,7 +131,6 @@ pub mod workflows;
 pub mod workspace;
 
 use std::borrow::Cow;
-use std::ops::Deref;
 
 use ::settings::{Setting, ToggleableSetting};
 use anyhow::{Context, Result, anyhow};
@@ -595,9 +594,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     let private_preferences = settings::init_private_user_preferences();
     let (public_preferences, startup_toml_parse_error) = settings::init_public_user_preferences();
 
-    // When the SettingsFile feature flag is enabled, public settings live in
-    // the TOML-backed store. When disabled, they live in the platform-native
-    // store (same backend as private). Use the correct one for pre-app reads.
+    // Public settings live in the TOML-backed store; pre-app reads go there.
     #[cfg_attr(
         not(any(
             enable_crash_recovery,
@@ -608,11 +605,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
         expect(unused)
     )]
     let prefs_for_public_settings: &dyn warpui_extras::user_preferences::UserPreferences =
-        if FeatureFlag::SettingsFile.is_enabled() {
-            public_preferences.as_ref()
-        } else {
-            private_preferences.deref()
-        };
+        public_preferences.as_ref();
 
     #[cfg(enable_crash_recovery)]
     let crash_recovery =
@@ -781,9 +774,7 @@ pub(crate) fn initialize_app(
     let user_defaults_on_startup = settings::init(startup_toml_parse_error, ctx);
     timer.mark_interval_end("READ_USER_DEFAULTS_AND_INITIALIZE_SETTINGS");
 
-    if FeatureFlag::UIZoom.is_enabled() {
-        ctx.set_zoom_factor(WindowSettings::as_ref(ctx).zoom_level.as_zoom_factor());
-    }
+    ctx.set_zoom_factor(WindowSettings::as_ref(ctx).zoom_level.as_zoom_factor());
 
     // NetworkLogModel must be registered before ServerApiProvider so that
     // `NetworkLogModel::install_on_clients` can reach it when forwarding items

@@ -4,7 +4,6 @@
 use std::collections::HashMap;
 
 use settings::Setting as _;
-use warp::features::FeatureFlag;
 use warp::integration_testing::terminal::wait_until_bootstrapped_single_pane_for_tab;
 use warp::settings::{BlockVisibilitySettings, ScrollSettings};
 use warpui_core::integration::AssertionOutcome;
@@ -12,12 +11,9 @@ use warpui_core::{SingletonEntity, async_assert, async_assert_eq};
 
 use super::{Builder, new_builder};
 
-/// Verifies that when the `SettingsFile` feature flag is enabled and no TOML
-/// file exists yet, public settings are migrated from the platform-native
+/// Verifies that when no TOML file exists yet, public settings are migrated from the platform-native
 /// store (a JSON file in integration tests) into the TOML settings file.
 pub fn test_settings_file_migration_from_native_store() -> Builder {
-    FeatureFlag::SettingsFile.set_enabled(true);
-
     let custom_scroll_multiplier: f32 = 7.0;
 
     new_builder()

@@ -112,7 +112,7 @@ completion or workflow-argument menu open, the session's history not yet queryab
 bootstrap, before the histfile loads) and the cursor on the first row still switched to it. User
 ruling: delete the mode and open the inline history menu in that case, as with no menu open.
 
-**C3 — tabs, workspace, settings, search** — 30 flags, 316 refs:
+**C3 — tabs, workspace, settings, search** — 30 flags, 316 refs (**done 2026-10-23**):
 `AlacrittySettingsImport`, `AllowOpeningFileLinksUsingEditorEnv`, `AvatarInTabBar`, `CommandPaletteFileSearch`, `ConfigurableToolbar`, `CreateProjectFlow`, `DirectoryTabColors`, `FileTree`, `FullScreenZenMode`, `GetStartedTab`, `GlobalSearch`, `GroupedTabs`, `IncrementalAutoReload`, `InlineProfileSelector`, `InlineRepoMenu`, `MinimalistUI`, `MultiProfile`, `NewTabStyling`, `PinnedTabs`, `PluggableNotifications`, `ProfilesDesignRevamp`, `Projects`, `SettingsFile`, `TabCloseButtonOnLeft`, `TabConfigs`, `UIZoom`, `UndoClosedPanes`, `UseTantivySearch`, `VerticalTabs`, `VerticalTabsSummaryMode`.
 
 **C4 — code editor, code review, notebooks, markdown** — 22 flags, 181 refs:

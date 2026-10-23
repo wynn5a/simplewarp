@@ -1,10 +1,5 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
-use fuzzy_match::match_indices_case_insensitive;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
-use crate::launch_configs::launch_config::LaunchConfig;
 use crate::search::command_palette::launch_config::search_item::SearchItem;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::data_source::{DataSourceSearchError, Query, QueryResult};
@@ -18,18 +13,7 @@ pub struct DataSource {
 
 impl DataSource {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        if warp_core::features::FeatureFlag::UseTantivySearch.is_enabled() {
-            Self::new_full_text(ctx)
-        } else {
-            Self::new_fuzzy(ctx)
-        }
-    }
-
-    fn new_fuzzy(ctx: &mut ModelContext<Self>) -> Self {
-        ctx.subscribe_to_model(&WarpConfig::handle(ctx), Self::handle_config_event);
-        let mut searcher = Box::new(FuzzyLaunchConfigSearcher::default());
-        searcher.refresh_search_index(ctx);
-        Self { searcher }
+        Self::new_full_text(ctx)
     }
 
     fn new_full_text(ctx: &mut ModelContext<Self>) -> Self {
@@ -80,37 +64,6 @@ trait LaunchConfigSearcher {
     fn search(&self, search_term: &str) -> anyhow::Result<Vec<SearchItem>>;
 
     fn refresh_search_index(&mut self, app: &AppContext);
-}
-
-#[derive(Default)]
-struct FuzzyLaunchConfigSearcher {
-    configs: HashMap<String, LaunchConfig>,
-}
-
-impl LaunchConfigSearcher for FuzzyLaunchConfigSearcher {
-    fn search(&self, search_term: &str) -> anyhow::Result<Vec<SearchItem>> {
-        Ok(self
-            .configs
-            .values()
-            .filter_map(|launch_config| {
-                let match_result =
-                    match_indices_case_insensitive(&launch_config.name, search_term)?;
-
-                Some(SearchItem::new(
-                    Arc::new(launch_config.clone()),
-                    match_result,
-                ))
-            })
-            .collect())
-    }
-
-    fn refresh_search_index(&mut self, app: &AppContext) {
-        self.configs = WarpConfig::as_ref(app)
-            .launch_configs()
-            .iter()
-            .map(|config| (config.name.to_lowercase(), config.clone()))
-            .collect();
-    }
 }
 
 mod full_text_searcher {

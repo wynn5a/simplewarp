@@ -10,7 +10,7 @@ fn jupyter_notebook_rendering_is_compiled_into_the_build() {
 }
 
 // SimpleWarp enables these compile-time flags: each is purely local
-// functionality (mermaid editing, the local Docker sandbox pane, the Tantivy palette search,
+// functionality (mermaid editing, the local Docker sandbox pane,
 // prompt polish) with no cloud dependency.
 #[test]
 #[cfg(feature = "simplewarp")]
@@ -19,16 +19,13 @@ fn simplewarp_enables_the_local_feature_set() {
     for flag in [
         FeatureFlag::EditableMarkdownMermaid,
         FeatureFlag::LocalDockerSandbox,
-        FeatureFlag::UseTantivySearch,
         FeatureFlag::AgentViewPromptChip,
         FeatureFlag::AIContextMenuCommands,
-        FeatureFlag::AlacrittySettingsImport,
         FeatureFlag::McpJsonTreeView,
         FeatureFlag::FileGlobV2Warnings,
         FeatureFlag::RememberFastForwardState,
         FeatureFlag::RestorePromptOnInlineModelSelectorSearch,
         FeatureFlag::CodeReviewScrollPreservation,
-        FeatureFlag::Projects,
     ] {
         assert!(enabled.contains(&flag), "{flag:?} should be enabled");
     }

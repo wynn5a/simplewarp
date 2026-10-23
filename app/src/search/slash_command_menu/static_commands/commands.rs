@@ -523,9 +523,7 @@ fn all_commands() -> Vec<StaticCommand> {
     commands.push(NEW_WORKTREE);
     commands.push(CLONE.clone());
 
-    if FeatureFlag::CreateProjectFlow.is_enabled() {
-        commands.push(CREATE_NEW_PROJECT.clone());
-    }
+    commands.push(CREATE_NEW_PROJECT.clone());
 
     if FeatureFlag::SummarizationConversationCommand.is_enabled() {
         commands.push(COMPACT.clone());
@@ -549,22 +547,16 @@ fn all_commands() -> Vec<StaticCommand> {
         commands.push(INVOKE_SKILL.clone());
     }
 
-    if FeatureFlag::InlineProfileSelector.is_enabled() {
-        commands.push(PROFILE.clone());
-    }
+    commands.push(PROFILE.clone());
 
     if FeatureFlag::RevertToCheckpoints.is_enabled() && FeatureFlag::RewindSlashCommand.is_enabled()
     {
         commands.push(REWIND);
     }
 
-    if FeatureFlag::InlineRepoMenu.is_enabled() {
-        commands.push(OPEN_REPO);
-    }
+    commands.push(OPEN_REPO);
 
-    if FeatureFlag::SettingsFile.is_enabled() {
-        commands.push(OPEN_SETTINGS_FILE);
-    }
+    commands.push(OPEN_SETTINGS_FILE);
 
     commands
 }

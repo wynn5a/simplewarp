@@ -1,8 +1,7 @@
 //! Footer rendered at the bottom of the settings nav rail.
 //!
 //! The footer is the user's always-visible entrypoint into `settings.toml`.
-//! It takes one of three forms:
-//! * Hidden when the `SettingsFile` feature flag is disabled.
+//! It takes one of two forms:
 //! * An inline yellow error alert (mirroring the workspace-level banner in
 //!   `Workspace::render_settings_error_banner`) when the settings file has an
 //!   error *and* the user has dismissed the workspace banner.
@@ -12,7 +11,7 @@ use warp_core::ui::color::coloru_with_opacity;
 use warp_core::ui::theme::Fill;
 use warpui::elements::{
     Border, Clipped, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox, Container,
-    CornerRadius, CrossAxisAlignment, Element, Empty, Expanded, Flex, Highlight, Hoverable,
+    CornerRadius, CrossAxisAlignment, Element, Expanded, Flex, Highlight, Hoverable,
     MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, ScrollbarWidth, Text,
     Wrap,
 };
@@ -55,8 +54,6 @@ const ALERT_TEXT_MAX_HEIGHT: f32 = 140.;
 /// rendering a full `SettingsView`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SettingsFooterKind {
-    /// Footer is not rendered at all (feature flag off).
-    Hidden,
     /// Render the plain "Open settings file" button.
     OpenButton,
     /// Render the inline yellow error alert.
@@ -64,14 +61,10 @@ pub enum SettingsFooterKind {
 }
 
 impl SettingsFooterKind {
-    /// Decide which footer variant to render based on the three inputs that
-    /// gate the footer: the `SettingsFile` feature flag, the current settings
-    /// file error (if any), and whether the user has dismissed the workspace
-    /// banner for invalid settings.
-    pub fn choose(feature_enabled: bool, has_error: bool, banner_dismissed: bool) -> Self {
-        if !feature_enabled {
-            Self::Hidden
-        } else if has_error && banner_dismissed {
+    /// Decide which footer variant to render based on the current settings file error (if any)
+    /// and whether the user has dismissed the workspace banner for invalid settings.
+    pub fn choose(has_error: bool, banner_dismissed: bool) -> Self {
+        if has_error && banner_dismissed {
             Self::ErrorAlert
         } else {
             Self::OpenButton
@@ -291,7 +284,6 @@ pub fn render_footer(
     mouse_states: &SettingsFooterMouseStates,
 ) -> Box<dyn Element> {
     let inner: Box<dyn Element> = match kind {
-        SettingsFooterKind::Hidden => return Empty::new().finish(),
         SettingsFooterKind::OpenButton => render_open_settings_file_button(
             appearance,
             mouse_states.open_settings_file_button.clone(),

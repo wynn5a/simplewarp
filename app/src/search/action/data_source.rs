@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use fuzzy_match::{FuzzyMatchResult, match_indices_case_insensitive};
-use warpui::keymap::{BindingId, DescriptionContext};
+use fuzzy_match::FuzzyMatchResult;
+use warpui::keymap::BindingId;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle};
 
 use crate::search::action::search_item::MatchedBinding;
@@ -20,11 +20,7 @@ pub struct CommandBindingDataSource {
 
 impl CommandBindingDataSource {
     pub fn new(binding_source: ModelHandle<BindingSource>, ctx: &mut ModelContext<Self>) -> Self {
-        if warp_core::features::FeatureFlag::UseTantivySearch.is_enabled() {
-            Self::new_full_text(binding_source, ctx)
-        } else {
-            Self::new_fuzzy(binding_source, ctx)
-        }
+        Self::new_full_text(binding_source, ctx)
     }
 
     fn new_full_text(
@@ -34,15 +30,6 @@ impl CommandBindingDataSource {
         ctx.observe(&binding_source, Self::on_binding_source_changed);
 
         let searcher = Box::new(full_text_searcher::FullTextActionSearcher::new());
-        Self { searcher }
-    }
-
-    fn new_fuzzy(binding_source: ModelHandle<BindingSource>, ctx: &mut ModelContext<Self>) -> Self {
-        ctx.observe(&binding_source, Self::on_binding_source_changed);
-
-        let searcher = Box::new(FuzzyActionSearcher {
-            all_bindings: Default::default(),
-        });
         Self { searcher }
     }
 
@@ -123,48 +110,6 @@ trait ActionSearcher {
     fn bindings(&self) -> &HashMap<BindingId, Arc<CommandBinding>>;
 
     fn bindings_mut(&mut self) -> &mut HashMap<BindingId, Arc<CommandBinding>>;
-}
-
-struct FuzzyActionSearcher {
-    all_bindings: HashMap<BindingId, Arc<CommandBinding>>,
-}
-
-impl ActionSearcher for FuzzyActionSearcher {
-    fn search(&self, search_term: &str) -> anyhow::Result<Vec<QueryResult<SearcherAction>>> {
-        Ok(self
-            .all_bindings
-            .values()
-            .filter_map(move |binding| {
-                // Binding descriptions are almost always upper case. If a user searches with
-                // lowercase text, the fuzzy matcher will weight this match lower because the case
-                // between the search term and the description differ. As a result, we lowercase
-                // both the search term and the description to ensure that we are matching the two
-                // with the same casing.
-                match_indices_case_insensitive(
-                    binding
-                        .description
-                        .in_context(DescriptionContext::Default)
-                        .to_lowercase()
-                        .as_str(),
-                    search_term.to_lowercase().as_str(),
-                )
-                .map(|result| (result, binding))
-            })
-            .map(|(match_result, binding)| {
-                MatchedBinding::new(match_result, binding.clone()).into()
-            })
-            .collect())
-    }
-
-    fn build_index(&mut self) {}
-
-    fn bindings(&self) -> &HashMap<BindingId, Arc<CommandBinding>> {
-        &self.all_bindings
-    }
-
-    fn bindings_mut(&mut self) -> &mut HashMap<BindingId, Arc<CommandBinding>> {
-        &mut self.all_bindings
-    }
 }
 
 mod full_text_searcher {

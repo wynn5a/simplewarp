@@ -191,48 +191,29 @@ pub fn init(app: &mut AppContext) {
     .with_custom_action(CustomAction::NewFile)
     .with_context_predicate(id!("Workspace"))]);
 
-    if FeatureFlag::UIZoom.is_enabled() {
-        app.register_fixed_bindings([
-            FixedBinding::custom(
-                CustomAction::IncreaseZoom,
-                WorkspaceAction::IncreaseZoom,
-                "Zoom In",
-                id!("Workspace"),
-            )
-            .with_group(bindings::BindingGroup::Settings.as_str()),
-            FixedBinding::custom(
-                CustomAction::DecreaseZoom,
-                WorkspaceAction::DecreaseZoom,
-                "Zoom Out",
-                id!("Workspace"),
-            )
-            .with_group(bindings::BindingGroup::Settings.as_str()),
-            FixedBinding::custom(
-                CustomAction::ResetZoom,
-                WorkspaceAction::ResetZoom,
-                "Reset Zoom",
-                id!("Workspace"),
-            )
-            .with_group(bindings::BindingGroup::Settings.as_str()),
-        ]);
-    } else {
-        app.register_fixed_bindings([
-            FixedBinding::custom(
-                CustomAction::IncreaseFontSize,
-                WorkspaceAction::IncreaseFontSize,
-                "Increase font size",
-                id!("Workspace"),
-            )
-            .with_group(bindings::BindingGroup::Settings.as_str()),
-            FixedBinding::custom(
-                CustomAction::DecreaseFontSize,
-                WorkspaceAction::DecreaseFontSize,
-                "Decrease font size",
-                id!("Workspace"),
-            )
-            .with_group(bindings::BindingGroup::Settings.as_str()),
-        ]);
-    }
+    app.register_fixed_bindings([
+        FixedBinding::custom(
+            CustomAction::IncreaseZoom,
+            WorkspaceAction::IncreaseZoom,
+            "Zoom In",
+            id!("Workspace"),
+        )
+        .with_group(bindings::BindingGroup::Settings.as_str()),
+        FixedBinding::custom(
+            CustomAction::DecreaseZoom,
+            WorkspaceAction::DecreaseZoom,
+            "Zoom Out",
+            id!("Workspace"),
+        )
+        .with_group(bindings::BindingGroup::Settings.as_str()),
+        FixedBinding::custom(
+            CustomAction::ResetZoom,
+            WorkspaceAction::ResetZoom,
+            "Reset Zoom",
+            id!("Workspace"),
+        )
+        .with_group(bindings::BindingGroup::Settings.as_str()),
+    ]);
 
     app.register_fixed_bindings([FixedBinding::custom(
         CustomAction::SaveCurrentConfig,
@@ -267,84 +248,54 @@ pub fn init(app: &mut AppContext) {
         ]);
     }
 
-    if FeatureFlag::UIZoom.is_enabled() {
-        app.register_editable_bindings([
-            EditableBinding::new(
-                "workspace:increase_zoom",
-                "Increase zoom level",
-                WorkspaceAction::IncreaseZoom,
-            )
-            .with_context_predicate(id!("Workspace"))
-            .with_group(bindings::BindingGroup::Settings.as_str())
-            .with_key_binding("cmdorctrl-="),
-            EditableBinding::new(
-                "workspace:decrease_zoom",
-                "Decrease zoom level",
-                WorkspaceAction::DecreaseZoom,
-            )
-            .with_context_predicate(id!("Workspace"))
-            .with_group(bindings::BindingGroup::Settings.as_str())
-            .with_key_binding("cmdorctrl--"),
-            EditableBinding::new(
-                "workspace:reset_zoom",
-                "Reset zoom level to default",
-                WorkspaceAction::ResetZoom,
-            )
-            .with_group(bindings::BindingGroup::Settings.as_str())
-            .with_context_predicate(id!("Workspace")),
-            EditableBinding::new(
-                "workspace:increase_font_size",
-                "Increase font size",
-                WorkspaceAction::IncreaseFontSize,
-            )
-            .with_context_predicate(id!("Workspace"))
-            .with_group(bindings::BindingGroup::Settings.as_str())
-            .with_key_binding("alt-shift->"),
-            EditableBinding::new(
-                "workspace:decrease_font_size",
-                "Decrease font size",
-                WorkspaceAction::DecreaseFontSize,
-            )
-            .with_context_predicate(id!("Workspace"))
-            .with_group(bindings::BindingGroup::Settings.as_str())
-            .with_key_binding("alt-shift-<"),
-            EditableBinding::new(
-                "workspace:reset_font_size",
-                "Reset font size to default",
-                WorkspaceAction::ResetFontSize,
-            )
-            .with_group(bindings::BindingGroup::Settings.as_str())
-            .with_context_predicate(id!("Workspace")),
-        ]);
-    } else {
-        app.register_editable_bindings([
-            EditableBinding::new(
-                "workspace:increase_font_size",
-                "Increase font size",
-                WorkspaceAction::IncreaseFontSize,
-            )
-            .with_context_predicate(id!("Workspace"))
-            .with_group(bindings::BindingGroup::Settings.as_str())
-            .with_key_binding("cmdorctrl-="),
-            EditableBinding::new(
-                "workspace:decrease_font_size",
-                "Decrease font size",
-                WorkspaceAction::DecreaseFontSize,
-            )
-            .with_context_predicate(id!("Workspace"))
-            .with_group(bindings::BindingGroup::Settings.as_str())
-            .with_key_binding("cmdorctrl--"),
-            EditableBinding::new(
-                "workspace:reset_font_size",
-                "Reset font size to default",
-                WorkspaceAction::ResetFontSize,
-            )
-            .with_group(bindings::BindingGroup::Settings.as_str())
-            .with_context_predicate(id!("Workspace"))
-            .with_key_binding("cmdorctrl-0")
-            .with_custom_action(CustomAction::ResetFontSize),
-        ]);
-    }
+    app.register_editable_bindings([
+        EditableBinding::new(
+            "workspace:increase_zoom",
+            "Increase zoom level",
+            WorkspaceAction::IncreaseZoom,
+        )
+        .with_context_predicate(id!("Workspace"))
+        .with_group(bindings::BindingGroup::Settings.as_str())
+        .with_key_binding("cmdorctrl-="),
+        EditableBinding::new(
+            "workspace:decrease_zoom",
+            "Decrease zoom level",
+            WorkspaceAction::DecreaseZoom,
+        )
+        .with_context_predicate(id!("Workspace"))
+        .with_group(bindings::BindingGroup::Settings.as_str())
+        .with_key_binding("cmdorctrl--"),
+        EditableBinding::new(
+            "workspace:reset_zoom",
+            "Reset zoom level to default",
+            WorkspaceAction::ResetZoom,
+        )
+        .with_group(bindings::BindingGroup::Settings.as_str())
+        .with_context_predicate(id!("Workspace")),
+        EditableBinding::new(
+            "workspace:increase_font_size",
+            "Increase font size",
+            WorkspaceAction::IncreaseFontSize,
+        )
+        .with_context_predicate(id!("Workspace"))
+        .with_group(bindings::BindingGroup::Settings.as_str())
+        .with_key_binding("alt-shift->"),
+        EditableBinding::new(
+            "workspace:decrease_font_size",
+            "Decrease font size",
+            WorkspaceAction::DecreaseFontSize,
+        )
+        .with_context_predicate(id!("Workspace"))
+        .with_group(bindings::BindingGroup::Settings.as_str())
+        .with_key_binding("alt-shift-<"),
+        EditableBinding::new(
+            "workspace:reset_font_size",
+            "Reset font size to default",
+            WorkspaceAction::ResetFontSize,
+        )
+        .with_group(bindings::BindingGroup::Settings.as_str())
+        .with_context_predicate(id!("Workspace")),
+    ]);
 
     app.register_fixed_bindings([
         // Menu dispatch for the "Open File Picker" custom action.
@@ -533,7 +484,6 @@ pub fn init(app: &mut AppContext) {
         )
         .with_context_predicate(id!("Workspace") & id!(flags::USE_VERTICAL_TABS_FLAG))
         .with_group(bindings::BindingGroup::Navigation.as_str())
-        .with_enabled(|| FeatureFlag::VerticalTabs.is_enabled())
         .with_key_binding(cmd_or_ctrl_shift("b")),
         EditableBinding::new(
             LEFT_PANEL_PROJECT_EXPLORER_BINDING_NAME,
@@ -559,7 +509,6 @@ pub fn init(app: &mut AppContext) {
         )
         .with_group(bindings::BindingGroup::Navigation.as_str())
         .with_context_predicate(id!("Workspace") & id!(flags::SHOW_GLOBAL_SEARCH))
-        .with_enabled(|| FeatureFlag::GlobalSearch.is_enabled())
         .with_custom_action(CustomAction::ToggleGlobalSearch),
         EditableBinding::new(
             "file_tree:toggle_hidden_files",
@@ -726,7 +675,7 @@ pub fn init(app: &mut AppContext) {
     .with_group(bindings::BindingGroup::Settings.as_str())
     .with_context_predicate(id!("Workspace"))]);
 
-    // Tab grouping bindings (keyless by default; gated on `GroupedTabs`).
+    // Tab grouping bindings (keyless by default).
     app.register_editable_bindings([
         EditableBinding::new(
             "workspace:new_tab_group",
@@ -734,7 +683,6 @@ pub fn init(app: &mut AppContext) {
             // Reuse the new-session dropdown's action, not a dedicated variant.
             WorkspaceAction::SelectNewSessionMenuItem(NewSessionMenuItem::CreateNewTabGroup),
         )
-        .with_enabled(|| FeatureFlag::GroupedTabs.is_enabled())
         .with_group(bindings::BindingGroup::Navigation.as_str())
         .with_context_predicate(id!("Workspace") & !id!("Workspace_PaneDragging")),
         EditableBinding::new(
@@ -742,7 +690,6 @@ pub fn init(app: &mut AppContext) {
             "Create tab group from active or selected tab(s)",
             WorkspaceAction::NewTabGroupFromActiveOrSelectedTabs,
         )
-        .with_enabled(|| FeatureFlag::GroupedTabs.is_enabled())
         .with_group(bindings::BindingGroup::Navigation.as_str())
         .with_context_predicate(id!("Workspace") & !id!("Workspace_PaneDragging")),
         // Gated on `Workspace_ActiveOrSelectedTabsInGroup`: offered only when
@@ -754,7 +701,6 @@ pub fn init(app: &mut AppContext) {
             "Remove active or selected tab(s) from group",
             WorkspaceAction::RemoveActiveOrSelectedTabsFromGroup,
         )
-        .with_enabled(|| FeatureFlag::GroupedTabs.is_enabled())
         .with_group(bindings::BindingGroup::Navigation.as_str())
         .with_context_predicate(
             id!("Workspace")
@@ -763,7 +709,7 @@ pub fn init(app: &mut AppContext) {
         ),
     ]);
 
-    // Tab/group pinning bindings (keyless by default; gated on `PinnedTabs`).
+    // Tab/group pinning bindings (keyless by default).
     // Pin/unpin are split into separate entries so the palette label tracks
     // the active tab/group's current state.
     app.register_editable_bindings([
@@ -772,7 +718,6 @@ pub fn init(app: &mut AppContext) {
             "Pin current tab",
             WorkspaceAction::PinActiveTab,
         )
-        .with_enabled(|| FeatureFlag::PinnedTabs.is_enabled())
         .with_group(bindings::BindingGroup::Navigation.as_str())
         .with_context_predicate(
             id!("Workspace") & !id!("Workspace_ActiveTabPinned") & !id!("Workspace_PaneDragging"),
@@ -782,7 +727,6 @@ pub fn init(app: &mut AppContext) {
             "Unpin current tab",
             WorkspaceAction::UnpinActiveTab,
         )
-        .with_enabled(|| FeatureFlag::PinnedTabs.is_enabled())
         .with_group(bindings::BindingGroup::Navigation.as_str())
         .with_context_predicate(
             id!("Workspace") & id!("Workspace_ActiveTabPinned") & !id!("Workspace_PaneDragging"),
@@ -792,9 +736,6 @@ pub fn init(app: &mut AppContext) {
             "Pin current tab group",
             WorkspaceAction::PinActiveTabGroup,
         )
-        .with_enabled(|| {
-            FeatureFlag::PinnedTabs.is_enabled() && FeatureFlag::GroupedTabs.is_enabled()
-        })
         .with_group(bindings::BindingGroup::Navigation.as_str())
         .with_context_predicate(
             id!("Workspace")
@@ -807,9 +748,6 @@ pub fn init(app: &mut AppContext) {
             "Unpin current tab group",
             WorkspaceAction::UnpinActiveTabGroup,
         )
-        .with_enabled(|| {
-            FeatureFlag::PinnedTabs.is_enabled() && FeatureFlag::GroupedTabs.is_enabled()
-        })
         .with_group(bindings::BindingGroup::Navigation.as_str())
         .with_context_predicate(
             id!("Workspace")
@@ -1118,7 +1056,6 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
             "Open settings file",
             WorkspaceAction::OpenSettingsFile,
         )
-        .with_enabled(|| FeatureFlag::SettingsFile.is_enabled())
         .with_group(bindings::BindingGroup::Settings.as_str())
         .with_context_predicate(id!("Workspace")),
     ]);

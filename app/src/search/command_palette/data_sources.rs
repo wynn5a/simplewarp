@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use warp_core::features::FeatureFlag;
 use warpui::keymap::BindingId;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
@@ -92,26 +91,24 @@ impl DataSourceStore {
                 HashSet::from([QueryFilter::Actions]),
             );
 
-            if FeatureFlag::CommandPaletteFileSearch.is_enabled() {
-                let file_search_model = FileSearchModel::as_ref(ctx);
-                let is_in_git_repo = file_search_model.repo_root_location(ctx).is_some();
+            let file_search_model = FileSearchModel::as_ref(ctx);
+            let is_in_git_repo = file_search_model.repo_root_location(ctx).is_some();
 
-                let files_data_source = if is_in_git_repo {
-                    ctx.add_model(|_| files::data_source::FileDataSource::new())
-                } else {
-                    ctx.add_model(|ctx| files::data_source::FileDataSource::new_current_folder(ctx))
-                };
-                mixer.add_async_source(
-                    files_data_source,
-                    HashSet::from([QueryFilter::Files]),
-                    AddAsyncSourceOptions {
-                        debounce_interval: None,
-                        run_in_zero_state: true,
-                        run_when_unfiltered: true,
-                    },
-                    ctx,
-                );
-            }
+            let files_data_source = if is_in_git_repo {
+                ctx.add_model(|_| files::data_source::FileDataSource::new())
+            } else {
+                ctx.add_model(|ctx| files::data_source::FileDataSource::new_current_folder(ctx))
+            };
+            mixer.add_async_source(
+                files_data_source,
+                HashSet::from([QueryFilter::Files]),
+                AddAsyncSourceOptions {
+                    debounce_interval: None,
+                    run_in_zero_state: true,
+                    run_when_unfiltered: true,
+                },
+                ctx,
+            );
 
             // Add conversation search if AI is enabled
             if AISettings::as_ref(ctx).is_any_ai_enabled() {

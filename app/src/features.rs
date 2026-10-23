@@ -28,20 +28,10 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::AgentMode,
         #[cfg(feature = "richtext_multiselect")]
         FeatureFlag::RichTextMultiselect,
-        #[cfg(feature = "settings_file")]
-        FeatureFlag::SettingsFile,
-        #[cfg(feature = "alacritty_settings_import")]
-        FeatureFlag::AlacrittySettingsImport,
         #[cfg(feature = "am_workflows")]
         FeatureFlag::AgentModeWorkflows,
         #[cfg(feature = "ai_rules")]
         FeatureFlag::AIRules,
-        #[cfg(feature = "full_screen_zen_mode")]
-        FeatureFlag::FullScreenZenMode,
-        #[cfg(feature = "minimalist_ui")]
-        FeatureFlag::MinimalistUI,
-        #[cfg(feature = "avatar_in_tab_bar")]
-        FeatureFlag::AvatarInTabBar,
         #[cfg(all(
             feature = "drag_tabs_to_windows",
             any(target_os = "macos", target_os = "windows")
@@ -49,8 +39,6 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::DragTabsToWindows,
         #[cfg(all(not(windows), feature = "kitty_images"))]
         FeatureFlag::KittyImages,
-        #[cfg(feature = "use_tantivy_search")]
-        FeatureFlag::UseTantivySearch,
         #[cfg(feature = "mcp_server")]
         FeatureFlag::McpServer,
         #[cfg(feature = "markdown_tables")]
@@ -85,8 +73,6 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::FastForwardAutoexecuteButton,
         #[cfg(feature = "code_find_replace")]
         FeatureFlag::CodeFindReplace,
-        #[cfg(feature = "command_palette_file_search")]
-        FeatureFlag::CommandPaletteFileSearch,
         #[cfg(feature = "ai_context_menu_commands")]
         FeatureFlag::AIContextMenuCommands,
         #[cfg(feature = "ai_context_menu_code")]
@@ -95,40 +81,22 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ExpandEditToPane,
         #[cfg(feature = "fallback_model_load_output_messaging")]
         FeatureFlag::FallbackModelLoadOutputMessaging,
-        #[cfg(feature = "tab_close_button_on_left")]
-        FeatureFlag::TabCloseButtonOnLeft,
-        #[cfg(feature = "profiles_design_revamp")]
-        FeatureFlag::ProfilesDesignRevamp,
         #[cfg(feature = "linked_code_blocks")]
         FeatureFlag::LinkedCodeBlocks,
         #[cfg(feature = "tabbed_editor_view")]
         FeatureFlag::TabbedEditorView,
-        #[cfg(feature = "undo_closed_panes")]
-        FeatureFlag::UndoClosedPanes,
-        #[cfg(feature = "multi_profile")]
-        FeatureFlag::MultiProfile,
-        #[cfg(feature = "get_started_tab")]
-        FeatureFlag::GetStartedTab,
-        #[cfg(feature = "projects")]
-        FeatureFlag::Projects,
         #[cfg(feature = "pr_comments_v2")]
         FeatureFlag::PRCommentsV2,
         #[cfg(feature = "selection_as_context")]
         FeatureFlag::SelectionAsContext,
         #[cfg(feature = "github_pr_prompt_chip")]
         FeatureFlag::GithubPrPromptChip,
-        #[cfg(feature = "create_project_flow")]
-        FeatureFlag::CreateProjectFlow,
         #[cfg(feature = "vim_code_editor")]
         FeatureFlag::VimCodeEditor,
-        #[cfg(feature = "allow_opening_file_links_using_editor_env")]
-        FeatureFlag::AllowOpeningFileLinksUsingEditorEnv,
         #[cfg(feature = "revert_diff_hunk")]
         FeatureFlag::RevertDiffHunk,
         #[cfg(feature = "code_review_save_changes")]
         FeatureFlag::CodeReviewSaveChanges,
-        #[cfg(feature = "file_tree")]
-        FeatureFlag::FileTree,
         #[cfg(feature = "code_launch_modal")]
         FeatureFlag::CodeLaunchModal,
         #[cfg(feature = "mcp_oauth")]
@@ -143,8 +111,6 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::SummarizationCancellationConfirmation,
         #[cfg(feature = "code_review_find")]
         FeatureFlag::CodeReviewFind,
-        #[cfg(feature = "ui_zoom")]
-        FeatureFlag::UIZoom,
         #[cfg(feature = "auto_open_code_review_pane")]
         FeatureFlag::AutoOpenCodeReviewPane,
         #[cfg(feature = "inline_code_review")]
@@ -153,8 +119,6 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::SummarizationConversationCommand,
         #[cfg(feature = "fork_from_command")]
         FeatureFlag::ForkFromCommand,
-        #[cfg(feature = "global_search")]
-        FeatureFlag::GlobalSearch,
         #[cfg(feature = "revert_to_checkpoints")]
         FeatureFlag::RevertToCheckpoints,
         #[cfg(feature = "rewind_slash_command")]
@@ -173,32 +137,20 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::LocalDockerSandbox,
         #[cfg(feature = "agent_toolbar_editor")]
         FeatureFlag::AgentToolbarEditor,
-        #[cfg(feature = "configurable_toolbar")]
-        FeatureFlag::ConfigurableToolbar,
         #[cfg(feature = "agent_view_prompt_chip")]
         FeatureFlag::AgentViewPromptChip,
         #[cfg(feature = "agent_view_conversation_list_view")]
         FeatureFlag::AgentViewConversationListView,
-        #[cfg(feature = "inline_repo_menu")]
-        FeatureFlag::InlineRepoMenu,
-        #[cfg(feature = "pluggable_notifications")]
-        FeatureFlag::PluggableNotifications,
         #[cfg(feature = "list_skills")]
         FeatureFlag::ListSkills,
-        #[cfg(feature = "inline_profile_selector")]
-        FeatureFlag::InlineProfileSelector,
         #[cfg(feature = "bundled_skills")]
         FeatureFlag::BundledSkills,
-        #[cfg(feature = "new_tab_styling")]
-        FeatureFlag::NewTabStyling,
         #[cfg(feature = "skill_arguments")]
         FeatureFlag::SkillArguments,
         #[cfg(feature = "active_conversation_requires_interaction")]
         FeatureFlag::ActiveConversationRequiresInteraction,
         #[cfg(feature = "conversations_as_context")]
         FeatureFlag::ConversationsAsContext,
-        #[cfg(feature = "incremental_auto_reload")]
-        FeatureFlag::IncrementalAutoReload,
         #[cfg(feature = "pending_user_query_indicator")]
         FeatureFlag::PendingUserQueryIndicator,
         #[cfg(feature = "queue_slash_command")]
@@ -207,18 +159,6 @@ pub fn compiled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::QueuedPromptsV2,
         #[cfg(feature = "restore_prompt_on_inline_model_selector_search")]
         FeatureFlag::RestorePromptOnInlineModelSelectorSearch,
-        #[cfg(feature = "directory_tab_colors")]
-        FeatureFlag::DirectoryTabColors,
-        #[cfg(feature = "vertical_tabs")]
-        FeatureFlag::VerticalTabs,
-        #[cfg(feature = "vertical_tabs_summary_mode")]
-        FeatureFlag::VerticalTabsSummaryMode,
-        #[cfg(feature = "tab_configs")]
-        FeatureFlag::TabConfigs,
-        #[cfg(feature = "grouped_tabs")]
-        FeatureFlag::GroupedTabs,
-        #[cfg(feature = "pinned_tabs")]
-        FeatureFlag::PinnedTabs,
         #[cfg(feature = "agent_harness")]
         FeatureFlag::AgentHarness,
         #[cfg(feature = "git_operations_in_code_review")]

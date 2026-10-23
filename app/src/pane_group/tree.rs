@@ -3,7 +3,6 @@ use std::{fmt, iter, mem};
 
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
-use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
 use warpui::elements::{
     ChildAnchor, ConstrainedBox, Container, DispatchEventResult, Element, Empty, EventHandler,
@@ -27,11 +26,7 @@ pub(in crate::pane_group) const DEFAULT_FLEX_VALUE: f32 = 1.0;
 pub(in crate::pane_group) const DEFAULT_FLEX_SIZE: PaneFlex = PaneFlex(DEFAULT_FLEX_VALUE);
 
 pub fn get_divider_thickness() -> f32 {
-    if FeatureFlag::MinimalistUI.is_enabled() {
-        1.0
-    } else {
-        2.0
-    }
+    1.0
 }
 
 // Extra padding for the divider to make it easier to resize.
@@ -1077,11 +1072,7 @@ impl PaneBranch {
         // Add actual dividers as positioned children anchored to their placeholders
         // (the reason we have to do it this way is explained in the large comment above)
         for (divider, position_id) in divider_positions {
-            let divider_element = if FeatureFlag::MinimalistUI.is_enabled() {
-                create_minimalist_divider(self.axis, divider, theme)
-            } else {
-                create_divider(self.axis, divider, theme)
-            };
+            let divider_element = create_minimalist_divider(self.axis, divider, theme);
 
             stack.add_positioned_child(
                 divider_element,
@@ -1372,42 +1363,6 @@ fn divider_mouse_down_action(
             previous_mouse_location: position,
         })
     }
-}
-
-fn create_divider(
-    direction: SplitDirection,
-    item: &Divider,
-    theme: &WarpTheme,
-) -> Box<dyn Element> {
-    let divider = ConstrainedBox::new(
-        Rect::new()
-            .with_background(theme.split_pane_border_color())
-            .finish(),
-    );
-
-    let cursor_shape = match direction {
-        SplitDirection::Horizontal => Cursor::ResizeLeftRight,
-        SplitDirection::Vertical => Cursor::ResizeUpDown,
-    };
-
-    let border_id = item.id;
-    let mouse_state = item.mouse_state.clone();
-
-    Hoverable::new(item.mouse_state.clone(), |_| match direction {
-        SplitDirection::Horizontal => divider.with_width(get_divider_thickness()).finish(),
-        SplitDirection::Vertical => divider.with_height(get_divider_thickness()).finish(),
-    })
-    .on_mouse_down(move |ctx, _, position| {
-        ctx.dispatch_typed_action(divider_mouse_down_action(
-            &mouse_state,
-            border_id,
-            direction,
-            position,
-        ));
-    })
-    .with_cursor(cursor_shape)
-    .with_propagate_drag()
-    .finish()
 }
 
 fn create_minimalist_divider(

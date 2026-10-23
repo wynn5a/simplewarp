@@ -603,8 +603,7 @@ fn test_is_private_returns_true_for_private_setting() {
 }
 
 #[test]
-fn test_public_setting_writes_to_public_prefs_when_flag_enabled() {
-    let _guard = warp_features::FeatureFlag::SettingsFile.override_enabled(true);
+fn test_public_setting_writes_to_public_prefs() {
     warpui_core::App::test((), |mut app| async move {
         app.update(init_and_register_preferences);
         app.add_singleton_model(|_| SettingsManager::default());
@@ -640,8 +639,7 @@ fn test_public_setting_writes_to_public_prefs_when_flag_enabled() {
 }
 
 #[test]
-fn test_private_setting_writes_to_private_prefs_when_flag_enabled() {
-    let _guard = warp_features::FeatureFlag::SettingsFile.override_enabled(true);
+fn test_private_setting_writes_to_private_prefs() {
     warpui_core::App::test((), |mut app| async move {
         app.update(init_and_register_preferences);
         app.add_singleton_model(|_| SettingsManager::default());
@@ -686,8 +684,7 @@ fn test_private_setting_writes_to_private_prefs_when_flag_enabled() {
 }
 
 #[test]
-fn test_new_from_storage_reads_from_correct_backend_when_flag_enabled() {
-    let _guard = warp_features::FeatureFlag::SettingsFile.override_enabled(true);
+fn test_new_from_storage_reads_from_correct_backend() {
     warpui_core::App::test((), |mut app| async move {
         app.update(init_and_register_preferences);
         app.add_singleton_model(|_| SettingsManager::default());
@@ -724,7 +721,6 @@ fn test_new_from_storage_reads_from_correct_backend_when_flag_enabled() {
 
 #[test]
 fn test_clear_value_clears_from_correct_backend() {
-    let _guard = warp_features::FeatureFlag::SettingsFile.override_enabled(true);
     warpui_core::App::test((), |mut app| async move {
         app.update(init_and_register_preferences);
         app.add_singleton_model(|_| SettingsManager::default());
@@ -772,117 +768,6 @@ fn test_clear_value_clears_from_correct_backend() {
                     .unwrap()
                     .is_none(),
                 "cleared private setting should not be in private prefs"
-            );
-        });
-    });
-}
-
-#[test]
-fn test_public_setting_uses_private_prefs_when_flag_disabled() {
-    let _guard = warp_features::FeatureFlag::SettingsFile.override_enabled(false);
-    warpui_core::App::test((), |mut app| async move {
-        app.update(init_and_register_preferences);
-        app.add_singleton_model(|_| SettingsManager::default());
-        TestSettings::register(&mut app);
-
-        // Set the public setting.
-        app.update(|ctx| {
-            TestSettings::handle(ctx).update(ctx, |test_settings, ctx| {
-                test_settings.simple_setting.set_value(true, ctx).unwrap();
-            });
-        });
-
-        // With the flag disabled, public settings fall back to the private backend.
-        app.read(|ctx| {
-            let private = <crate::PrivatePreferences as SingletonEntity>::as_ref(ctx);
-            let stored = private.0.read_value(SimpleSetting::storage_key()).unwrap();
-            assert!(
-                stored.is_some(),
-                "public setting should be in private prefs when flag is disabled"
-            );
-        });
-
-        // The public backend should NOT have it.
-        app.read(|ctx| {
-            let public = <crate::PublicPreferences as SingletonEntity>::as_ref(ctx);
-            let stored = public
-                .as_preferences()
-                .read_value(SimpleSetting::storage_key())
-                .unwrap();
-            assert!(
-                stored.is_none(),
-                "public setting should not be in public prefs when flag is disabled"
-            );
-        });
-    });
-}
-
-#[test]
-fn test_private_setting_uses_private_prefs_when_flag_disabled() {
-    let _guard = warp_features::FeatureFlag::SettingsFile.override_enabled(false);
-    warpui_core::App::test((), |mut app| async move {
-        app.update(init_and_register_preferences);
-        app.add_singleton_model(|_| SettingsManager::default());
-        TestSettings::register(&mut app);
-
-        // Set the private setting.
-        app.update(|ctx| {
-            TestSettings::handle(ctx).update(ctx, |test_settings, ctx| {
-                test_settings
-                    .key_override_setting
-                    .set_value(false, ctx)
-                    .unwrap();
-            });
-        });
-
-        // Private settings always go to the private backend.
-        app.read(|ctx| {
-            let private = <crate::PrivatePreferences as SingletonEntity>::as_ref(ctx);
-            let stored = private
-                .0
-                .read_value(KeyOverrideSetting::storage_key())
-                .unwrap();
-            assert!(
-                stored.is_some(),
-                "private setting should be in private prefs when flag is disabled"
-            );
-        });
-    });
-}
-
-#[test]
-fn test_new_from_storage_reads_from_private_backend_when_flag_disabled() {
-    let _guard = warp_features::FeatureFlag::SettingsFile.override_enabled(false);
-    warpui_core::App::test((), |mut app| async move {
-        app.update(init_and_register_preferences);
-        app.add_singleton_model(|_| SettingsManager::default());
-        TestSettings::register(&mut app);
-
-        // Write values directly to the private backend for both settings.
-        app.update(|ctx| {
-            let private = <crate::PrivatePreferences as SingletonEntity>::as_ref(ctx);
-            private
-                .0
-                .write_value(SimpleSetting::storage_key(), "true".to_string())
-                .unwrap();
-            private
-                .0
-                .write_value(KeyOverrideSetting::storage_key(), "false".to_string())
-                .unwrap();
-        });
-
-        // Both settings should read from the private backend.
-        app.update(|ctx| {
-            let public_setting = SimpleSetting::new_from_storage(ctx);
-            assert!(
-                *public_setting.value(),
-                "public setting should read from private prefs when flag is disabled"
-            );
-
-            let private_setting = KeyOverrideSetting::new_from_storage(ctx);
-            assert!(
-                !*private_setting.value(),
-                "private setting should read from private prefs when flag is disabled"
             );
         });
     });

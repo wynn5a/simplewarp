@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use serde::Serialize;
 use strum::IntoEnumIterator;
 use strum_macros::{EnumDiscriminants, EnumIter};
-use warp_core::features::FeatureFlag;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 #[cfg(target_os = "macos")]
@@ -54,11 +53,6 @@ impl ImportedConfigModel {
                 .collect_vec();
             let fonts_ref = Arc::new(fonts);
             for terminal_type in TerminalType::iter() {
-                if terminal_type == TerminalType::Alacritty
-                    && !FeatureFlag::AlacrittySettingsImport.is_enabled()
-                {
-                    continue;
-                }
                 let fonts_ref_clone = Arc::clone(&fonts_ref);
                 ctx.spawn(
                     async move {
@@ -232,15 +226,7 @@ impl ImportedConfigModel {
     }
 
     pub fn finished_searching_for_settings(&self) -> bool {
-        TerminalType::iter()
-            .filter(|terminal_type| {
-                if !FeatureFlag::AlacrittySettingsImport.is_enabled() {
-                    *terminal_type != TerminalType::Alacritty
-                } else {
-                    true
-                }
-            })
-            .all(|terminal| self.parsed_terminals.contains_key(&terminal))
+        TerminalType::iter().all(|terminal| self.parsed_terminals.contains_key(&terminal))
     }
 }
 

@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 use pathfinder_color::ColorU;
 use settings::Setting as _;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::color::contrast::{
     MinimumAllowedContrast, foreground_color_with_minimum_contrast,
@@ -49,7 +48,6 @@ use crate::terminal::profile_model_selector::{
     ProfileModelSelector, ProfileModelSelectorEvent, calculate_max_profile_name_width,
     calculate_scaled_font_size,
 };
-use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedEvent};
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{
     ActionButton, ActionButtonTheme, ButtonSize, NakedTheme, TooltipAlignment,
@@ -442,12 +440,6 @@ impl UniversalDeveloperInputButtonBar {
             ctx.notify();
         });
 
-        ctx.subscribe_to_model(&SessionSettings::handle(ctx), |_, _, event, ctx| {
-            if let SessionSettingsChangedEvent::ShowModelSelectorsInPrompt = event {
-                ctx.notify();
-            }
-        });
-
         // Subscribe to AIExecutionProfilesModel to potentially show/hide the profile selector button when profiles are added/removed
         ctx.subscribe_to_model(&AIExecutionProfilesModel::handle(ctx), |_, _, _, ctx| {
             ctx.notify();
@@ -706,13 +698,9 @@ impl View for UniversalDeveloperInputButtonBar {
 
             buttons = buttons.with_child(ChildView::new(&self.file_button).finish());
 
-            let show_model_selector = FeatureFlag::ProfilesDesignRevamp.is_enabled()
-                || *SessionSettings::as_ref(app).show_model_selectors_in_prompt;
-            if show_model_selector {
-                buttons = buttons
-                    .with_child(create_divider())
-                    .with_child(model_selector_element);
-            }
+            buttons = buttons
+                .with_child(create_divider())
+                .with_child(model_selector_element);
 
             if !self.prompt_alert.as_ref(app).is_no_alert() {
                 buttons = buttons.with_child(

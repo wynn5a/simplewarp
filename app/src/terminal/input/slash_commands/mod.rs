@@ -730,9 +730,6 @@ impl Input {
                 ctx.dispatch_typed_action(&TerminalAction::OpenViewMCPPane);
             }
             SlashCommandKind::OpenSettingsFile => {
-                if !FeatureFlag::SettingsFile.is_enabled() {
-                    return false;
-                }
                 ctx.dispatch_typed_action(&WorkspaceAction::OpenSettingsFile);
             }
             SlashCommandKind::OpenProjectRules => {
@@ -775,10 +772,6 @@ impl Input {
                 }
             }
             SlashCommandKind::Profile => {
-                if !FeatureFlag::InlineProfileSelector.is_enabled() {
-                    return false;
-                }
-
                 self.open_profile_selector(ctx);
             }
             SlashCommandKind::Rewind => {
@@ -932,9 +925,6 @@ impl Input {
                 }
             }
             SlashCommandKind::OpenRepo => {
-                if !FeatureFlag::InlineRepoMenu.is_enabled() {
-                    return false;
-                }
                 self.open_repos_menu(ctx);
             }
             SlashCommandKind::Compact | SlashCommandKind::Plan => {

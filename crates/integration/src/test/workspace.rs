@@ -7,7 +7,6 @@ use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::{Vector2F, vec2f};
 use settings::Setting as _;
 use warp::cmd_or_ctrl_shift;
-use warp::features::FeatureFlag;
 use warp::integration_testing::clipboard::assert_clipboard_contains_string;
 use warp::integration_testing::command_palette::assert_command_palette_is_closed;
 use warp::integration_testing::pane_group::assert_focused_pane_index;
@@ -213,7 +212,6 @@ fn set_active_pane_name(name: &'static str) -> TestStep {
 }
 
 fn enable_vertical_tabs(display_granularity: VerticalTabsDisplayGranularity) -> TestStep {
-    FeatureFlag::VerticalTabs.set_enabled(true);
     new_step_with_default_assertions("Enable vertical tabs").add_assertion(
         move |app, _window_id| {
             TabSettings::handle(app).update(app, |settings, ctx| {

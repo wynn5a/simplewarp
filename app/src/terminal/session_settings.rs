@@ -315,18 +315,6 @@ define_settings_group!(SessionSettings, settings: [
         max_table_depth: 1,
         description: "Notification preferences for terminal events.",
     }
-    // TODO: Remove this setting when `FeatureFlag::ProfilesDesignRevamp` is cleaned up.
-    // When ProfilesDesignRevamp is enabled, model selectors are always shown in the prompt.
-    // This setting only controls visibility when ProfilesDesignRevamp is disabled.
-    show_model_selectors_in_prompt: ShowModelSelectorsInPrompt {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "agents.warp_agent.input.show_model_selectors_in_prompt",
-        description: "Whether to show AI model selectors in the input prompt.",
-    },
     agent_footer_chip_selection: AgentToolbarChipSelectionSetting {
         type: AgentToolbarChipSelection,
         default: AgentToolbarChipSelection::default(),

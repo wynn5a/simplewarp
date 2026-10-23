@@ -17,35 +17,16 @@ pub enum FeatureFlag {
     /// Enable multiselect in Notebooks and Warp Text.
     RichTextMultiselect,
 
-    /// Enables the settings file feature.
-    SettingsFile,
-
-    /// Adds Alacritty as a supported terminal to import settings from.
-    AlacrittySettingsImport,
-
     /// Enables workflows for use with Agent Mode.
     AgentModeWorkflows,
 
     /// Enables AI rules for use with Agent Mode.
     AIRules,
 
-    /// Enables the full-screen "zen mode" setting, where we hide the tab bar if there's only one
-    /// tab.
-    FullScreenZenMode,
-
-    /// Playground for reducing Warp UI clutter.
-    MinimalistUI,
-
-    /// Adds avatar to the tab bar.
-    AvatarInTabBar,
-
     DragTabsToWindows,
 
     /// Enables Kitty image rendering
     KittyImages,
-
-    /// If enabled, command palette searches will use Tantivy search instead of the default fuzzy search.
-    UseTantivySearch,
 
     /// MCP server v0 functionality.
     McpServer,
@@ -80,9 +61,6 @@ pub enum FeatureFlag {
     /// Enables the find/replace in code editor
     CodeFindReplace,
 
-    /// Enables file search functionality in command palette
-    CommandPaletteFileSearch,
-
     /// Enables the AI context menu nesting and commands
     AIContextMenuCommands,
 
@@ -97,33 +75,14 @@ pub enum FeatureFlag {
     /// Enables fallback model load output messaging in the warping indicator.
     FallbackModelLoadOutputMessaging,
 
-    /// Enables close button on left side of tabs
-    TabCloseButtonOnLeft,
-
-    /// Enables AI agent profile settings UI and functionality.
-    ///
-    /// TODO: When cleaning up this flag, also remove the `show_model_selectors_in_prompt`
-    /// setting in [`SessionSettings`] (defined in `app/src/terminal/session_settings.rs`),
-    /// as model selectors are always shown when this flag is enabled.
-    ProfilesDesignRevamp,
-
     /// Enables us to render linked code blocks
     LinkedCodeBlocks,
 
     /// Enables the tabbed file viewer
     TabbedEditorView,
 
-    /// Enables multiple agent profiles in settings for managing different AI agent configurations.
-    MultiProfile,
-
     /// Enables displaying imported PR review comments in the blocklist.
     PRCommentsV2,
-
-    /// A new first-time user experience which prioritizes choosing a coding repository.
-    GetStartedTab,
-
-    /// Enables Projects and Project management
-    Projects,
 
     /// Enables selection-as-context functionality in the code editor.
     SelectionAsContext,
@@ -131,26 +90,14 @@ pub enum FeatureFlag {
     /// Enables the prompt chip that displays the GitHub PR for the current branch.
     GithubPrPromptChip,
 
-    /// A button on the homepage for easily creating new projects.
-    CreateProjectFlow,
-
     /// Enables vim keybindings in the code editor.
     VimCodeEditor,
-
-    /// Allows opening file links using the $EDITOR environment variable.
-    AllowOpeningFileLinksUsingEditorEnv,
-
-    /// Enables the ability to undo closed panes.
-    UndoClosedPanes,
 
     /// Enables revert button for diff hunks in the gutter.
     RevertDiffHunk,
 
     /// Enables saving code review pane changes
     CodeReviewSaveChanges,
-
-    /// Enables the file tree (with an entrypoint through code mode).
-    FileTree,
 
     /// Enables the one-time modal on app startup for existing users for the Code launch.
     CodeLaunchModal,
@@ -163,9 +110,6 @@ pub enum FeatureFlag {
 
     /// Enables discarding per-file and discarding all changes
     DiscardPerFileAndAllChanges,
-
-    /// Enables UI zoom support (scaling the entire UI by a given percentage).
-    UIZoom,
 
     /// Shows a confirmation dialog when cancelling an active summarization via Ctrl-C or stop.
     SummarizationCancellationConfirmation,
@@ -205,9 +149,6 @@ pub enum FeatureFlag {
     /// Enables the /fork-from slash command.
     ForkFromCommand,
 
-    /// Enables global search
-    GlobalSearch,
-
     /// Enables the revert to checkpoints feature.
     RevertToCheckpoints,
 
@@ -218,9 +159,6 @@ pub enum FeatureFlag {
 
     /// Enables block context functionality in Agent View.
     AgentViewBlockContext,
-
-    /// Enables the inline repo switcher menu for switching between indexed repos.
-    InlineRepoMenu,
 
     /// Enables support for AM file diffs backed by the V4A patch format.
     V4AFileDiffs,
@@ -239,18 +177,8 @@ pub enum FeatureFlag {
     /// Enables editing the agent input footer layout from the prompt context menu.
     AgentToolbarEditor,
 
-    /// Enables configuring header toolbar item order, side placement, and visibility.
-    ConfigurableToolbar,
-
     // Enables a side panel conversation list view for AgentView mode.
     AgentViewConversationListView,
-
-    /// Enables pluggable notifications via OSC 9 and OSC 777 escape sequences.
-    /// External programs can trigger system and in-app notifications.
-    PluggableNotifications,
-
-    /// When enabled, profile selection is displayed in an inline view above the Agent input (e.g. via /profile).
-    InlineProfileSelector,
 
     /// Enables sending the server a list of Skills that the client has access to.
     ///
@@ -259,9 +187,6 @@ pub enum FeatureFlag {
 
     /// Enables loading and returning bundled skills in the SkillManager.
     BundledSkills,
-
-    /// Updated tab styling (background colors, border, close button positioning, margins).
-    NewTabStyling,
 
     /// Enables file-based MCP server support via .mcp.json files in repo roots.
     FileBasedMcp,
@@ -275,9 +200,6 @@ pub enum FeatureFlag {
 
     /// Enables attaching conversations as context in Agent Mode via the @ menu.
     ConversationsAsContext,
-
-    /// Enables incremental (diff-based) buffer updates for auto-reload instead of full replace.
-    IncrementalAutoReload,
 
     /// Enables scroll position preservation in the code review pane when file
     /// content changes via auto-reload.
@@ -301,34 +223,12 @@ pub enum FeatureFlag {
     /// model chip, then restores that prompt when the selector closes.
     RestorePromptOnInlineModelSelectorSearch,
 
-    /// Enables associating a tab color with a directory so tabs automatically
-    /// adopt the configured color when their working directory matches.
-    DirectoryTabColors,
-
-    /// Enables vertical tab layout as an alternative to the horizontal tab bar.
-    VerticalTabs,
-
     /// Enables the `--harness` flag for `oz agent run`, allowing external agent
     /// CLIs (e.g. `claude`) to execute prompts instead of Warp's agent harness.
     AgentHarness,
 
-    /// Enables tab configs — user-definable TOML templates for launching custom tab layouts.
-    TabConfigs,
-
     /// Enables commit, push, and create-PR actions in the code review panel.
     GitOperationsInCodeReview,
-
-    /// Enables summary mode in vertical tabs, showing condensed tab summaries
-    /// instead of individual pane rows.
-    VerticalTabsSummaryMode,
-
-    /// Gates the Grouped Tabs feature.
-    GroupedTabs,
-
-    /// Gates the Pinned Tabs feature, which lets users pin individual tabs
-    /// and whole tab groups so they stay at the front of the tab list and
-    /// are protected from reordering.
-    PinnedTabs,
 
     /// Renders MCP tool-call request and response JSON as an interactive
     /// collapsible tree with typed colors and per-row Copy JSON, instead of

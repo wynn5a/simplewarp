@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use settings::{Setting as _, SettingsManager};
-use warp_core::features::FeatureFlag;
 use warp_core::semantic_selection::SemanticSelection;
 use warp_errors::report_if_error;
 use warpui::rendering::GPUPowerPreference;
@@ -240,10 +239,7 @@ fn handle_warp_config_change(
         }
     });
 }
-/// Returns the platform-native preferences backend.
-///
-/// Used directly for private settings, and also as the fallback for public
-/// settings when the settings file feature flag is disabled.
+/// Returns the platform-native preferences backend, which holds private settings.
 fn init_platform_native_preferences() -> user_preferences::Model {
     cfg_if::cfg_if! {
         if #[cfg(test)] {
@@ -279,10 +275,7 @@ pub fn init_private_user_preferences() -> settings::PrivatePreferences {
 
 /// Initializes the public UserPreferences provider.
 ///
-/// When the `SettingsFile` feature flag is enabled, public settings are stored
-/// in `settings.toml` so they are user-visible and editable. When the flag is
-/// disabled, this falls back to the platform-native store (same as private
-/// settings), so all settings live in the same place.
+/// Public settings are stored in `settings.toml` so they are user-visible and editable.
 /// Returns `(preferences_backend, optional_parse_error)`. The parse error
 /// is `Some` only when the TOML settings file existed but could not be
 /// parsed; it should be propagated to the UI so the user sees a banner.
@@ -292,18 +285,14 @@ pub fn init_public_user_preferences() -> (user_preferences::Model, Option<user_p
         if #[cfg(test)] {
             (Box::<user_preferences::in_memory::InMemoryPreferences>::default(), None)
         } else {
-            if warp_core::features::FeatureFlag::SettingsFile.is_enabled() {
-                let (prefs, parse_error) =
-                    user_preferences::toml_backed::TomlBackedUserPreferences::new(
-                        super::user_preferences_toml_file_path(),
-                    );
-                if let Some(err) = &parse_error {
-                    log::warn!("Settings file has syntax errors and could not be parsed: {err}");
-                }
-                (Box::new(prefs) as user_preferences::Model, parse_error)
-            } else {
-                (init_platform_native_preferences(), None)
+            let (prefs, parse_error) =
+                user_preferences::toml_backed::TomlBackedUserPreferences::new(
+                    super::user_preferences_toml_file_path(),
+                );
+            if let Some(err) = &parse_error {
+                log::warn!("Settings file has syntax errors and could not be parsed: {err}");
             }
+            (Box::new(prefs) as user_preferences::Model, parse_error)
         }
     }
 }
@@ -312,9 +301,8 @@ pub fn init_public_user_preferences() -> (user_preferences::Model, Option<user_p
 /// platform-native store into the TOML settings file.
 ///
 /// Migration is needed when all of the following are true:
-/// 1. The `SettingsFile` feature flag is enabled.
-/// 2. The `settings.toml` file does not yet exist on disk.
-/// 3. The migration-complete marker is absent from the native store
+/// 1. The `settings.toml` file does not yet exist on disk.
+/// 2. The migration-complete marker is absent from the native store
 ///    (handles the case where a user deletes `settings.toml` to reset).
 fn needs_settings_file_migration(ctx: &AppContext) -> bool {
     // Migration only applies to the GUI surface, which is the one with legacy
@@ -326,9 +314,6 @@ fn needs_settings_file_migration(ctx: &AppContext) -> bool {
 }
 
 fn needs_settings_file_migration_for_path(ctx: &AppContext, settings_file_path: &Path) -> bool {
-    if !FeatureFlag::SettingsFile.is_enabled() {
-        return false;
-    }
     if settings_file_path.exists() {
         return false;
     }

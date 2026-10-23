@@ -345,13 +345,9 @@ agent_mode = []
 # SimpleWarp: a local-only build. No cloud, no login, no billing, and no Warp Drive.
 # It is the app's only feature set; `default` just forwards to it.
 simplewarp = [
-    "use_tantivy_search",
     "agent_mode",
     "render_continuous_block_selections_with_single_border",
     "external_agent_mode_context",
-    "minimalist_ui",
-    "avatar_in_tab_bar",
-    "full_screen_zen_mode",
     "ai_rules",
     "am_workflows",
     "render_agent_mode_output_markdown",
@@ -359,35 +355,25 @@ simplewarp = [
     "mcp_server",
     "fast_forward_autoexecute_button",
     "image_as_context",
-    "command_palette_file_search",
     "ai_context_menu",
     "at_menu_outside_of_ai_mode",
     "interactive_conversation_management_view",
-    "tab_close_button_on_left",
     "ai_resume_button",
     "code_find_replace",
     "ai_context_menu_code",
     "agent_decides_command_execution",
     "linked_code_blocks",
-    "profiles_design_revamp",
-    "multi_profile",
     "tabbed_editor_view",
-    "allow_opening_file_links_using_editor_env",
     "read_image_files",
     "selection_as_context",
-    "undo_closed_panes",
     "revert_diff_hunk",
     "code_review_save_changes",
-    "create_project_flow",
-    "get_started_tab",
-    "file_tree",
     "vim_code_editor",
     "code_launch_modal",
     "mcp_oauth",
     "expand_edit_to_pane",
     "fallback_model_load_output_messaging",
     "summarization_cancellation_confirmation",
-    "ui_zoom",
     "discard_per_file_and_all_changes",
     "auto_open_code_review_pane",
     "diff_set_as_context",
@@ -397,8 +383,6 @@ simplewarp = [
     "fork_from_command",
     "v4a_file_diffs",
     "agent_tips",
-    "pluggable_notifications",
-    "global_search",
     "list_skills",
     "bundled_skills",
     "agent_view",
@@ -406,15 +390,11 @@ simplewarp = [
     "agent_view_conversation_list_view",
     "inline_slash_commands",
     "inline_model_selector",
-    "new_tab_styling",
     "richtext_multiselect",
-    "inline_profile_selector",
     "skill_arguments",
-    "incremental_auto_reload",
     "active_conversation_requires_interaction",
     "figma_detection",
     "file_based_mcp",
-    "inline_repo_menu",
     "github_pr_prompt_chip",
     "conversations_as_context",
     "markdown_tables",
@@ -428,14 +408,6 @@ simplewarp = [
     "revert_to_checkpoints",
     "rewind_slash_command",
     "agent_toolbar_editor",
-    "configurable_toolbar",
-    "vertical_tabs",
-    "vertical_tabs_summary_mode",
-    "tab_configs",
-    "grouped_tabs",
-    "pinned_tabs",
-    "settings_file",
-    "directory_tab_colors",
     "pending_user_query_indicator",
     "queue_slash_command",
     "queued_prompts_v2",
@@ -447,10 +419,8 @@ simplewarp = [
     "remember_fast_forward_state",
     "agent_view_prompt_chip",
     "ai_context_menu_commands",
-    "alacritty_settings_import",
     "restore_prompt_on_inline_model_selector_search",
     "drag_tabs_to_windows",
-    "projects",
 ]
 default = ["simplewarp"]
 # Enable this feature to automatically perform heap profiling.  NOTE: This will
@@ -460,13 +430,10 @@ editable_markdown_mermaid = []
 drag_tabs_to_windows = []
 interactive_conversation_management_view = []
 extern_plist = []
-full_screen_zen_mode = []
 nld_heuristic_v1 = ["input_classifier/nld_heuristic_v1"]
 nld_heuristic_v2 = ["input_classifier/nld_heuristic_v2"]
 msys2_shells = []
-get_started_tab = []
 github_pr_prompt_chip = []
-create_project_flow = []
 agent_mode_evals = [
     "integration_tests",
     "warpui/defer_scene_build",
@@ -494,7 +461,6 @@ mcp_server = []
 mcp_oauth = []
 # Remote-backed tty that connects to a PTY-like interface via a server.
 # Fix for cursor reflow bug during window resize, from Alacritty resizing logic.
-pluggable_notifications = []
 # This enables `read_files` to support images.
 read_image_files = []
 # Enable this feature to automatically perform CPU profiling via pprof.  The
@@ -505,8 +471,6 @@ recording_mode = []
 render_agent_mode_output_markdown = []
 render_continuous_block_selections_with_single_border = []
 richtext_multiselect = []
-settings_file = []
-tab_close_button_on_left = []
 test-util = [
     "http_client/test-util",
     "warp_core/test-util",
@@ -524,50 +488,37 @@ integration_tests = [
     "warp_core/integration_tests",
 ]
 traces = []
-alacritty_settings_import = []
 ai_rules = []
 am_workflows = []
 blocklist_markdown_table_rendering = []
 blocklist_markdown_images = []
-minimalist_ui = []
 external_agent_mode_context = []
-avatar_in_tab_bar = []
-use_tantivy_search = []
 ai_context_menu = []
 at_menu_outside_of_ai_mode = []
 agent_decides_command_execution = []
 fast_forward_autoexecute_button = []
 code_find_replace = []
-command_palette_file_search = []
 ai_context_menu_commands = []
 ai_context_menu_code = []
 expand_edit_to_pane = []
 fallback_model_load_output_messaging = []
-profiles_design_revamp = []
 linked_code_blocks = []
 tabbed_editor_view = []
 selection_as_context = []
-multi_profile = []
 pr_comments_v2 = []
 conversations_as_context = []
-projects = []
 vim_code_editor = []
-allow_opening_file_links_using_editor_env = []
-undo_closed_panes = []
 revert_diff_hunk = []
 code_review_save_changes = []
-file_tree = []
 code_launch_modal = []
 diff_set_as_context = []
 discard_per_file_and_all_changes = []
-ui_zoom = []
 summarization_cancellation_confirmation = []
 code_review_find = []
 auto_open_code_review_pane = []
 inline_code_review = []
 summarize_conversation_command = []
 fork_from_command = []
-global_search = []
 revert_to_checkpoints = []
 rewind_slash_command = []
 agent_view = []
@@ -577,26 +528,15 @@ agent_tips = []
 agent_toolbar_editor = ["agent_view"]
 agent_view_prompt_chip = ["agent_view"]
 agent_view_conversation_list_view = ["agent_view"]
-inline_repo_menu = ["agent_view"]
 inline_model_selector = ["agent_view"]
-inline_profile_selector = ["agent_view"]
 restore_prompt_on_inline_model_selector_search = []
-new_tab_styling = []
 file_based_mcp = []
 skill_arguments = []
 active_conversation_requires_interaction = []
-incremental_auto_reload = []
 pending_user_query_indicator = []
 queue_slash_command = []
 queued_prompts_v2 = ["queue_slash_command"]
-directory_tab_colors = []
-vertical_tabs = []
-vertical_tabs_summary_mode = []
-tab_configs = []
-grouped_tabs = []
-pinned_tabs = []
 agent_harness = []
-configurable_toolbar = []
 git_operations_in_code_review = []
 
 [package.metadata.bundle.bin.simplewarp]

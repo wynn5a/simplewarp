@@ -110,7 +110,6 @@ use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
 use serde::{Deserialize, Serialize};
 use settings::Setting as _;
-use warp_core::features::FeatureFlag;
 use warpui::elements::DEFAULT_UI_LINE_HEIGHT_RATIO;
 use warpui::keymap::Keystroke;
 use warpui::{AppContext, DisplayIdx, SingletonEntity};
@@ -496,8 +495,7 @@ impl TerminalSpacing {
             },
             prompt_to_editor_padding: 10.,
             editor_bottom_padding: 20.,
-            block_borders_enabled: *BlockListSettings::as_ref(ctx).show_block_dividers.value()
-                || !FeatureFlag::MinimalistUI.is_enabled(),
+            block_borders_enabled: *BlockListSettings::as_ref(ctx).show_block_dividers.value(),
             overflow_offset: 12.,
             // Subshell separators are actually hidden in normal spacing b/c they are meant to be
             // shown inside the block padding instead.
@@ -515,8 +513,7 @@ impl TerminalSpacing {
             },
             prompt_to_editor_padding: 0.,
             editor_bottom_padding: 4.,
-            block_borders_enabled: *BlockListSettings::as_ref(ctx).show_block_dividers.value()
-                || !FeatureFlag::MinimalistUI.is_enabled(),
+            block_borders_enabled: *BlockListSettings::as_ref(ctx).show_block_dividers.value(),
             overflow_offset: 6.,
             subshell_separator_height: 1.1,
         }

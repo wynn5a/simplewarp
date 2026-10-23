@@ -1,4 +1,4 @@
-//! Tab group data model. Gated at runtime by `FeatureFlag::GroupedTabs`.
+//! Tab group data model.
 
 use uuid::Uuid;
 use warpui::elements::DraggableState;

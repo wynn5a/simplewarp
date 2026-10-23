@@ -109,8 +109,8 @@ preferred route; D2 dropped the common-skills lock (user ruling). H4 was wrong a
 
 **Leftovers survey (2026-10-22):** queued in [plan-p5.md](plan-p5.md) — A `cargo machete` ignore
 lists (no real unused deps), B "GUI" names left from the two-front-end design, C the 132 always-on
-feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c, C2 and C2b done (see the round log);
-C3–C7 next.
+feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c, C2, C2b and C3 done (see the round
+log); C4–C7 next.
 
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
@@ -1682,6 +1682,44 @@ by hand.
 Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,268 run,
 6,267 passed, 1 failed (the clone-slash-command flake), 86 skipped. `cargo run` smoke: the app
 starts with no errors in `simplewarp.log`; up-arrow was not exercised by hand.
+
+### Round: C3 — tabs, workspace, settings, search flags (2026-10-23)
+
+- The 30 C3 flags are gone (enum variants, cargo features, `features.rs` mappings, the
+  `simplewarp` set, the three pins in `features_tests.rs`): `AlacrittySettingsImport`,
+  `AllowOpeningFileLinksUsingEditorEnv`, `AvatarInTabBar`, `CommandPaletteFileSearch`,
+  `ConfigurableToolbar`, `CreateProjectFlow`, `DirectoryTabColors`, `FileTree`, `FullScreenZenMode`,
+  `GetStartedTab`, `GlobalSearch`, `GroupedTabs`, `IncrementalAutoReload`, `InlineProfileSelector`,
+  `InlineRepoMenu`, `MinimalistUI`, `MultiProfile`, `NewTabStyling`, `PinnedTabs`,
+  `PluggableNotifications`, `ProfilesDesignRevamp`, `Projects`, `SettingsFile`,
+  `TabCloseButtonOnLeft`, `TabConfigs`, `UIZoom`, `UndoClosedPanes`, `UseTantivySearch`,
+  `VerticalTabs`, `VerticalTabsSummaryMode`. Every gate keeps its on-branch.
+- Dead with the off-branches: the pre-revamp Profiles page (every field of
+  `AgentProfilesPageView` except the profile list and Add Profile button, the permission and model
+  dropdowns, allow/denylist editors and their actions, `AgentProfilesPageEvent` /
+  `SettingsViewEvent::OpenMCPServerCollection`, four `BlocklistAIPermissions` methods only it
+  called); the fuzzy palette searchers (`new_fuzzy`, `Fuzzy{Action,LaunchConfig,NewSession}Searcher`);
+  the non-undo pane-close path; the legacy tab styling and color picker
+  (`legacy_color_option_menu_items`, `WARP_2_*` opacities, the tab-color icon paths); the
+  non-minimalist pane divider; the settings-button tab-bar icon; the 200px settings sidebar and
+  `SettingsFooterKind::Hidden` (`choose` lost its flag argument); the public-settings fallback to
+  the native store in `settings` and `init_public_user_preferences`; `render_custom_size_header`,
+  `render_body_item_label_with_icon`.
+- The inert `agents.warp_agent.input.show_model_selectors_in_prompt` setting
+  (`ShowModelSelectorsInPrompt`) is removed with its palette toggle, action and context flag: with
+  `ProfilesDesignRevamp` on the model selector was always shown. An existing key in
+  `settings.toml` is ignored.
+- Tests: the off-path tests went (`feature_disabled_hides_footer_regardless_of_error_or_dismissal`
+  and the three `*_when_flag_disabled` settings-macro tests; the `_when_flag_enabled` suffix
+  dropped from their counterparts); `override_enabled(true)` / `set_enabled(true)` calls removed.
+  `test_terminal_pane_headers` relied on the non-undo close and now counts visible panes (the
+  closed pane stays hidden for undo).
+
+Verification: format and all three clippy gates clean; `cargo nextest run --workspace` 6,264 run
+(−4 deleted), 6,263 passed after the `test_terminal_pane_headers` update, 1 failed (the
+clone-slash-command flake), 86 skipped. `cargo run` smoke: the app starts with no errors in
+`simplewarp.log`; tabs, settings and the palette were not exercised by hand (no screen-capture
+permission in the session).
 
 ## Risks
 

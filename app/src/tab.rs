@@ -84,11 +84,9 @@ fn tab_group_menu_entry_flags(
 /// Exposed so binding-description overrides in `workspace/mod.rs` and context-
 /// menu builders here can share a single predicate.
 pub fn uses_vertical_tabs(ctx: &AppContext) -> bool {
-    FeatureFlag::VerticalTabs.is_enabled() && *TabSettings::as_ref(ctx).use_vertical_tabs
+    *TabSettings::as_ref(ctx).use_vertical_tabs
 }
 
-const WARP_2_TAB_COLOR_OPACITY: Opacity = 25;
-const WARP_2_HOVERED_TAB_COLOR_OPACITY: Opacity = 50;
 const TAB_CLOSE_BUTTON_OPACITY: Opacity = 60;
 const TAB_CLOSE_BUTTON_WIDTH: f32 = 20.0;
 const MAX_TOOLTIP_LENGTH: usize = 80;
@@ -153,7 +151,6 @@ pub(crate) fn next_tab_color(current: Option<AnsiColorIdentifier>) -> SelectedTa
 pub enum NewSessionMenuItem {
     OpenLaunchConfig(LaunchConfig),
     CreateNewTabConfig,
-    /// Creates a new tab group. Gated by `FeatureFlag::GroupedTabs`.
     CreateNewTabGroup,
 }
 
@@ -192,9 +189,6 @@ pub struct TabData {
     /// True when this tab is pinned to the front of the tab list.
     pub pinned: bool,
 }
-
-const TAB_COLOR_ICON_PATH: &str = "bundled/svg/ellipse.svg";
-const TAB_NO_COLOR_ICON_PATH: &str = "bundled/svg/no_color_ellipse.svg";
 
 impl TabData {
     pub fn new(pane_group: ViewHandle<PaneGroup>) -> Self {
@@ -538,9 +532,6 @@ impl TabData {
     }
 
     fn save_config_menu_items(index: usize) -> Vec<MenuItem<WorkspaceAction>> {
-        if !FeatureFlag::TabConfigs.is_enabled() {
-            return vec![];
-        }
         vec![
             MenuItemFields::new("Save as new config")
                 .with_on_select_action(WorkspaceAction::SaveCurrentTabAsNewConfig(index))
@@ -550,10 +541,6 @@ impl TabData {
 
     /// Pin/unpin entry for the per-tab right-click menu.
     fn pin_menu_items(&self, index: usize) -> Vec<MenuItem<WorkspaceAction>> {
-        if !FeatureFlag::PinnedTabs.is_enabled() {
-            return vec![];
-        }
-
         let (label, action) = if self.pinned {
             ("Unpin tab", WorkspaceAction::UnpinTab(index))
         } else {
@@ -580,9 +567,6 @@ impl TabData {
         tab_groups: &HashMap<TabGroupId, TabGroup>,
         is_only_member_of_group: bool,
     ) -> Vec<MenuItem<WorkspaceAction>> {
-        if !FeatureFlag::GroupedTabs.is_enabled() {
-            return vec![];
-        }
         let (show_new_group, show_move_to_group, show_remove_from_group) =
             tab_group_menu_entry_flags(self.group_id, tab_groups, is_only_member_of_group);
         let mut menu_items = vec![];
@@ -611,45 +595,11 @@ impl TabData {
         index: usize,
         terminal_colors: AnsiColors,
     ) -> Vec<MenuItem<WorkspaceAction>> {
-        if FeatureFlag::DirectoryTabColors.is_enabled() {
-            color_picker_menu_items(
-                self.color(),
-                terminal_colors,
-                ColorPickerTarget::Tab { tab_index: index },
-            )
-        } else {
-            self.legacy_color_option_menu_items(index, terminal_colors)
-        }
-    }
-
-    /// Legacy icon-based color picker with toggle behavior.
-    fn legacy_color_option_menu_items(
-        &self,
-        index: usize,
-        terminal_colors: AnsiColors,
-    ) -> Vec<MenuItem<WorkspaceAction>> {
-        vec![MenuItem::ItemsRow {
-            items: TAB_COLOR_OPTIONS
-                .iter()
-                .map(|color_option| {
-                    let color = color_option.to_ansi_color(&terminal_colors);
-                    MenuItemFields::new_with_icon(
-                        if self.color() == Some(*color_option) {
-                            TAB_NO_COLOR_ICON_PATH
-                        } else {
-                            TAB_COLOR_ICON_PATH
-                        },
-                        color.into(),
-                        color_option.to_string(),
-                    )
-                    .no_highlight_on_hover()
-                    .with_on_select_action(WorkspaceAction::ToggleTabColor {
-                        color: *color_option,
-                        tab_index: index,
-                    })
-                })
-                .collect(),
-        }]
+        color_picker_menu_items(
+            self.color(),
+            terminal_colors,
+            ColorPickerTarget::Tab { tab_index: index },
+        )
     }
 }
 
@@ -1186,12 +1136,10 @@ impl<'a> TabComponent<'a> {
                     margin: Some(Coords::default().top(if self.grouped_member {
                         // Reduce the top margin for grouped tabs to make it appear centered.
                         2.
-                    } else if FeatureFlag::NewTabStyling.is_enabled() {
+                    } else {
                         // With the larger tabs in the new ui, we need to give the editor some extra top margin
                         // to make it appear centered
                         8.
-                    } else {
-                        3.
                     })),
                     ..Default::default()
                 })
@@ -1329,7 +1277,7 @@ impl<'a> TabComponent<'a> {
     /// button slot: pinning is enabled, the tab is pinned, and it isn't a
     /// grouped member (groups render their own pin).
     fn show_pin_indicator(&self) -> bool {
-        FeatureFlag::PinnedTabs.is_enabled() && self.tab.pinned && !self.grouped_member
+        self.tab.pinned && !self.grouped_member
     }
 
     fn render_indicator(&self) -> Option<Box<dyn Element>> {
@@ -1381,12 +1329,8 @@ impl<'a> TabComponent<'a> {
                 conversation_status,
             } => {
                 if let Some(status) = conversation_status {
-                    if FeatureFlag::NewTabStyling.is_enabled() {
-                        let icon_size = 22.0 - STATUS_ELEMENT_PADDING * 2.;
-                        Some(render_status_element(status, icon_size, self.appearance))
-                    } else {
-                        Some(status.render_icon(self.appearance).finish())
-                    }
+                    let icon_size = 22.0 - STATUS_ELEMENT_PADDING * 2.;
+                    Some(render_status_element(status, icon_size, self.appearance))
                 } else {
                     let icon_color = self.appearance.theme().nonactive_ui_text_color();
                     Some(Icon::Agent.to_warpui_icon(icon_color).finish())
@@ -1426,79 +1370,47 @@ impl<'a> TabComponent<'a> {
         let is_active = self.is_active_tab();
         let is_in_multi_tab_selection = self.is_in_multi_tab_selection;
 
-        let (background_color, border_fill) = if FeatureFlag::NewTabStyling.is_enabled() {
-            // If there is a custom tab background, we overlay it with varying opacities.
-            let bg = if let Some(custom_background) = self.styles.background {
-                let base_opacity = if is_active || (is_in_multi_tab_selection && is_hovered) {
-                    60
-                } else if is_in_multi_tab_selection {
-                    // Multi-selected (but not hovered): brighter than the resting
-                    // tint. A grouped member sits on the group's color backdrop,
-                    // so it needs a bigger step to read as selected against it;
-                    // at rest it just shows its own color over that backdrop.
-                    if self.grouped_member { 55 } else { 30 }
-                } else if is_hovered {
-                    40
-                } else {
-                    20
-                };
-                let opacity = (base_opacity as f32 * self.background_opacity as f32 / 100.) as u8;
-                match custom_background {
-                    ThemeFill::Solid(color) => coloru_with_opacity(color, opacity).into(),
-                    ThemeFill::VerticalGradient(gradient) => {
-                        coloru_with_opacity(gradient.get_most_opaque(), opacity).into()
-                    }
-                    ThemeFill::HorizontalGradient(gradient) => {
-                        coloru_with_opacity(gradient.get_most_opaque(), opacity).into()
-                    }
+        // If there is a custom tab background, we overlay it with varying opacities.
+        let background_color = if let Some(custom_background) = self.styles.background {
+            let base_opacity = if is_active || (is_in_multi_tab_selection && is_hovered) {
+                60
+            } else if is_in_multi_tab_selection {
+                // Multi-selected (but not hovered): brighter than the resting
+                // tint. A grouped member sits on the group's color backdrop,
+                // so it needs a bigger step to read as selected against it;
+                // at rest it just shows its own color over that backdrop.
+                if self.grouped_member { 55 } else { 30 }
+            } else if is_hovered {
+                40
+            } else {
+                20
+            };
+            let opacity = (base_opacity as f32 * self.background_opacity as f32 / 100.) as u8;
+            match custom_background {
+                ThemeFill::Solid(color) => coloru_with_opacity(color, opacity).into(),
+                ThemeFill::VerticalGradient(gradient) => {
+                    coloru_with_opacity(gradient.get_most_opaque(), opacity).into()
                 }
-            } else if is_active {
-                internal_colors::fg_overlay_2(theme).into()
-            } else if is_in_multi_tab_selection && is_hovered {
-                // Hovering a multi-selected tab steps one shade darker so the
-                // hover stays distinguishable from the in-selection highlight.
-                internal_colors::fg_overlay_2(theme).into()
-            } else if is_in_multi_tab_selection || is_hovered {
-                internal_colors::fg_overlay_1(theme).into()
-            } else {
-                Fill::None
-            };
-
-            let border = if is_active {
-                internal_colors::fg_overlay_4(theme)
-            } else {
-                internal_colors::fg_overlay_3(theme)
-            };
-
-            (bg, border)
+                ThemeFill::HorizontalGradient(gradient) => {
+                    coloru_with_opacity(gradient.get_most_opaque(), opacity).into()
+                }
+            }
+        } else if is_active {
+            internal_colors::fg_overlay_2(theme).into()
+        } else if is_in_multi_tab_selection && is_hovered {
+            // Hovering a multi-selected tab steps one shade darker so the
+            // hover stays distinguishable from the in-selection highlight.
+            internal_colors::fg_overlay_2(theme).into()
+        } else if is_in_multi_tab_selection || is_hovered {
+            internal_colors::fg_overlay_1(theme).into()
         } else {
-            let tab_opacity = if is_active || is_hovered {
-                WARP_2_HOVERED_TAB_COLOR_OPACITY
-            } else {
-                WARP_2_TAB_COLOR_OPACITY
-            };
+            Fill::None
+        };
 
-            let bg = if let Some(custom_background) = self.styles.background {
-                match custom_background {
-                    ThemeFill::Solid(color) => coloru_with_opacity(color, tab_opacity).into(),
-                    ThemeFill::VerticalGradient(gradient) => {
-                        coloru_with_opacity(gradient.get_most_opaque(), tab_opacity).into()
-                    }
-                    ThemeFill::HorizontalGradient(gradient) => {
-                        coloru_with_opacity(gradient.get_most_opaque(), tab_opacity).into()
-                    }
-                }
-            } else {
-                coloru_with_opacity(theme.surface_3().into(), tab_opacity).into()
-            };
-
-            let border = if is_active || is_hovered {
-                internal_colors::fg_overlay_2(theme)
-            } else {
-                internal_colors::fg_overlay_1(theme)
-            };
-
-            (bg, border)
+        let border_fill = if is_active {
+            internal_colors::fg_overlay_4(theme)
+        } else {
+            internal_colors::fg_overlay_3(theme)
         };
 
         let build_full_content = |reserve_pin_space: bool| -> Box<dyn Element> {
@@ -1587,38 +1499,18 @@ impl<'a> TabComponent<'a> {
             ))
         };
 
-        // The old code always used a negative offset, which I (Harry) think is wrong for the left-side case (pushes outward).
-        // We preserve that behavior in the flag-OFF path out of an abundance of caution to avoid breaking existing functionality.
         let (parent_anchor, child_anchor, horizontal_inset) =
-            if FeatureFlag::NewTabStyling.is_enabled() {
-                if FeatureFlag::TabCloseButtonOnLeft.is_enabled()
-                    && matches!(self.close_button_position, TabCloseButtonPosition::Left)
-                {
-                    (
-                        ParentAnchor::MiddleLeft,
-                        ChildAnchor::MiddleLeft,
-                        TAB_CLOSE_BUTTON_HORIZONTAL_INSET + 4.0,
-                    )
-                } else {
-                    (
-                        ParentAnchor::MiddleRight,
-                        ChildAnchor::MiddleRight,
-                        -(TAB_CLOSE_BUTTON_HORIZONTAL_INSET + 4.0),
-                    )
-                }
-            } else if FeatureFlag::TabCloseButtonOnLeft.is_enabled()
-                && matches!(self.close_button_position, TabCloseButtonPosition::Left)
-            {
+            if matches!(self.close_button_position, TabCloseButtonPosition::Left) {
                 (
-                    ParentAnchor::TopLeft,
-                    ChildAnchor::TopLeft,
-                    -TAB_CLOSE_BUTTON_HORIZONTAL_INSET,
+                    ParentAnchor::MiddleLeft,
+                    ChildAnchor::MiddleLeft,
+                    TAB_CLOSE_BUTTON_HORIZONTAL_INSET + 4.0,
                 )
             } else {
                 (
-                    ParentAnchor::TopRight,
-                    ChildAnchor::TopRight,
-                    -TAB_CLOSE_BUTTON_HORIZONTAL_INSET,
+                    ParentAnchor::MiddleRight,
+                    ChildAnchor::MiddleRight,
+                    -(TAB_CLOSE_BUTTON_HORIZONTAL_INSET + 4.0),
                 )
             };
 
@@ -1726,19 +1618,13 @@ impl<'a> TabComponent<'a> {
         let mut tab = Container::new(stack)
             .with_vertical_padding(2.)
             .with_background(background_color);
-        if FeatureFlag::NewTabStyling.is_enabled() {
-            let is_first_tab = self.tab_index == 0;
-            tab = tab.with_border(
-                Border::all(1.)
-                    // We only include a left border on the very first tab to avoid double borders.
-                    .with_sides(false, is_first_tab, false, true)
-                    .with_border_fill(border_fill),
-            );
-        } else {
-            tab = tab
-                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)))
-                .with_border(Border::all(1.).with_border_fill(border_fill));
-        }
+        let is_first_tab = self.tab_index == 0;
+        tab = tab.with_border(
+            Border::all(1.)
+                // We only include a left border on the very first tab to avoid double borders.
+                .with_sides(false, is_first_tab, false, true)
+                .with_border_fill(border_fill),
+        );
 
         // If the tab is being dragged, add an opaque background behind it
         if is_tab_dragging {
@@ -1942,9 +1828,9 @@ impl UiComponent for TabComponent<'_> {
                 if close_hovered {
                     return;
                 }
-                if modifiers.shift && FeatureFlag::GroupedTabs.is_enabled() {
+                if modifiers.shift {
                     ctx.dispatch_typed_action(WorkspaceAction::ShiftSelectTabRange { locator });
-                } else if modifiers.cmd && FeatureFlag::GroupedTabs.is_enabled() {
+                } else if modifiers.cmd {
                     ctx.dispatch_typed_action(WorkspaceAction::ToggleTabMultiSelection { locator });
                 } else {
                     ctx.dispatch_typed_action(WorkspaceAction::ActivateTab(tab_index));
@@ -1965,9 +1851,7 @@ impl UiComponent for TabComponent<'_> {
                 });
             } else {
                 // Right-clicking outside the multi-selection cancels it.
-                if FeatureFlag::GroupedTabs.is_enabled() {
-                    ctx.dispatch_typed_action(WorkspaceAction::ClearTabMultiSelection);
-                }
+                ctx.dispatch_typed_action(WorkspaceAction::ClearTabMultiSelection);
                 ctx.dispatch_typed_action(WorkspaceAction::ToggleTabRightClickMenu {
                     tab_index,
                     anchor,
@@ -2028,17 +1912,7 @@ impl UiComponent for TabComponent<'_> {
             let tab_with_drag: Box<dyn Element> = draggable.finish();
             SavePosition::new(tab_with_drag, &tab_position_id(tab_index)).finish()
         };
-        if FeatureFlag::NewTabStyling.is_enabled() {
-            Shrinkable::new(1.0, full_tab)
-        } else {
-            Shrinkable::new(
-                1.0,
-                Container::new(full_tab)
-                    .with_vertical_margin(4.)
-                    .with_margin_left(8.)
-                    .finish(),
-            )
-        }
+        Shrinkable::new(1.0, full_tab)
     }
 
     fn with_style(self, style: UiComponentStyles) -> Self {
