@@ -637,7 +637,7 @@ fn test_open_file_markdown_routes_to_editor_when_viewer_disabled() {
 
 #[test]
 fn test_open_file_ipynb_routes_to_notebook() {
-    // A `.ipynb` opened via `file://` (e.g. "Open with Warp" from Finder) opens
+    // A `.ipynb` opened via `file://` (e.g. "Open with SimpleWarp" from Finder) opens
     // in the notebook viewer, not the raw-JSON code editor.
     let dir = tempfile::tempdir().unwrap();
     let p = dir.path().join("analysis.ipynb");

@@ -45,7 +45,7 @@ impl OpenInWarpBannerState {
 fn file_title_text(openable_path: &OpenablePath) -> String {
     match openable_path.file_type {
         OpenableFileType::Markdown => {
-            "Did you know that Warp can directly display Markdown files?".to_string()
+            "Did you know that SimpleWarp can directly display Markdown files?".to_string()
         }
         OpenableFileType::Code | OpenableFileType::Text => {
             // Language is a temporary variable to ensure our copy of the Arc<Language>
@@ -54,9 +54,9 @@ fn file_title_text(openable_path: &OpenablePath) -> String {
 
             match language.as_ref().map(|language| language.display_name()) {
                 Some(display_name) => {
-                    format!("Did you know that Warp can directly edit {display_name} files?")
+                    format!("Did you know that SimpleWarp can directly edit {display_name} files?")
                 }
-                None => "Did you know that Warp can directly edit code?".to_string(),
+                None => "Did you know that SimpleWarp can directly edit code?".to_string(),
             }
         }
     }
@@ -68,8 +68,8 @@ pub fn render_open_in_warp_banner(
     appearance: &Appearance,
 ) -> Box<dyn Element> {
     let button_text = match state.target.file_type {
-        OpenableFileType::Markdown => "View in Warp",
-        OpenableFileType::Code | OpenableFileType::Text => "Edit in Warp",
+        OpenableFileType::Markdown => "View in SimpleWarp",
+        OpenableFileType::Code | OpenableFileType::Text => "Edit in SimpleWarp",
     };
 
     let open_button = InlineBannerTextButton {

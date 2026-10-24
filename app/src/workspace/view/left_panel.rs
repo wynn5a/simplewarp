@@ -208,7 +208,7 @@ impl LeftPanelView {
         let (title, description) = match (view, availability) {
             (ToolPanelView::ConversationListView, ToolPanelAvailability::RequiresAi) => (
                 "Turn on AI to access Agent conversations",
-                "Enable Warp AI to access your conversation history.",
+                "Enable SimpleWarp AI to access your conversation history.",
             ),
             (
                 ToolPanelView::ProjectExplorer | ToolPanelView::GlobalSearch { .. },

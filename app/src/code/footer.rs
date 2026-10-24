@@ -1674,7 +1674,7 @@ impl View for CodeFooterView {
                     Self::render_status_text(
                         theme,
                         appearance,
-                        "Use the Warp Agent to update this config".to_string(),
+                        "Use the SimpleWarp Agent to update this config".to_string(),
                     ),
                 )
                 .finish(),

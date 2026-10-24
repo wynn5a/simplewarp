@@ -12,7 +12,7 @@ define_settings_group!(CodeSettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "code.editor.use_warp_as_default_editor",
-        description: "Whether Warp is used as the default code editor.",
+        description: "Whether SimpleWarp is used as the default code editor.",
     }
     codebase_context_enabled: CodebaseContextEnabled {
         type: bool,
@@ -72,7 +72,7 @@ define_settings_group!(CodeSettings, settings: [
         toml_path: "code.editor.format_on_save",
         description: "Whether the language server automatically formats the file on save. Other LSP features (hover, go-to-definition, references, diagnostics) are unaffected.",
     },
-    // Controls whether the Warp text editor automatically saves file changes as the
+    // Controls whether the SimpleWarp text editor automatically saves file changes as the
     // user types (debounced) and when the editor loses focus. Only applies to the
     // Warp text editor, not the command line or AI input.
     auto_save: AutoSave {
@@ -82,7 +82,7 @@ define_settings_group!(CodeSettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "code.editor.auto_save",
-        description: "Whether the Warp text editor automatically saves changes as you type and when the editor loses focus.",
+        description: "Whether the SimpleWarp text editor automatically saves changes as you type and when the editor loses focus.",
     },
 ]);
 

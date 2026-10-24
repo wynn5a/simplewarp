@@ -208,12 +208,12 @@ fn main() {
     );
     root.insert(
         "title".to_string(),
-        Value::String("Warp Settings".to_string()),
+        Value::String("SimpleWarp Settings".to_string()),
     );
     root.insert(
         "description".to_string(),
         Value::String(format!(
-            "JSON Schema for Warp settings ({entry_count} settings)"
+            "JSON Schema for SimpleWarp settings ({entry_count} settings)"
         )),
     );
     root.insert("type".to_string(), Value::String("object".to_string()));

@@ -215,12 +215,17 @@ fn resolve_standard_action(action: StandardAction) -> StandardMenuItemProperties
             ns_string!(""),
         ),
         StandardAction::Quit => make(
-            ns_string!("Quit Warp"),
+            ns_string!("Quit SimpleWarp"),
             sel!(terminate:),
             cmd,
             ns_string!("q"),
         ),
-        StandardAction::Hide => make(ns_string!("Hide Warp"), sel!(hide:), cmd, ns_string!("h")),
+        StandardAction::Hide => make(
+            ns_string!("Hide SimpleWarp"),
+            sel!(hide:),
+            cmd,
+            ns_string!("h"),
+        ),
         StandardAction::HideOtherApps => make(
             ns_string!("Hide Others"),
             sel!(hideOtherApplications:),

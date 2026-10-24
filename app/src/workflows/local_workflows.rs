@@ -212,7 +212,7 @@ pub fn prompt_chip_logging_workflow(shell_family: ShellFamily) -> Option<Workflo
         ),
         arguments: vec![],
         source_url: None,
-        author: Some("Warp".into()),
+        author: Some("SimpleWarp".into()),
         author_url: None,
         shells: vec![],
         environment_variables: None,

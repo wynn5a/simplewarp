@@ -60,7 +60,7 @@ define_settings_group!(InputSettings,
             surface: settings::SettingSurfaces::GUI,
             private: false,
             toml_path: "terminal.input.warp_completions_enabled",
-            description: "Whether Warp's built-in completions are shown for shell commands.",
+            description: "Whether SimpleWarp's built-in completions are shown for shell commands.",
         },
         native_shell_completions_enabled: NativeShellCompletionsEnabled {
             type: bool,

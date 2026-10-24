@@ -92,7 +92,7 @@ pub use settings_page::{
 
 /// Sidebar width. Sized to match Figma's settings nav rail (223px alert + 12px horizontal padding
 /// on each side + 1px right border), giving the error-alert footer enough room to render its
-/// "Open file" and "Fix with Warp Agent" buttons side-by-side with the designed 24px indent and
+/// "Open file" and "Fix with SimpleWarp Agent" buttons side-by-side with the designed 24px indent and
 /// 8px internal padding.
 const SIDEBAR_WIDTH: f32 = 248.;
 
@@ -209,7 +209,7 @@ impl Display for SettingsSection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SettingsSection::Keybindings => write!(f, "Keyboard shortcuts"),
-            SettingsSection::WarpAgent => write!(f, "Warp Agent"),
+            SettingsSection::WarpAgent => write!(f, "SimpleWarp Agent"),
             SettingsSection::AgentProfiles => write!(f, "Profiles"),
             SettingsSection::AgentMCPServers => write!(f, "MCP servers"),
             SettingsSection::Knowledge => write!(f, "Knowledge"),
@@ -241,7 +241,7 @@ impl SettingsSection {
             Self::Keybindings => "Keyboard shortcuts",
             Self::Privacy => "Privacy",
             Self::Warpify => "Warpify",
-            Self::WarpAgent => "Warp Agent",
+            Self::WarpAgent => "SimpleWarp Agent",
             Self::AgentProfiles => "Profiles",
             Self::AgentMCPServers => "MCP servers",
             Self::Knowledge => "Knowledge",
@@ -269,8 +269,8 @@ impl SettingsSection {
             "Keyboard shortcuts" => Self::Keybindings,
             "Privacy" => Self::Privacy,
             "Warpify" => Self::Warpify,
-            // "Oz" and "AI" are older names for what is now the Warp Agent page.
-            "Warp Agent" | "Oz" | "AI" => Self::WarpAgent,
+            // "Oz" and "Warp Agent" are older names for what is now the SimpleWarp Agent page.
+            "SimpleWarp Agent" | "Warp Agent" | "Oz" | "AI" => Self::WarpAgent,
             "Profiles" | "AgentProfiles" => Self::AgentProfiles,
             // "MCP Servers" named the standalone page before it moved under the
             // Agents umbrella; it differs from the current slug only by casing.

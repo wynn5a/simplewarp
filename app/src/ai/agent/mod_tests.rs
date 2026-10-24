@@ -101,7 +101,7 @@ fn transient_network_error_includes_user_facing_message_and_debug_details() {
     let rendered = error.to_string();
     assert!(
         rendered.starts_with(
-            "Warp lost connection while receiving the agent response. This is usually temporary.\n\nDebug info: "
+            "SimpleWarp lost connection while receiving the agent response. This is usually temporary.\n\nDebug info: "
         ),
         "unexpected rendering: {rendered}"
     );

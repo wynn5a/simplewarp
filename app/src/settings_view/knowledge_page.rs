@@ -162,7 +162,7 @@ impl SettingsWidget for RulesWidget {
         );
 
         let rules_description = vec![FormattedTextFragment::plain_text(
-            "Rules help the Warp Agent follow your conventions, whether for codebases or specific workflows.",
+            "Rules help the SimpleWarp Agent follow your conventions, whether for codebases or specific workflows.",
         )];
         let description = Container::new(
             FormattedTextElement::new(

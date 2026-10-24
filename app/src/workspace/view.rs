@@ -535,7 +535,7 @@ pub enum BannerSeverity {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum BannerButtonVariant {
     /// No fill, no border, just text (and optional icon). Used for the primary
-    /// action in the Figma design (e.g. "Fix with Warp Agent").
+    /// action in the Figma design (e.g. "Fix with SimpleWarp Agent").
     Naked,
     /// Border-only, no fill (e.g. "Open file").
     Outlined,
@@ -6229,7 +6229,7 @@ impl Workspace {
         ]);
 
         items.push(
-            MenuItemFields::new("View Warp logs")
+            MenuItemFields::new("View SimpleWarp logs")
                 .with_on_select_action(WorkspaceAction::ViewLogs)
                 .into_item(),
         );
@@ -9746,7 +9746,7 @@ impl Workspace {
                     RequestPermissionsOutcome::PermissionsDenied => {
                         view.toast_stack.update(ctx, |toast_stack, ctx| {
                             let toast = DismissibleToast::error(
-                                "Warp doesn't have permission to send desktop notifications."
+                                "SimpleWarp doesn't have permission to send desktop notifications."
                                     .to_string(),
                             );
                             toast_stack.add_persistent_toast(toast, ctx);
@@ -14041,7 +14041,7 @@ impl Workspace {
             AISettings::as_ref(app)
                 .is_any_ai_enabled()
                 .then(|| WorkspaceBannerButtonDetails {
-                    text: "Fix with Warp Agent".to_owned(),
+                    text: "Fix with SimpleWarp Agent".to_owned(),
                     action: WorkspaceAction::FixSettingsWithOz {
                         error_description: error.to_string(),
                     },

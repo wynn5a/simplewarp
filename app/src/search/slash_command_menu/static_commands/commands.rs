@@ -61,7 +61,7 @@ pub static CREATE_NEW_PROJECT: LazyLock<StaticCommand> = LazyLock::new(|| Static
 
 pub static EDIT_SKILL: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     name: "/open-skill",
-    description: "Open a skill's markdown file in Warp's built-in editor",
+    description: "Open a skill's markdown file in SimpleWarp's built-in editor",
     kind: SlashCommandKind::EditSkill,
     icon_path: "bundled/svg/file-code-02.svg",
     availability: Availability::AI_ENABLED,
@@ -101,7 +101,7 @@ pub const ADD_RULE: StaticCommand = StaticCommand {
 
 pub static EDIT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     name: "/open-file",
-    description: "Open a file in Warp's code editor",
+    description: "Open a file in SimpleWarp's code editor",
     kind: SlashCommandKind::Edit,
     icon_path: "bundled/svg/file-code-02.svg",
     availability: Availability::LOCAL,

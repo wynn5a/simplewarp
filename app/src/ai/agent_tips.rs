@@ -78,7 +78,7 @@ static DEFAULT_TIPS: LazyLock<Vec<AgentTip>> = LazyLock::new(|| {
             action: None,
         },
         AgentTip {
-            description: "<keybinding> to open the Command Palette and access Warp actions and shortcuts.".to_string(),
+            description: "<keybinding> to open the Command Palette and access SimpleWarp actions and shortcuts.".to_string(),
             binding_name: Some(TOGGLE_COMMAND_PALETTE_KEYBINDING_NAME),
             action: Some(WorkspaceAction::OpenPalette {
                 mode: PaletteMode::Command,
@@ -197,7 +197,7 @@ static DEFAULT_TIPS: LazyLock<Vec<AgentTip>> = LazyLock::new(|| {
             action: None,
         },
         AgentTip {
-            description: "Warpify a remote SSH session to enable the Warp Agent inside that environment.".to_string(),
+            description: "Warpify a remote SSH session to enable the SimpleWarp Agent inside that environment.".to_string(),
             binding_name: None,
             action: None,
         },

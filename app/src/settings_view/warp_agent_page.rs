@@ -1,4 +1,4 @@
-//! The "Warp Agent" settings page, shown under the Agents umbrella.
+//! The "SimpleWarp Agent" settings page, shown under the Agents umbrella.
 //!
 //! Covers Warp's own AI: the global toggle, Active AI suggestions, agent
 //! input behavior, credentials (BYO keys, custom endpoints) and the
@@ -1235,7 +1235,7 @@ impl SettingsWidget for GlobalAIWidget {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(
                 Text::new_inline(
-                    "Warp Agent",
+                    "SimpleWarp Agent",
                     appearance.ui_font_family(),
                     PRIMARY_HEADER_FONT_SIZE,
                 )
@@ -1941,13 +1941,13 @@ impl ApiKeysWidget {
         };
 
         add_paragraph(vec![FormattedTextFragment::plain_text(
-            "Use your own API keys from model providers for Warp Agent. API keys are used to make requests to your chosen model provider. Using auto models or models you do not have available API keys for will consume Warp credits.",
+            "Use your own API keys from model providers for SimpleWarp Agent. API keys are used to make requests to your chosen model provider. Using auto models or models you do not have available API keys for will consume SimpleWarp credits.",
         )]);
         add_paragraph(vec![FormattedTextFragment::plain_text(
             "Add custom endpoints to use third-party models. Custom endpoints must support OpenAI Chat Completions, OpenAI Responses, or Anthropic Messages.",
         )]);
         add_paragraph(vec![FormattedTextFragment::plain_text(
-            "API keys added here are stored only on this device, not on Warp's servers.",
+            "API keys added here are stored only on this device, not on SimpleWarp's servers.",
         )]);
         let description = FormattedTextElement::new(
             FormattedText::new(lines),

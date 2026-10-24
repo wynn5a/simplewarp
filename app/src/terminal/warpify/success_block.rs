@@ -108,7 +108,7 @@ impl WarpifySuccessBlock {
                 description: (if !output_grid.is_empty() {
                     "Run the following to automatically Warpify in the future:"
                 } else {
-                    "In remote subshells, Warp runs commands in the background to power completions, syntax highlighting, and other features."
+                    "In remote subshells, SimpleWarp runs commands in the background to power completions, syntax highlighting, and other features."
                 }).into(),
                 output_grid: output_grid.into(),
                 selection_handle: Default::default(),

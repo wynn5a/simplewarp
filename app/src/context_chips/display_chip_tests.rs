@@ -213,7 +213,7 @@ fn test_format_git_branch_command_reports_missing_linked_worktree_path() {
     assert_eq!(
         GitBranch(value).prompt_chip_command(),
         PromptChipShellCommand::Echo {
-            message: "The branch is already checked out in another worktree, but Warp couldn't find its path."
+            message: "The branch is already checked out in another worktree, but SimpleWarp couldn't find its path."
         }
     );
 }

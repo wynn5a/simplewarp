@@ -291,7 +291,7 @@ impl View for AgentViewZeroStateBlock {
         }
 
         let header_props = HeaderProps {
-            title: "New Warp Agent conversation".into(),
+            title: "New SimpleWarp Agent conversation".into(),
             description: vec![local_description.into()],
             icon: IconWithStatusVariant::OzAgent { status: None },
         };

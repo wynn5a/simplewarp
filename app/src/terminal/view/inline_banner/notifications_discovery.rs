@@ -73,7 +73,7 @@ pub fn render_inline_notifications_discovery_banner(
                     "Success! You are now ready to receive desktop notifications."
                 }
                 Some(RequestPermissionsOutcome::PermissionsDenied) => {
-                    "Warp was denied permissions to send you notifications."
+                    "SimpleWarp was denied permissions to send you notifications."
                 }
                 Some(RequestPermissionsOutcome::OtherError { .. }) => {
                     "Something went wrong while requesting permissions."

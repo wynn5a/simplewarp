@@ -77,7 +77,7 @@ pub fn parse_event(title: Option<&str>, body: &str) -> Option<CLIAgentEvent> {
         Some(parser) => parser(body),
         None => {
             report_error!(
-                "Received CLI agent event with unsupported schema version. The CLI agent plugin or Warp may need to be updated.",
+                "Received CLI agent event with unsupported schema version. The CLI agent plugin or SimpleWarp may need to be updated.",
                 extra: { "version" => %version }
             );
             None

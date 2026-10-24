@@ -300,26 +300,26 @@ const AGENT_MODE_AI_DISABLED_AUTODETECTION_DISABLED_HINT_TEXT: &str = "Run comma
 
 // Rotating hint text options for new Agent Mode conversations
 const AGENT_MODE_HINT_OPTIONS: &[&str] = &[
-    "Warp anything e.g. Deploy my React app to Vercel and set up environment variables",
-    "Warp anything e.g. Help me debug why my Python tests are failing in CI",
-    "Warp anything e.g. Set up a new microservice with Docker and create the deployment pipeline",
-    "Warp anything e.g. Find and fix the memory leak in my Node.js application",
-    "Warp anything e.g. Create a backup script for my PostgreSQL database and schedule it",
-    "Warp anything e.g. Help me migrate my data from MySQL to PostgreSQL",
-    "Warp anything e.g. Set up monitoring and alerts for my AWS infrastructure",
-    "Warp anything e.g. Build a REST API for my mobile app using FastAPI",
-    "Warp anything e.g. Help me optimize my SQL queries that are running slowly",
-    "Warp anything e.g. Create a GitHub Actions workflow to automatically deploy on merge",
-    "Warp anything e.g. Set up Redis caching for my web application",
-    "Warp anything e.g. Help me troubleshoot why my Kubernetes pods keep crashing",
-    "Warp anything e.g. Build a data pipeline to process CSV files and load them into BigQuery",
-    "Warp anything e.g. Set up SSL certificates and configure HTTPS for my domain",
-    "Warp anything e.g. Help me refactor this legacy code to use modern design patterns",
-    "Warp anything e.g. Create unit tests for my authentication service",
-    "Warp anything e.g. Set up log aggregation with ELK stack for my distributed system",
-    "Warp anything e.g. Help me implement OAuth2 authentication in my Express.js app",
-    "Warp anything e.g. Optimize my Docker images to reduce build times and size",
-    "Warp anything e.g. Set up A/B testing infrastructure for my web application",
+    "SimpleWarp anything e.g. Deploy my React app to Vercel and set up environment variables",
+    "SimpleWarp anything e.g. Help me debug why my Python tests are failing in CI",
+    "SimpleWarp anything e.g. Set up a new microservice with Docker and create the deployment pipeline",
+    "SimpleWarp anything e.g. Find and fix the memory leak in my Node.js application",
+    "SimpleWarp anything e.g. Create a backup script for my PostgreSQL database and schedule it",
+    "SimpleWarp anything e.g. Help me migrate my data from MySQL to PostgreSQL",
+    "SimpleWarp anything e.g. Set up monitoring and alerts for my AWS infrastructure",
+    "SimpleWarp anything e.g. Build a REST API for my mobile app using FastAPI",
+    "SimpleWarp anything e.g. Help me optimize my SQL queries that are running slowly",
+    "SimpleWarp anything e.g. Create a GitHub Actions workflow to automatically deploy on merge",
+    "SimpleWarp anything e.g. Set up Redis caching for my web application",
+    "SimpleWarp anything e.g. Help me troubleshoot why my Kubernetes pods keep crashing",
+    "SimpleWarp anything e.g. Build a data pipeline to process CSV files and load them into BigQuery",
+    "SimpleWarp anything e.g. Set up SSL certificates and configure HTTPS for my domain",
+    "SimpleWarp anything e.g. Help me refactor this legacy code to use modern design patterns",
+    "SimpleWarp anything e.g. Create unit tests for my authentication service",
+    "SimpleWarp anything e.g. Set up log aggregation with ELK stack for my distributed system",
+    "SimpleWarp anything e.g. Help me implement OAuth2 authentication in my Express.js app",
+    "SimpleWarp anything e.g. Optimize my Docker images to reduce build times and size",
+    "SimpleWarp anything e.g. Set up A/B testing infrastructure for my web application",
 ];
 
 fn get_agent_mode_new_conversation_hint_text() -> &'static str {
@@ -1430,7 +1430,7 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "input:insert_network_logging_workflow",
-        "Show Warp network log",
+        "Show SimpleWarp network log",
         WorkspaceAction::OpenNetworkLogPane,
     )]);
 
@@ -4216,7 +4216,7 @@ impl Input {
             }
             (InputType::AI, _) => {
                 // Follow the `agent_indicator` pattern (see `app/src/tab.rs`):
-                //  * `None` (no conversation, empty, passive, or untitled) => new conversation => "Warp anything"
+                //  * `None` (no conversation, empty, passive, or untitled) => new conversation => "SimpleWarp anything"
                 //  * `InProgress`                                           => agent running    => "Steer"
                 //  * Any other status                                       => finished         => "Ask a follow up"
                 match self

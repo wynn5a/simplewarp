@@ -11,8 +11,9 @@ use crate::search::mixer::{DataSourceRunErrorWrapper, SyncDataSource};
 use crate::search::result_renderer::ItemHighlightState;
 use crate::ui_components::icons::Icon as UIIcon;
 
-const OPEN_WARP_AI_ITEM_BODY_TEXT: &str = "Ask Warp AI for command suggestions";
-const TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT: &str = "Translate into shell command using Warp AI";
+const OPEN_WARP_AI_ITEM_BODY_TEXT: &str = "Ask SimpleWarp AI for command suggestions";
+const TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT: &str =
+    "Translate into shell command using SimpleWarp AI";
 
 #[derive(Clone, Debug)]
 pub enum WarpAISearchItem {
@@ -99,12 +100,12 @@ impl SearchItem for WarpAISearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Warp AI: {}", self.item_body_text())
+        format!("SimpleWarp AI: {}", self.item_body_text())
     }
 }
 
-/// The synchronous Warp AI data source provides a single item that opens or
-/// translates using Warp AI when selected.
+/// The synchronous SimpleWarp AI data source provides a single item that opens or
+/// translates using SimpleWarp AI when selected.
 pub struct WarpAIDataSource;
 
 impl WarpAIDataSource {

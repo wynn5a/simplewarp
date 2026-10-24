@@ -85,7 +85,7 @@ pub fn is_supported_image_file(path: impl AsRef<Path>) -> bool {
 }
 
 /// Returns true if `path` looks like a shell script the user intends to run when
-/// "Open with Warp" is invoked from Finder/another app via a `file://` URL.
+/// "Open with SimpleWarp" is invoked from Finder/another app via a `file://` URL.
 ///
 /// Policy: extension in {sh, bash, zsh, fish, ksh} with the user-execute bit set on Unix,
 /// or extension in {ps1, bat, cmd} on Windows (no x-bit concept). On Unix, files with no
