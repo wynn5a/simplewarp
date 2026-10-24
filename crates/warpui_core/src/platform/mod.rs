@@ -226,9 +226,13 @@ pub trait Delegate: 'static {
     /// Sets the cursor pointer
     fn set_cursor_shape(&self, cursor: Cursor);
 
-    /// Returns the current cursor pointer
+    /// Returns the current cursor pointer. The default keeps `Delegate` implementors outside
+    /// this crate compiling when our `test-util` feature is enabled without their own; only
+    /// delegates that track the cursor need to override it.
     #[cfg(feature = "test-util")]
-    fn get_cursor_shape(&self) -> Cursor;
+    fn get_cursor_shape(&self) -> Cursor {
+        Cursor::Arrow
+    }
     fn close_ime_async(&self, window_id: WindowId);
     fn is_ime_open(&self) -> bool;
 
