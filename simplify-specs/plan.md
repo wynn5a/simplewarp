@@ -2038,6 +2038,31 @@ Verification: format and clippy clean; `warp_completer` + `input_classifier` 180
 completion integration tests 42/42, `warp_logging` 24/24; release smoke runs bootstrap a shell in
 ~1.1 s as before.
 
+### Round: ship the app on a slim profile (2026-10-24)
+
+Measured on master at `9c48f1ec` (binary 192 MB: 64 MB code, 72 MB const — 51 MB of that the 34
+`arborium-*` tree-sitter grammar tables, 48 MB symbol table, 13 MB unwind), then shipped the
+codegen levers:
+
+- New `[profile.release-small]` in the workspace `Cargo.toml`: `release-lto` (ThinLTO, opt-level 3)
+  plus `strip = "symbols"`. Binary **192 → 149 MB**, `.app` **~196 → 156 MB**. The dSYM with line
+  tables is still produced in `target/`; the shipped executable carries no symbol names, so
+  in-process panic backtraces show raw addresses (symbolicate locally against the dSYM).
+- `script/bundle_simplewarp` now builds and bundles with `--profile release-small` (output moved to
+  `target/release-small/SimpleWarp.app`); `--debug` is unchanged. A clean full build takes ~15 min
+  (ThinLTO); incremental no-op rebuilds stay fast.
+- Verified by `open`-ing the bundle: window and terminal up, Launch Services registered. Note for
+  future profiling: a freshly linked binary's *first* launch takes 7–12 s before the window
+  (macOS first-exec checks); the second launch opens the window in <0.1 s.
+
+Measured but not shipped (decisions left open): `panic = "abort"` on top of the above → 123 MB
+binary (drops eh_frame/except-tab to ~0; any panic kills the process outright, skipping the
+`catch_unwind` cleanup in `persistence/sqlite.rs`); trimming the 7 heaviest tree-sitter grammars
+(sql/kotlin/cpp/objc/c-sharp/scala/swift ≈ 27 MB of tables) loses highlighting for those
+languages; `opt-level = "s"` instead of 3 saves a further ~11 MB at some runtime cost;
+rust-embed 8's `compression` feature (workspace dep, currently off) would deflate the ~4.5 MB of
+embedded assets.
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the

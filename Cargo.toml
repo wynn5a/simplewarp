@@ -391,6 +391,15 @@ lto = "thin"
 [profile.rlto]
 inherits = "release-lto"
 
+# The profile `script/bundle_simplewarp` ships: `release-lto` with the binary's
+# symbol table stripped at link time. The dSYM (line tables for panic
+# symbolication) is still produced next to the binary in target/, but the
+# shipped executable itself carries no symbol names, so in-process panic
+# backtraces show raw addresses. Full app binary: 192 MB -> 149 MB.
+[profile.release-small]
+inherits = "release-lto"
+strip = "symbols"
+
 # A custom release-like profile that forces debug assertions on.
 [profile.release-lto-debug_assertions]
 inherits = "release-lto"

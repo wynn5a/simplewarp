@@ -13,9 +13,9 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-PROFILE=release
-CARGO_PROFILE=release
-CARGO_ARGS=(--release)
+PROFILE=release-small
+CARGO_PROFILE=release-small
+CARGO_ARGS=(--profile release-small)
 for arg in "$@"; do
   case "$arg" in
     --debug)
