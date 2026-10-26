@@ -2068,6 +2068,15 @@ languages; `opt-level = "s"` instead of 3 saves a further ~11 MB at some runtime
 rust-embed 8's `compression` feature (workspace dep, currently off) would deflate the ~4.5 MB of
 embedded assets.
 
+### Round: D2 + D3 — ring TLS provider, fewer C builds, sccache (2026-10-26)
+
+From [plan-p6-devex.md](plan-p6-devex.md). Clean dev build **181 → 120 s**, **31 s** with a warm
+sccache. reqwest no longer pulls AWS-LC: `rustls-no-provider` plus rustls `ring`, with `ring`
+installed process-wide in `warp::run`, `warp::run_integration_test` and the unit-test `ctor`.
+`syntect` → `default-fancy` (no `onig_sys`), `zip` → `deflate` + `deflate64` (no `bzip2-sys`,
+`lzma-sys`). Cargo.lock −470 lines. Format, three clippy runs, nextest 6,240/6,240, doc tests clean;
+real TLS handshakes checked; in-app checks in [runbook-p6-devex.md](runbook-p6-devex.md).
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the

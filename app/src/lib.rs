@@ -412,6 +412,8 @@ fn apply_scroll_multiplier(event: &mut Event, app: &AppContext) {
 /// separate mode flag.
 #[::tracing::instrument(skip_all)]
 pub fn run() -> Result<()> {
+    install_tls_crypto_provider();
+
     // Perform any necessary platform-specific initialization.
     platform::init();
 
@@ -498,12 +500,20 @@ fn run_worker_command(worker: &warp_cli::WorkerCommand) -> Result<()> {
 
 /// Runs an integration test using the provided test driver.
 pub fn run_integration_test(driver: TestDriver) -> Result<()> {
+    install_tls_crypto_provider();
     let is_integration_test = std::env::var("WARP_INTEGRATION").is_ok();
     let launch = LaunchMode::Test {
         driver: Box::new(Some(driver)),
         is_integration_test,
     };
     run_internal(launch)
+}
+
+/// Installs `ring` as the process-wide rustls provider. reqwest is built without a provider of its
+/// own, so every HTTPS client (ours and rmcp's) panics if this hasn't run first.
+fn install_tls_crypto_provider() {
+    // Fails only if a provider is already installed, which is the state we want.
+    let _ = rustls::crypto::ring::default_provider().install_default();
 }
 
 /// Runs the app (or CLI).
@@ -1604,6 +1614,7 @@ fn launch(ctx: &mut warpui::AppContext, app_state: Option<AppState>, launch_mode
 fn init_logging_for_unit_tests_glue() {
     // Initialize terminal-friendly logging for tests from the shared logger crate.
     warp_logging::init_logging_for_unit_tests();
+    install_tls_crypto_provider();
 }
 
 #[cfg(test)]

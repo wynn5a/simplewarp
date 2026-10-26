@@ -7,6 +7,8 @@ This file provides guidance when working with code in this repository.
 ### Build and Run
 - `cargo run` / `./script/run` - Build and run the GUI desktop app locally (the `simplewarp` bin, the app's only feature set)
 - `cargo bundle --bin simplewarp` - Bundle the app for local runs; `script/bundle_simplewarp` builds a standalone `.app`
+- `export RUSTC_WRAPPER=sccache` (opt-in per machine) caches compiled crates across the `target/`
+  purges macOS does on its own: a clean dev build drops from ~2 min to ~30 s once the cache is warm
 
 ### Running locally
 There is no login: every build runs entirely locally against the anonymous default user, and no

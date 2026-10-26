@@ -18,4 +18,4 @@ async-fs = { workspace = true }
 command.workspace = true
 flate2 = "1.0"
 tar = "0.4"
-zip = "2.1"
+zip = { version = "2.1", default-features = false, features = ["deflate", "deflate64"] }

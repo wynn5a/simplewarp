@@ -83,6 +83,14 @@ old decision lacked.
 
 ### D2 — Take `aws-lc-sys` off the critical path
 
+**Done (2026-10-26).** Clean build **181 → 120 s** (cold) and AWS-LC, cmake and NASM are gone from
+the graph. reqwest is built with `rustls-no-provider`; rustls has only its `ring` feature; `warp::run`
+and `warp::run_integration_test` install `ring` as the process-wide provider (rmcp builds its own
+reqwest clients, so a per-client install is not enough), and so does the unit-test `ctor` in
+`app/src/lib.rs`. Verified: format, the three clippy runs, nextest 6,240/6,240, doc tests, and real
+HTTP/2 TLS handshakes against `api.anthropic.com`, `api.openai.com` and `github.com`. In-app checks
+are in [runbook-p6-devex.md](runbook-p6-devex.md).
+
 Clean build −50 to −60 s wall time, and one fewer native toolchain requirement (cmake).
 
 - Workspace `reqwest`: `default-features = false`, keep `charset`, `http2`, `system-proxy`, and
@@ -94,6 +102,18 @@ Clean build −50 to −60 s wall time, and one fewer native toolchain requireme
   an HTTPS MCP server, and the Claude notification plugin's GitHub fetch.
 
 ### D3 — Survive `target/` purges: sccache, and trimming the C builds
+
+**Done (2026-10-26).** Native builds left: `zstd-sys` (tantivy) and `libgit2-sys` (git2), down from
+six. `syntect` uses `default-fancy` (only notebook command blocks highlight with it, off the main
+thread); `zip` keeps only `deflate` + `deflate64` (log export writes Deflated, Node and LSP archives
+read Deflated), dropping `bzip2-sys`, `lzma-sys` and zstd/aes/lzma support. `libgit2-sys` (19 s) is
+now the clean-build critical path in front of `warp`.
+
+sccache, measured with a separate target dir: filling the cache costs a clean build of 133 s, a
+clean build from a warm cache takes **31 s** (1,065/1,065 cacheable units hit, 652 MB cache). With
+incremental off every crate is cacheable, the `warp` crate included; turning D1 on would make the
+workspace members uncacheable. It is opt-in per machine (`export RUSTC_WRAPPER=sccache`), not set
+in `.cargo/config.toml`, because a missing wrapper fails the build (CI has none).
 
 macOS deletes `target/` (it carries `CACHEDIR.TAG`), so the clean build is a regular cost.
 

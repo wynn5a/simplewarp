@@ -183,7 +183,13 @@ prost-reflect = "0.16.3"
 prost-types = "0.14.3"
 rand = "0.8.6"
 rangemap = "1.3.0"
-reqwest = { version = "0.13", features = [
+# `rustls-no-provider` plus rustls's `ring` feature (below) instead of reqwest's default TLS,
+# which builds AWS-LC from C with cmake and sits on the clean-build critical path.
+reqwest = { version = "0.13", default-features = false, features = [
+  "charset",
+  "http2",
+  "system-proxy",
+  "rustls-no-provider",
   "blocking",
   "brotli",
   "gzip",
@@ -197,7 +203,7 @@ reqwest-eventsource = { package = "aha-reqwest-eventsource", version = "0.1" }
 resvg = "0.47.0"
 rust-embed = { version = "8.7.0", features = ["include-exclude"] }
 rustc-hash = "2.1.1"
-rustls = "0.23.39"
+rustls = { version = "0.23.39", default-features = false, features = ["logging", "ring", "std", "tls12"] }
 schemars = { version = "1", features = ["chrono04"] }
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_bytes = "0.11"

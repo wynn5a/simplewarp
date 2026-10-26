@@ -80,6 +80,8 @@ async fn exchange_token() -> Json<serde_json::Value> {
 
 #[tokio::test]
 async fn dcr_oauth_completes_registration_and_code_exchange() {
+    // The app installs the TLS provider at startup; reqwest clients panic without one.
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
         .await
         .expect("fake OAuth server should bind");

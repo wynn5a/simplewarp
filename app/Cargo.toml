@@ -203,6 +203,7 @@ warp_multi_agent_api.workspace = true
 repo_metadata.workspace = true
 vim.workspace = true
 rmcp.workspace = true
+rustls.workspace = true
 warp_isolation_platform.workspace = true
 warp_ripgrep.workspace = true
 local_inference.workspace = true
@@ -220,7 +221,8 @@ mio = { version = "1.1.1", features = ["os-poll", "os-ext"] }
 tokio.workspace = true
 
 notify-debouncer-full.workspace = true
-syntect = "5.0"
+# Pure-Rust regex engine instead of the default Oniguruma, which builds from C.
+syntect = { version = "5.0", default-features = false, features = ["default-fancy"] }
 sysinfo.workspace = true
 warp-command-signatures = { workspace = true, features = ["embed-signatures"] }
 is_executable = "1.0.1"
