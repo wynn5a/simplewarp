@@ -177,7 +177,7 @@ open target/release-small/SimpleWarp.app
 只回滚这次改动：
 
 ```sh
-git revert <D2+D3 的提交哈希>
+git revert a5a19bf62
 ```
 
 如果只是 sccache 有问题：从 `~/.zshrc` 删掉那行 `export RUSTC_WRAPPER=sccache`，再执行 `sccache --stop-server`。
