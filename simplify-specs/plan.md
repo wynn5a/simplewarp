@@ -113,6 +113,11 @@ lists (no real unused deps), B "GUI" names left from the two-front-end design, C
 feature flags in seven batches. No behavior change in any of them. A + B, C1, C1b, C1c, C2, C2b, C3, C4, C5, C5b, C6, C7 and C7b done (see
 the round log).
 
+**Developer-efficiency survey (2026-10-26):** queued in [plan-p6-devex.md](plan-p6-devex.md) — measured
+baseline of the build/test loop (clean build 181 s, edit-to-build 42 s, edit-to-check 23 s) and
+five workstreams: D1 incremental back on, D2 drop `aws-lc-sys` from the critical path, D3 sccache
+and fewer C builds, D4 a fast local check script, D5 split the `warp` crate leaves-first.
+
 Deliberately kept: `ServerId` / `SyncId::ServerId` / `server_conversation_token` (the local adapter
 sets the token), `AmbientAgentTaskId` (minted locally for child runs), `Harness::Oz`, the serde
 `CloudAgent` / `ScheduledAmbientAgent` shapes, `crates/isolation_platform` (local detection) and
