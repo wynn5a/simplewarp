@@ -123,9 +123,27 @@ Grab the latest build from [**Releases**](https://github.com/wynn5a/simplewarp/r
 | Linux (x86_64) | `SimpleWarp-<version>-linux-x86_64.tar.gz` |
 | Windows (x86_64) | `SimpleWarp-<version>-windows-x86_64.zip` |
 
-> The macOS app is ad-hoc signed, not notarized, so Gatekeeper will ask on first launch:
-> right-click the app and choose **Open**. There is no auto-update; check Releases for new
-> versions.
+There is no auto-update; check Releases for new versions.
+
+#### First launch on macOS
+
+The macOS app is ad-hoc signed but not notarized by Apple, so Gatekeeper blocks the first
+launch of a downloaded copy ("Apple could not verify…"). Since macOS 15 the old right-click →
+**Open** trick no longer works. Pick one:
+
+- **Terminal (quickest):** unzip, move the app to `/Applications`, then clear the quarantine
+  flag macOS put on the download:
+
+  ```bash
+  xattr -dr com.apple.quarantine /Applications/SimpleWarp.app
+  ```
+
+- **System Settings:** open the app once and dismiss the warning, then go to **System Settings
+  → Privacy & Security**, scroll to **Security**, click **Open Anyway** next to the SimpleWarp
+  message, and confirm.
+
+Either way you only do this once per downloaded version. A build you make yourself (below)
+isn't quarantined and opens directly.
 
 ### Build from source
 
