@@ -5,7 +5,6 @@ use strum::IntoEnumIterator;
 use strum_macros::{EnumDiscriminants, EnumIter};
 use warpui::{Entity, ModelContext, SingletonEntity};
 
-#[cfg(target_os = "macos")]
 use super::config::{SettingType, ThemeType};
 use crate::interval_timer::IntervalTimer;
 use crate::settings::import::config::{Config, ConfigError};

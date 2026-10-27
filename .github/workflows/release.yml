@@ -61,7 +61,7 @@ jobs:
       - name: Zip app bundle
         shell: bash
         run: |
-          ditto -c -k --sequesterRsrc --keepParent target/release/SimpleWarp.app \
+          ditto -c -k --sequesterRsrc --keepParent target/release-small/SimpleWarp.app \
             "SimpleWarp-${{ steps.version.outputs.version }}-macos-aarch64.zip"
       - uses: actions/upload-artifact@v4
         with:
