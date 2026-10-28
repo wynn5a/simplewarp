@@ -18,6 +18,7 @@ does not conflict with the deletion scope in [plan.md](plan.md).
 | Topic | Decision | Date |
 | --- | --- | --- |
 | UI scope | **Tab pill + pane header only.** No inbox panel, no block banner, no desktop notification. | 2026-10-09 |
+| Desktop notifications | **Superseded 2026-10-28: notify.** A root record newly entering `blocked`, `done` or `error` from a real 7501 report sends a desktop notification while the user is not looking at that pane (window inactive, or the pane unfocused). App-agnostic: any program that speaks 7501 qualifies — Claude Code (native since it probes `OSC 7501 ; ?`) is one, not a special case. See 7501.7. | 2026-10-28 |
 | OSC 9;4 | **In this round.** Bridge ConEmu progress into the root record; stop bridging once a real 7501 report arrives on that terminal. | 2026-10-09 |
 | `done`/`error` dismissal | **On keypress.** A keystroke into the terminal drops them; they survive process exit until then. | 2026-10-09 |
 | Record model | Per-terminal store keyed by `EntityId` of the terminal view, mirroring `CLIAgentSessionsModel`. | 2026-10-09 |
@@ -140,6 +141,23 @@ All mutations reach the store through events, so ordering relative to reports is
 - Pane header (`pane_impl.rs` **:213–231**): the non-conversation branch calls `render_terminal_mode_indicator`, which has no status today. Pass the same `program_status_badge` through it so header and pill derive from one function.
 - `app`/`msg` appear only as hover text; `msg` is untrusted: never logged, never markup. Confirm the pill and header already have a tooltip mechanism; if not, hover text is a follow-up and the badge alone ships.
 
+### 7501.7 — Desktop notifications
+
+- `ProgramAttention::newly_raised(previous, next)` (`program_status/mod.rs`) is the single, pure
+  decision: `blocked` → `NeedsInput(kind)`, `done`/`error` → `Finished { success }`,
+  `idle`/`working` → nothing. It fires only when the attention differs from the previous root
+  record's, so a program refreshing `msg` in the same state does not re-notify, while
+  `blocked(permission)` → `blocked(question)` does. It never looks at `app`.
+- `TerminalView` takes the root record before and after each `ReportSource::Osc7501` report and
+  calls it. OSC 9;4 bridge reports never notify: speaking 7501 is the opt-in.
+- Sent only when the user is not looking: window not active, or this terminal view not focused.
+- A CLI agent session with a listener (plugin-backed or Codex's OSC 9 handler) sends its own status
+  notifications, so a 7501 report on that pane does not notify — the same tie-break as the icon.
+- Delivery reuses `send_agent_desktop_notification_or_show_banner`: the existing "needs attention"
+  / "agent task completed" toggles, the discovery banner when notifications are unset, and click to
+  focus the pane. Title is `title`, else `app`, else `Program`; body is `msg`, else a `kind`-based
+  fallback for `blocked`. `msg`/`title` reach only the notification text, never logs.
+
 ## Change list
 
 | File | Change |
@@ -180,7 +198,7 @@ and pane header for real — a type check does not prove the escape sequence ren
 
 ## Out of scope
 
-Inbox/aggregate panel over all terminals; block-level banners; desktop notifications for `blocked`;
+Inbox/aggregate panel over all terminals; block-level banners;
 shell function + `Pst` terminfo entry shipped in `script/`; rate limiting beyond the hard caps;
 surfacing child records (`id`) anywhere other than the store.
 
@@ -205,3 +223,5 @@ ignored once that terminal has seen a 7501 report.
 The vertical-tabs hover card (`render_terminal_detail_section`) shows the 7501 status pill, `title`
 and `msg` for plain terminals and CLI sessions without rich status; confirmed by hand. The pane
 header has no tooltip, so `app` is not surfaced anywhere.
+
+Round 3 (2026-10-28): desktop notifications (7501.7).

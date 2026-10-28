@@ -86,3 +86,35 @@ impl ProgramStatusModel {
         }
     }
 }
+
+/// What a root record asks of the user, independent of which program reported it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProgramAttention {
+    NeedsInput(Option<BlockedKind>),
+    Finished { success: bool },
+}
+
+impl ProgramAttention {
+    fn of(record: &ProgramStatusRecord) -> Option<Self> {
+        match record.state {
+            ProgramState::Blocked => Some(Self::NeedsInput(record.kind)),
+            ProgramState::Done => Some(Self::Finished { success: true }),
+            ProgramState::Error => Some(Self::Finished { success: false }),
+            ProgramState::Idle | ProgramState::Working => None,
+        }
+    }
+
+    /// The attention `next` newly asks for, compared with `previous`. Repeated reports of the same
+    /// state (a program refreshing its `msg`, say) ask for nothing new.
+    pub fn newly_raised(
+        previous: Option<&ProgramStatusRecord>,
+        next: &ProgramStatusRecord,
+    ) -> Option<Self> {
+        let attention = Self::of(next)?;
+        (previous.and_then(Self::of) != Some(attention)).then_some(attention)
+    }
+}
+
+#[cfg(test)]
+#[path = "mod_tests.rs"]
+mod tests;

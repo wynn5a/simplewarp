@@ -3669,6 +3669,16 @@ fn test_create_notification_longer_than_max() {
 }
 
 #[test]
+fn test_create_notification_empty_output_drops_body_prefix() {
+    let trigger = NotificationsTrigger::AgentTaskCompleted(true);
+
+    let actual_content = trigger.create_notification_content("any-agent".to_string(), "  ".into());
+
+    assert_eq!(actual_content.title, "'any-agent' finished");
+    assert_eq!(actual_content.body, "");
+}
+
+#[test]
 fn test_create_notification_char_boundaries_respected() {
     let expected_title_suffix = " finished after 4s";
     let max_command_len = UserNotification::MAX_TITLE_LENGTH - expected_title_suffix.len() - 2;
@@ -6221,6 +6231,62 @@ mod program_status_tests {
                     assert_eq!(state(view, ctx), None);
                 });
             }
+        });
+    }
+
+    #[test]
+    fn attention_reports_notify_once_per_transition_for_any_app() {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        use base64::Engine as _;
+
+        use crate::terminal::session_settings::{NotificationsMode, SessionSettings};
+
+        App::test((), |mut app| async move {
+            initialize_app_for_terminal_view(&mut app);
+            SessionSettings::handle(&app).update(&mut app, |settings, ctx| {
+                let mut notifications = settings.notifications.value().clone();
+                notifications.mode = NotificationsMode::Enabled;
+                settings
+                    .notifications
+                    .set_value(notifications, ctx)
+                    .unwrap();
+            });
+            let terminal = add_window_with_terminal(&mut app, None);
+
+            let sent = Rc::new(RefCell::new(Vec::new()));
+            let sent_clone = sent.clone();
+            app.update(|ctx| {
+                ctx.subscribe_to_view(&terminal, move |_, event, _| {
+                    if let Event::SendNotification(notification) = event {
+                        sent_clone.borrow_mut().push(notification.clone());
+                    }
+                });
+            });
+
+            let msg = base64::engine::general_purpose::STANDARD.encode("Run rm -rf build?");
+            terminal.update(&mut app, |view, ctx| {
+                view.handle_terminal_event(&report_event("state=working:app=some-agent"), ctx);
+                view.handle_terminal_event(
+                    &report_event(&format!(
+                        "state=blocked:kind=permission:app=some-agent:msg={msg}"
+                    )),
+                    ctx,
+                );
+                view.handle_terminal_event(
+                    &report_event("state=blocked:kind=permission:app=some-agent"),
+                    ctx,
+                );
+                view.handle_terminal_event(&report_event("state=done:app=some-agent"), ctx);
+            });
+
+            let sent = sent.borrow();
+            assert_eq!(sent.len(), 2);
+            assert_eq!(sent[0].title, "'some-agent' blocked");
+            assert_eq!(sent[0].body, "Run rm -rf build?");
+            assert_eq!(sent[1].title, "'some-agent' finished");
+            assert_eq!(sent[1].body, "");
         });
     }
 

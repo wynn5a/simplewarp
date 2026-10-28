@@ -326,7 +326,9 @@ use crate::terminal::model::terminal_model::{
 };
 use crate::terminal::model::{ObfuscateSecrets, RespectObfuscatedSecrets, SecretHandle};
 use crate::terminal::model_events::{AnsiHandlerEvent, ModelEvent, ModelEventDispatcher};
-use crate::terminal::program_status::ProgramStatusModel;
+use crate::terminal::program_status::{
+    BlockedKind, ProgramAttention, ProgramStatusModel, ProgramStatusRecord, ReportSource,
+};
 use crate::terminal::recorder::PtyRecorder;
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::terminal::session_settings::{
@@ -742,9 +744,16 @@ impl NotificationsTrigger {
             format!("...{}", base_output[start..].trim_start())
         };
 
+        // A prefix like "Latest output: " announces content, so it would dangle on its own.
+        let body = if body_suffix.is_empty() {
+            String::new()
+        } else {
+            format!("{body_prefix}{body_suffix}")
+        };
+
         BlockNotification {
             title: format!("{title_prefix}{title_suffix}"),
-            body: format!("{body_prefix}{body_suffix}"),
+            body,
         }
     }
 }
@@ -8370,9 +8379,17 @@ impl TerminalView {
                 self.execute_pending_command((), ctx);
             }
             ModelEvent::ProgramStatus { report, source } => {
-                ProgramStatusModel::handle(ctx).update(ctx, |model, ctx| {
+                let program_status = ProgramStatusModel::handle(ctx);
+                let previous = program_status.as_ref(ctx).status(self.view_id).cloned();
+                program_status.update(ctx, |model, ctx| {
                     model.apply_report(self.view_id, report.clone(), *source, ctx);
                 });
+                match source {
+                    ReportSource::Osc7501 => {
+                        self.maybe_send_program_status_notification(previous.as_ref(), ctx)
+                    }
+                    ReportSource::Osc94 => {}
+                }
                 ctx.notify();
             }
             ModelEvent::ProgramStatusReset => {
@@ -9739,6 +9756,61 @@ impl TerminalView {
             block_summary.description,
             ctx,
         );
+    }
+
+    /// Notifies when the terminal's root program status newly asks for the user's attention while
+    /// they are not looking at this pane. Any program that speaks OSC 7501 qualifies.
+    fn maybe_send_program_status_notification(
+        &mut self,
+        previous: Option<&ProgramStatusRecord>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let Some(record) = ProgramStatusModel::as_ref(ctx)
+            .status(self.view_id)
+            .cloned()
+        else {
+            return;
+        };
+        let Some(attention) = ProgramAttention::newly_raised(previous, &record) else {
+            return;
+        };
+        if !self.is_navigated_away_from_window(ctx) && ctx.is_self_or_child_focused() {
+            return;
+        }
+        // A CLI agent session with a listener sends its own status notifications.
+        let has_cli_agent_listener = CLIAgentSessionsModel::as_ref(ctx)
+            .session(self.view_id)
+            .is_some_and(|session| session.listener.is_some());
+        if has_cli_agent_listener {
+            return;
+        }
+
+        let ProgramStatusRecord {
+            app,
+            title,
+            message,
+            ..
+        } = record;
+        let name = title.or(app).unwrap_or_else(|| "Program".to_owned());
+        let (trigger, description) = match attention {
+            ProgramAttention::NeedsInput(kind) => {
+                let fallback = match kind {
+                    Some(BlockedKind::Permission) => "Waiting for permission",
+                    Some(BlockedKind::Question) => "Waiting for an answer",
+                    Some(BlockedKind::Auth) => "Waiting for sign-in",
+                    None => "Waiting for input",
+                };
+                (
+                    NotificationsTrigger::NeedsAttention,
+                    message.unwrap_or_else(|| fallback.to_owned()),
+                )
+            }
+            ProgramAttention::Finished { success } => (
+                NotificationsTrigger::AgentTaskCompleted(success),
+                message.unwrap_or_default(),
+            ),
+        };
+        self.send_agent_desktop_notification_or_show_banner(trigger, name, description, ctx);
     }
 
     /// Shared logic for sending a desktop notification (or showing a discovery banner)
