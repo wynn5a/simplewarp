@@ -85,6 +85,8 @@ and the typography — everything Warp does locally works the way Warp made it.
 
 ## What's inside
 
+<img src=".github/assets/simplewarp-agent.png" alt="SimpleWarp with the agent exploring the repo, next to the tab list and file tree" width="100%">
+
 - **A modern terminal** — GPU-rendered tabs, panes and windows; command blocks with metadata; shell
   detection and launch configs; searchable history.
 - **Input that helps** — completions, autosuggestions, command corrections and a command palette
