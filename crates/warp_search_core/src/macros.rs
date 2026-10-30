@@ -81,14 +81,6 @@ pub use get_factor_or_default;
 ///         Ok(Self { searcher })
 ///     }
 ///
-///     fn add_document(&mut self, name: String, description: String, id: u64) -> anyhow::Result<()> {
-///         self.searcher.insert_document(MySearchDoc { name, description, id })
-///     }
-///
-///     fn remove_document_by_id(&mut self, id: u64) -> anyhow::Result<()> {
-///         self.searcher.delete_document(MyIdDoc { id })
-///     }
-///
 ///     fn search(&self, query: &str) -> anyhow::Result<Vec<SearchResult>> {
 ///         Ok(self.searcher
 ///             .search_full_doc(query)?
