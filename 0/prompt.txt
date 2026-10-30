@@ -1,0 +1,1 @@
+check the code about openai response protocol, review the implement and improve

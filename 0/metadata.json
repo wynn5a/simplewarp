@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M65Y1FEC4HR8ZKQJ87H8XB4T",
+  "session_id": "805e556c-85bb-4424-8b45-2e85168b5936",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-30T08:15:26.703459Z",
+  "branch": "master",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "crates/local_inference/src/provider/openai_responses.rs",
+    "crates/local_inference/src/provider/openai_responses_tests.rs"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "4b715a1aec87",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 10288,
+    "cache_creation_tokens": 179638,
+    "cache_read_tokens": 1124919,
+    "output_tokens": 7363,
+    "api_call_count": 8
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
