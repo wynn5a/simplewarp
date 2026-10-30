@@ -62,7 +62,10 @@ fn the_system_prompt_is_the_instructions_not_an_input_item() {
     assert_eq!(body["instructions"], "be helpful");
     let input = body["input"].as_array().expect("an array");
     assert_eq!(input.len(), 1);
-    assert_eq!(input[0], json!({ "role": "user", "content": "hi" }));
+    assert_eq!(
+        input[0],
+        json!({ "type": "message", "role": "user", "content": "hi" })
+    );
 }
 
 #[test]
@@ -86,7 +89,7 @@ fn a_tool_call_and_its_result_are_paired_by_call_id() {
     assert_eq!(input.len(), 4);
     assert_eq!(
         input[1],
-        json!({ "role": "assistant", "content": "Searching." })
+        json!({ "type": "message", "role": "assistant", "content": "Searching." })
     );
     assert_eq!(input[2]["type"], "function_call");
     assert_eq!(input[2]["call_id"], "call_1");
@@ -306,4 +309,69 @@ fn bookkeeping_and_broken_events_are_ignored() {
     ] {
         assert!(parse_event(data).is_empty(), "expected nothing for {data}");
     }
+}
+
+#[test]
+fn a_finished_function_call_item_carries_the_whole_arguments() {
+    assert_eq!(
+        parse_event(
+            r#"{"type":"response.output_item.done","output_index":1,
+                "item":{"type":"function_call","call_id":"call_1","name":"grep",
+                        "arguments":"{\"queries\":[\"fn main\"]}"}}"#
+        ),
+        vec![
+            Delta::ToolCallStart {
+                index: 1,
+                id: "call_1".to_string(),
+                name: "grep".to_string(),
+            },
+            Delta::ToolCallArguments {
+                index: 1,
+                fragment: r#"{"queries":["fn main"]}"#.to_string(),
+            },
+        ]
+    );
+}
+
+#[test]
+fn a_refusal_is_shown_as_text() {
+    assert_eq!(
+        parse_event(r#"{"type":"response.refusal.delta","output_index":0,"delta":"I can't."}"#),
+        vec![Delta::Text("I can't.".to_string())]
+    );
+}
+
+#[test]
+fn a_later_reasoning_summary_part_is_set_apart() {
+    assert!(
+        parse_event(r#"{"type":"response.reasoning_summary_part.added","summary_index":0}"#)
+            .is_empty()
+    );
+    assert_eq!(
+        parse_event(r#"{"type":"response.reasoning_summary_part.added","summary_index":1}"#),
+        vec![Delta::Reasoning("\n\n".to_string())]
+    );
+}
+
+#[test]
+fn a_nested_error_event_is_an_error() {
+    assert_eq!(
+        parse_event(
+            r#"{"type":"error","error":{"type":"usage_limit_reached",
+                "code":"subscription_sharing_usage_limit_exceeded","message":"limit"}}"#
+        ),
+        vec![Delta::Error {
+            code: "subscription_sharing_usage_limit_exceeded".to_string(),
+            message: "limit".to_string(),
+        }]
+    );
+}
+
+#[test]
+fn a_failed_response_without_an_error_still_says_it_failed() {
+    let deltas = parse_event(r#"{"type":"response.failed","response":{"status":"failed"}}"#);
+    let [Delta::Error { message, .. }] = deltas.as_slice() else {
+        panic!("expected one error, got {deltas:?}");
+    };
+    assert!(!message.is_empty());
 }

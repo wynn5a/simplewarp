@@ -69,14 +69,14 @@ pub fn build_body(
 
 fn push_items(input: &mut Vec<Value>, turn: &Turn) {
     match turn {
-        Turn::User(text) => input.push(json!({ "role": "user", "content": text })),
+        Turn::User(text) => input.push(message_item("user", text)),
         // `reasoning` is left out. Replaying it would take the encrypted reasoning item, which
         // the conversation does not keep.
         Turn::Assistant {
             text, tool_calls, ..
         } => {
             if !text.is_empty() {
-                input.push(json!({ "role": "assistant", "content": text }));
+                input.push(message_item("assistant", text));
             }
             for call in tool_calls {
                 input.push(json!({
@@ -100,39 +100,37 @@ fn push_items(input: &mut Vec<Value>, turn: &Turn) {
     }
 }
 
+/// `type` is optional on OpenAI's own endpoint, but some Responses-compatible servers require it.
+fn message_item(role: &str, text: &str) -> Value {
+    json!({ "type": "message", "role": role, "content": text })
+}
+
 pub fn parse_event(data: &str) -> Vec<Delta> {
     let Ok(value) = serde_json::from_str::<Value>(data) else {
         return Vec::new();
     };
 
     match value["type"].as_str().unwrap_or_default() {
-        "response.output_text.delta" => text_delta(&value).map(Delta::Text).into_iter().collect(),
         "response.reasoning_summary_text.delta" | "response.reasoning_text.delta" => {
             text_delta(&value)
                 .map(Delta::Reasoning)
                 .into_iter()
                 .collect()
         }
-        "response.output_item.added" => {
-            let item = &value["item"];
-            if item["type"] != "function_call" {
-                return Vec::new();
-            }
-            let (Some(index), Some(id), Some(name)) = (
-                output_index(&value),
-                item["call_id"].as_str(),
-                item["name"].as_str(),
-            ) else {
-                return Vec::new();
-            };
-            vec![Delta::ToolCallStart {
-                index,
-                // The `call_id`, not the item `id`: a `function_call_output` answers the call by
-                // its `call_id`.
-                id: id.to_string(),
-                name: name.to_string(),
-            }]
+        "response.output_text.delta" | "response.refusal.delta" => {
+            text_delta(&value).map(Delta::Text).into_iter().collect()
         }
+        // Summary parts arrive back to back, each opening with its own bold title.
+        "response.reasoning_summary_part.added"
+            if value["summary_index"]
+                .as_u64()
+                .is_some_and(|index| index > 0) =>
+        {
+            vec![Delta::Reasoning("\n\n".to_string())]
+        }
+        // The finished item carries the whole arguments, which some Responses-compatible servers
+        // never stream as deltas, so it restarts the call and replaces any fragments that arrived.
+        "response.output_item.added" | "response.output_item.done" => function_call(&value),
         "response.function_call_arguments.delta" => {
             match (output_index(&value), text_delta(&value)) {
                 (Some(index), Some(fragment)) => vec![Delta::ToolCallArguments { index, fragment }],
@@ -148,18 +146,56 @@ pub fn parse_event(data: &str) -> Vec<Delta> {
             deltas.push(Delta::Stop(stop_reason(response)));
             deltas
         }
-        "response.failed" => {
-            let error = &value["response"]["error"];
-            vec![Delta::Error {
-                code: error["code"].as_str().unwrap_or_default().to_string(),
-                message: error["message"].as_str().unwrap_or_default().to_string(),
-            }]
-        }
-        "error" => vec![Delta::Error {
-            code: value["code"].as_str().unwrap_or_default().to_string(),
-            message: value["message"].as_str().unwrap_or_default().to_string(),
-        }],
+        "response.failed" => vec![error(&value["response"]["error"])],
+        // OpenAI puts the fields on the event; the ChatGPT backend nests them under `error`.
+        "error" if value["error"].is_object() => vec![error(&value["error"])],
+        "error" => vec![error(&value)],
         _ => Vec::new(),
+    }
+}
+
+fn function_call(value: &Value) -> Vec<Delta> {
+    let item = &value["item"];
+    if item["type"] != "function_call" {
+        return Vec::new();
+    }
+    let (Some(index), Some(id), Some(name)) = (
+        output_index(value),
+        item["call_id"].as_str(),
+        item["name"].as_str(),
+    ) else {
+        return Vec::new();
+    };
+    let mut deltas = vec![Delta::ToolCallStart {
+        index,
+        // The `call_id`, not the item `id`: a `function_call_output` answers the call by its
+        // `call_id`.
+        id: id.to_string(),
+        name: name.to_string(),
+    }];
+    if let Some(arguments) = item["arguments"].as_str()
+        && !arguments.is_empty()
+    {
+        deltas.push(Delta::ToolCallArguments {
+            index,
+            fragment: arguments.to_string(),
+        });
+    }
+    deltas
+}
+
+fn error(error: &Value) -> Delta {
+    let code = error["code"]
+        .as_str()
+        .or(error["type"].as_str())
+        .unwrap_or_default();
+    let message = error["message"]
+        .as_str()
+        .filter(|message| !message.is_empty())
+        .unwrap_or("the response failed without an error message");
+    Delta::Error {
+        code: code.to_string(),
+        message: message.to_string(),
     }
 }
 
