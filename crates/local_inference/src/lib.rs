@@ -66,6 +66,9 @@ pub enum Error {
     #[error("the provider answered {status}: {body}")]
     ProviderStatus { status: u16, body: String },
 
+    #[error("the provider reported an error mid-stream ({code}): {message}")]
+    ProviderStream { code: String, message: String },
+
     #[error("could not read the provider stream: {0}")]
     EventSource(Box<reqwest_eventsource::Error>),
 

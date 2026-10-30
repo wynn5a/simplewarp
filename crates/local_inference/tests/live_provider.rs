@@ -10,8 +10,8 @@
 //! cargo test -p local_inference --test live_provider -- --ignored --nocapture
 //! ```
 //!
-//! `LOCAL_INFERENCE_SCHEMA` picks the protocol: `anthropic` for Anthropic Messages, anything
-//! else (or unset) for OpenAI Chat Completions.
+//! `LOCAL_INFERENCE_SCHEMA` picks the protocol: `anthropic` for Anthropic Messages, `responses`
+//! for OpenAI Responses, anything else (or unset) for OpenAI Chat Completions.
 //!
 //! These tests send real requests and cost real tokens. They assert on the shape of the reply,
 //! never on its exact words, because a model is free to word an answer as it likes.
@@ -38,6 +38,7 @@ fn endpoint() -> Option<Endpoint> {
     let model = std::env::var("LOCAL_INFERENCE_MODEL").ok()?;
     let schema = match std::env::var("LOCAL_INFERENCE_SCHEMA").as_deref() {
         Ok("anthropic") => CustomEndpointSchema::AnthropicMessages,
+        Ok("responses") => CustomEndpointSchema::OpenaiResponses,
         _ => CustomEndpointSchema::OpenaiChatCompletions,
     };
     Some(Endpoint {

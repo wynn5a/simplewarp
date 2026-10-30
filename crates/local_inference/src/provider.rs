@@ -12,8 +12,9 @@ use crate::tools::ToolSchema;
 
 pub mod anthropic;
 pub mod openai;
+pub mod openai_responses;
 
-/// One piece of a streamed reply, in a shape that both providers map onto.
+/// One piece of a streamed reply, in a shape that every provider maps onto.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Delta {
     /// Text for the user.
@@ -32,6 +33,8 @@ pub enum Delta {
     Usage(TokenUsage),
     /// The reply is over.
     Stop(StopReason),
+    /// The provider reported a failure inside a stream that opened with a success status.
+    Error { code: String, message: String },
 }
 
 /// Token counts that a provider reported for one reply.
@@ -84,6 +87,9 @@ pub fn build_body(
     match target.schema {
         Schema::AnthropicMessages => anthropic::build_body(target, system_prompt, turns, tools),
         Schema::OpenaiChatCompletions => openai::build_body(target, system_prompt, turns, tools),
+        Schema::OpenaiResponses => {
+            openai_responses::build_body(target, system_prompt, turns, tools)
+        }
     }
 }
 
@@ -92,6 +98,7 @@ pub fn headers(target: &ProviderTarget) -> Vec<(&'static str, String)> {
     match target.schema {
         Schema::AnthropicMessages => anthropic::headers(target),
         Schema::OpenaiChatCompletions => openai::headers(target),
+        Schema::OpenaiResponses => openai_responses::headers(target),
     }
 }
 
@@ -102,5 +109,6 @@ pub fn parse_event(schema: Schema, event_name: &str, data: &str) -> Vec<Delta> {
     match schema {
         Schema::AnthropicMessages => anthropic::parse_event(event_name, data),
         Schema::OpenaiChatCompletions => openai::parse_event(data),
+        Schema::OpenaiResponses => openai_responses::parse_event(data),
     }
 }

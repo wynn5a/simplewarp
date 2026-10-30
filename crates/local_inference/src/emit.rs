@@ -194,8 +194,8 @@ impl Emitter {
                 Vec::new()
             }
             // The caller ends the reply with `finish`, so that a stop from the provider and a
-            // stream that simply closes take the same path.
-            Delta::Stop(_) => Vec::new(),
+            // stream that simply closes take the same path. An error ends the stream instead.
+            Delta::Stop(_) | Delta::Error { .. } => Vec::new(),
             Delta::Usage(usage) => {
                 self.usage.merge(usage);
                 Vec::new()

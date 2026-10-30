@@ -95,10 +95,13 @@ async fn next_event(mut state: State) -> Option<(Result<api::ResponseEvent, Erro
             Some(Ok(Event::Open)) => continue,
             Some(Ok(Event::Message(message))) => {
                 for delta in provider::parse_event(state.schema, &message.event, &message.data) {
-                    if let Delta::Stop(reason) = delta {
-                        state.stop = Some(reason);
-                    } else {
-                        state.queue.extend(state.emitter.on_delta(delta));
+                    match delta {
+                        Delta::Stop(reason) => state.stop = Some(reason),
+                        Delta::Error { code, message } => {
+                            state.done = true;
+                            return Some((Err(Error::ProviderStream { code, message }), state));
+                        }
+                        delta => state.queue.extend(state.emitter.on_delta(delta)),
                     }
                 }
             }

@@ -2077,6 +2077,15 @@ installed process-wide in `warp::run`, `warp::run_integration_test` and the unit
 `lzma-sys`). Cargo.lock −470 lines. Format, three clippy runs, nextest 6,240/6,240, doc tests clean;
 real TLS handshakes checked; in-app checks in [runbook-p6-devex.md](runbook-p6-devex.md).
 
+### Round: OpenAI Responses protocol, steps 1–3 (2026-10-30)
+
+From [../specs/plans/openai-responses.md](../specs/plans/openai-responses.md), the groundwork for
+Sign in with ChatGPT. `local_inference` gains `Schema::OpenaiResponses` (`store: false`, system
+prompt in `instructions`, reasoning not replayed, no `reasoning` parameter yet). A custom endpoint
+set to "OpenAI Responses" now speaks it; before, it was silently sent Chat Completions. An error
+reported inside a stream ends it with `Error::ProviderStream`; rate-limit codes map to
+`QuotaLimit`. User ruling: built-in OpenAI keys move to Responses only once this has settled.
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the
@@ -2138,7 +2147,7 @@ points at `/Applications/Xcode.app`.
 export LOCAL_INFERENCE_BASE_URL=https://example.com/v1
 export LOCAL_INFERENCE_API_KEY=sk-...
 export LOCAL_INFERENCE_MODEL=some-model
-export LOCAL_INFERENCE_SCHEMA=anthropic        # optional; OpenAI Chat Completions is the default
+export LOCAL_INFERENCE_SCHEMA=anthropic        # optional: anthropic or responses; Chat Completions is the default
 cargo test -p local_inference --test live_provider -- --ignored --nocapture
 ```
 

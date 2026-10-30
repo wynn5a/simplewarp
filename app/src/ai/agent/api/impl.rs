@@ -181,10 +181,26 @@ fn convert_local_inference_error(error: local_inference::Error) -> Arc<AIApiErro
                 Err(_) => AIApiError::Other(anyhow::anyhow!("{error}")),
             }
         }
+        // A rate limit reported inside the stream is the same limit as an HTTP 429, so it takes
+        // the quota path. The body mirrors a provider error body so its message is shown.
+        LocalError::ProviderStream {
+            ref code,
+            ref message,
+        } if is_rate_limit_code(code) => AIApiError::ErrorStatus(
+            http::StatusCode::TOO_MANY_REQUESTS,
+            serde_json::json!({ "error": { "code": code, "message": message } }).to_string(),
+        ),
         LocalError::Http(error) => AIApiError::Transport(error),
         other => AIApiError::Other(anyhow::anyhow!("{other}")),
     };
     Arc::new(error)
+}
+
+fn is_rate_limit_code(code: &str) -> bool {
+    matches!(
+        code,
+        "rate_limit_exceeded" | "insufficient_quota" | "subscription_sharing_usage_limit_exceeded"
+    )
 }
 
 fn get_supported_tools(params: &RequestParams) -> Vec<api::ToolType> {

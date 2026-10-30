@@ -14,7 +14,10 @@ provider direct with the user's key, and converts the reply into the same `api::
 stream the client already knows how to apply. The client keeps what it always owned — running the
 tools, rendering the blocks, deciding what to send next; only the model call moved (before:
 client → Warp server → provider; after: client → provider). Provider 429 responses map to
-`QuotaLimit` (user ruling, round 4ib). Model-list and provider config live here.
+`QuotaLimit` (user ruling, round 4ib), and so does a rate limit reported inside a stream. It
+speaks three protocols: Anthropic Messages, OpenAI Chat Completions, and OpenAI Responses
+(stateless, `store: false`; reasoning is not replayed across turns). Model-list and provider
+config live here.
 
 ## Boundary
 

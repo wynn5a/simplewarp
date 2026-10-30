@@ -4,6 +4,7 @@
 //! already built, so the keys stay on the machine.
 
 use warp_multi_agent_api as api;
+use warp_multi_agent_api::request::settings::custom_model_providers::CustomEndpointSchema;
 
 use crate::Error;
 
@@ -14,6 +15,8 @@ pub enum Schema {
     AnthropicMessages,
     /// OpenAI Chat Completions (`POST /chat/completions`).
     OpenaiChatCompletions,
+    /// OpenAI Responses (`POST /responses`).
+    OpenaiResponses,
 }
 
 /// A fully resolved endpoint: where to send the request, and how to speak to it.
@@ -40,6 +43,7 @@ impl ProviderTarget {
         match self.schema {
             Schema::AnthropicMessages => format!("{}/messages", self.base_url),
             Schema::OpenaiChatCompletions => format!("{}/chat/completions", self.base_url),
+            Schema::OpenaiResponses => format!("{}/responses", self.base_url),
         }
     }
 }
@@ -96,12 +100,9 @@ fn custom_target(settings: &api::request::Settings, model: &str) -> Option<Provi
         };
 
         let schema = match provider.schema() {
-            api::request::settings::custom_model_providers::CustomEndpointSchema::AnthropicMessages => {
-                Schema::AnthropicMessages
-            }
-            // OpenAI Responses is not supported yet, so fall back to Chat Completions, which
-            // every OpenAI-compatible server speaks.
-            _ => Schema::OpenaiChatCompletions,
+            CustomEndpointSchema::OpenaiChatCompletions => Schema::OpenaiChatCompletions,
+            CustomEndpointSchema::OpenaiResponses => Schema::OpenaiResponses,
+            CustomEndpointSchema::AnthropicMessages => Schema::AnthropicMessages,
         };
 
         return Some(ProviderTarget {

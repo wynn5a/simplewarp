@@ -179,6 +179,30 @@ fn a_custom_endpoint_can_speak_anthropic() {
 }
 
 #[test]
+fn a_custom_endpoint_can_speak_openai_responses() {
+    use api::request::settings::custom_model_providers::{
+        CustomEndpointSchema, CustomModel, CustomModelProvider,
+    };
+
+    let mut settings = settings_with("responses-base", api::request::settings::ApiKeys::default());
+    settings.custom_model_providers = Some(api::request::settings::CustomModelProviders {
+        providers: vec![CustomModelProvider {
+            base_url: "https://api.openai.com/v1/".to_string(),
+            api_key: "sk-responses".to_string(),
+            models: vec![CustomModel {
+                slug: "gpt-5".to_string(),
+                config_key: "responses-base".to_string(),
+            }],
+            schema: CustomEndpointSchema::OpenaiResponses as i32,
+        }],
+    });
+
+    let target = resolve_target(&request_with(settings)).expect("expected a target");
+    assert_eq!(target.schema, Schema::OpenaiResponses);
+    assert_eq!(target.endpoint_url(), "https://api.openai.com/v1/responses");
+}
+
+#[test]
 fn the_second_custom_provider_is_still_searched() {
     use api::request::settings::custom_model_providers::{
         CustomEndpointSchema, CustomModel, CustomModelProvider,
