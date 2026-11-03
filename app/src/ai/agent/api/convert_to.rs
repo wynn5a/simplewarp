@@ -410,6 +410,7 @@ impl TryFrom<AIAgentActionResult> for api::request::input::user_inputs::user_inp
             AIAgentActionResultType::TransferShellCommandControlToUser(transfer_control_result) => {
                 Some(transfer_control_result.try_into()?)
             }
+            AIAgentActionResultType::Remember(remember_result) => Some(remember_result.try_into()?),
         };
         Ok(
             api::request::input::user_inputs::user_input::Input::ToolCallResult(

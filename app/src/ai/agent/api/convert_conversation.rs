@@ -23,7 +23,7 @@ use crate::ai::agent::{
     CallMCPToolResult, CancellationReason, CloneRepositoryURL, FileContext, FileGlobResult,
     FileGlobV2Match, FileGlobV2Result, FinishedAIAgentOutput, GrepFileMatch, GrepLineMatch,
     GrepResult, ImageContext, InsertReviewCommentsResult, OutputModelInfo, ReadFilesFailedFile,
-    ReadFilesResult, ReadMCPResourceResult, ReadShellCommandOutputResult,
+    ReadFilesResult, ReadMCPResourceResult, ReadShellCommandOutputResult, RememberResult,
     RequestCommandOutputResult, RequestFileEditsResult, ServerOutputId, Shared, ShellCommandError,
     TransferShellCommandControlToUserResult, UpdatedFileContext, UserQueryMode,
     WriteToLongRunningShellCommandResult,
@@ -974,6 +974,27 @@ pub(crate) fn convert_tool_call_result_to_input(
                 context,
             })
         }
+        Some(ToolCallResultType::Remember(api_result)) => {
+            let result = match &api_result.result {
+                Some(api::remember_result::Result::Success(success)) => RememberResult::Saved {
+                    project_root: (!success.project_root.is_empty())
+                        .then(|| success.project_root.clone()),
+                    already_saved: success.already_saved,
+                },
+                Some(api::remember_result::Result::Error(error)) => {
+                    RememberResult::Error(error.message.clone())
+                }
+                None => RememberResult::Cancelled,
+            };
+            Some(AIAgentInput::ActionResult {
+                result: AIAgentActionResult {
+                    id: tool_call_id.into(),
+                    task_id: task_id.clone(),
+                    result: AIAgentActionResultType::Remember(result),
+                },
+                context,
+            })
+        }
         Some(ToolCallResultType::Server(_)) => {
             // Server results should not create exchanges - return None
             None
@@ -1087,6 +1108,7 @@ fn create_cancelled_result_for_tool_call(
                 TransferShellCommandControlToUserResult::Cancelled,
             )
         }
+        ToolType::Remember(_) => AIAgentActionResultType::Remember(RememberResult::Cancelled),
         ToolType::Server(_) => {
             return None;
         }

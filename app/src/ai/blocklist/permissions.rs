@@ -546,6 +546,13 @@ impl BlocklistAIPermissions {
         self.determine_write_permissions_from_active_profile(terminal_view_id, ctx)
     }
 
+    /// Whether a memory the agent wants to save can be saved without asking. Only the memory
+    /// setting decides: a memory reaches every later conversation, so the auto-approval of one
+    /// conversation must not cover it.
+    pub fn can_write_memory(&self, ctx: &AppContext) -> bool {
+        *AISettings::as_ref(ctx).agent_memory_auto_approve
+    }
+
     pub fn can_call_mcp_tool(
         &self,
         server_id: Option<&uuid::Uuid>,

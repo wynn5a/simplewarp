@@ -70,8 +70,8 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResultType, AIAgentActionType, AIAgentAttachment,
     AIAgentContext, AIAgentInput, AIAgentOutput, AIAgentOutputMessageType, AIAgentTextSection,
-    CancellationReason, FileEdit, MessageId, ProgrammingLanguage, RequestCommandOutputResult,
-    RequestFileEditsResult, ServerOutputId, SummarizationType,
+    CancellationReason, FileEdit, MemoryScope, MessageId, ProgrammingLanguage,
+    RequestCommandOutputResult, RequestFileEditsResult, ServerOutputId, SummarizationType,
 };
 use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::ai::blocklist::context_model::AttachmentType;
@@ -642,8 +642,9 @@ pub struct AIBlock {
     /// Map from a requested command action ID to its view handle and status.
     requested_commands: HashMap<AIAgentActionId, RequestedCommand>,
 
-    /// Map from a requested MCP tool call action ID to its view handle and status.
-    requested_mcp_tools: HashMap<AIAgentActionId, RequestedCommand>,
+    /// Map from the action ID of a requested MCP tool call or memory to its view handle and
+    /// status.
+    requested_tool_calls: HashMap<AIAgentActionId, RequestedCommand>,
 
     /// Map from a requested edit action ID to its view handle and status.
     /// Uses IndexMap to preserve insertion order for correct revert ordering.
@@ -1018,7 +1019,7 @@ impl AIBlock {
             detected_links_state,
             code_editor_views: Default::default(),
             requested_commands: Default::default(),
-            requested_mcp_tools: Default::default(),
+            requested_tool_calls: Default::default(),
             requested_edits: Default::default(),
             comment_states,
             collapsible_block_states: Default::default(),
@@ -1489,6 +1490,13 @@ impl AIBlock {
                         *server_id,
                         ctx,
                     );
+                }
+                AIAgentAction {
+                    id: action_id,
+                    action: AIAgentActionType::Remember { content, scope },
+                    ..
+                } => {
+                    self.handle_memory_stream_update(action_id, content, *scope, ctx);
                 }
                 _ => (),
             }
@@ -2275,7 +2283,7 @@ impl AIBlock {
                 view.set_autonomy_setting_speedbump(self.autonomy_setting_speedbump.clone(), ctx);
             });
         }
-        if let Some(requested_mcp_tool) = self.requested_mcp_tools.get(&action_id) {
+        if let Some(requested_mcp_tool) = self.requested_tool_calls.get(&action_id) {
             requested_mcp_tool.view.update(ctx, |view, ctx| {
                 view.set_autonomy_setting_speedbump(self.autonomy_setting_speedbump.clone(), ctx);
             });
@@ -2293,7 +2301,7 @@ impl AIBlock {
         server_id: Option<uuid::Uuid>,
         ctx: &mut ViewContext<Self>,
     ) {
-        match self.requested_mcp_tools.get_mut(action_id) {
+        match self.requested_tool_calls.get_mut(action_id) {
             Some(requested_mcp_tool) => {
                 requested_mcp_tool.view.update(ctx, |view, ctx| {
                     view.apply_streamed_update(command_text, ctx);
@@ -2330,7 +2338,57 @@ impl AIBlock {
                     me.handle_mcp_tool_view_event(&action_id_clone, view, event, ctx);
                 });
 
-                self.requested_mcp_tools
+                self.requested_tool_calls
+                    .insert(action_id.clone(), RequestedCommand { view });
+            }
+        }
+    }
+
+    /// Handle a memory the agent wants to save. This will update the existing memory view if one
+    /// exists, or insert a new one otherwise. It shares the MCP tool call views' confirmation
+    /// flow.
+    fn handle_memory_stream_update(
+        &mut self,
+        action_id: &AIAgentActionId,
+        content: &str,
+        scope: MemoryScope,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let request = serde_json::json!({ "scope": scope.to_string(), "content": content });
+        match self.requested_tool_calls.get_mut(action_id) {
+            Some(requested_memory) => {
+                requested_memory.view.update(ctx, |view, ctx| {
+                    view.apply_streamed_update(content, ctx);
+                    view.update_mcp_request(request);
+                    ctx.notify();
+                });
+            }
+            None => {
+                let view = ctx.add_typed_action_view(|ctx| {
+                    let mut view = RequestedCommandView::new(
+                        action_id.clone(),
+                        self.client_ids.clone(),
+                        RequestedActionViewType::Memory(scope),
+                        self.model.clone(),
+                        &self.action_model,
+                        self.terminal_model.clone(),
+                        self.autonomy_setting_speedbump.clone(),
+                        self.state_handles
+                            .manage_autonomy_settings_link_handle
+                            .clone(),
+                        self.view_id,
+                        ctx,
+                    );
+                    view.apply_streamed_update(content, ctx);
+                    view.update_mcp_request(request);
+                    view
+                });
+                let action_id_clone = action_id.clone();
+                ctx.subscribe_to_view(&view, move |me, view, event, ctx| {
+                    me.handle_mcp_tool_view_event(&action_id_clone, view, event, ctx);
+                });
+
+                self.requested_tool_calls
                     .insert(action_id.clone(), RequestedCommand { view });
             }
         }
@@ -2344,7 +2402,7 @@ impl AIBlock {
         ctx: &mut ViewContext<Self>,
     ) {
         // Short-circuit if this is no longer an MCP tool call we're tracking.
-        if !self.requested_mcp_tools.contains_key(action_id) {
+        if !self.requested_tool_calls.contains_key(action_id) {
             return;
         }
         match event {
@@ -2798,7 +2856,7 @@ impl AIBlock {
             ctx.focus(&command.view);
             did_focus_subview = true;
         } else if let Some(mcp_tool) =
-            pending_action_id.and_then(|id| self.requested_mcp_tools.get(id))
+            pending_action_id.and_then(|id| self.requested_tool_calls.get(id))
         {
             // If there's a blocking MCP tool call, focus that.
             ctx.focus(&mcp_tool.view);
@@ -2820,7 +2878,7 @@ impl AIBlock {
                     .find_map(|command| command.view.as_ref(ctx).selected_text(ctx))
             })
             .or_else(|| {
-                self.requested_mcp_tools
+                self.requested_tool_calls
                     .values()
                     .find_map(|tool| tool.view.as_ref(ctx).selected_text(ctx))
             })
@@ -2938,7 +2996,7 @@ impl AIBlock {
                 .update(ctx, |view, ctx| view.clear_selection(ctx));
         }
 
-        for mcp_tool in self.requested_mcp_tools.values() {
+        for mcp_tool in self.requested_tool_calls.values() {
             // Don't clear selections for the MCP tool view that triggered this change.
             if source_view_id.is_some_and(|entity_id| mcp_tool.view.id() == entity_id)
                 && mcp_tool.view.window_id(ctx) == source_window_id
@@ -3235,7 +3293,7 @@ impl AIBlock {
         };
 
         if let Some(action_id) = pending_action_id
-            && self.requested_mcp_tools.contains_key(&action_id)
+            && self.requested_tool_calls.contains_key(&action_id)
         {
             self.action_model.update(ctx, |action_model, ctx| {
                 action_model.execute_action(&action_id, self.client_ids.conversation_id, ctx);

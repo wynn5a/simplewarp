@@ -52,3 +52,71 @@ fn a_command_cancelled_before_execution_still_reports_a_result() {
         Some(api::run_shell_command_result::Result::PermissionDenied(_))
     ));
 }
+
+#[test]
+fn remember_results_convert_to_the_proto() {
+    use api::remember_result::{Error, Result as Remember, Success};
+
+    let project = api::request::input::tool_call_result::Result::try_from(RememberResult::Saved {
+        project_root: Some("/work/app".to_string()),
+        already_saved: true,
+    })
+    .expect("a saved memory converts");
+    assert_eq!(
+        project,
+        api::request::input::tool_call_result::Result::Remember(api::RememberResult {
+            result: Some(Remember::Success(Success {
+                project_root: "/work/app".to_string(),
+                already_saved: true,
+            })),
+        })
+    );
+
+    let global = api::request::input::tool_call_result::Result::try_from(RememberResult::Saved {
+        project_root: None,
+        already_saved: false,
+    })
+    .expect("a saved memory converts");
+    let api::request::input::tool_call_result::Result::Remember(global) = global else {
+        panic!("expected a remember result");
+    };
+    assert_eq!(global.result, Some(Remember::Success(Success::default())));
+
+    let error = api::request::input::tool_call_result::Result::try_from(RememberResult::Error(
+        "The memory is empty.".to_string(),
+    ))
+    .expect("an error converts");
+    let api::request::input::tool_call_result::Result::Remember(error) = error else {
+        panic!("expected a remember result");
+    };
+    assert_eq!(
+        error.result,
+        Some(Remember::Error(Error {
+            message: "The memory is empty.".to_string(),
+        }))
+    );
+
+    assert!(matches!(
+        api::request::input::tool_call_result::Result::try_from(RememberResult::Cancelled),
+        Err(ConvertToAPITypeError::Ignore)
+    ));
+}
+
+#[test]
+fn a_remember_tool_call_becomes_a_remember_action() {
+    use crate::agent::action::{AIAgentActionType, MemoryScope};
+
+    let action = AIAgentActionType::from(api::message::tool_call::Remember {
+        content: "Use cargo nextest.".to_string(),
+        scope: api::message::tool_call::remember::Scope::Project as i32,
+    });
+
+    assert_eq!(
+        action,
+        AIAgentActionType::Remember {
+            content: "Use cargo nextest.".to_string(),
+            scope: MemoryScope::Project,
+        }
+    );
+    assert!(!action.to_string().contains("nextest"));
+}

@@ -746,6 +746,31 @@ impl TryFrom<InsertReviewCommentsResult> for api::request::input::tool_call_resu
     }
 }
 
+impl TryFrom<RememberResult> for api::request::input::tool_call_result::Result {
+    type Error = ConvertToAPITypeError;
+
+    fn try_from(result: RememberResult) -> Result<Self, Self::Error> {
+        use api::remember_result::{Error, Result as Remember, Success};
+
+        let result = match result {
+            RememberResult::Saved {
+                project_root,
+                already_saved,
+            } => Remember::Success(Success {
+                project_root: project_root.unwrap_or_default(),
+                already_saved,
+            }),
+            RememberResult::Error(message) => Remember::Error(Error { message }),
+            RememberResult::Cancelled => return Err(ConvertToAPITypeError::Ignore),
+        };
+        Ok(api::request::input::tool_call_result::Result::Remember(
+            api::RememberResult {
+                result: Some(result),
+            },
+        ))
+    }
+}
+
 #[cfg(test)]
 #[path = "convert_tests.rs"]
 mod tests;

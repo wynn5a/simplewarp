@@ -313,7 +313,8 @@ impl From<&AIAgentActionType> for PersistedAIAgentActionType {
             },
             AIAgentActionType::InsertCodeReviewComments { .. } => Self::NotPersisted,
             AIAgentActionType::ReadShellCommandOutput { .. }
-            | AIAgentActionType::TransferShellCommandControlToUser { .. } => Self::NotPersisted,
+            | AIAgentActionType::TransferShellCommandControlToUser { .. }
+            | AIAgentActionType::Remember { .. } => Self::NotPersisted,
         }
     }
 }

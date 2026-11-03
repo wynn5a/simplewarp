@@ -36,6 +36,16 @@ fn compaction_settings_default_to_the_approved_values() {
     );
 }
 
+#[test]
+fn agent_memory_writes_ask_by_default() {
+    assert!(!*AgentMemoryAutoApprove::new(None).value());
+    assert!(*MemoryEnabled::new(None).value());
+    assert_eq!(
+        AgentMemoryAutoApprove::toml_path(),
+        Some("agents.knowledge.agent_memory_auto_approve")
+    );
+}
+
 // ToolbarCommandMap Tests
 
 #[test]

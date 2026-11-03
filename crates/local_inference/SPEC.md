@@ -28,7 +28,14 @@ the system prompt holds only what stays the same across a conversation, the per-
 (working directory, time, git) follows the newest turn and is never stored, and requests to the
 built-in Anthropic endpoint mark cache breakpoints on the system prompt and the two newest user
 messages (custom Anthropic-schema endpoints get no cache fields). Cache reads and
-writes are reported in the stream's token usage.
+writes are reported in the stream's token usage. The user's `~/.agents/APPEND_SYSTEM.md`, read
+afresh for every request but a summary, is appended to the very end of the system prompt (it
+cannot replace it); a missing or unreadable file adds nothing.
+
+The `remember` tool (offered only when the client lists it, with a `# Memory` section of the
+system prompt that says what is worth keeping) carries one fact and a scope (`global`, or
+`project` when the scope is missing or unknown); the client saves it and reports where. The facts
+reach later requests as rules, the same way as the user's own.
 
 A request the provider rejects for exceeding the context window (Anthropic "prompt is too long",
 OpenAI `context_length_exceeded` before or inside the stream, the vLLM-style "maximum context length

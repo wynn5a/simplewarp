@@ -434,6 +434,7 @@ pub mod flags {
     pub const AUTO_APPROVE_BYPASSES_COMMAND_DENYLIST_FLAG: &str =
         "Auto_Approve_Bypasses_Command_Denylist";
     pub const AI_RULES_FLAG: &str = "AI_Rules";
+    pub const AGENT_MEMORY_AUTO_APPROVE_FLAG: &str = "Agent_Memory_Auto_Approve";
     pub const FILE_BASED_MCP_FLAG: &str = "File_Based_MCP";
     pub const DEBUG_SHOW_MEMORY_STATS_FLAG: &str = "Debug_Memory_Statistics";
     pub const ALLOW_NATIVE_WAYLAND: &str = "Allow_Native_Wayland";

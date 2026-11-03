@@ -179,6 +179,9 @@ pub(crate) fn redact_inputs(inputs: &mut [AIAgentInput]) {
                             | TransferShellCommandControlToUserResult::Cancelled => {}
                         }
                     }
+
+                    // Carries a project path or a fixed message, nothing the user typed.
+                    AIAgentActionResultType::Remember(_) => {}
                 }
             }
             AIAgentInput::InvokeSkill {

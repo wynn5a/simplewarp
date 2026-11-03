@@ -30,6 +30,28 @@ pub struct AIMemory {
     /// so we can suppress re-surfacing the same suggestion in future responses.
     #[serde(default)]
     pub suggested_logging_id: Option<SuggestedLoggingId>,
+    /// The project root this rule applies to; `None` applies it to all of the user's work.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root_path: Option<String>,
+    #[serde(default, skip_serializing_if = "AIMemorySource::is_user")]
+    pub source: AIMemorySource,
+}
+
+/// Who added a rule.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AIMemorySource {
+    #[default]
+    #[serde(rename = "user")]
+    User,
+    /// Saved by the agent with the `remember` tool.
+    #[serde(rename = "agent")]
+    Agent,
+}
+
+impl AIMemorySource {
+    fn is_user(&self) -> bool {
+        matches!(self, Self::User)
+    }
 }
 
 impl JsonModel for AIFact {
@@ -40,3 +62,7 @@ impl JsonModel for AIFact {
 
 pub type CloudAIFact = GenericCloudObject<GenericStringObjectId, CloudAIFactModel>;
 pub type CloudAIFactModel = GenericStringModel<AIFact, JsonSerializer>;
+
+#[cfg(test)]
+#[path = "ai_fact_tests.rs"]
+mod tests;

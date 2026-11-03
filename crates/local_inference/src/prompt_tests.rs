@@ -78,6 +78,57 @@ fn the_system_prompt_is_stable_across_requests() {
 fn no_context_means_no_current_state() {
     let prompt = Prompt::for_request(&api::Request::default());
 
-    assert_eq!(prompt.system, SYSTEM_PROMPT);
+    // A request that lists no tools is offered all of them, `remember` included.
+    assert_eq!(prompt.system, format!("{SYSTEM_PROMPT}{MEMORY_SECTION}"));
     assert_eq!(prompt.current_state, "");
+}
+
+#[test]
+fn appended_system_text_goes_after_everything_else() {
+    let base = Prompt::for_request(&request_at("/work/app", 0, "main"));
+
+    let prompt = base
+        .clone()
+        .with_appended_system(Some("  Answer in French.\n"));
+
+    assert!(prompt.system.starts_with(&base.system));
+    assert!(prompt.system.ends_with("\n\nAnswer in French.\n"));
+}
+
+#[test]
+fn blank_appended_system_text_changes_nothing() {
+    let base = Prompt::for_request(&request_at("/work/app", 0, "main"));
+
+    assert_eq!(base.clone().with_appended_system(None), base);
+    assert_eq!(base.clone().with_appended_system(Some("  \n")), base);
+}
+
+#[test]
+fn appended_system_text_is_capped() {
+    let base = Prompt::for_request(&request_at("/work/app", 0, "main"));
+    let long = "x".repeat(MAX_APPENDED_SYSTEM_CHARS + 10_000);
+
+    let prompt = base.clone().with_appended_system(Some(&long));
+
+    let added = &prompt.system[base.system.len()..];
+    assert_eq!(
+        added.chars().filter(|c| *c == 'x').count(),
+        MAX_APPENDED_SYSTEM_CHARS
+    );
+    assert!(added.contains("too long to include"));
+}
+
+#[test]
+fn the_memory_section_appears_only_with_the_remember_tool() {
+    let with_tools = |tools: Vec<api::ToolType>| {
+        let mut request = request_at("/work/app", 0, "main");
+        request.settings = Some(api::request::Settings {
+            supported_tools: tools.into_iter().map(|tool| tool as i32).collect(),
+            ..Default::default()
+        });
+        Prompt::for_request(&request).system
+    };
+
+    assert!(with_tools(vec![api::ToolType::Remember]).contains("# Memory"));
+    assert!(!with_tools(vec![api::ToolType::RunShellCommand]).contains("# Memory"));
 }

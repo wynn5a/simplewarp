@@ -673,6 +673,16 @@ pub fn tool_use_from_proto(call: &message::ToolCall) -> Option<ToolUse> {
                 }),
             )
         }
+        tool_call::Tool::Remember(remember) => (
+            "remember",
+            json!({
+                "content": remember.content,
+                "scope": match remember.scope() {
+                    tool_call::remember::Scope::Global => "global",
+                    tool_call::remember::Scope::Project => "project",
+                },
+            }),
+        ),
         // A tool that this crate never offers cannot appear in a local conversation, but a
         // history from a cloud conversation may hold one. Leaving it out keeps the turn list
         // valid; the matching result is rendered as plain text below.
@@ -732,6 +742,7 @@ pub fn render_result(result: &message::ToolCallResult) -> ToolResult {
         Some(ProtoResult::InsertReviewComments(insert)) => render_insert_review_comments(insert),
         Some(ProtoResult::CallMcpTool(call)) => render_call_mcp(call),
         Some(ProtoResult::ReadMcpResource(read)) => render_read_mcp(read),
+        Some(ProtoResult::Remember(remember)) => render_remember(remember),
         Some(ProtoResult::Cancel(_)) => ("The user cancelled this tool call.".to_string(), true),
         _ => ("The tool returned no readable result.".to_string(), true),
     };
@@ -799,6 +810,7 @@ pub fn stored_result(input: &api::request::input::ToolCallResult) -> message::To
         In::WaitForEvents(result) => Out::WaitForEvents(result),
         In::StartRecording(result) => Out::StartRecording(result),
         In::StopRecording(result) => Out::StopRecording(result),
+        In::Remember(result) => Out::Remember(result),
     });
 
     let mut stored = message::ToolCallResult {
@@ -993,7 +1005,8 @@ fn fit_payload(result: &mut tool_call_result::Result) {
         | Out::RunAgentsResult(_)
         | Out::WaitForEvents(_)
         | Out::StartRecording(_)
-        | Out::StopRecording(_) => {}
+        | Out::StopRecording(_)
+        | Out::Remember(_) => {}
     }
 }
 
@@ -1140,6 +1153,29 @@ fn render_insert_review_comments(insert: &api::InsertReviewCommentsResult) -> (S
         ),
         Some(InsertResult::Error(error)) => (error.message.clone(), true),
         None => ("The comments were not inserted.".to_string(), true),
+    }
+}
+
+fn render_remember(remember: &api::RememberResult) -> (String, bool) {
+    use api::remember_result::Result as RememberResult;
+
+    match remember.result.as_ref() {
+        Some(RememberResult::Success(success)) if success.already_saved => (
+            "This is already in memory; nothing new was saved.".to_string(),
+            false,
+        ),
+        Some(RememberResult::Success(success)) if success.project_root.is_empty() => {
+            ("Saved to memory for all projects.".to_string(), false)
+        }
+        Some(RememberResult::Success(success)) => (
+            format!(
+                "Saved to memory for the project at `{}`.",
+                success.project_root
+            ),
+            false,
+        ),
+        Some(RememberResult::Error(error)) => (error.message.clone(), true),
+        None => ("Nothing was saved to memory.".to_string(), true),
     }
 }
 

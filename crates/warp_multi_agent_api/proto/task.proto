@@ -452,6 +452,22 @@ message Message {
       WaitForEvents wait_for_events = 36;
       StartRecording start_recording = 37;
       StopRecording stop_recording = 38;
+      // SimpleWarp: saves a fact to the user's rules (local change, harness P3).
+      Remember remember = 39;
+    }
+
+    // A tool call to save one short fact to the user's rules, for future
+    // conversations.
+    message Remember {
+      string content = 1 [ (sensitive) = true ];
+      Scope scope = 2;
+
+      enum Scope {
+        // Applies to all of the user's work.
+        GLOBAL = 0;
+        // Applies only to the repository the agent is working in.
+        PROJECT = 1;
+      }
     }
 
     // A tool call to fetch a conversation's tasks from the client.
@@ -1092,6 +1108,7 @@ message Message {
       WaitForEventsResult wait_for_events = 40;
       StartRecordingResult start_recording = 41;
       StopRecordingResult stop_recording = 42;
+      RememberResult remember = 43;
     }
 
     // Result of a server-side tool call.
@@ -1755,6 +1772,24 @@ message StartRecordingResult {
   }
 }
 
+// Result of a `Remember` tool call.
+message RememberResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success {
+    // The project the fact was saved for; empty when it applies to all
+    // projects.
+    string project_root = 1 [ (sensitive) = true ];
+    // The same fact was already saved, so nothing new was written.
+    bool already_saved = 2;
+  }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
 // Result of a `StopRecording` tool call.
 message StopRecordingResult {
   oneof result {
@@ -1862,6 +1897,7 @@ enum ToolType {
   WAIT_FOR_EVENTS = 33;
   START_RECORDING = 34;
   STOP_RECORDING = 35;
+  REMEMBER = 36;
 }
 
 message UserQueryMode {

@@ -31,7 +31,7 @@ use super::inline_action_icons::{self, icon_size};
 use crate::ai::agent::conversation::ConversationStatus;
 use crate::ai::agent::{
     AIAgentActionId, AIAgentActionResult, AIAgentActionResultType, AIAgentActionType,
-    AIAgentOutputMessageType, CallMCPToolResult, RequestCommandOutputResult, icons,
+    AIAgentOutputMessageType, CallMCPToolResult, MemoryScope, RequestCommandOutputResult, icons,
 };
 use crate::ai::blocklist::action_model::AIActionStatus;
 use crate::ai::blocklist::block::cli_controller::{
@@ -67,7 +67,9 @@ use crate::ui_components::json_tree::{
     ToggleStringFn, render_json_tree,
 };
 use crate::util::bindings::keybinding_name_to_keystroke;
-use crate::view_components::action_button::{ButtonSize, KeystrokeSource, NakedTheme};
+use crate::view_components::action_button::{
+    ButtonSize, KeystrokeSource, NakedTheme, PrimaryTheme,
+};
 use crate::view_components::compactible_action_button::{
     CompactibleActionButton, LARGE_SIZE_SWITCH_THRESHOLD, MEDIUM_SIZE_SWITCH_THRESHOLD,
     RenderCompactibleActionButton, SMALL_SIZE_SWITCH_THRESHOLD,
@@ -80,6 +82,7 @@ pub const REQUESTED_COMMAND_BODY_VERTICAL_PADDING: f32 = 16.;
 
 const REQUESTED_COMMAND_REJECT_LABEL: &str = "Reject";
 const REQUESTED_COMMAND_ACCEPT_LABEL: &str = "Run";
+const REQUESTED_MEMORY_ACCEPT_LABEL: &str = "Save";
 const REQUESTED_COMMAND_EDIT_LABEL: &str = "Edit";
 const REQUESTED_COMMAND_MINIMIZE_LABEL: &str = "Done";
 
@@ -94,6 +97,9 @@ const AGENT_REQUESTED_USER_TAKE_CONTROL_COMMAND_MESSAGE: &str = "User in control
 const AGENT_ERRORED_COMMAND_MESSAGE: &str = "Agent ran into an issue. Take over control.";
 pub const VIEWING_COMMAND_DETAIL_MESSAGE: &str = "Viewing command detail";
 const VIEWING_MCP_TOOL_DETAIL_MESSAGE: &str = "Viewing MCP tool call detail";
+const VIEWING_MEMORY_DETAIL_MESSAGE: &str = "Viewing memory";
+/// The most characters of a memory shown in the one-line header.
+const MEMORY_HEADER_PREVIEW_CHARS: usize = 80;
 
 const EDIT_COMMAND_ACTION_NAME: &str = "requested_command:edit";
 
@@ -237,6 +243,8 @@ pub enum McpTree {
 pub enum RequestedActionViewType {
     Command,
     McpTool,
+    /// A memory the agent wants to save. The view's command text is the memory's content.
+    Memory(MemoryScope),
 }
 
 impl RequestedActionViewType {
@@ -244,8 +252,12 @@ impl RequestedActionViewType {
         matches!(self, RequestedActionViewType::Command)
     }
 
-    fn is_mcp_tool(&self) -> bool {
-        matches!(self, RequestedActionViewType::McpTool)
+    /// Whether the expanded view shows the tool call's arguments as a JSON tree.
+    fn shows_request_tree(&self) -> bool {
+        match self {
+            RequestedActionViewType::McpTool | RequestedActionViewType::Memory(_) => true,
+            RequestedActionViewType::Command => false,
+        }
     }
 }
 
@@ -313,6 +325,9 @@ pub struct RequestedCommandView {
     cancel_button: CompactibleActionButton,
     edit_button: CompactibleActionButton,
     minimize_button: CompactibleActionButton,
+    /// Accepts a memory. It has no auto-approve menu: approving one memory never approves the
+    /// next, and only the memory setting can skip the confirmation.
+    save_memory_button: CompactibleActionButton,
 
     // Split accept button and menu state
     accept_and_autoexecute_split_button: CompactibleSplitActionButton,
@@ -405,6 +420,18 @@ impl RequestedCommandView {
             Some(Self::get_position_id_for_accept_split_button(
                 &position_id_prefix,
             )),
+            ctx,
+        );
+
+        let save_memory_button = CompactibleActionButton::new(
+            REQUESTED_MEMORY_ACCEPT_LABEL.to_string(),
+            Some(KeystrokeSource::Fixed(
+                ENTER_ACCEPT_REQUESTED_COMMAND_KEYSTROKE.clone(),
+            )),
+            ButtonSize::InlineActionHeader,
+            RequestedCommandViewAction::Accept,
+            Icon::Check,
+            Arc::new(PrimaryTheme),
             ctx,
         );
 
@@ -588,6 +615,7 @@ impl RequestedCommandView {
             cancel_button,
             edit_button,
             minimize_button,
+            save_memory_button,
             accept_and_autoexecute_split_button,
             is_accept_split_button_menu_open: false,
             accept_split_button_menu: accept_menu,
@@ -1085,7 +1113,7 @@ impl RequestedCommandView {
             RequestedActionViewType::Command => terminal_model
                 .block_list()
                 .block_for_ai_action_id(&self.action_id),
-            RequestedActionViewType::McpTool => None,
+            RequestedActionViewType::McpTool | RequestedActionViewType::Memory(_) => None,
         };
 
         match action_status {
@@ -1114,6 +1142,9 @@ impl RequestedCommandView {
                 title = match &self.action_type {
                     RequestedActionViewType::Command => COMMAND_WAITING_FOR_USER_MESSAGE.into(),
                     RequestedActionViewType::McpTool => self.mcp_blocked_title(app).into(),
+                    RequestedActionViewType::Memory(scope) => {
+                        memory_blocked_title_text(*scope).into()
+                    }
                 };
             }
             Some(AIActionStatus::RunningAsync) | Some(AIActionStatus::Finished(..))
@@ -1153,6 +1184,7 @@ impl RequestedCommandView {
                         self.mcp_server_name(app).as_deref(),
                     )
                     .into(),
+                    RequestedActionViewType::Memory(_) => VIEWING_MEMORY_DETAIL_MESSAGE.into(),
                 };
             }
             None => {
@@ -1292,6 +1324,13 @@ impl RequestedCommandView {
                             ];
                             (action_buttons, SMALL_SIZE_SWITCH_THRESHOLD)
                         }
+                        RequestedActionViewType::Memory(_) => {
+                            let action_buttons: Vec<Rc<dyn RenderCompactibleActionButton>> = vec![
+                                Rc::new(self.cancel_button.clone()),
+                                Rc::new(self.save_memory_button.clone()),
+                            ];
+                            (action_buttons, SMALL_SIZE_SWITCH_THRESHOLD)
+                        }
                     }
                 };
                 config = config.with_interaction_mode(InteractionMode::ActionButtons {
@@ -1372,6 +1411,7 @@ impl RequestedCommandView {
                     _ => tool,
                 }
             }
+            RequestedActionViewType::Memory(_) => memory_header_text(self.command_text()),
         }
     }
 
@@ -1439,6 +1479,27 @@ fn mcp_blocked_title_text(tool_name: &str, server_name: Option<&str>) -> String 
         Some(server) => format!("OK if I call MCP tool {tool_name} on server {server}"),
         None => format!("OK if I call MCP tool {tool_name}"),
     }
+}
+
+/// Builds the confirmation title for a memory the agent wants to save.
+fn memory_blocked_title_text(scope: MemoryScope) -> &'static str {
+    match scope {
+        MemoryScope::Project => "OK if I remember this for this project?",
+        MemoryScope::Global => "OK if I remember this for all projects?",
+    }
+}
+
+/// Builds the one-line header for a memory: its first line, cut to
+/// [`MEMORY_HEADER_PREVIEW_CHARS`].
+fn memory_header_text(content: &str) -> String {
+    let first_line = content.trim().lines().next().unwrap_or_default();
+    let preview: String = first_line
+        .chars()
+        .take(MEMORY_HEADER_PREVIEW_CHARS)
+        .collect();
+    let is_cut = first_line.chars().count() > MEMORY_HEADER_PREVIEW_CHARS
+        || content.trim().lines().nth(1).is_some();
+    format!("Remember: {preview}{}", if is_cut { "…" } else { "" })
 }
 
 /// Builds the expanded-detail header title for an MCP tool call from the
@@ -1519,9 +1580,10 @@ impl View for RequestedCommandView {
             && self.action_type.is_requested_command()
             && self.editor.is_some();
 
-        // For MCP tools, when expanded, show either the tool call details or the JSON response.
+        // For MCP tools and memories, when expanded, show the tool call's arguments and, for MCP
+        // tools, the JSON response.
         let should_render_mcp_content = self.is_header_expanded
-            && self.action_type.is_mcp_tool()
+            && self.action_type.shows_request_tree()
             && !self.command_text.is_empty();
 
         let header_element = self.render_header(
@@ -1765,7 +1827,7 @@ impl View for RequestedCommandView {
         // and have the next AI block take care of the vertical spacing. Moreover, having a non-zero
         // bottom margin while expanded will cause the body to look disconnected from the header.
         let should_remove_bottom_margin = is_rendered_above_expanded_command_block
-            || ((self.action_type.is_requested_command() || self.action_type.is_mcp_tool())
+            || ((self.action_type.is_requested_command() || self.action_type.shows_request_tree())
                 && is_last_output_message_in_output
                 && (BlocklistAIHistoryModel::as_ref(app)
                     .conversation(&self.client_ids.conversation_id)
@@ -1879,7 +1941,13 @@ impl TypedActionView for RequestedCommandView {
             RequestedCommandViewAction::AcceptAndAutoExecute => {
                 self.commit_editor_contents(ctx);
                 ctx.emit(RequestedCommandViewEvent::Accepted);
-                ctx.emit(RequestedCommandViewEvent::EnableAutoexecuteMode);
+                // Conversation auto-approve does not cover memories, so a memory is only saved.
+                match self.action_type {
+                    RequestedActionViewType::Command | RequestedActionViewType::McpTool => {
+                        ctx.emit(RequestedCommandViewEvent::EnableAutoexecuteMode);
+                    }
+                    RequestedActionViewType::Memory(_) => {}
+                }
             }
             RequestedCommandViewAction::ToggleAcceptMenu => {
                 self.toggle_accept_split_button_menu(ctx)

@@ -4,22 +4,27 @@ use std::sync::Arc;
 use ai::agent::action_result::{AnyFileContent, FileContext, ReadFilesResult};
 use warp_multi_agent_api as api;
 
-use super::{add_global_rules, convert_local_inference_error, estimate_input_tokens};
+use super::{add_memories, convert_local_inference_error, estimate_input_tokens};
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
     AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment, AIAgentInput, UserQueryMode,
 };
+use crate::ai::agent_memory::{AGENT_MEMORY_TITLE, ProjectMemories, RequestMemories, RuleText};
 use crate::server::server_api::AIApiError;
+
+fn rule(title: &str, content: &str) -> RuleText {
+    (title.to_owned(), content.to_owned())
+}
 
 #[test]
 fn global_rules_reach_the_request_as_a_project_rules_entry_without_a_root() {
     let mut input = api::request::Input::default();
-    add_global_rules(
+    add_memories(
         &mut input,
-        &[
-            ("Tabs".to_owned(), "Use tabs.".to_owned()),
-            (String::new(), "Be brief.".to_owned()),
-        ],
+        &RequestMemories {
+            global: vec![rule("Tabs", "Use tabs."), rule("Rule", "Be brief.")],
+            project: None,
+        },
     );
 
     let rules = &input.context.expect("context").project_rules;
@@ -34,8 +39,68 @@ fn global_rules_reach_the_request_as_a_project_rules_entry_without_a_root() {
 #[test]
 fn no_global_rules_leaves_the_context_alone() {
     let mut input = api::request::Input::default();
-    add_global_rules(&mut input, &[]);
+    add_memories(&mut input, &RequestMemories::default());
     assert!(input.context.is_none());
+}
+
+#[test]
+fn project_memories_join_the_project_rules_with_the_same_root() {
+    let mut input = api::request::Input {
+        context: Some(api::InputContext {
+            project_rules: vec![api::input_context::ProjectRules {
+                root_path: "/work/app".to_owned(),
+                active_rule_files: vec![api::FileContent {
+                    file_path: "/work/app/AGENTS.md".to_owned(),
+                    content: "Run the presubmit.".to_owned(),
+                    line_range: None,
+                }],
+                additional_rule_file_paths: vec![],
+            }],
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    add_memories(
+        &mut input,
+        &RequestMemories {
+            global: vec![],
+            project: Some(ProjectMemories {
+                root_path: "/work/app".to_owned(),
+                rules: vec![rule(AGENT_MEMORY_TITLE, "Tests run with cargo nextest.")],
+            }),
+        },
+    );
+
+    let rules = &input.context.expect("context").project_rules;
+    assert_eq!(rules.len(), 1);
+    let files = &rules[0].active_rule_files;
+    assert_eq!(files.len(), 2);
+    assert_eq!(files[0].file_path, "/work/app/AGENTS.md");
+    assert_eq!(files[1].file_path, AGENT_MEMORY_TITLE);
+    assert_eq!(files[1].content, "Tests run with cargo nextest.");
+}
+
+#[test]
+fn project_memories_without_project_rules_get_their_own_entry() {
+    let mut input = api::request::Input::default();
+
+    add_memories(
+        &mut input,
+        &RequestMemories {
+            global: vec![rule("Tabs", "Use tabs.")],
+            project: Some(ProjectMemories {
+                root_path: "/work/app".to_owned(),
+                rules: vec![rule(AGENT_MEMORY_TITLE, "Tests run with cargo nextest.")],
+            }),
+        },
+    );
+
+    let rules = &input.context.expect("context").project_rules;
+    assert_eq!(rules.len(), 2);
+    assert!(rules[0].root_path.is_empty());
+    assert_eq!(rules[1].root_path, "/work/app");
+    assert_eq!(rules[1].active_rule_files[0].file_path, AGENT_MEMORY_TITLE);
 }
 
 #[test]

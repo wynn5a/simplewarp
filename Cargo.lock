@@ -5308,6 +5308,7 @@ dependencies = [
  "agent_harness",
  "aha-reqwest-eventsource",
  "chrono",
+ "dirs 6.0.0",
  "futures",
  "log",
  "prost-types",

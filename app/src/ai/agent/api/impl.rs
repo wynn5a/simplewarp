@@ -8,6 +8,7 @@ use warp_multi_agent_api as api;
 use super::convert_to::convert_input;
 use super::{ConvertToAPITypeError, RequestParams, ResponseStream};
 use crate::ai::agent::{AIAgentInput, redaction};
+use crate::ai::agent_memory::{RequestMemories, RuleText};
 use crate::server::server_api::AIApiError;
 use crate::terminal::model::session::SessionType;
 
@@ -52,7 +53,7 @@ pub async fn generate_multi_agent_output(
     }
 
     let mut input = convert_input(params.input)?;
-    add_global_rules(&mut input, &params.global_rules);
+    add_memories(&mut input, &params.memories);
 
     let request = api::Request {
         task_context: Some(api::request::TaskContext {
@@ -145,33 +146,54 @@ pub fn estimate_input_tokens(inputs: Vec<AIAgentInput>) -> u64 {
         .unwrap_or_default()
 }
 
-/// Hands the user's own rules to the local adapter as a project-rules entry with no root path.
+/// Hands the user's own rules and the agent's memories to the local adapter as project-rules
+/// entries.
 ///
 /// The request has no field for them, because the server used to read them from the user's
-/// account. An entry with no root path is rendered as the user's rules for all their work.
-fn add_global_rules(input: &mut api::request::Input, rules: &[(String, String)]) {
-    if rules.is_empty() {
+/// account. Rules for all work go in an entry with no root path, which is rendered as the user's
+/// rules for all their work. Rules for the current project join the entry of the project's rule
+/// files when there is one, so that the project's rules stay together.
+fn add_memories(input: &mut api::request::Input, memories: &RequestMemories) {
+    if memories.global.is_empty() && memories.project.is_none() {
         return;
     }
     let context = input.context.get_or_insert_with(Default::default);
-    context
-        .project_rules
-        .push(api::input_context::ProjectRules {
-            root_path: String::new(),
-            active_rule_files: rules
-                .iter()
-                .map(|(name, content)| api::FileContent {
-                    file_path: if name.is_empty() {
-                        "Rule".to_owned()
-                    } else {
-                        name.clone()
-                    },
-                    content: content.clone(),
-                    line_range: None,
-                })
-                .collect(),
-            additional_rule_file_paths: vec![],
-        });
+    if !memories.global.is_empty() {
+        context
+            .project_rules
+            .push(api::input_context::ProjectRules {
+                root_path: String::new(),
+                active_rule_files: rule_files(&memories.global),
+                additional_rule_file_paths: vec![],
+            });
+    }
+    if let Some(project) = &memories.project {
+        match context
+            .project_rules
+            .iter_mut()
+            .find(|rules| rules.root_path == project.root_path)
+        {
+            Some(rules) => rules.active_rule_files.extend(rule_files(&project.rules)),
+            None => context
+                .project_rules
+                .push(api::input_context::ProjectRules {
+                    root_path: project.root_path.clone(),
+                    active_rule_files: rule_files(&project.rules),
+                    additional_rule_file_paths: vec![],
+                }),
+        }
+    }
+}
+
+fn rule_files(rules: &[RuleText]) -> Vec<api::FileContent> {
+    rules
+        .iter()
+        .map(|(title, content)| api::FileContent {
+            file_path: title.clone(),
+            content: content.clone(),
+            line_range: None,
+        })
+        .collect()
 }
 
 /// Maps a local-inference failure onto the error type that the AI UI already renders.
@@ -228,6 +250,9 @@ fn get_supported_tools(params: &RequestParams) -> Vec<api::ToolType> {
         api::ToolType::ReadShellCommandOutput,
         api::ToolType::TransferShellCommandControlToUser,
     ];
+    if params.is_memory_enabled {
+        supported_tools.push(api::ToolType::Remember);
+    }
 
     match params.session_context.session_type() {
         None | Some(SessionType::Local) => {

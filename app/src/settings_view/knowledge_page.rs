@@ -2,6 +2,7 @@
 
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warp_core::settings::ToggleableSetting as _;
+use warp_errors::report_if_error;
 use warpui::elements::{
     Container, Element, Flex, FormattedTextElement, HighlightedHyperlink, MouseStateHandle,
     ParentElement,
@@ -12,7 +13,7 @@ use warpui::{
     Action, AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle, id,
 };
 
-use super::ai_shared::{render_ai_setting_toggle, styles};
+use super::ai_shared::{render_ai_setting_description, render_ai_setting_toggle, styles};
 use super::settings_page::{
     CONTENT_FONT_SIZE, MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle,
     SettingsWidget, render_full_pane_width_ai_button,
@@ -38,6 +39,7 @@ impl KnowledgePageView {
     fn build_page() -> PageType<Self> {
         let widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![
             Box::new(RulesWidget::default()),
+            Box::new(AgentMemoryWidget::default()),
             Box::new(ManageRulesWidget::default()),
         ];
         PageType::new_uncategorized(widgets, Some(PAGE_TITLE))
@@ -65,6 +67,7 @@ pub enum KnowledgePageEvent {
 #[derive(Debug, Clone)]
 pub enum KnowledgePageAction {
     ToggleRules,
+    ToggleAgentMemoryAutoApprove,
     OpenAIFactCollection,
 }
 
@@ -76,6 +79,16 @@ impl TypedActionView for KnowledgePageView {
             KnowledgePageAction::ToggleRules => {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     let _ = settings.memory_enabled.toggle_and_save_value(ctx);
+                });
+                ctx.notify();
+            }
+            KnowledgePageAction::ToggleAgentMemoryAutoApprove => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    report_if_error!(
+                        settings
+                            .agent_memory_auto_approve
+                            .toggle_and_save_value(ctx)
+                    );
                 });
                 ctx.notify();
             }
@@ -126,6 +139,15 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 builder(SettingsAction::Knowledge(KnowledgePageAction::ToggleRules)),
                 &(context.clone() & id!(flags::IS_ANY_AI_ENABLED)),
                 flags::AI_RULES_FLAG,
+            )
+            .with_group(bindings::BindingGroup::WarpAi),
+            ToggleSettingActionPair::new(
+                "agent memory auto-approve",
+                builder(SettingsAction::Knowledge(
+                    KnowledgePageAction::ToggleAgentMemoryAutoApprove,
+                )),
+                &(context.clone() & id!(flags::IS_ANY_AI_ENABLED)),
+                flags::AGENT_MEMORY_AUTO_APPROVE_FLAG,
             )
             .with_group(bindings::BindingGroup::WarpAi),
         ],
@@ -183,6 +205,45 @@ impl SettingsWidget for RulesWidget {
         Flex::column()
             .with_child(toggle)
             .with_child(description)
+            .finish()
+    }
+}
+
+#[derive(Default)]
+struct AgentMemoryWidget {
+    auto_approve_toggle: SwitchStateHandle,
+}
+
+impl SettingsWidget for AgentMemoryWidget {
+    type View = KnowledgePageView;
+
+    fn search_terms(&self) -> &str {
+        "agent memory memories remember save auto-approve approval ask"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        _appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let ai_settings = AISettings::as_ref(app);
+        let is_toggleable = ai_settings.is_memory_enabled();
+        Flex::column()
+            .with_child(render_ai_setting_toggle(
+                "Save agent memories without asking",
+                KnowledgePageAction::ToggleAgentMemoryAutoApprove,
+                *ai_settings.agent_memory_auto_approve,
+                is_toggleable,
+                self.auto_approve_toggle.clone(),
+                app,
+            ))
+            .with_child(render_ai_setting_description(
+                "When off, you approve each memory the agent wants to save. Saved memories \
+                 appear in your rules, where you can edit or delete them.",
+                is_toggleable,
+                app,
+            ))
             .finish()
     }
 }

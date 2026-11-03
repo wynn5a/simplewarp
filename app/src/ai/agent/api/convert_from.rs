@@ -409,6 +409,9 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
             api::message::tool_call::Tool::TransferShellCommandControlToUser(
                 transfer_shell_command_control_to_user,
             ) => create_standard_action(transfer_shell_command_control_to_user.into()),
+            api::message::tool_call::Tool::Remember(remember) => {
+                create_standard_action(remember.into())
+            }
             // These tools are gone; saved calls have nothing to draw.
             api::message::tool_call::Tool::ReadDocuments(_)
             | api::message::tool_call::Tool::EditDocuments(_)

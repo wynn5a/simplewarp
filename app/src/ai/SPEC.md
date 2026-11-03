@@ -34,5 +34,18 @@ after a request overflows the window, then resuming once; `/compact`, `/compact-
 `/fork-and-compact` send the same summary request (how much to keep verbatim and the current
 usage), and the finished summary resets the usage to its compacted estimate. A held request is
 sent even when its compaction fails; when the compaction is cancelled its question goes back to the
-head of the queued prompts, and a failed compaction waits for new content before trying again. No Warp-server concepts
+head of the queued prompts, and a failed compaction waits for new content before trying again.
+
+Rules reach every request as project-rules context: the project's rule files (one per directory,
+`WARP.md` > `AGENTS.md` > `CLAUDE.md`, from `ai-core`'s project context), `~/.agents/AGENTS.md`,
+and the Knowledge rules when rules are on, both those for all work and those saved for the
+repository of the working directory (none for a session on another host, whose working directory
+is not on this machine). `~/.claude/CLAUDE.md` is never read: it is written for another
+tool and may hold what the user meant only for that tool's provider; a user who wants it shared
+links it, `ln -s ~/.claude/CLAUDE.md ~/.agents/AGENTS.md`. When rules are on the agent is offered
+`remember`: the executor saves the fact as a Knowledge rule marked as added by the agent and, for
+the `project` scope, bound to the local repository root, after the user approves it. Only Settings >
+Agents > Knowledge can save memories without asking; a conversation's auto-approve does not cover
+them, since a memory reaches every later conversation. With rules off the executor saves nothing. The
+Knowledge page labels those rules. Memory content is never logged. No Warp-server concepts
 (conversation links, cloud runs, ambient agents) may reappear here.

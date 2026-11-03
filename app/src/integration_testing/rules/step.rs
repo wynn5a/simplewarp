@@ -31,6 +31,8 @@ pub fn create_a_personal_rule(
                     name: name.as_ref().clone(),
                     content: content.as_ref().clone(),
                     suggested_logging_id: None,
+                    root_path: None,
+                    source: Default::default(),
                 });
                 update_manager.create_ai_fact(ai_fact, client_id, personal_drive(), ctx);
             });
@@ -83,6 +85,8 @@ pub fn update_rule_content(
                 name: None,
                 content: new_content.as_ref().clone(),
                 suggested_logging_id: None,
+                root_path: None,
+                source: Default::default(),
             });
             update_manager.update_ai_fact(ai_fact, *sync_id, ctx);
         });

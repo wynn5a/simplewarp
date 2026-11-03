@@ -7,7 +7,7 @@ use warp_multi_agent_api as api;
 use crate::agent::FileLocations;
 use crate::agent::action::{
     AIAgentActionType, AIAgentPtyWriteMode, CommentSide, FileEdit, InsertReviewComment,
-    InsertedCommentLine, InsertedCommentLocation, ReadFilesRequest, ShellCommandDelay,
+    InsertedCommentLine, InsertedCommentLocation, MemoryScope, ReadFilesRequest, ShellCommandDelay,
 };
 use crate::agent::action_result::{AnyFileContent, FileContext};
 use crate::agent::convert::ToolToAIAgentActionError;
@@ -267,6 +267,19 @@ impl From<api::message::tool_call::TransferShellCommandControlToUser> for AIAgen
     fn from(value: api::message::tool_call::TransferShellCommandControlToUser) -> Self {
         AIAgentActionType::TransferShellCommandControlToUser {
             reason: value.reason,
+        }
+    }
+}
+
+impl From<api::message::tool_call::Remember> for AIAgentActionType {
+    fn from(value: api::message::tool_call::Remember) -> Self {
+        let scope = match value.scope() {
+            api::message::tool_call::remember::Scope::Global => MemoryScope::Global,
+            api::message::tool_call::remember::Scope::Project => MemoryScope::Project,
+        };
+        AIAgentActionType::Remember {
+            content: value.content,
+            scope,
         }
     }
 }

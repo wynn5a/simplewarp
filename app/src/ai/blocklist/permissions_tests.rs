@@ -1078,3 +1078,36 @@ fn test_denylist_matches_multiline_commands() {
         });
     })
 }
+
+#[test]
+fn conversation_auto_approve_does_not_save_memories() {
+    App::test((), |mut app| async move {
+        let PermissionsTestState {
+            convo_id,
+            permissions,
+            history,
+            terminal_view_id,
+            ..
+        } = initialize_permissions_test(&mut app);
+
+        history.update(&mut app, |history, ctx| {
+            history.toggle_autoexecute_override(&convo_id, terminal_view_id, ctx);
+        });
+        history.read(&app, |history, _| {
+            assert!(
+                history
+                    .conversation(&convo_id)
+                    .is_some_and(|convo| convo.autoexecute_any_action())
+            );
+        });
+        permissions.read(&app, |model, ctx| assert!(!model.can_write_memory(ctx)));
+
+        AISettings::handle(&app).update(&mut app, |settings, ctx| {
+            settings
+                .agent_memory_auto_approve
+                .set_value(true, ctx)
+                .expect("the setting saves");
+        });
+        permissions.read(&app, |model, ctx| assert!(model.can_write_memory(ctx)));
+    })
+}

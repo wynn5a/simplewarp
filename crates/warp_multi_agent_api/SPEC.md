@@ -38,6 +38,10 @@ It is no longer synced with upstream.
 - `Message.Summarization.ConversationSummary`: `first_kept_message_id = 3` (empty = the summary
   replaces everything before it, the old behavior), `read_files = 4`, `modified_files = 5`,
   `tokens_before = 6`, `tokens_after = 7` (0 = unknown).
+- The `remember` tool (harness P3): `Message.ToolCall.Remember` (`remember = 39`: `content`,
+  `scope` GLOBAL/PROJECT), top-level `RememberResult` (`Success { project_root, already_saved }` /
+  `Error { message }`), `Message.ToolCallResult.remember = 43`,
+  `Request.Input.ToolCallResult.remember = 38`, and `ToolType.REMEMBER = 36`.
 
 ## Boundary
 

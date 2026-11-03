@@ -435,6 +435,72 @@ fn test_in_dir_warp_shadows_agents_with_global() {
 }
 
 #[test]
+fn agents_md_wins_over_claude_md_in_the_same_directory() {
+    let mut rules = ProjectRules::default();
+    rules.upsert_rule(&local_path("/repo/CLAUDE.md"), "claude".to_string());
+    rules.upsert_rule(&local_path("/repo/AGENTS.md"), "agents".to_string());
+
+    let result = rules.find_active_or_applicable_rules(&local_path("/repo/src/main.rs"));
+
+    assert_eq!(result.active_rules.len(), 1);
+    assert_eq!(result.active_rules[0].content, "agents");
+    assert!(result.available_rule_paths.is_empty());
+}
+
+#[test]
+fn warp_md_wins_over_agents_md_and_claude_md() {
+    let mut rules = ProjectRules::default();
+    rules.upsert_rule(&local_path("/repo/claude.md"), "claude".to_string());
+    rules.upsert_rule(&local_path("/repo/AGENTS.md"), "agents".to_string());
+    rules.upsert_rule(&local_path("/repo/WARP.md"), "warp".to_string());
+
+    let result = rules.find_active_or_applicable_rules(&local_path("/repo/src/main.rs"));
+
+    assert_eq!(result.active_rules.len(), 1);
+    assert_eq!(result.active_rules[0].content, "warp");
+}
+
+#[test]
+fn claude_md_alone_is_applied() {
+    let mut rules = ProjectRules::default();
+    rules.upsert_rule(&local_path("/repo/CLAUDE.md"), "claude".to_string());
+
+    let result = rules.find_active_or_applicable_rules(&local_path("/repo/src/main.rs"));
+
+    assert_eq!(result.active_rules.len(), 1);
+    assert_eq!(result.active_rules[0].path, local_path("/repo/CLAUDE.md"));
+}
+
+#[test]
+fn claude_md_in_another_directory_is_listed_as_available() {
+    let mut rules = ProjectRules::default();
+    rules.upsert_rule(&local_path("/repo/AGENTS.md"), "agents".to_string());
+    rules.upsert_rule(&local_path("/repo/web/CLAUDE.md"), "web".to_string());
+
+    let result = rules.find_active_or_applicable_rules(&local_path("/repo/src/main.rs"));
+
+    assert_eq!(result.active_rules.len(), 1);
+    assert_eq!(result.active_rules[0].content, "agents");
+    assert_eq!(
+        result.available_rule_paths,
+        vec![local_path("/repo/web/CLAUDE.md").display_path()]
+    );
+}
+
+#[test]
+fn removing_agents_md_falls_back_to_claude_md() {
+    let mut rules = ProjectRules::default();
+    rules.upsert_rule(&local_path("/repo/AGENTS.md"), "agents".to_string());
+    rules.upsert_rule(&local_path("/repo/CLAUDE.md"), "claude".to_string());
+
+    rules.retain_rule_paths(&HashSet::from([local_path("/repo/CLAUDE.md")]));
+
+    let result = rules.find_active_or_applicable_rules(&local_path("/repo/src/main.rs"));
+    assert_eq!(result.active_rules.len(), 1);
+    assert_eq!(result.active_rules[0].content, "claude");
+}
+
+#[test]
 fn test_no_rules_returns_none() {
     let model = ProjectContextModel::default();
     let result = model.find_applicable_rules(&local_path("/some/path/file.rs"));

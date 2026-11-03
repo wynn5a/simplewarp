@@ -20,8 +20,9 @@ use crate::agent::FileLocations;
 use crate::agent::action_result::{
     AIAgentActionResultType, CallMCPToolResult, FileGlobResult, FileGlobV2Result, GrepResult,
     InsertReviewCommentsResult, ReadFilesResult, ReadMCPResourceResult,
-    ReadShellCommandOutputResult, RequestCommandOutputResult, RequestFileEditsResult,
-    TransferShellCommandControlToUserResult, WriteToLongRunningShellCommandResult,
+    ReadShellCommandOutputResult, RememberResult, RequestCommandOutputResult,
+    RequestFileEditsResult, TransferShellCommandControlToUserResult,
+    WriteToLongRunningShellCommandResult,
 };
 use crate::diff_validation::ParsedDiff;
 
@@ -114,6 +115,30 @@ pub enum AIAgentActionType {
         /// The reason provided by the agent for transferring control.
         reason: String,
     },
+
+    /// Save a fact to the user's rules for future conversations.
+    Remember {
+        content: String,
+        scope: MemoryScope,
+    },
+}
+
+/// Which work a memory written by the agent applies to.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum MemoryScope {
+    /// All of the user's work.
+    Global,
+    /// Only the repository the agent is working in.
+    Project,
+}
+
+impl Display for MemoryScope {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Global => write!(f, "global"),
+            Self::Project => write!(f, "project"),
+        }
+    }
 }
 
 impl AIAgentActionType {
@@ -173,6 +198,7 @@ impl AIAgentActionType {
                     TransferShellCommandControlToUserResult::Cancelled,
                 )
             }
+            Self::Remember { .. } => AIAgentActionResultType::Remember(RememberResult::Cancelled),
         }
     }
 
@@ -200,6 +226,7 @@ impl AIAgentActionType {
             Self::TransferShellCommandControlToUser { .. } => {
                 "Transfer shell command control to user".to_string()
             }
+            Self::Remember { .. } => "Remember".to_string(),
         }
     }
 }
@@ -307,6 +334,14 @@ impl Display for AIAgentActionType {
             }
             AIAgentActionType::TransferShellCommandControlToUser { reason } => {
                 write!(f, "TransferShellCommandControlToUser: {reason}")
+            }
+            // The content is the user's data, so it stays out of anything that may be logged.
+            AIAgentActionType::Remember { content, scope } => {
+                write!(
+                    f,
+                    "Remember ({scope}): {} characters",
+                    content.chars().count()
+                )
             }
         }
     }

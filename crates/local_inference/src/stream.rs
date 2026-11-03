@@ -43,7 +43,8 @@ pub async fn generate_local_output(request: &api::Request) -> Result<OutputStrea
             let mut tool_schemas = tools::schemas_for(&supported_tools);
             tool_schemas.extend(McpCatalog::from_request(request).schemas(&supported_tools));
             (
-                prompt::Prompt::for_request(request),
+                prompt::Prompt::for_request(request)
+                    .with_appended_system(prompt::read_appended_system().as_deref()),
                 convert::turns_from_request(request),
                 tool_schemas,
             )

@@ -2179,6 +2179,29 @@ overflow trigger has the root-task gate. Format, three clippy runs, `agent_harne
 `warp_multi_agent_api`/`persistence` 325/325, `-p warp` lib 3,760/3,760, `integration_tests`
 compiles. Not run against a live provider or in the GUI.
 
+### Round: harness P3 — memory (2026-11-03)
+
+Spec: [../specs/plans/native-agent-harness/p3-memory.md](../specs/plans/native-agent-harness/p3-memory.md).
+L0: `CLAUDE.md` is a project rule file (standing query + `RuleAtPath`), one per directory with
+`WARP.md` > `AGENTS.md` > `CLAUDE.md`; `~/.claude/CLAUDE.md` is deliberately not read (written for
+another tool, would go to any configured provider; symlink into `~/.agents/AGENTS.md` to share);
+`~/.agents/APPEND_SYSTEM.md` is read per request by `local_inference` and appended to the very end
+of the system prompt (not for summaries). L1: a `remember { content, scope }` tool (proto,
+additive: `ToolCall.Remember = 39`, `RememberResult`, result fields 43/38, `ToolType.REMEMBER = 36`)
+offered when rules are on, with a `# Memory` prompt section. The executor validates (non-empty,
+≤ 2,000 chars), binds `project` to the cwd's repository root (`DetectedRepositories`), skips an
+identical memory, and writes an `AIFact::Memory` with two additive serde fields, `root_path` and
+`source` (`agent`). Approval is asked by default through the MCP-style confirmation view
+(`RequestedActionViewType::Memory`, the block's tool-call map renamed `requested_tool_calls`);
+only "Save agent memories without asking" in Settings > Agents > Knowledge (+ Command Palette pair)
+skips it, never a conversation's auto-approve (the view has a plain "Save" button, no auto-approve
+item); execution profiles get no new permission. The executor refuses when rules are off, and a
+remote session neither binds nor receives project memories. `APPEND_SYSTEM.md` over 256 KB is
+skipped. Requests carry
+global rules plus the current repository's memories (merged into that project's rules entry).
+The Knowledge page labels "Added by agent" / "Project: …" and edits keep both fields.
+`memory_enabled` was already on by default. Memory content is never logged.
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the

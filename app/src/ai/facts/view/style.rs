@@ -17,6 +17,7 @@ pub const ROW_ICON_MARGIN: f32 = 4.;
 
 pub const RULE_VERTICAL_PADDING: f32 = 12.;
 pub const ROW_HORIZONTAL_PADDING: f32 = 12.;
+pub const ORIGIN_LABEL_TOP_MARGIN: f32 = 4.;
 pub const ITEM_BOTTOM_MARGIN: f32 = 12.;
 
 pub const EDITOR_HORIZONTAL_PADDING: f32 = 16.;

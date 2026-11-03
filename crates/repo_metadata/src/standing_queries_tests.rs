@@ -53,6 +53,26 @@ fn records_provider_skill_files_and_project_rules() {
 }
 
 #[test]
+fn claude_md_is_a_project_rule_file() {
+    let definitions = definitions();
+    let mut results = StandingQueryResults::default();
+    let claude_md = repo_path("packages/web/CLAUDE.md");
+    let lowercase_claude_md = repo_path("tools/claude.md");
+    let not_a_rule = repo_path("docs/CLAUDE.txt");
+
+    results.record_path(&claude_md, false, &definitions);
+    results.record_path(&lowercase_claude_md, false, &definitions);
+    results.record_path(&not_a_rule, false, &definitions);
+
+    let rules: Vec<_> = results.project_rules().cloned().collect();
+    assert!(rules.contains(&StandingQueryContent::file(standardized(&claude_md))));
+    assert!(rules.contains(&StandingQueryContent::file(standardized(
+        &lowercase_claude_md
+    ))));
+    assert!(!rules.contains(&StandingQueryContent::file(standardized(&not_a_rule))));
+}
+
+#[test]
 fn replacing_removed_direct_skill_child_can_reupsert_provider_for_hydration() {
     let definitions = definitions();
     let provider_path = repo_path(".agents/skills");

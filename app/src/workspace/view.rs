@@ -1922,7 +1922,8 @@ impl Workspace {
             | AISettingsChangedEvent::ThinkingDisplayMode
             | AISettingsChangedEvent::PromptSubmissionMode
             | AISettingsChangedEvent::AutoApproveBypassesCommandDenylist
-            | AISettingsChangedEvent::AutoCompactionEnabled => {
+            | AISettingsChangedEvent::AutoCompactionEnabled
+            | AISettingsChangedEvent::AgentMemoryAutoApprove => {
                 ctx.notify();
             }
             _ => (),
@@ -14972,6 +14973,9 @@ impl Workspace {
 
         if *ai_settings.memory_enabled.value() {
             context.set.insert(flags::AI_RULES_FLAG);
+        }
+        if *ai_settings.agent_memory_auto_approve.value() {
+            context.set.insert(flags::AGENT_MEMORY_AUTO_APPROVE_FLAG);
         }
         if *ai_settings.file_based_mcp_enabled.value() {
             context.set.insert(flags::FILE_BASED_MCP_FLAG);

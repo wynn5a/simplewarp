@@ -218,3 +218,47 @@ fn review_comments_with_no_usable_comment_are_dropped() {
     );
     assert!(call.is_none());
 }
+
+#[test]
+fn remember_round_trips_through_the_proto() {
+    let arguments = json!({ "content": "Tests run with cargo nextest.", "scope": "global" });
+    let call = to_proto("call-1", "remember", &arguments).expect("a known tool");
+
+    let Some(tool_call::Tool::Remember(remember)) = call.tool.as_ref() else {
+        panic!("expected a remember call, got {:?}", call.tool);
+    };
+    assert_eq!(remember.content, "Tests run with cargo nextest.");
+    assert_eq!(remember.scope(), tool_call::remember::Scope::Global);
+
+    let tool_use = crate::convert::tool_use_from_proto(&call).expect("a replayable call");
+    assert_eq!(tool_use.name, "remember");
+    assert_eq!(tool_use.arguments, arguments);
+}
+
+#[test]
+fn remember_without_a_valid_scope_is_project_scoped() {
+    for arguments in [
+        json!({ "content": "x" }),
+        json!({ "content": "x", "scope": "team" }),
+    ] {
+        let call = to_proto("call-1", "remember", &arguments).expect("a known tool");
+        let Some(tool_call::Tool::Remember(remember)) = call.tool else {
+            panic!("expected a remember call");
+        };
+        assert_eq!(remember.scope(), tool_call::remember::Scope::Project);
+    }
+}
+
+#[test]
+fn remember_is_offered_only_when_the_client_supports_it() {
+    let without = schemas_for(&[api::ToolType::RunShellCommand as i32]);
+    assert!(without.iter().all(|schema| schema.name != "remember"));
+    assert!(!offers(
+        api::ToolType::Remember,
+        &[api::ToolType::RunShellCommand as i32]
+    ));
+
+    let with = schemas_for(&[api::ToolType::Remember as i32]);
+    assert_eq!(with.len(), 1);
+    assert_eq!(with[0].name, "remember");
+}

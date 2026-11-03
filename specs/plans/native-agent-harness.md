@@ -207,6 +207,8 @@ P2 正文的实现规格：[`native-agent-harness/p2-auto-compaction.md`](native
 
 ### P3 Memory（规模：M）
 
+P3 正文的实现规格：[`native-agent-harness/p3-memory.md`](native-agent-harness/p3-memory.md)。
+
 1. **L0：上下文文件。**
    - `standing_queries.rs:22` 加上 `CLAUDE.md`。同一目录下 `AGENTS.md` 优先，不重复注入。
    - 新增 `~/.agents/APPEND_SYSTEM.md`，存在时追加到 system prompt 末尾。不提供"完全替换 system

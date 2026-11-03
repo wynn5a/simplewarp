@@ -1,4 +1,4 @@
-pub use cloud_object_models::{AIFact, AIMemory, CloudAIFact, CloudAIFactModel};
+pub use cloud_object_models::{AIFact, AIMemory, AIMemorySource, CloudAIFact, CloudAIFactModel};
 
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;

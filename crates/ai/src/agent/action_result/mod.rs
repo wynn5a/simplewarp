@@ -52,6 +52,9 @@ pub enum AIAgentActionResultType {
 
     /// The output of transferring shell command control to the user.
     TransferShellCommandControlToUser(TransferShellCommandControlToUserResult),
+
+    /// The result of saving a memory.
+    Remember(RememberResult),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -105,6 +108,7 @@ impl Display for AIAgentActionResultType {
             AIAgentActionResultType::ReadShellCommandOutput(result) => result.fmt(f),
             AIAgentActionResultType::InsertReviewComments(result) => result.fmt(f),
             AIAgentActionResultType::TransferShellCommandControlToUser(result) => result.fmt(f),
+            AIAgentActionResultType::Remember(result) => result.fmt(f),
         }
     }
 }
@@ -485,6 +489,7 @@ impl AIAgentActionResultType {
             AIAgentActionResultType::TransferShellCommandControlToUser(_) => {
                 "The result of transferring shell command control to user"
             }
+            AIAgentActionResultType::Remember(_) => "The saved memory",
         }
     }
 
@@ -506,7 +511,8 @@ impl AIAgentActionResultType {
             | Self::TransferShellCommandControlToUser(
                 TransferShellCommandControlToUserResult::Snapshot { .. }
                 | TransferShellCommandControlToUserResult::CommandFinished { .. },
-            ) => true,
+            )
+            | Self::Remember(RememberResult::Saved { .. }) => true,
             _ => false,
         }
     }
@@ -524,7 +530,8 @@ impl AIAgentActionResultType {
             | Self::InsertReviewComments(InsertReviewCommentsResult::Error { .. })
             | Self::TransferShellCommandControlToUser(
                 TransferShellCommandControlToUserResult::Error(_),
-            ) => true,
+            )
+            | Self::Remember(RememberResult::Error(_)) => true,
             _ => false,
         }
     }
@@ -551,7 +558,8 @@ impl AIAgentActionResultType {
             )
             | Self::WriteToLongRunningShellCommand(
                 WriteToLongRunningShellCommandResult::Cancelled,
-            ) => true,
+            )
+            | Self::Remember(RememberResult::Cancelled) => true,
             _ => false,
         }
     }
@@ -762,6 +770,38 @@ impl Display for InsertReviewCommentsResult {
             InsertReviewCommentsResult::Cancelled => {
                 write!(f, "Cancelled inserting code review comments")
             }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RememberResult {
+    Saved {
+        /// The project the memory was saved for; `None` when it applies to all projects.
+        project_root: Option<String>,
+        /// The same memory already existed, so nothing new was written.
+        already_saved: bool,
+    },
+    Error(String),
+    Cancelled,
+}
+
+impl Display for RememberResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Saved {
+                already_saved: true,
+                ..
+            } => write!(f, "Memory already saved"),
+            Self::Saved {
+                project_root: Some(project_root),
+                ..
+            } => write!(f, "Saved memory for {project_root}"),
+            Self::Saved {
+                project_root: None, ..
+            } => write!(f, "Saved memory for all projects"),
+            Self::Error(message) => write!(f, "Error saving memory: {message}"),
+            Self::Cancelled => write!(f, "Cancelled saving memory"),
         }
     }
 }

@@ -22,6 +22,7 @@ use warpui::{AppContext, EntityId, SingletonEntity as _};
 
 use super::{AIAgentInput, MCPContext, MCPServer, RequestMetadata, ServerOutputId};
 use crate::ai::agent::conversation::AIConversationId;
+use crate::ai::agent_memory::{RequestMemories, project_root_for, saved_memories, select_memories};
 use crate::ai::blocklist::{RequestInput, SessionContext};
 use crate::ai::llms::LLMId;
 use crate::ai::mcp::TemplatableMCPServerManager;
@@ -74,10 +75,10 @@ pub struct RequestParams {
     pub model: LLMId,
     pub cli_agent_model: LLMId,
     pub is_memory_enabled: bool,
-    /// The user's own rules (the Knowledge page), as (name, content). Empty when rules are off.
-    /// The Warp server used to read these from the user's account; the local adapter reads them
-    /// from here.
-    pub global_rules: Vec<(String, String)>,
+    /// The user's own rules and the agent's memories (the Knowledge page) for this request. Empty
+    /// when rules are off. The Warp server used to read these from the user's account; the local
+    /// adapter reads them from here.
+    pub memories: RequestMemories,
     pub mcp_context: Option<MCPContext>,
     should_redact_secrets: bool,
 
@@ -103,25 +104,6 @@ pub struct ConversationData {
     pub forked_from_conversation_token: Option<ServerConversationToken>,
 }
 
-/// The user's active rules, in a stable order so that an unchanged set of rules produces an
-/// unchanged prompt.
-fn global_rules(app: &AppContext) -> Vec<(String, String)> {
-    use crate::ai::facts::{AIFact, AIMemory, CloudAIFactModel};
-    use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
-    use crate::cloud_object::model::persistence::CloudModel;
-
-    let mut rules: Vec<(String, String)> = CloudModel::as_ref(app)
-        .get_all_objects_of_type::<GenericStringObjectId, CloudAIFactModel>()
-        .filter(|fact| fact.metadata.trashed_ts.is_none())
-        .filter_map(|fact| {
-            let AIFact::Memory(AIMemory { name, content, .. }) = fact.model().string_model.clone();
-            (!content.trim().is_empty()).then(|| (name.unwrap_or_default(), content))
-        })
-        .collect();
-    rules.sort();
-    rules
-}
-
 impl RequestParams {
     #[cfg(test)]
     pub fn new_for_test() -> Self {
@@ -135,7 +117,7 @@ impl RequestParams {
             model: LLMId::from("test-model"),
             cli_agent_model: LLMId::from("test-model"),
             is_memory_enabled: false,
-            global_rules: vec![],
+            memories: RequestMemories::default(),
             mcp_context: None,
             should_redact_secrets: false,
             api_keys: None,
@@ -156,10 +138,16 @@ impl RequestParams {
     ) -> Self {
         let ai_settings = AISettings::as_ref(app);
         let is_memory_enabled = ai_settings.is_memory_enabled();
-        let global_rules = if is_memory_enabled {
-            global_rules(app)
+        let memories = if is_memory_enabled {
+            let project_root = session_context
+                .current_working_directory()
+                .as_deref()
+                .and_then(|cwd| {
+                    project_root_for(cwd, session_context.session_type().as_ref(), app)
+                });
+            select_memories(saved_memories(app), project_root.as_deref())
         } else {
-            vec![]
+            RequestMemories::default()
         };
 
         // Group MCP tools and resources by server.
@@ -234,7 +222,7 @@ impl RequestParams {
             model: request_input.model_id.clone(),
             cli_agent_model: request_input.cli_agent_model_id.clone(),
             is_memory_enabled,
-            global_rules,
+            memories,
             mcp_context,
             should_redact_secrets,
             api_keys,

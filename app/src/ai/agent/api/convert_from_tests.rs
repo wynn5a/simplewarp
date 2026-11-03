@@ -2,7 +2,7 @@ use warp_multi_agent_api as api;
 
 use super::{ConversionParams, ConvertAPIMessageToClientOutputMessage, MaybeAIAgentOutputMessage};
 use crate::ai::agent::task::TaskId;
-use crate::ai::agent::{AIAgentActionType, AIAgentOutputMessageType};
+use crate::ai::agent::{AIAgentActionType, AIAgentOutputMessageType, MemoryScope};
 
 fn upload_artifact_tool_call_message(path: &str, description: &str) -> api::Message {
     api::Message {
@@ -172,6 +172,47 @@ fn transfer_control_tool_call_converts_to_action_message() {
             panic!("Expected transfer-control tool call to produce a client action")
         }
     }
+}
+
+#[test]
+fn a_remember_tool_call_is_an_action() {
+    let task_id = TaskId::new("task".to_string());
+    let message = api::Message {
+        id: "message".to_string(),
+        task_id: "task".to_string(),
+        message: Some(api::message::Message::ToolCall(api::message::ToolCall {
+            tool_call_id: "tool_call".to_string(),
+            tool: Some(api::message::tool_call::Tool::Remember(
+                api::message::tool_call::Remember {
+                    content: "Tests run with cargo nextest.".to_string(),
+                    scope: api::message::tool_call::remember::Scope::Global as i32,
+                },
+            )),
+        })),
+        ..Default::default()
+    };
+
+    let converted = message
+        .to_client_output_message(ConversionParams {
+            task_id: &task_id,
+            active_code_review: None,
+        })
+        .expect("remember conversion should succeed");
+
+    let MaybeAIAgentOutputMessage::Message(output) = converted else {
+        panic!("Expected a remember tool call to produce a client action");
+    };
+    let AIAgentOutputMessageType::Action(action) = output.message else {
+        panic!("Expected an action message, got {:?}", output.message);
+    };
+    assert_eq!(
+        action.action,
+        AIAgentActionType::Remember {
+            content: "Tests run with cargo nextest.".to_string(),
+            scope: MemoryScope::Global,
+        }
+    );
+    assert!(action.requires_result);
 }
 
 /// A tool result that `local_inference` stores in the task during a live session is not drawn a

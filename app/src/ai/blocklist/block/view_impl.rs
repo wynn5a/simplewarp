@@ -811,7 +811,7 @@ impl View for AIBlock {
                 detected_links_state: &self.detected_links_state,
                 secret_redaction_state: &self.secret_redaction_state,
                 requested_commands: &self.requested_commands,
-                requested_mcp_tools: &self.requested_mcp_tools,
+                requested_tool_calls: &self.requested_tool_calls,
                 requested_edits: &self.requested_edits,
                 collapsible_block_states: &self.collapsible_block_states,
                 is_selecting_text: self.state_handles.selection_handle.is_selecting(),

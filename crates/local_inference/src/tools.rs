@@ -14,7 +14,7 @@ use warp_multi_agent_api::message::tool_call::insert_review_comments;
 
 /// The tools that this crate can translate. The client may support more; anything outside this
 /// list is left out of the request, so the model never calls a tool that we cannot map.
-pub const SUPPORTED: [api::ToolType; 9] = [
+pub const SUPPORTED: [api::ToolType; 10] = [
     api::ToolType::RunShellCommand,
     api::ToolType::ReadFiles,
     api::ToolType::ApplyFileDiffs,
@@ -24,6 +24,7 @@ pub const SUPPORTED: [api::ToolType; 9] = [
     api::ToolType::WriteToLongRunningShellCommand,
     api::ToolType::TransferShellCommandControlToUser,
     api::ToolType::InsertReviewComments,
+    api::ToolType::Remember,
 ];
 
 /// A tool as the provider sees it.
@@ -64,8 +65,15 @@ pub fn wire_name(tool: api::ToolType) -> Option<&'static str> {
         api::ToolType::WriteToLongRunningShellCommand => "write_to_long_running_shell_command",
         api::ToolType::TransferShellCommandControlToUser => "transfer_control_to_user",
         api::ToolType::InsertReviewComments => "insert_review_comments",
+        api::ToolType::Remember => "remember",
         _ => return None,
     })
+}
+
+/// Whether a request whose `Settings::supported_tools` is `client_supported` is offered `tool`.
+pub fn offers(tool: api::ToolType, client_supported: &[i32]) -> bool {
+    SUPPORTED.contains(&tool)
+        && (client_supported.is_empty() || client_supported.contains(&(tool as i32)))
 }
 
 /// Builds the tool list for a request.
@@ -75,7 +83,7 @@ pub fn wire_name(tool: api::ToolType) -> Option<&'static str> {
 pub fn schemas_for(client_supported: &[i32]) -> Vec<ToolSchema> {
     SUPPORTED
         .iter()
-        .filter(|tool| client_supported.is_empty() || client_supported.contains(&(**tool as i32)))
+        .filter(|tool| offers(**tool, client_supported))
         .filter_map(|tool| schema_for(*tool))
         .collect()
 }
@@ -369,6 +377,28 @@ fn schema_for(tool: api::ToolType) -> Option<ToolSchema> {
                 "required": ["repo_path", "comments"],
             }),
         },
+        api::ToolType::Remember => Builtin {
+            name: "remember",
+            description: "Save one short, durable fact to the user's rules so that future \
+                conversations know it. The user approves each memory unless they chose \
+                otherwise.",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "description": "The fact, in a sentence or two.",
+                    },
+                    "scope": {
+                        "type": "string",
+                        "enum": ["global", "project"],
+                        "description": "`project` when the fact holds only in the current \
+                            repository, `global` when it applies to all of the user's work.",
+                    },
+                },
+                "required": ["content", "scope"],
+            }),
+        },
         _ => return None,
     };
     Some(schema.into())
@@ -526,6 +556,10 @@ pub fn to_proto(
                 base_branch: string_field(arguments, "base_branch").unwrap_or_default(),
             })
         }
+        "remember" => tool_call::Tool::Remember(tool_call::Remember {
+            content: string_field(arguments, "content")?,
+            scope: remember_scope(arguments) as i32,
+        }),
         _ => return None,
     };
 
@@ -533,6 +567,16 @@ pub fn to_proto(
         tool_call_id: tool_call_id.to_string(),
         tool: Some(tool),
     })
+}
+
+/// A scope that is missing or unknown is `Project`, the narrower of the two: a fact saved for too
+/// small a scope is only missing elsewhere, while one saved for too large a scope misleads every
+/// other project.
+fn remember_scope(arguments: &Value) -> tool_call::remember::Scope {
+    match string_field(arguments, "scope").as_deref() {
+        Some("global") => tool_call::remember::Scope::Global,
+        _ => tool_call::remember::Scope::Project,
+    }
 }
 
 fn review_comment_to_proto(entry: &Value) -> Option<insert_review_comments::Comment> {

@@ -36,16 +36,66 @@ pub struct ProjectRule {
     pub content: String,
 }
 
+/// A rule file name that the project rules recognize, in order of precedence within one
+/// directory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RuleFileKind {
+    Warp,
+    Agents,
+    Claude,
+}
+
+impl RuleFileKind {
+    fn from_file_name(file_name: &str) -> Option<Self> {
+        match file_name.to_lowercase().as_str() {
+            "warp.md" => Some(Self::Warp),
+            "agents.md" => Some(Self::Agents),
+            "claude.md" => Some(Self::Claude),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct RuleAtPath {
     parent_path: LocalOrRemotePath,
     warp_md: Option<ProjectRule>,
     agents_md: Option<ProjectRule>,
+    claude_md: Option<ProjectRule>,
 }
 
 impl RuleAtPath {
+    fn new(parent_path: LocalOrRemotePath) -> Self {
+        Self {
+            parent_path,
+            warp_md: None,
+            agents_md: None,
+            claude_md: None,
+        }
+    }
+
+    /// The one rule file of this directory that is applied: `WARP.md`, else `AGENTS.md`, else
+    /// `CLAUDE.md`.
     fn respected_rule(&self) -> Option<&ProjectRule> {
-        self.warp_md.as_ref().or(self.agents_md.as_ref())
+        self.warp_md
+            .as_ref()
+            .or(self.agents_md.as_ref())
+            .or(self.claude_md.as_ref())
+    }
+
+    fn files(&self) -> impl Iterator<Item = &ProjectRule> {
+        self.warp_md
+            .iter()
+            .chain(self.agents_md.iter())
+            .chain(self.claude_md.iter())
+    }
+
+    fn slot_mut(&mut self, kind: RuleFileKind) -> &mut Option<ProjectRule> {
+        match kind {
+            RuleFileKind::Warp => &mut self.warp_md,
+            RuleFileKind::Agents => &mut self.agents_md,
+            RuleFileKind::Claude => &mut self.claude_md,
+        }
     }
 }
 
@@ -77,12 +127,9 @@ struct ProjectRules {
 
 impl ProjectRules {
     fn rule_paths(&self) -> impl Iterator<Item = &LocalOrRemotePath> {
-        self.rules.iter().flat_map(|rule| {
-            rule.warp_md
-                .iter()
-                .chain(rule.agents_md.iter())
-                .map(|rule| &rule.path)
-        })
+        self.rules
+            .iter()
+            .flat_map(|rule| rule.files().map(|rule| &rule.path))
     }
     fn local_rule_paths(&self) -> impl Iterator<Item = PathBuf> + '_ {
         self.rule_paths()
@@ -90,21 +137,20 @@ impl ProjectRules {
     }
     fn retain_rule_paths(&mut self, retained_paths: &HashSet<LocalOrRemotePath>) {
         self.rules.retain_mut(|rule| {
-            if rule
-                .warp_md
-                .as_ref()
-                .is_some_and(|rule| !retained_paths.contains(&rule.path))
-            {
-                rule.warp_md = None;
+            for kind in [
+                RuleFileKind::Warp,
+                RuleFileKind::Agents,
+                RuleFileKind::Claude,
+            ] {
+                let slot = rule.slot_mut(kind);
+                if slot
+                    .as_ref()
+                    .is_some_and(|rule| !retained_paths.contains(&rule.path))
+                {
+                    *slot = None;
+                }
             }
-            if rule
-                .agents_md
-                .as_ref()
-                .is_some_and(|rule| !retained_paths.contains(&rule.path))
-            {
-                rule.agents_md = None;
-            }
-            rule.warp_md.is_some() || rule.agents_md.is_some()
+            rule.respected_rule().is_some()
         });
     }
     /// Finds the set of rules that are active in the given path and the set that are available to be applied.
@@ -136,39 +182,24 @@ impl ProjectRules {
         let Some(parent) = path.parent() else {
             return;
         };
-        let Some(file_name) = path.file_name() else {
+        let Some(kind) = path.file_name().and_then(RuleFileKind::from_file_name) else {
             return;
         };
-
-        let existing_rule = self
-            .rules
-            .iter_mut()
-            .find(|rule| rule.parent_path == parent);
 
         let rule_file = Some(ProjectRule {
             path: path.clone(),
             content,
         });
 
-        match existing_rule {
-            Some(rule) => {
-                if file_name.to_lowercase() == "warp.md" {
-                    rule.warp_md = rule_file;
-                } else if file_name.to_lowercase() == "agents.md" {
-                    rule.agents_md = rule_file;
-                }
-            }
+        match self
+            .rules
+            .iter_mut()
+            .find(|rule| rule.parent_path == parent)
+        {
+            Some(rule) => *rule.slot_mut(kind) = rule_file,
             None => {
-                let mut rule = RuleAtPath {
-                    parent_path: parent,
-                    warp_md: None,
-                    agents_md: None,
-                };
-                if file_name.to_lowercase() == "warp.md" {
-                    rule.warp_md = rule_file;
-                } else if file_name.to_lowercase() == "agents.md" {
-                    rule.agents_md = rule_file;
-                }
+                let mut rule = RuleAtPath::new(parent);
+                *rule.slot_mut(kind) = rule_file;
                 self.rules.push(rule);
             }
         };
@@ -176,7 +207,7 @@ impl ProjectRules {
 }
 
 /// Singleton model that keeps track of mapping between paths and rule files
-/// Currently supports WARP.md files, but designed to be extensible
+/// Rule files: `WARP.md`, `AGENTS.md` and `CLAUDE.md`.
 #[derive(Default)]
 pub struct ProjectContextModel {
     /// Mapping from directory path to list of rule files found in that directory
@@ -520,10 +551,9 @@ impl ProjectContextModel {
     /// Returns the rules applicable to `path`, layering global rules on top of
     /// any project rules discovered up the directory tree.
     ///
-    /// Precedence is `global > project WARP.md > project AGENTS.md`. Globals
-    /// are always included (when present) regardless of project state; the
-    /// existing in-directory `WARP.md > AGENTS.md` shadow inside
-    /// [`RuleAtPath::respected_rule`] still applies to project rules.
+    /// Global rules come first and are always included (when present) regardless of project
+    /// state. Within one project directory only one rule file applies, `WARP.md > AGENTS.md >
+    /// CLAUDE.md` (see [`RuleAtPath::respected_rule`]).
     ///
     /// This is the entry point used by `BlocklistAIContextModel` when packing
     /// `AIAgentContext::ProjectRules` for an agent query. Callers that need

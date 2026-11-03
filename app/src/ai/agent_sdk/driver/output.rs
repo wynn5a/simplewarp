@@ -213,7 +213,8 @@ pub mod text {
                 }
                 AIAgentActionResultType::InsertReviewComments(_) => Ok(()),
                 AIAgentActionResultType::ReadShellCommandOutput { .. } => Ok(()),
-                AIAgentActionResultType::TransferShellCommandControlToUser { .. } => Ok(()),
+                AIAgentActionResultType::TransferShellCommandControlToUser { .. }
+                | AIAgentActionResultType::Remember(_) => Ok(()),
             },
         }
     }
@@ -293,7 +294,8 @@ pub mod text {
                     }
                     AIAgentActionType::InsertCodeReviewComments { .. } => (),
                     AIAgentActionType::ReadShellCommandOutput { .. }
-                    | AIAgentActionType::TransferShellCommandControlToUser { .. } => (),
+                    | AIAgentActionType::TransferShellCommandControlToUser { .. }
+                    | AIAgentActionType::Remember { .. } => (),
                 },
                 AIAgentOutputMessageType::Subagent(subagent) => {
                     writeln!(w, "{subagent}")?;
@@ -806,7 +808,8 @@ pub mod json {
                     // Internal or non-CLI tool calls: skip them
                     AIAgentActionType::InsertCodeReviewComments { .. }
                     | AIAgentActionType::ReadShellCommandOutput { .. }
-                    | AIAgentActionType::TransferShellCommandControlToUser { .. } => None,
+                    | AIAgentActionType::TransferShellCommandControlToUser { .. }
+                    | AIAgentActionType::Remember { .. } => None,
                 },
                 AIAgentOutputMessageType::Subagent(SubagentCall { task_id, .. }) => {
                     Some(JsonMessage::Subagent { task_id })

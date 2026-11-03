@@ -6,6 +6,7 @@ pub(crate) mod active_agent_views_model;
 pub(crate) mod agent;
 pub(crate) mod agent_conversations_model;
 pub(crate) mod agent_management;
+pub(crate) mod agent_memory;
 pub(crate) mod agent_tips;
 pub mod ambient_agents;
 pub(crate) mod artifact_download;

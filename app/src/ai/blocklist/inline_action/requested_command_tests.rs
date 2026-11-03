@@ -1,6 +1,9 @@
 //! Unit tests for format_command_text in requested_command.rs
 
-use super::{format_command_text, mcp_blocked_title_text, mcp_viewing_detail_title_text};
+use super::{
+    MEMORY_HEADER_PREVIEW_CHARS, format_command_text, mcp_blocked_title_text,
+    mcp_viewing_detail_title_text, memory_header_text,
+};
 
 #[test]
 fn single_line_without_newline_is_unchanged_ascii() {
@@ -117,4 +120,22 @@ fn mcp_viewing_detail_title_falls_back_to_generic_message_when_tool_name_empty()
         mcp_viewing_detail_title_text("", Some("github")),
         "Viewing MCP tool call detail"
     );
+}
+
+#[test]
+fn a_short_memory_is_shown_whole_in_the_header() {
+    assert_eq!(
+        memory_header_text("  Tests run with cargo nextest.\n"),
+        "Remember: Tests run with cargo nextest."
+    );
+}
+
+#[test]
+fn a_long_or_multiline_memory_is_cut_in_the_header() {
+    let long = "é".repeat(MEMORY_HEADER_PREVIEW_CHARS + 5);
+    assert_eq!(
+        memory_header_text(&long),
+        format!("Remember: {}…", "é".repeat(MEMORY_HEADER_PREVIEW_CHARS))
+    );
+    assert_eq!(memory_header_text("first\nsecond"), "Remember: first…");
 }

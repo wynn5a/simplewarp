@@ -1647,3 +1647,62 @@ fn input_text_holds_the_question_and_its_attachments() {
     assert!(text.contains("the output"));
     assert!(text.contains("picked"));
 }
+
+fn remember_result(result: api::remember_result::Result) -> api::request::input::ToolCallResult {
+    input_result(api::request::input::tool_call_result::Result::Remember(
+        api::RememberResult {
+            result: Some(result),
+        },
+    ))
+}
+
+#[test]
+fn a_remember_result_is_rendered_for_the_model() {
+    use api::remember_result::{Error, Result as Remember, Success};
+
+    let global = render_input_result(&remember_result(Remember::Success(Success::default())));
+    assert_eq!(global.content, "Saved to memory for all projects.");
+    assert!(!global.is_error);
+
+    let project = render_input_result(&remember_result(Remember::Success(Success {
+        project_root: "/work/app".to_string(),
+        already_saved: false,
+    })));
+    assert_eq!(
+        project.content,
+        "Saved to memory for the project at `/work/app`."
+    );
+
+    let duplicate = render_input_result(&remember_result(Remember::Success(Success {
+        project_root: "/work/app".to_string(),
+        already_saved: true,
+    })));
+    assert!(duplicate.content.contains("already in memory"));
+    assert!(!duplicate.is_error);
+
+    let error = render_input_result(&remember_result(Remember::Error(Error {
+        message: "The memory is empty.".to_string(),
+    })));
+    assert_eq!(error.content, "The memory is empty.");
+    assert!(error.is_error);
+}
+
+#[test]
+fn a_remember_result_is_stored_as_sent() {
+    let input = remember_result(api::remember_result::Result::Success(
+        api::remember_result::Success {
+            project_root: "/work/app".to_string(),
+            already_saved: false,
+        },
+    ));
+
+    let stored = stored_result(&input);
+
+    let Some(tool_call_result::Result::Remember(remember)) = stored.result else {
+        panic!("expected a remember result, got {:?}", stored.result);
+    };
+    let Some(api::request::input::tool_call_result::Result::Remember(sent)) = input.result else {
+        unreachable!();
+    };
+    assert_eq!(remember, sent);
+}

@@ -100,7 +100,7 @@ pub(crate) struct Props<'a> {
     pub(crate) detected_links_state: &'a DetectedLinksState,
     pub(crate) secret_redaction_state: &'a SecretRedactionState,
     pub(super) requested_commands: &'a HashMap<AIAgentActionId, RequestedCommand>,
-    pub(super) requested_mcp_tools: &'a HashMap<AIAgentActionId, RequestedCommand>,
+    pub(super) requested_tool_calls: &'a HashMap<AIAgentActionId, RequestedCommand>,
     pub(super) requested_edits: &'a IndexMap<AIAgentActionId, RequestedEdit>,
     pub(super) collapsible_block_states: &'a HashMap<MessageId, CollapsibleElementState>,
     pub(crate) is_selecting_text: bool,
@@ -476,7 +476,9 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             output_items.add_child(render_read_mcp_resource(props, id, name, app));
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::CallMCPTool { .. },
+                            action:
+                                AIAgentActionType::CallMCPTool { .. }
+                                | AIAgentActionType::Remember { .. },
                             id,
                             ..
                         }) => {
@@ -487,12 +489,13 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                 .as_ref()
                                 .is_some_and(|status| status.is_done());
                             if !is_action_done {
-                                // Ratings & suggestions should not be rendered for MCP tool call actions that are not complete.
+                                // Ratings & suggestions should not be rendered for MCP tool
+                                // call and memory actions that are not complete.
                                 should_render_footer = false;
                             }
 
                             if let Some(rendered_mcp_tool) = props
-                                .requested_mcp_tools
+                                .requested_tool_calls
                                 .get(id)
                                 .map(|requested_mcp_tool| requested_mcp_tool.render())
                             {

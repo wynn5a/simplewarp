@@ -10,6 +10,7 @@ description = "Calls LLM providers direct from the client, with no Warp server i
 [dependencies]
 agent_harness.workspace = true
 chrono.workspace = true
+dirs.workspace = true
 futures.workspace = true
 log.workspace = true
 prost-types.workspace = true

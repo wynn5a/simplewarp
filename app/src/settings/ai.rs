@@ -593,6 +593,16 @@ define_settings_group!(AISettings, settings: [
         toml_path: "agents.knowledge.rules_enabled",
         description: "Whether the agent uses your saved rules during requests.",
     }
+    // Whether a memory the agent wants to save is saved without asking the user first.
+    agent_memory_auto_approve: AgentMemoryAutoApprove {
+        type: bool,
+        default: false,
+        supported_platforms: SupportedPlatforms::ALL,
+        surface: settings::SettingSurfaces::GUI,
+        private: false,
+        toml_path: "agents.knowledge.agent_memory_auto_approve",
+        description: "Whether memories the agent saves to your rules are saved without asking.",
+    }
     // Whether the agent mode setup banner has been shown for a given repo path.
     // Once shown, it will not be shown again for that repo.
     //

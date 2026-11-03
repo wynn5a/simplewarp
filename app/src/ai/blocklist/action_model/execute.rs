@@ -3,6 +3,7 @@ pub(super) mod file_glob;
 pub(super) mod grep;
 pub(super) mod read_files;
 pub(super) mod read_mcp_resource;
+pub(super) mod remember;
 pub(super) mod request_file_edits;
 pub(super) mod shell_command;
 
@@ -22,6 +23,7 @@ use mime_guess::from_path;
 use parking_lot::FairMutex;
 pub(super) use read_files::ReadFilesExecutor;
 use read_mcp_resource::ReadMCPResourceExecutor;
+use remember::RememberExecutor;
 pub use request_file_edits::RequestFileEditsExecutor;
 use serde::{Deserialize, Serialize};
 pub use shell_command::{ShellCommandExecutor, ShellCommandExecutorEvent};
@@ -195,6 +197,7 @@ pub struct BlocklistAIActionExecutor {
     file_glob_executor: ModelHandle<FileGlobExecutor>,
     read_mcp_resource_executor: ModelHandle<ReadMCPResourceExecutor>,
     call_mcp_tool_executor: ModelHandle<CallMCPToolExecutor>,
+    remember_executor: ModelHandle<RememberExecutor>,
     /// The actions currently executing asynchronously, keyed by action ID.
     /// We track them per action rather than as a single slot so multiple actions from the same
     /// parallel phase can complete independently.
@@ -231,6 +234,7 @@ impl BlocklistAIActionExecutor {
             .add_model(|_| ReadMCPResourceExecutor::new(active_session.clone(), terminal_view_id));
         let call_mcp_tool_executor =
             ctx.add_model(|_| CallMCPToolExecutor::new(active_session.clone(), terminal_view_id));
+        let remember_executor = ctx.add_model(|_| RememberExecutor::new(active_session.clone()));
         Self {
             shell_command_executor,
             read_files_executor,
@@ -239,6 +243,7 @@ impl BlocklistAIActionExecutor {
             file_glob_executor,
             read_mcp_resource_executor,
             call_mcp_tool_executor,
+            remember_executor,
             async_executing_actions: Default::default(),
         }
     }
@@ -312,6 +317,9 @@ impl BlocklistAIActionExecutor {
             // the executor is responsible for auto-approving diffs.
             AIAgentActionType::RequestFileEdits { .. } => self
                 .request_file_edits_executor
+                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
+            AIAgentActionType::Remember { .. } => self
+                .remember_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
             AIAgentActionType::InsertCodeReviewComments { .. } => {
                 futures::future::ready(()).boxed()
@@ -425,6 +433,10 @@ impl BlocklistAIActionExecutor {
             // the executor is responsible for auto-approving diffs.
             AIAgentActionType::RequestFileEdits { .. } => self
                 .request_file_edits_executor
+                .update(ctx, |executor, ctx| executor.execute(input, ctx))
+                .into(),
+            AIAgentActionType::Remember { .. } => self
+                .remember_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
                 .into(),
         };
@@ -602,6 +614,9 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::ReadMCPResource { .. } => self
                 .read_mcp_resource_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
+            AIAgentActionType::Remember { .. } => self
+                .remember_executor
+                .update(ctx, |executor, ctx| executor.should_autoexecute(ctx)),
             AIAgentActionType::InsertCodeReviewComments { .. } => true,
         }
     }
