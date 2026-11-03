@@ -196,15 +196,24 @@ pub struct ConversationDetailsPanel {
     selected_text: Arc<RwLock<Option<String>>>,
 }
 
-/// Formats usage as e.g. `12.3k in (8.0k cached) · 1.1k out`.
+/// Formats usage as e.g. `12.3k in (8.0k cached, 1.2k cache write) · 1.1k out`.
 fn format_token_usage(usage: ConversationTokenUsage) -> String {
     let input = format_token_count(usage.input);
     let output = format_token_count(usage.output);
-    if usage.cached_input == 0 {
+    let mut cache = Vec::new();
+    if usage.cached_input != 0 {
+        cache.push(format!("{} cached", format_token_count(usage.cached_input)));
+    }
+    if usage.cache_write != 0 {
+        cache.push(format!(
+            "{} cache write",
+            format_token_count(usage.cache_write)
+        ));
+    }
+    if cache.is_empty() {
         format!("{input} in · {output} out")
     } else {
-        let cached = format_token_count(usage.cached_input);
-        format!("{input} in ({cached} cached) · {output} out")
+        format!("{input} in ({}) · {output} out", cache.join(", "))
     }
 }
 

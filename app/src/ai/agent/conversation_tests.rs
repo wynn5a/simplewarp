@@ -395,24 +395,29 @@ fn is_done_only_includes_success_error_cancelled() {
 #[test]
 fn token_usage_adds_up_across_streams_and_models() {
     let mut conversation = restored_conversation(None);
-    let usage = |model_id: &str, total_input, input_cache_read, output| {
+    let usage = |model_id: &str, total_input, input_cache_read, input_cache_write, output| {
         api::response_event::stream_finished::TokenUsage {
             model_id: model_id.to_string(),
             total_input,
             input_cache_read,
+            input_cache_write,
             output,
             ..Default::default()
         }
     };
 
-    conversation.add_token_usage(&[usage("gpt-5", 1_000, 200, 50)]);
-    conversation.add_token_usage(&[usage("gpt-5", 1_500, 1_000, 70), usage("glm", 10, 0, 5)]);
+    conversation.add_token_usage(&[usage("gpt-5", 1_000, 200, 0, 50)]);
+    conversation.add_token_usage(&[
+        usage("claude", 1_500, 1_000, 300, 70),
+        usage("glm", 10, 0, 0, 5),
+    ]);
 
     assert_eq!(
         conversation.token_usage(),
         ConversationTokenUsage {
             input: 2_510,
             cached_input: 1_200,
+            cache_write: 300,
             output: 125,
         }
     );
@@ -432,6 +437,7 @@ fn restored_conversation_keeps_persisted_token_usage() {
         ConversationTokenUsage {
             input: 9,
             cached_input: 4,
+            cache_write: 0,
             output: 3,
         }
     );

@@ -18,6 +18,7 @@ use serde_json::{Value, json};
 
 use crate::config::ProviderTarget;
 use crate::convert::Turn;
+use crate::prompt::Prompt;
 use crate::provider::{Delta, StopReason, TokenUsage};
 use crate::tools::ToolSchema;
 
@@ -25,16 +26,20 @@ pub fn headers(target: &ProviderTarget) -> Vec<(&'static str, String)> {
     vec![("authorization", format!("Bearer {}", target.api_key))]
 }
 
+/// OpenAI caches a request prefix of 1024 tokens or more on its own, with no marker to set. All
+/// that matters is that the prefix stays the same from one request to the next, which is why the
+/// current state goes at the very end. See [`Prompt`].
 pub fn build_body(
     target: &ProviderTarget,
-    system_prompt: &str,
+    prompt: &Prompt,
     turns: &[Turn],
     tools: &[ToolSchema],
 ) -> Value {
-    let mut messages = vec![json!({ "role": "system", "content": system_prompt })];
+    let mut messages = vec![json!({ "role": "system", "content": prompt.system })];
     for turn in turns {
         push_messages(&mut messages, turn, target.is_custom);
     }
+    push_current_state(&mut messages, &prompt.current_state);
 
     let tools = tools
         .iter()
@@ -120,6 +125,25 @@ fn push_messages(messages: &mut Vec<Value>, turn: &Turn, is_custom: bool) {
                 }));
             }
         }
+    }
+}
+
+/// Adds the current state to the last user message, or after the tool results when the
+/// conversation ends with them.
+///
+/// It is not sent as a second user message in a row, because the chat template of some local
+/// models requires the roles to alternate.
+fn push_current_state(messages: &mut Vec<Value>, current_state: &str) {
+    if current_state.is_empty() {
+        return;
+    }
+    match messages.last_mut() {
+        Some(last) if last["role"] == "user" => {
+            if let Some(text) = last["content"].as_str() {
+                last["content"] = Value::String(format!("{text}\n\n{current_state}"));
+            }
+        }
+        _ => messages.push(json!({ "role": "user", "content": current_state })),
     }
 }
 

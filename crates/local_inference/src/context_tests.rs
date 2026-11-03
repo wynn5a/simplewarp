@@ -31,20 +31,19 @@ fn context() -> api::InputContext {
 #[test]
 fn no_context_renders_nothing() {
     assert_eq!(environment(None), "");
+    assert_eq!(current_state(None), "");
     assert_eq!(attachments(None, &HashMap::new()), "");
 }
 
 #[test]
-fn the_environment_names_the_directory_os_shell_and_time() {
+fn the_environment_names_the_os_shell_and_home() {
     let text = environment(Some(&context()));
-    assert!(text.contains("Working directory: /work/app"));
+    assert!(text.contains("Home directory: /Users/me"));
     assert!(text.contains("Operating system: MacOS"));
     assert!(text.contains("Shell: zsh 5.9"));
-    assert!(text.contains("Current time: 2026-09-21 "), "{text}");
 }
 
-#[test]
-fn git_state_and_the_pull_request_are_described() {
+fn context_with_git() -> api::InputContext {
     let mut context = context();
     context.git = Some(ic::Git {
         branch: "feature".to_string(),
@@ -61,10 +60,41 @@ fn git_state_and_the_pull_request_are_described() {
         }),
         ..Default::default()
     });
-    let text = environment(Some(&context));
-    assert!(text.contains("Git repository: me/app on github.com"));
-    assert!(text.contains("Git branch: feature"));
+    context
+}
+
+/// These change from one request to the next, so in the system prompt they would defeat the
+/// provider's prefix cache.
+#[test]
+fn volatile_facts_are_left_out_of_the_environment() {
+    let text = environment(Some(&context_with_git()));
+    assert!(!text.contains("/work/app"), "{text}");
+    assert!(!text.contains("Current time"), "{text}");
+    assert!(!text.contains("feature"), "{text}");
+    assert!(!text.contains("#7"), "{text}");
+}
+
+#[test]
+fn current_state_holds_the_volatile_facts() {
+    let mut context = context_with_git();
+    context.project_rules = vec![ic::ProjectRules {
+        root_path: "/work/app".to_string(),
+        active_rule_files: vec![api::FileContent {
+            file_path: "/work/app/AGENTS.md".to_string(),
+            content: "Always run the tests.".to_string(),
+            ..Default::default()
+        }],
+        additional_rule_file_paths: Vec::new(),
+    }];
+    let text = current_state(Some(&context));
+
+    assert!(text.contains("- Working directory: /work/app\n"));
+    assert!(text.contains("- Current time: 2026-09-21 "), "{text}");
+    assert!(text.contains("- Git repository: me/app on github.com\n"));
+    assert!(text.contains("- Git branch: feature\n"));
     assert!(text.contains("#7 into main"));
+    assert!(!text.contains("Always run the tests."));
+    assert!(!text.contains("zsh"));
 }
 
 #[test]

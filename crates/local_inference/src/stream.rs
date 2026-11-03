@@ -35,7 +35,7 @@ pub async fn generate_local_output(request: &api::Request) -> Result<OutputStrea
 
     let body = provider::build_body(
         &target,
-        &prompt::system_prompt(request),
+        &prompt::Prompt::for_request(request),
         &turns,
         &tool_schemas,
     );

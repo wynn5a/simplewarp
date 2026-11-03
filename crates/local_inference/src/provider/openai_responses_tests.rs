@@ -22,6 +22,13 @@ fn grep_call(id: &str) -> ToolUse {
     }
 }
 
+fn system(text: &str) -> Prompt {
+    Prompt {
+        system: text.to_string(),
+        ..Default::default()
+    }
+}
+
 #[test]
 fn the_api_key_goes_in_a_bearer_header_not_the_body() {
     assert_eq!(
@@ -29,7 +36,7 @@ fn the_api_key_goes_in_a_bearer_header_not_the_body() {
         vec![("authorization", "Bearer sk-openai-test".to_string())]
     );
 
-    let body = build_body(&target(), "be helpful", &[], &[]);
+    let body = build_body(&target(), &system("be helpful"), &[], &[]);
     assert!(!body.to_string().contains("sk-openai-test"));
 }
 
@@ -43,7 +50,7 @@ fn the_endpoint_is_responses() {
 
 #[test]
 fn the_request_is_streamed_and_not_stored() {
-    let body = build_body(&target(), "", &[], &[]);
+    let body = build_body(&target(), &system(""), &[], &[]);
     assert_eq!(body["stream"], true);
     assert_eq!(body["store"], false);
     assert_eq!(body["model"], "gpt-5");
@@ -55,7 +62,7 @@ fn the_request_is_streamed_and_not_stored() {
 fn the_system_prompt_is_the_instructions_not_an_input_item() {
     let body = build_body(
         &target(),
-        "be helpful",
+        &system("be helpful"),
         &[Turn::User("hi".to_string())],
         &[],
     );
@@ -84,7 +91,7 @@ fn a_tool_call_and_its_result_are_paired_by_call_id() {
         }]),
     ];
 
-    let body = build_body(&target(), "", &turns, &[]);
+    let body = build_body(&target(), &system(""), &turns, &[]);
     let input = body["input"].as_array().expect("an array");
     assert_eq!(input.len(), 4);
     assert_eq!(
@@ -115,7 +122,7 @@ fn an_assistant_turn_with_only_tool_calls_sends_no_empty_message() {
         tool_calls: vec![grep_call("call_1"), grep_call("call_2")],
     }];
 
-    let body = build_body(&target(), "", &turns, &[]);
+    let body = build_body(&target(), &system(""), &turns, &[]);
     let input = body["input"].as_array().expect("an array");
     assert_eq!(input.len(), 2);
     assert_eq!(input[0]["call_id"], "call_1");
@@ -125,7 +132,7 @@ fn an_assistant_turn_with_only_tool_calls_sends_no_empty_message() {
 #[test]
 fn a_tool_schema_is_a_flat_function() {
     let tools = crate::tools::schemas_for(&[]);
-    let body = build_body(&target(), "", &[], &tools);
+    let body = build_body(&target(), &system(""), &[], &tools);
     assert_eq!(body["tools"][0]["type"], "function");
     assert!(body["tools"][0]["name"].is_string());
     assert!(body["tools"][0]["parameters"].is_object());
@@ -134,7 +141,7 @@ fn a_tool_schema_is_a_flat_function() {
 
 #[test]
 fn no_tools_sends_no_tools_field() {
-    let body = build_body(&target(), "", &[], &[]);
+    let body = build_body(&target(), &system(""), &[], &[]);
     assert!(body.get("tools").is_none());
 }
 
@@ -374,4 +381,64 @@ fn a_failed_response_without_an_error_still_says_it_failed() {
         panic!("expected one error, got {deltas:?}");
     };
     assert!(!message.is_empty());
+}
+
+fn with_state(current_state: &str) -> Prompt {
+    Prompt {
+        system: "be helpful".to_string(),
+        current_state: current_state.to_string(),
+    }
+}
+
+#[test]
+fn current_state_is_appended_to_the_last_user_message() {
+    let body = build_body(
+        &target(),
+        &with_state("Current environment:\n"),
+        &[Turn::User("hi".to_string())],
+        &[],
+    );
+    let input = body["input"].as_array().expect("input");
+    assert_eq!(input.len(), 1);
+    assert_eq!(input[0]["content"], "hi\n\nCurrent environment:\n");
+    assert_eq!(body["instructions"], "be helpful");
+}
+
+#[test]
+fn current_state_after_tool_results_is_a_new_user_message() {
+    let turns = vec![
+        Turn::User("find main".to_string()),
+        Turn::Assistant {
+            text: String::new(),
+            reasoning: String::new(),
+            tool_calls: vec![grep_call("call_1")],
+        },
+        Turn::ToolResults(vec![ToolResult {
+            id: "call_1".to_string(),
+            content: "found".to_string(),
+            is_error: false,
+        }]),
+    ];
+    let body = build_body(
+        &target(),
+        &with_state("Current environment:\n"),
+        &turns,
+        &[],
+    );
+    let input = body["input"].as_array().expect("input");
+    assert_eq!(input[2]["type"], "function_call_output");
+    assert_eq!(input[2]["output"], "found");
+    assert_eq!(
+        input[3],
+        json!({ "type": "message", "role": "user", "content": "Current environment:\n" })
+    );
+}
+
+#[test]
+fn empty_current_state_changes_nothing() {
+    let turns = [Turn::User("hi".to_string())];
+    assert_eq!(
+        build_body(&target(), &with_state(""), &turns, &[]),
+        build_body(&target(), &system("be helpful"), &turns, &[])
+    );
 }

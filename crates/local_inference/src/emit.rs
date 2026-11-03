@@ -10,7 +10,7 @@
 //! ```text
 //! Init
 //! BeginTransaction
-//!   AddMessagesToTask        (the user's question, when the request carried one)
+//!   AddMessagesToTask        (the tool results and the question that the request carried)
 //!   AddMessagesToTask        (the first piece of text, which makes the message)
 //!   AppendToMessageContent   (every later piece, appended to the same message)
 //!   AddMessagesToTask        (one message per tool call, once the arguments are whole)
@@ -18,7 +18,7 @@
 //! Finished(Done)
 //! ```
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use serde_json::Value;
 use uuid::Uuid;
@@ -27,7 +27,7 @@ use warp_multi_agent_api::client_action::Action;
 
 use crate::mcp::McpCatalog;
 use crate::provider::{Delta, StopReason, TokenUsage};
-use crate::{inputs, tools};
+use crate::{convert, inputs, tools};
 
 /// Builds the response events for one reply.
 pub struct Emitter {
@@ -40,12 +40,13 @@ pub struct Emitter {
     text_message_id: Option<String>,
     /// The message that streamed reasoning is appended to, once it exists.
     reasoning_message_id: Option<String>,
-    /// The question this reply answers, when the request carried one.
+    /// The input this reply answers, in the form that the task keeps: the tool results and the
+    /// question that the request carried, in the order the request carried them.
     ///
-    /// The client sends the question in `Request::input` and keeps its own copy for the block it
-    /// draws, but it never puts one in the task. Warp's server did that, and everything that reads
-    /// a conversation back still expects it to be there. See [`Self::start`].
-    user_query: Option<api::message::Message>,
+    /// The client sends these in `Request::input` and keeps its own copy for the blocks it draws,
+    /// but it never puts them in the task. Warp's server did that, and everything that reads a
+    /// conversation back still expects them to be there. See [`Self::start`].
+    stored_inputs: Vec<api::message::Message>,
     /// The message that holds a conversation summary, when this reply is one.
     ///
     /// A `/compact` request is answered with a `Summarization` message, not with agent text. The
@@ -100,7 +101,7 @@ impl Emitter {
             needs_create_task,
             text_message_id: None,
             reasoning_message_id: None,
-            user_query: stored_input_from_request(request),
+            stored_inputs: stored_inputs_from_request(request),
             summary_message_id: is_summarize_request(request).then(new_id),
             started_at: chrono::Utc::now(),
             pending_tools: BTreeMap::new(),
@@ -135,25 +136,40 @@ impl Emitter {
             }));
         }
 
-        // Store the question before the reply to it.
+        // Store the input before the reply to it.
         //
-        // The client sends the question in `Request::input`, not as a message, and Warp's server
-        // was what echoed it back so the client could keep it. Without that echo the task holds
-        // the reply and the tool calls but not the question, which breaks two things at once:
+        // The client sends the question and the tool results in `Request::input`, not as
+        // messages, and Warp's server was what echoed them back so the client could keep them.
+        // Without that echo the task holds the reply and the tool calls but not what prompted them
+        // or what they returned, which breaks two things at once:
         //
         // - The history panel drops the conversation. `AgentConversationSummary` reads its
         //   `initial_query` by looking for a `UserQuery` in the root task, finds none, and logs
         //   `missing an initial query`.
         // - A later request replays the task to the model, so the model is shown its own past
-        //   replies and tool calls without the questions that prompted them.
+        //   replies and tool calls without the questions that prompted them or the results they
+        //   returned.
         //
-        // This does not double up in the UI. A `UserQuery` message only becomes a rendered input
-        // when `Task::add_messages` is told to convert input messages, which the client does for
-        // a shared-session viewer alone; in a normal session its own copy already fills the
-        // exchange. Here the message lands in the task's message list, which is what gets
-        // persisted and replayed.
-        if let Some(input) = self.user_query.take() {
-            actions.push(add_action(&self.task_id, &new_id(), input));
+        // This does not double up in the UI. A stored question or tool result has no client
+        // output representation, so `Task::add_messages` only adds it to the task's message
+        // list, which is what gets persisted and replayed; the exchange the client made for this
+        // request already holds its own copy.
+        let stored_inputs = std::mem::take(&mut self.stored_inputs);
+        if !stored_inputs.is_empty() {
+            actions.push(Action::AddMessagesToTask(
+                api::client_action::AddMessagesToTask {
+                    task_id: self.task_id.clone(),
+                    messages: stored_inputs
+                        .into_iter()
+                        .map(|inner| api::Message {
+                            id: new_id(),
+                            task_id: self.task_id.clone(),
+                            message: Some(inner),
+                            ..Default::default()
+                        })
+                        .collect(),
+                },
+            ));
         }
 
         // The summary starts out empty and unfinished, which is how the client knows that a
@@ -225,6 +241,16 @@ impl Emitter {
 
     /// The events that close the reply: the tool calls, then the commit and the finish.
     pub fn finish(&mut self, reason: StopReason) -> Vec<api::ResponseEvent> {
+        if self.usage != TokenUsage::default() {
+            log::debug!(
+                "{} reported usage: {} input ({} read from cache, {} written to cache), {} output",
+                self.model_id,
+                self.usage.input,
+                self.usage.cache_read,
+                self.usage.cache_write,
+                self.usage.output
+            );
+        }
         let mut actions = Vec::new();
 
         // A summary is text only. A tool call that came with it has nothing to run it.
@@ -346,7 +372,64 @@ impl Emitter {
     }
 }
 
-/// Reads the input that this request answers, in the form that the client stores in a task.
+/// Reads the input that this request answers, in the form that the client stores in a task, in
+/// the order that [`crate::convert`] shows it to the model.
+///
+/// Tool results are stored with [`convert::stored_result`], so a replay shows the model what it
+/// saw this time. A result without a call id cannot answer a call, and a result that the task
+/// already holds is one that a failed request stored before this retry, so neither is stored.
+fn stored_inputs_from_request(request: &api::Request) -> Vec<api::message::Message> {
+    use api::request::input::Type;
+    use api::request::input::user_inputs::user_input::Input as UserInput;
+
+    let stored_ids = request
+        .task_context
+        .iter()
+        .flat_map(|context| &context.tasks)
+        .flat_map(|task| &task.messages)
+        .filter_map(|message| match message.message.as_ref()? {
+            api::message::Message::ToolCallResult(result) => Some(result.tool_call_id.as_str()),
+            _ => None,
+        })
+        .collect::<HashSet<_>>();
+    let stored_result = |result: &api::request::input::ToolCallResult| {
+        (!result.tool_call_id.is_empty() && !stored_ids.contains(result.tool_call_id.as_str()))
+            .then(|| api::message::Message::ToolCallResult(convert::stored_result(result)))
+    };
+
+    #[allow(deprecated)]
+    match request
+        .input
+        .as_ref()
+        .and_then(|input| input.r#type.as_ref())
+    {
+        Some(Type::UserInputs(inputs)) => {
+            let mut query = stored_input_from_request(request);
+            inputs
+                .inputs
+                .iter()
+                .filter_map(|entry| match entry.input.as_ref()? {
+                    UserInput::ToolCallResult(result) => stored_result(result),
+                    UserInput::UserQuery(user_query) if !user_query.query.is_empty() => {
+                        query.take()
+                    }
+                    UserInput::UserQuery(_)
+                    | UserInput::CliAgentUserQuery(_)
+                    | UserInput::MessagesReceivedFromAgents(_)
+                    | UserInput::EventsFromAgents(_)
+                    | UserInput::PassiveSuggestionResult(_)
+                    | UserInput::OrchestrationConfigUpdate(_)
+                    | UserInput::ConversationHandoff(_) => None,
+                })
+                .collect()
+        }
+        Some(Type::ToolCallResult(result)) => stored_result(result).into_iter().collect(),
+        _ => stored_input_from_request(request).into_iter().collect(),
+    }
+}
+
+/// Reads the input other than tool results that this request answers, in the form that the
+/// client stores in a task.
 ///
 /// A request whose input is a set of tool results — the next step of an agent loop — carries no
 /// question, and must not be given one. Only the first request of a turn has it.

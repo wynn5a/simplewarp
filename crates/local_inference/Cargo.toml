@@ -10,6 +10,7 @@ description = "Calls LLM providers direct from the client, with no Warp server i
 [dependencies]
 chrono.workspace = true
 futures.workspace = true
+log.workspace = true
 prost-types.workspace = true
 reqwest.workspace = true
 reqwest-eventsource.workspace = true

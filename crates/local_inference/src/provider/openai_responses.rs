@@ -22,6 +22,7 @@ use serde_json::{Value, json};
 
 use crate::config::ProviderTarget;
 use crate::convert::Turn;
+use crate::prompt::Prompt;
 use crate::provider::{Delta, StopReason, TokenUsage};
 use crate::tools::ToolSchema;
 
@@ -31,9 +32,12 @@ pub fn headers(target: &ProviderTarget) -> Vec<(&'static str, String)> {
 
 /// The system prompt goes in `instructions`: the ChatGPT-plan endpoint rejects a system-role
 /// input item. `temperature` and `max_output_tokens` are left out for the same reason.
+///
+/// Caching works as for Chat Completions: automatic, on a stable prefix. See
+/// [`crate::provider::openai::build_body`].
 pub fn build_body(
     target: &ProviderTarget,
-    system_prompt: &str,
+    prompt: &Prompt,
     turns: &[Turn],
     tools: &[ToolSchema],
 ) -> Value {
@@ -41,6 +45,7 @@ pub fn build_body(
     for turn in turns {
         push_items(&mut input, turn);
     }
+    push_current_state(&mut input, &prompt.current_state);
 
     let tools = tools
         .iter()
@@ -58,7 +63,7 @@ pub fn build_body(
         "model": target.model,
         "stream": true,
         "store": false,
-        "instructions": system_prompt,
+        "instructions": prompt.system,
         "input": input,
     });
     if !tools.is_empty() {
@@ -97,6 +102,22 @@ fn push_items(input: &mut Vec<Value>, turn: &Turn) {
                 }));
             }
         }
+    }
+}
+
+/// Adds the current state to the last user message, or after the tool results when the
+/// conversation ends with them, the same way as for Chat Completions.
+fn push_current_state(input: &mut Vec<Value>, current_state: &str) {
+    if current_state.is_empty() {
+        return;
+    }
+    match input.last_mut() {
+        Some(last) if last["type"] == "message" && last["role"] == "user" => {
+            if let Some(text) = last["content"].as_str() {
+                last["content"] = Value::String(format!("{text}\n\n{current_state}"));
+            }
+        }
+        _ => input.push(message_item("user", current_state)),
     }
 }
 

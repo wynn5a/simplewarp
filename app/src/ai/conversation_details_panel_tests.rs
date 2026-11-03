@@ -128,6 +128,7 @@ fn test_from_conversation_carries_restored_token_usage() {
     let usage = ConversationTokenUsage {
         input: 12_345,
         cached_input: 8_000,
+        cache_write: 600,
         output: 1_100,
     };
     let conversation = create_restored_conversation(
@@ -156,14 +157,34 @@ fn test_token_usage_formatting() {
         format_token_usage(ConversationTokenUsage {
             input: 12_345,
             cached_input: 8_000,
+            cache_write: 0,
             output: 1_100,
         }),
         "12.3k in (8.0k cached) · 1.1k out"
     );
     assert_eq!(
         format_token_usage(ConversationTokenUsage {
+            input: 12_345,
+            cached_input: 8_000,
+            cache_write: 1_200,
+            output: 1_100,
+        }),
+        "12.3k in (8.0k cached, 1.2k cache write) · 1.1k out"
+    );
+    assert_eq!(
+        format_token_usage(ConversationTokenUsage {
+            input: 1_200,
+            cached_input: 0,
+            cache_write: 1_200,
+            output: 10,
+        }),
+        "1.2k in (1.2k cache write) · 10 out"
+    );
+    assert_eq!(
+        format_token_usage(ConversationTokenUsage {
             input: 999,
             cached_input: 0,
+            cache_write: 0,
             output: 2_500_000,
         }),
         "999 in · 2.5M out"

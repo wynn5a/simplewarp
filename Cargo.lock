@@ -5304,6 +5304,7 @@ dependencies = [
  "aha-reqwest-eventsource",
  "chrono",
  "futures",
+ "log",
  "prost-types",
  "reqwest",
  "serde_json",

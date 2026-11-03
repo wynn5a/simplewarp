@@ -7,6 +7,8 @@
 //! Tool results are rendered to text here, not in the provider modules, so that both providers
 //! show the model the same thing.
 
+use std::collections::HashSet;
+
 use serde_json::{Value, json};
 use warp_multi_agent_api as api;
 use warp_multi_agent_api::message::{self, tool_call, tool_call_result};
@@ -65,7 +67,16 @@ pub fn turns_from_request(request: &api::Request) -> Vec<Turn> {
     }
 
     if let Some(input) = request.input.as_ref() {
-        push_input(&mut turns, input);
+        let answered = turns
+            .iter()
+            .filter_map(|turn| match turn {
+                Turn::ToolResults(results) => Some(results),
+                Turn::User(_) | Turn::Assistant { .. } => None,
+            })
+            .flatten()
+            .map(|result| result.id.clone())
+            .collect::<HashSet<_>>();
+        push_input(&mut turns, input, &answered);
     }
 
     pair_tool_calls(&mut turns);
@@ -83,10 +94,9 @@ const RESULT_NOT_KEPT: &str = "This call already ran. Its output was not kept in
 /// messages responding to each 'tool_call_id'"; Anthropic wants a `tool_result` block for every
 /// `tool_use`.
 ///
-/// The client never persists tool results. `agent_tasks` rows hold only the reasoning, the calls,
-/// and the agent text, so a replayed history has a call for every result that is missing. The
-/// results do arrive for the turn in flight, in `Request::input`, which is why the first reply of
-/// a conversation works and the next one fails.
+/// The emitter stores every result that arrives in `Request::input` (see [`crate::emit`]), but a
+/// conversation stored before it did holds the calls without their results, and a call that was
+/// cut off by a failed or cancelled request has none either.
 ///
 /// Rather than depend on what the client happens to store, this makes the turn list valid on its
 /// own. A placeholder keeps the call visible, so the model still knows the command ran and does
@@ -136,10 +146,15 @@ fn pair_tool_calls(turns: &mut Vec<Turn>) {
     }
 }
 
+/// Pushes the new input after the history.
+///
+/// A tool result whose call the history already answers is left out. The emitter stores each
+/// result before the reply, and the stored copy is the one placed right after its call; a second
+/// copy after a later turn would answer no call, and a provider rejects it.
 // The deprecated `UserQuery` and `ToolCallResult` input variants are still handled, because a
 // conversation that an older client started can carry them.
 #[allow(deprecated)]
-fn push_input(turns: &mut Vec<Turn>, input: &api::request::Input) {
+fn push_input(turns: &mut Vec<Turn>, input: &api::request::Input, answered: &HashSet<String>) {
     use api::request::input::Type;
     use api::request::input::user_inputs::user_input::Input as UserInput;
 
@@ -153,7 +168,9 @@ fn push_input(turns: &mut Vec<Turn>, input: &api::request::Input) {
                         has_query = true;
                     }
                     Some(UserInput::ToolCallResult(result)) => {
-                        push_rendered(turns, render_input_result(result));
+                        if !answered.contains(&result.tool_call_id) {
+                            push_rendered(turns, render_input_result(result));
+                        }
                     }
                     _ => {}
                 }
@@ -174,7 +191,11 @@ fn push_input(turns: &mut Vec<Turn>, input: &api::request::Input) {
                 &context::attachments(input.context.as_ref(), &Default::default()),
             );
         }
-        Some(Type::ToolCallResult(result)) => push_rendered(turns, render_input_result(result)),
+        Some(Type::ToolCallResult(result)) => {
+            if !answered.contains(&result.tool_call_id) {
+                push_rendered(turns, render_input_result(result));
+            }
+        }
         Some(other) => {
             if let Some(text) = expand_input(other) {
                 push_user(turns, &text);
@@ -557,95 +578,330 @@ fn review_comment_to_json(comment: &tool_call::insert_review_comments::Comment) 
     entry
 }
 
-/// The part of a tool result that this crate knows how to show the model.
-///
-/// The proto has two separate `ToolCallResult` messages: one in the conversation history, and
-/// one in the request input. They carry the same payloads under different oneofs, so both are
-/// narrowed to this before rendering.
-enum Payload<'a> {
-    Shell(&'a api::RunShellCommandResult),
-    ReadFiles(&'a api::ReadFilesResult),
-    ApplyDiffs(&'a api::ApplyFileDiffsResult),
-    Grep(&'a api::GrepResult),
-    FileGlob(&'a api::FileGlobV2Result),
-    ShellPoll(&'a api::ReadShellCommandOutputResult),
-    ShellWrite(&'a api::WriteToLongRunningShellCommandResult),
-    Transfer(&'a api::TransferShellCommandControlToUserResult),
-    InsertReviewComments(&'a api::InsertReviewCommentsResult),
-    CallMcp(&'a api::CallMcpToolResult),
-    ReadMcp(&'a api::ReadMcpResourceResult),
-    Cancelled,
-    Unsupported,
-}
-
 /// Renders a tool result from the conversation history.
 pub fn render_result(result: &message::ToolCallResult) -> ToolResult {
     use tool_call_result::Result as ProtoResult;
 
-    let payload = match result.result.as_ref() {
-        Some(ProtoResult::RunShellCommand(shell)) => Payload::Shell(shell),
-        Some(ProtoResult::ReadFiles(read)) => Payload::ReadFiles(read),
-        Some(ProtoResult::ApplyFileDiffs(apply)) => Payload::ApplyDiffs(apply),
-        Some(ProtoResult::Grep(grep)) => Payload::Grep(grep),
-        Some(ProtoResult::FileGlobV2(glob)) => Payload::FileGlob(glob),
-        Some(ProtoResult::ReadShellCommandOutput(poll)) => Payload::ShellPoll(poll),
-        Some(ProtoResult::WriteToLongRunningShellCommand(write)) => Payload::ShellWrite(write),
-        Some(ProtoResult::TransferShellCommandControlToUser(transfer)) => {
-            Payload::Transfer(transfer)
-        }
-        Some(ProtoResult::InsertReviewComments(insert)) => Payload::InsertReviewComments(insert),
-        Some(ProtoResult::CallMcpTool(call)) => Payload::CallMcp(call),
-        Some(ProtoResult::ReadMcpResource(read)) => Payload::ReadMcp(read),
-        Some(ProtoResult::Cancel(_)) => Payload::Cancelled,
-        _ => Payload::Unsupported,
-    };
-    finish(&result.tool_call_id, payload)
-}
-
-/// Renders a tool result that the client just sent as new input.
-pub fn render_input_result(result: &api::request::input::ToolCallResult) -> ToolResult {
-    use api::request::input::tool_call_result::Result as InputResult;
-
-    let payload = match result.result.as_ref() {
-        Some(InputResult::RunShellCommand(shell)) => Payload::Shell(shell),
-        Some(InputResult::ReadFiles(read)) => Payload::ReadFiles(read),
-        Some(InputResult::ApplyFileDiffs(apply)) => Payload::ApplyDiffs(apply),
-        Some(InputResult::Grep(grep)) => Payload::Grep(grep),
-        Some(InputResult::FileGlobV2(glob)) => Payload::FileGlob(glob),
-        Some(InputResult::ReadShellCommandOutput(poll)) => Payload::ShellPoll(poll),
-        Some(InputResult::WriteToLongRunningShellCommand(write)) => Payload::ShellWrite(write),
-        Some(InputResult::TransferShellCommandControlToUser(transfer)) => {
-            Payload::Transfer(transfer)
-        }
-        Some(InputResult::InsertReviewComments(insert)) => Payload::InsertReviewComments(insert),
-        Some(InputResult::CallMcpTool(call)) => Payload::CallMcp(call),
-        Some(InputResult::ReadMcpResource(read)) => Payload::ReadMcp(read),
-        _ => Payload::Unsupported,
-    };
-    finish(&result.tool_call_id, payload)
-}
-
-fn finish(tool_call_id: &str, payload: Payload<'_>) -> ToolResult {
-    let (content, is_error) = match payload {
-        Payload::Shell(shell) => render_shell(shell),
-        Payload::ReadFiles(read) => render_read_files(read),
-        Payload::ApplyDiffs(apply) => render_apply_diffs(apply),
-        Payload::Grep(grep) => render_grep(grep),
-        Payload::FileGlob(glob) => render_file_glob(glob),
-        Payload::ShellPoll(poll) => render_shell_poll(poll),
-        Payload::ShellWrite(write) => render_shell_write(write),
-        Payload::Transfer(transfer) => render_transfer(transfer),
-        Payload::InsertReviewComments(insert) => render_insert_review_comments(insert),
-        Payload::CallMcp(call) => render_call_mcp(call),
-        Payload::ReadMcp(read) => render_read_mcp(read),
-        Payload::Cancelled => ("The user cancelled this tool call.".to_string(), true),
-        Payload::Unsupported => ("The tool returned no readable result.".to_string(), true),
+    let (content, is_error) = match result.result.as_ref() {
+        Some(ProtoResult::RunShellCommand(shell)) => render_shell(shell),
+        Some(ProtoResult::ReadFiles(read)) => render_read_files(read),
+        Some(ProtoResult::ApplyFileDiffs(apply)) => render_apply_diffs(apply),
+        Some(ProtoResult::Grep(grep)) => render_grep(grep),
+        Some(ProtoResult::FileGlobV2(glob)) => render_file_glob(glob),
+        Some(ProtoResult::ReadShellCommandOutput(poll)) => render_shell_poll(poll),
+        Some(ProtoResult::WriteToLongRunningShellCommand(write)) => render_shell_write(write),
+        Some(ProtoResult::TransferShellCommandControlToUser(transfer)) => render_transfer(transfer),
+        Some(ProtoResult::InsertReviewComments(insert)) => render_insert_review_comments(insert),
+        Some(ProtoResult::CallMcpTool(call)) => render_call_mcp(call),
+        Some(ProtoResult::ReadMcpResource(read)) => render_read_mcp(read),
+        Some(ProtoResult::Cancel(_)) => ("The user cancelled this tool call.".to_string(), true),
+        _ => ("The tool returned no readable result.".to_string(), true),
     };
 
     ToolResult {
-        id: tool_call_id.to_string(),
+        id: result.tool_call_id.clone(),
         content,
         is_error,
+    }
+}
+
+/// Renders a tool result that the client just sent as new input.
+///
+/// The result is rendered from its stored form, so that the model sees now exactly what a later
+/// request replays from the conversation history.
+pub fn render_input_result(result: &api::request::input::ToolCallResult) -> ToolResult {
+    render_result(&stored_result(result))
+}
+
+/// The form in which a tool result that the client sent is kept in the conversation.
+///
+/// Text that the model is shown is cut with [`truncate`], and bulk that it is never shown (binary
+/// data, the full content of an edited file) is dropped, so that a stored conversation stays small
+/// and renders to the same text that the model saw. `context` is left empty, as it is on a stored
+/// question.
+// The deprecated `FileGlob` result is still carried, because an older client can send it.
+#[allow(deprecated)]
+pub fn stored_result(input: &api::request::input::ToolCallResult) -> message::ToolCallResult {
+    use api::request::input::tool_call_result::Result as In;
+    use tool_call_result::Result as Out;
+
+    let result = input.result.clone().map(|result| match result {
+        In::RunShellCommand(result) => Out::RunShellCommand(result),
+        In::ReadFiles(result) => Out::ReadFiles(result),
+        In::SearchCodebase(result) => Out::SearchCodebase(result),
+        In::ApplyFileDiffs(result) => Out::ApplyFileDiffs(result),
+        In::SuggestPlan(result) => Out::SuggestPlan(result),
+        In::SuggestCreatePlan(result) => Out::SuggestCreatePlan(result),
+        In::Grep(result) => Out::Grep(result),
+        In::FileGlob(result) => Out::FileGlob(result),
+        In::ReadMcpResource(result) => Out::ReadMcpResource(result),
+        In::CallMcpTool(result) => Out::CallMcpTool(result),
+        In::WriteToLongRunningShellCommand(result) => Out::WriteToLongRunningShellCommand(result),
+        In::SuggestNewConversation(result) => Out::SuggestNewConversation(result),
+        In::FileGlobV2(result) => Out::FileGlobV2(result),
+        In::SuggestPrompt(result) => Out::SuggestPrompt(result),
+        In::OpenCodeReview(result) => Out::OpenCodeReview(result),
+        In::InitProject(result) => Out::InitProject(result),
+        In::ReadDocuments(result) => Out::ReadDocuments(result),
+        In::EditDocuments(result) => Out::EditDocuments(result),
+        In::CreateDocuments(result) => Out::CreateDocuments(result),
+        In::ReadShellCommandOutput(result) => Out::ReadShellCommandOutput(result),
+        In::UseComputer(result) => Out::UseComputer(result),
+        In::InsertReviewComments(result) => Out::InsertReviewComments(result),
+        In::RequestComputerUse(result) => Out::RequestComputerUseResult(result),
+        In::ReadSkill(result) => Out::ReadSkill(result),
+        In::FetchConversation(result) => Out::FetchConversation(result),
+        In::SendMessageToAgent(result) => Out::SendMessageToAgent(result),
+        In::TransferShellCommandControlToUser(result) => {
+            Out::TransferShellCommandControlToUser(result)
+        }
+        In::AskUserQuestion(result) => Out::AskUserQuestion(result),
+        In::UploadFileArtifact(result) => Out::UploadFileArtifact(result),
+        In::RunAgentsResult(result) => Out::RunAgentsResult(result),
+        In::WaitForEvents(result) => Out::WaitForEvents(result),
+        In::StartRecording(result) => Out::StartRecording(result),
+        In::StopRecording(result) => Out::StopRecording(result),
+    });
+
+    let mut stored = message::ToolCallResult {
+        tool_call_id: input.tool_call_id.clone(),
+        context: None,
+        result,
+    };
+    if let Some(result) = stored.result.as_mut() {
+        fit_payload(result);
+    }
+    stored
+}
+
+/// Cuts what the model is shown to [`MAX_RESULT_CHARS`] and drops what it is never shown.
+#[allow(deprecated)]
+fn fit_payload(result: &mut tool_call_result::Result) {
+    use tool_call_result::Result as Out;
+
+    match result {
+        Out::RunShellCommand(shell) => {
+            use api::run_shell_command_result::Result as Shell;
+            shell.output = truncate(&shell.output);
+            match shell.result.as_mut() {
+                Some(Shell::CommandFinished(finished)) => fit_finished(finished),
+                Some(Shell::LongRunningCommandSnapshot(snapshot)) => fit_snapshot(snapshot),
+                Some(Shell::PermissionDenied(_)) | None => {}
+            }
+        }
+        Out::ReadShellCommandOutput(poll) => {
+            use api::read_shell_command_output_result::Result as Poll;
+            match poll.result.as_mut() {
+                Some(Poll::CommandFinished(finished)) => fit_finished(finished),
+                Some(Poll::LongRunningCommandSnapshot(snapshot)) => fit_snapshot(snapshot),
+                Some(Poll::Error(_)) | None => {}
+            }
+        }
+        Out::WriteToLongRunningShellCommand(write) => {
+            use api::write_to_long_running_shell_command_result::Result as Write;
+            match write.result.as_mut() {
+                Some(Write::CommandFinished(finished)) => fit_finished(finished),
+                Some(Write::LongRunningCommandSnapshot(snapshot)) => fit_snapshot(snapshot),
+                Some(Write::Error(_)) | None => {}
+            }
+        }
+        Out::TransferShellCommandControlToUser(transfer) => {
+            use api::transfer_shell_command_control_to_user_result::Result as Transfer;
+            match transfer.result.as_mut() {
+                Some(Transfer::CommandFinished(finished)) => fit_finished(finished),
+                Some(Transfer::LongRunningCommandSnapshot(snapshot)) => fit_snapshot(snapshot),
+                Some(Transfer::Error(_)) | None => {}
+            }
+        }
+        Out::ReadFiles(read) => {
+            use api::any_file_content::Content;
+            use api::read_files_result::Result as Read;
+            match read.result.as_mut() {
+                Some(Read::TextFilesSuccess(success)) => {
+                    for file in &mut success.files {
+                        file.content = truncate(&file.content);
+                    }
+                }
+                Some(Read::AnyFilesSuccess(success)) => {
+                    for file in &mut success.files {
+                        match file.content.as_mut() {
+                            Some(Content::TextContent(text)) => {
+                                text.content = truncate(&text.content);
+                            }
+                            Some(Content::BinaryContent(binary)) => binary.data.clear(),
+                            None => {}
+                        }
+                    }
+                }
+                Some(Read::Error(error)) => error.message = truncate(&error.message),
+                None => {}
+            }
+        }
+        // The model is shown only the paths of an edit, so the changed lines and their context
+        // that the client attaches are not kept.
+        Out::ApplyFileDiffs(apply) => {
+            use api::apply_file_diffs_result::Result as Apply;
+            match apply.result.as_mut() {
+                Some(Apply::Success(success)) => {
+                    for file in &mut success.updated_files {
+                        file.content.clear();
+                    }
+                    for updated in &mut success.updated_files_v2 {
+                        if let Some(file) = updated.file.as_mut() {
+                            file.content.clear();
+                        }
+                    }
+                }
+                Some(Apply::Error(error)) => error.message = truncate(&error.message),
+                None => {}
+            }
+        }
+        Out::Grep(grep) => {
+            use api::grep_result::Result as Grep;
+            match grep.result.as_mut() {
+                Some(Grep::Success(success)) => {
+                    for file in &mut success.matched_files {
+                        fit_list(&mut file.matched_lines, |line| {
+                            line.line_number.to_string().len() + 1
+                        });
+                    }
+                    fit_list(&mut success.matched_files, |file| {
+                        file.file_path.chars().count()
+                            + file
+                                .matched_lines
+                                .iter()
+                                .map(|line| line.line_number.to_string().len() + 2)
+                                .sum::<usize>()
+                            + ": lines ".len()
+                    });
+                }
+                Some(Grep::Error(error)) => error.message = truncate(&error.message),
+                None => {}
+            }
+        }
+        Out::FileGlobV2(glob) => {
+            use api::file_glob_v2_result::Result as Glob;
+            match glob.result.as_mut() {
+                Some(Glob::Success(success)) => {
+                    success.warnings = truncate(&success.warnings);
+                    fit_list(&mut success.matched_files, |file| {
+                        file.file_path.chars().count()
+                    });
+                }
+                Some(Glob::Error(error)) => error.message = truncate(&error.message),
+                None => {}
+            }
+        }
+        Out::InsertReviewComments(insert) => {
+            use api::insert_review_comments_result::Result as Insert;
+            insert.repo_path = truncate(&insert.repo_path);
+            match insert.result.as_mut() {
+                Some(Insert::Error(error)) => error.message = truncate(&error.message),
+                Some(Insert::Success(_)) | None => {}
+            }
+        }
+        Out::CallMcpTool(call) => {
+            use api::call_mcp_tool_result::Result as Call;
+            use api::call_mcp_tool_result::success::result::Result as Item;
+            match call.result.as_mut() {
+                Some(Call::Success(success)) => {
+                    for item in success
+                        .results
+                        .iter_mut()
+                        .filter_map(|item| item.result.as_mut())
+                    {
+                        match item {
+                            Item::Text(text) => text.text = truncate(&text.text),
+                            Item::Image(image) => image.data.clear(),
+                            Item::Resource(resource) => fit_mcp_content(resource),
+                        }
+                    }
+                }
+                Some(Call::Error(error)) => error.message = truncate(&error.message),
+                None => {}
+            }
+        }
+        Out::ReadMcpResource(read) => {
+            use api::read_mcp_resource_result::Result as Read;
+            match read.result.as_mut() {
+                Some(Read::Success(success)) => {
+                    success.contents.iter_mut().for_each(fit_mcp_content)
+                }
+                Some(Read::Error(error)) => error.message = truncate(&error.message),
+                None => {}
+            }
+        }
+        Out::SearchCodebase(_)
+        | Out::Server(_)
+        | Out::SuggestPlan(_)
+        | Out::SuggestCreatePlan(_)
+        | Out::FileGlob(_)
+        | Out::Cancel(_)
+        | Out::SuggestNewConversation(_)
+        | Out::SuggestPrompt(_)
+        | Out::OpenCodeReview(_)
+        | Out::InitProject(_)
+        | Out::Subagent(_)
+        | Out::ReadDocuments(_)
+        | Out::EditDocuments(_)
+        | Out::CreateDocuments(_)
+        | Out::UseComputer(_)
+        | Out::ReadSkill(_)
+        | Out::RequestComputerUseResult(_)
+        | Out::FetchConversation(_)
+        | Out::SendMessageToAgent(_)
+        | Out::AskUserQuestion(_)
+        | Out::UploadFileArtifact(_)
+        | Out::RunAgentsResult(_)
+        | Out::WaitForEvents(_)
+        | Out::StartRecording(_)
+        | Out::StopRecording(_) => {}
+    }
+}
+
+/// Drops entries from the middle of a list that is rendered one entry per line, when its text
+/// would be cut by [`truncate`] anyway.
+///
+/// Enough entries are kept at each end that the kept text is still longer than
+/// [`MAX_RESULT_CHARS`] and starts and ends with the same characters, so it is cut to the same
+/// head and tail; only the count in the marker is smaller. `rendered_len` is an entry's length in
+/// characters.
+fn fit_list<T>(items: &mut Vec<T>, rendered_len: impl Fn(&T) -> usize) {
+    // One more character for the separator between entries.
+    let len = |item: &T| rendered_len(item) + 1;
+    if items.iter().map(len).sum::<usize>() <= 2 * MAX_RESULT_CHARS {
+        return;
+    }
+    let mut head = 0;
+    let mut head_chars = 0;
+    while head < items.len() && head_chars < 2 * KEEP_HEAD_CHARS {
+        head_chars += len(&items[head]);
+        head += 1;
+    }
+    let mut tail = items.len();
+    let mut tail_chars = 0;
+    while tail > head && tail_chars < KEEP_HEAD_CHARS + KEEP_TAIL_CHARS {
+        tail -= 1;
+        tail_chars += len(&items[tail]);
+    }
+    items.drain(head..tail);
+}
+
+fn fit_finished(finished: &mut api::ShellCommandFinished) {
+    finished.output = truncate(&finished.output);
+}
+
+fn fit_snapshot(snapshot: &mut api::LongRunningShellCommandSnapshot) {
+    snapshot.output = truncate(&snapshot.output);
+}
+
+fn fit_mcp_content(content: &mut api::McpResourceContent) {
+    use api::mcp_resource_content::ContentType;
+
+    match content.content_type.as_mut() {
+        Some(ContentType::Text(text)) => text.content = truncate(&text.content),
+        Some(ContentType::Binary(binary)) => binary.data.clear(),
+        None => {}
     }
 }
 
@@ -787,10 +1043,33 @@ fn render_read_files(read: &api::ReadFilesResult) -> (String, bool) {
             }
             (truncate(&text), false)
         }
-        Some(ReadResult::AnyFilesSuccess(_)) => (
-            "The files were read, but their content is not text.".to_string(),
-            false,
-        ),
+        // The client sends every read in this form, text files included.
+        Some(ReadResult::AnyFilesSuccess(success)) => {
+            use api::any_file_content::Content;
+
+            let mut text = String::new();
+            for file in &success.files {
+                match file.content.as_ref() {
+                    Some(Content::TextContent(file)) => {
+                        text.push_str(&format!("--- {} ---\n{}\n", file.file_path, file.content));
+                    }
+                    Some(Content::BinaryContent(file)) => {
+                        text.push_str(&format!(
+                            "--- {} ---\nThe file is not text, so it cannot be shown.\n",
+                            file.file_path
+                        ));
+                    }
+                    None => {}
+                }
+            }
+            for failed in &success.failed_reads {
+                text.push_str(&format!(
+                    "--- {} ---\ncould not read: {}\n",
+                    failed.path, failed.message
+                ));
+            }
+            (truncate(&text), false)
+        }
         Some(ReadResult::Error(error)) => (error.message.clone(), true),
         None => ("No files were read.".to_string(), true),
     }
@@ -932,24 +1211,42 @@ fn render_mcp_content(content: &api::McpResourceContent) -> String {
     }
 }
 
-/// The largest tool result that goes to the model, in bytes.
+/// The most characters of one tool output that the model is shown and the conversation keeps.
 ///
-/// A long build log can fill a context window on its own. The tail is kept because the end of a
-/// command output usually holds the error.
-const MAX_RESULT_BYTES: usize = 32_000;
+/// Every stored result is replayed on every later request, so this bounds how fast a long agent
+/// loop fills the context window as well as how large a stored conversation grows.
+pub const MAX_RESULT_CHARS: usize = 16_000;
 
-fn truncate(text: &str) -> String {
-    if text.len() <= MAX_RESULT_BYTES {
+/// The characters kept from the start of a cut output: command echoes, file headers, usage text.
+const KEEP_HEAD_CHARS: usize = 4_000;
+
+/// The characters kept from the end of a cut output, which is where a command reports its error.
+///
+/// Head, tail and the marker between them stay within [`MAX_RESULT_CHARS`], so cutting an output
+/// that was already cut leaves it unchanged.
+const KEEP_TAIL_CHARS: usize = 11_800;
+
+/// Cuts text longer than [`MAX_RESULT_CHARS`] to its head and tail, with a marker that says how
+/// much was left out of the middle.
+pub fn truncate(text: &str) -> String {
+    let total = text.chars().count();
+    if total <= MAX_RESULT_CHARS {
         return text.to_string();
     }
-    let mut start = text.len() - MAX_RESULT_BYTES;
-    while start < text.len() && !text.is_char_boundary(start) {
-        start += 1;
-    }
+    let head_end = text
+        .char_indices()
+        .nth(KEEP_HEAD_CHARS)
+        .map_or(text.len(), |(index, _)| index);
+    let tail_start = text
+        .char_indices()
+        .nth(total - KEEP_TAIL_CHARS)
+        .map_or(text.len(), |(index, _)| index);
+    let cut = total - KEEP_HEAD_CHARS - KEEP_TAIL_CHARS;
     format!(
-        "[{} bytes were cut from the start]\n{}",
-        start,
-        &text[start..]
+        "{}\n\n[... {cut} characters were cut from the middle of this output. Read a narrower range \
+         or filter the output to see them.]\n\n{}",
+        &text[..head_end],
+        &text[tail_start..]
     )
 }
 

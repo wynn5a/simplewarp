@@ -2114,6 +2114,19 @@ tool-approval protocol, so driving it would lose PTY command blocks and diff app
 second provider config, a second session store and a Node runtime. Plan:
 [../specs/plans/native-agent-harness.md](../specs/plans/native-agent-harness.md).
 
+### Round: harness P0 — history fidelity and prompt caching (2026-11-03)
+
+Spec: [../specs/plans/native-agent-harness/p0-history-fidelity.md](../specs/plans/native-agent-harness/p0-history-fidelity.md).
+`local_inference` now echoes each request's tool results into the task as `ToolCallResult`
+messages, in one stored form shared with what the model sees (16,000 characters, head 4,000 + tail
+11,800), so later turns replay real output instead of `RESULT_NOT_KEPT` (kept for old
+conversations). `read_files` content reaches the model for the first time. The system prompt holds
+only stable facts; working directory, time and git state go at the end of the newest user message.
+Built-in Anthropic targets get `cache_control` breakpoints (custom endpoints keep the old shape) and
+cache writes are counted. Independent review: no blockers; four follow-ups applied. Format, three
+clippy runs, `local_inference` 221/221, `-p warp` lib 3,736/3,736, `integration_tests` compiles.
+Not run against a live provider.
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the

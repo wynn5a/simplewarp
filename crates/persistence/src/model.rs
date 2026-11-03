@@ -1045,6 +1045,9 @@ pub struct ConversationTokenUsage {
     pub input: u64,
     /// The part of `input` that the provider read from its prompt cache.
     pub cached_input: u64,
+    /// The part of `input` that the provider wrote to its prompt cache.
+    #[serde(default)]
+    pub cache_write: u64,
     pub output: u64,
 }
 

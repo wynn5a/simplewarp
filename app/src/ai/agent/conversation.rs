@@ -2000,6 +2000,7 @@ impl AIConversation {
         for model_usage in usage {
             self.token_usage.input += u64::from(model_usage.total_input);
             self.token_usage.cached_input += u64::from(model_usage.input_cache_read);
+            self.token_usage.cache_write += u64::from(model_usage.input_cache_write);
             self.token_usage.output += u64::from(model_usage.output);
         }
     }

@@ -319,24 +319,45 @@ fn an_unsupported_tool_call_is_left_out() {
     assert_eq!(turns, vec![Turn::User("go".to_string())]);
 }
 
+/// A text of `len` characters whose start and end can be told apart from its middle.
+fn marked_text(len: usize) -> String {
+    format!("HEAD{}TAIL", "x".repeat(len - 8))
+}
+
 #[test]
-fn a_long_result_keeps_its_tail() {
-    let long = "x".repeat(MAX_RESULT_BYTES + 500);
+fn a_short_result_is_not_truncated() {
+    let text = marked_text(MAX_RESULT_CHARS);
+    assert_eq!(truncate(&text), text);
+}
+
+#[test]
+fn a_long_result_keeps_its_head_and_tail() {
+    let long = marked_text(MAX_RESULT_CHARS * 3);
     let truncated = truncate(&long);
 
-    assert!(truncated.len() < long.len());
-    assert!(truncated.starts_with('['));
-    assert!(truncated.ends_with('x'));
+    assert!(truncated.starts_with("HEAD"));
+    assert!(truncated.ends_with("TAIL"));
+    assert!(truncated.contains("characters were cut from the middle"));
+    assert!(truncated.chars().count() <= MAX_RESULT_CHARS);
+}
+
+/// A stored result is cut once when it is stored and again when it is rendered, so cutting must
+/// not change what was already cut.
+#[test]
+fn truncation_is_idempotent() {
+    let once = truncate(&marked_text(MAX_RESULT_CHARS + 1));
+    assert_eq!(truncate(&once), once);
 }
 
 #[test]
 fn truncation_never_splits_a_character() {
     // Each `é` is two bytes, so a byte-wise cut can land inside one.
-    let long = "é".repeat(MAX_RESULT_BYTES);
+    let long = "é".repeat(MAX_RESULT_CHARS * 2);
     let truncated = truncate(&long);
 
-    assert!(truncated.is_char_boundary(truncated.len()));
-    assert!(truncated.contains('é'));
+    assert!(truncated.starts_with('é'));
+    assert!(truncated.ends_with('é'));
+    assert!(truncated.chars().count() <= MAX_RESULT_CHARS);
 }
 
 fn history_result(result: tool_call_result::Result) -> message::ToolCallResult {
@@ -1037,4 +1058,389 @@ fn transfer_and_review_comment_calls_replay_through_the_model_arguments() {
             Some(call)
         );
     }
+}
+
+fn shell_input(id: &str, output: &str) -> api::request::input::ToolCallResult {
+    api::request::input::ToolCallResult {
+        tool_call_id: id.to_string(),
+        result: Some(
+            api::request::input::tool_call_result::Result::RunShellCommand(
+                api::RunShellCommandResult {
+                    result: Some(api::run_shell_command_result::Result::CommandFinished(
+                        api::ShellCommandFinished {
+                            output: output.to_string(),
+                            ..Default::default()
+                        },
+                    )),
+                    ..Default::default()
+                },
+            ),
+        ),
+    }
+}
+
+/// A read of `path`, in the form that the client sends every read in.
+fn read_input(id: &str, path: &str, content: &str) -> api::request::input::ToolCallResult {
+    use api::any_file_content::Content;
+
+    api::request::input::ToolCallResult {
+        tool_call_id: id.to_string(),
+        result: Some(api::request::input::tool_call_result::Result::ReadFiles(
+            api::ReadFilesResult {
+                result: Some(api::read_files_result::Result::AnyFilesSuccess(
+                    api::read_files_result::AnyFilesSuccess {
+                        files: vec![
+                            api::AnyFileContent {
+                                content: Some(Content::TextContent(api::FileContent {
+                                    file_path: path.to_string(),
+                                    content: content.to_string(),
+                                    line_range: None,
+                                })),
+                            },
+                            api::AnyFileContent {
+                                content: Some(Content::BinaryContent(api::BinaryFileContent {
+                                    file_path: "logo.png".to_string(),
+                                    data: vec![0; 64],
+                                })),
+                            },
+                        ],
+                        failed_reads: Vec::new(),
+                    },
+                )),
+            },
+        )),
+    }
+}
+
+fn mcp_input(text: &str) -> api::request::input::ToolCallResult {
+    use api::call_mcp_tool_result::success::result::{Image, Result as Item, Text};
+    use api::call_mcp_tool_result::{Result as CallResult, Success};
+
+    let item = |inner| api::call_mcp_tool_result::success::Result {
+        result: Some(inner),
+    };
+    input_result(api::request::input::tool_call_result::Result::CallMcpTool(
+        api::CallMcpToolResult {
+            result: Some(CallResult::Success(Success {
+                results: vec![
+                    item(Item::Text(Text {
+                        text: text.to_string(),
+                    })),
+                    item(Item::Image(Image {
+                        data: vec![1; 64],
+                        mime_type: "image/png".to_string(),
+                    })),
+                ],
+            })),
+        },
+    ))
+}
+
+#[test]
+fn a_file_read_shows_its_text_content() {
+    let rendered = render_input_result(&read_input("call-1", "Cargo.toml", "[workspace]"));
+
+    assert!(!rendered.is_error);
+    assert!(rendered.content.contains("--- Cargo.toml ---\n[workspace]"));
+    assert!(
+        rendered
+            .content
+            .contains("--- logo.png ---\nThe file is not text"),
+        "{}",
+        rendered.content
+    );
+}
+
+#[test]
+fn storing_a_result_truncates_what_the_model_sees_and_drops_what_it_does_not() {
+    use api::any_file_content::Content;
+    use api::call_mcp_tool_result::success::result::Result as Item;
+
+    let long = marked_text(MAX_RESULT_CHARS * 2);
+
+    let Some(tool_call_result::Result::RunShellCommand(shell)) =
+        stored_result(&shell_input("call-1", &long)).result
+    else {
+        panic!("expected a shell result");
+    };
+    let Some(api::run_shell_command_result::Result::CommandFinished(finished)) = shell.result
+    else {
+        panic!("expected a finished command");
+    };
+    assert_eq!(finished.output, truncate(&long));
+
+    let Some(tool_call_result::Result::ReadFiles(read)) =
+        stored_result(&read_input("call-1", "a.rs", &long)).result
+    else {
+        panic!("expected a read result");
+    };
+    let Some(api::read_files_result::Result::AnyFilesSuccess(success)) = read.result else {
+        panic!("expected a successful read");
+    };
+    let Some(Content::TextContent(text)) = success.files[0].content.as_ref() else {
+        panic!("expected a text file");
+    };
+    assert_eq!(text.content, truncate(&long));
+    let Some(Content::BinaryContent(binary)) = success.files[1].content.as_ref() else {
+        panic!("expected a binary file");
+    };
+    assert!(binary.data.is_empty());
+    assert_eq!(binary.file_path, "logo.png");
+
+    let Some(tool_call_result::Result::CallMcpTool(call)) = stored_result(&mcp_input("hi")).result
+    else {
+        panic!("expected an MCP result");
+    };
+    let Some(api::call_mcp_tool_result::Result::Success(success)) = call.result else {
+        panic!("expected a successful call");
+    };
+    let Some(Item::Image(image)) = success.results[1].result.as_ref() else {
+        panic!("expected an image");
+    };
+    assert!(image.data.is_empty());
+    assert_eq!(image.mime_type, "image/png");
+
+    let edit = input_result(
+        api::request::input::tool_call_result::Result::ApplyFileDiffs(api::ApplyFileDiffsResult {
+            result: Some(api::apply_file_diffs_result::Result::Success(
+                api::apply_file_diffs_result::Success {
+                    updated_files_v2: vec![
+                        api::apply_file_diffs_result::success::UpdatedFileContent {
+                            file: Some(api::FileContent {
+                                file_path: "a.rs".to_string(),
+                                content: long.clone(),
+                                line_range: None,
+                            }),
+                            was_edited_by_user: false,
+                        },
+                    ],
+                    ..Default::default()
+                },
+            )),
+        }),
+    );
+    let Some(tool_call_result::Result::ApplyFileDiffs(apply)) = stored_result(&edit).result else {
+        panic!("expected an edit result");
+    };
+    let Some(api::apply_file_diffs_result::Result::Success(success)) = apply.result else {
+        panic!("expected a successful edit");
+    };
+    let file = success.updated_files_v2[0].file.as_ref().expect("a file");
+    assert_eq!(file.file_path, "a.rs");
+    assert!(file.content.is_empty());
+}
+
+fn history_with_inputs(
+    messages: Vec<api::Message>,
+    inputs: Vec<api::request::input::user_inputs::user_input::Input>,
+) -> api::Request {
+    use api::request::input::user_inputs::UserInput;
+
+    let mut request = request_with_messages(messages);
+    request.input = Some(api::request::Input {
+        r#type: Some(api::request::input::Type::UserInputs(
+            api::request::input::UserInputs {
+                inputs: inputs
+                    .into_iter()
+                    .map(|input| UserInput { input: Some(input) })
+                    .collect(),
+            },
+        )),
+        ..Default::default()
+    });
+    request
+}
+
+fn user_query_input(query: &str) -> api::request::input::user_inputs::user_input::Input {
+    api::request::input::user_inputs::user_input::Input::UserQuery(api::request::input::UserQuery {
+        query: query.to_string(),
+        ..Default::default()
+    })
+}
+
+fn tool_result_input(
+    result: api::request::input::ToolCallResult,
+) -> api::request::input::user_inputs::user_input::Input {
+    api::request::input::user_inputs::user_input::Input::ToolCallResult(result)
+}
+
+fn read_call(id: &str, path: &str) -> api::Message {
+    message(message::Message::ToolCall(message::ToolCall {
+        tool_call_id: id.to_string(),
+        tool: Some(tool_call::Tool::ReadFiles(tool_call::ReadFiles {
+            files: vec![tool_call::read_files::File {
+                name: path.to_string(),
+                line_ranges: Vec::new(),
+            }],
+        })),
+    }))
+}
+
+fn stored(input: &api::request::input::ToolCallResult) -> api::Message {
+    message(message::Message::ToolCallResult(stored_result(input)))
+}
+
+/// The point of storing results: a file read early in a conversation is still there for the model
+/// two turns later, not replaced by a placeholder.
+#[test]
+fn a_result_read_in_turn_one_is_replayed_in_turn_three() {
+    let request = history_with_inputs(
+        vec![
+            user_message("read Cargo.toml"),
+            read_call("call-1", "Cargo.toml"),
+            stored(&read_input("call-1", "Cargo.toml", "members = 42")),
+            agent_message("It has 42 members."),
+            user_message("run ls"),
+            shell_call("call-2", "ls"),
+            stored(&shell_input("call-2", "src")),
+            agent_message("There is a src directory."),
+        ],
+        vec![user_query_input("what did the file say?")],
+    );
+
+    let turns = turns_from_request(&request);
+    let results = turns
+        .iter()
+        .filter_map(|turn| match turn {
+            Turn::ToolResults(results) => Some(results),
+            _ => None,
+        })
+        .flatten()
+        .collect::<Vec<_>>();
+
+    assert_eq!(results.len(), 2, "{turns:?}");
+    assert_eq!(results[0].id, "call-1");
+    assert!(results[0].content.contains("members = 42"));
+    assert_eq!(results[1].id, "call-2");
+    assert!(
+        results
+            .iter()
+            .all(|result| result.content != RESULT_NOT_KEPT)
+    );
+    assert_eq!(
+        turns.last(),
+        Some(&Turn::User("what did the file say?".to_string()))
+    );
+}
+
+/// The history already answers the call with the copy the emitter stored, so the input copy adds
+/// nothing, wherever in the history that copy sits.
+#[test]
+fn a_result_both_stored_and_resent_is_sent_once() {
+    let request = history_with_inputs(
+        vec![
+            user_message("run ls"),
+            shell_call("call-1", "ls"),
+            stored(&shell_input("call-1", "src")),
+        ],
+        vec![tool_result_input(shell_input("call-1", "src"))],
+    );
+
+    let turns = turns_from_request(&request);
+    assert_eq!(
+        turns.last(),
+        Some(&Turn::ToolResults(vec![ToolResult {
+            id: "call-1".to_string(),
+            content: "exit code: 0\n\nsrc".to_string(),
+            is_error: false,
+        }]))
+    );
+}
+
+#[test]
+fn a_resent_result_never_follows_a_later_turn() {
+    let request = history_with_inputs(
+        vec![
+            user_message("run ls"),
+            shell_call("call-1", "ls"),
+            stored(&shell_input("call-1", "src")),
+            agent_message("There is a src directory."),
+            user_message("thanks"),
+        ],
+        vec![
+            tool_result_input(shell_input("call-1", "src")),
+            user_query_input("what else?"),
+        ],
+    );
+
+    let turns = turns_from_request(&request);
+    let result_turns = turns
+        .iter()
+        .filter(|turn| matches!(turn, Turn::ToolResults(_)))
+        .count();
+    assert_eq!(result_turns, 1, "{turns:?}");
+    assert_eq!(
+        turns.last(),
+        Some(&Turn::User("thanks\n\nwhat else?".to_string()))
+    );
+}
+
+fn grep_input(files: usize, error: Option<&str>) -> api::request::input::ToolCallResult {
+    use api::grep_result::success::GrepFileMatch;
+    use api::grep_result::success::grep_file_match::GrepLineMatch;
+
+    let result = match error {
+        Some(message) => api::grep_result::Result::Error(api::grep_result::Error {
+            message: message.to_string(),
+        }),
+        None => api::grep_result::Result::Success(api::grep_result::Success {
+            matched_files: (0..files)
+                .map(|index| GrepFileMatch {
+                    file_path: format!("src/file_{index:05}.rs"),
+                    matched_lines: vec![GrepLineMatch { line_number: 1 }],
+                })
+                .collect(),
+        }),
+    };
+    input_result(api::request::input::tool_call_result::Result::Grep(
+        api::GrepResult {
+            result: Some(result),
+        },
+    ))
+}
+
+/// Lists and error messages are bounded like every other text the model is shown, and cutting a
+/// list does not change what the model reads.
+#[test]
+fn storing_a_list_or_an_error_keeps_it_bounded() {
+    let input = grep_input(20_000, None);
+    let full = render_result(&message::ToolCallResult {
+        tool_call_id: "call-1".to_string(),
+        context: None,
+        result: input.result.clone().map(|result| match result {
+            api::request::input::tool_call_result::Result::Grep(grep) => {
+                tool_call_result::Result::Grep(grep)
+            }
+            _ => unreachable!(),
+        }),
+    });
+    let stored = stored_result(&input);
+    let Some(tool_call_result::Result::Grep(api::GrepResult {
+        result: Some(api::grep_result::Result::Success(success)),
+    })) = stored.result.as_ref()
+    else {
+        panic!("expected a grep success");
+    };
+    assert!(success.matched_files.len() < 20_000);
+
+    let replayed = render_result(&stored);
+    let (head, tail) = (4_000, 11_800);
+    assert_eq!(
+        full.content.chars().take(head).collect::<String>(),
+        replayed.content.chars().take(head).collect::<String>()
+    );
+    assert_eq!(
+        full.content.chars().rev().take(tail).collect::<String>(),
+        replayed
+            .content
+            .chars()
+            .rev()
+            .take(tail)
+            .collect::<String>()
+    );
+
+    let long = marked_text(MAX_RESULT_CHARS * 2);
+    let rendered = render_input_result(&grep_input(0, Some(&long)));
+    assert!(rendered.is_error);
+    assert_eq!(rendered.content, truncate(&long));
 }

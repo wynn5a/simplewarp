@@ -14,26 +14,160 @@ fn target() -> ProviderTarget {
     }
 }
 
+fn system(text: &str) -> Prompt {
+    Prompt {
+        system: text.to_string(),
+        ..Default::default()
+    }
+}
+
 #[test]
 fn the_api_key_goes_in_a_header_not_the_body() {
     let headers = headers(&target());
     assert!(headers.contains(&("x-api-key", "sk-ant-test".to_string())));
 
-    let body = build_body(&target(), "be helpful", &[], &[]);
+    let body = build_body(&target(), &system("be helpful"), &[], &[]);
     assert!(!body.to_string().contains("sk-ant-test"));
 }
 
 #[test]
-fn the_system_prompt_is_a_top_level_field() {
+fn the_system_prompt_is_cached() {
     let body = build_body(
         &target(),
-        "be helpful",
+        &system("be helpful"),
         &[Turn::User("hi".to_string())],
         &[],
     );
-    assert_eq!(body["system"], "be helpful");
+    assert_eq!(
+        body["system"],
+        json!([{
+            "type": "text",
+            "text": "be helpful",
+            "cache_control": { "type": "ephemeral" },
+        }])
+    );
     assert_eq!(body["messages"][0]["role"], "user");
     assert_eq!(body["stream"], true);
+
+    let body = build_body(&target(), &system(""), &[Turn::User("hi".to_string())], &[]);
+    assert!(body.get("system").is_none(), "{body}");
+}
+
+fn assistant_calling(id: &str) -> Turn {
+    Turn::Assistant {
+        text: "looking".to_string(),
+        reasoning: String::new(),
+        tool_calls: vec![ToolUse {
+            id: id.to_string(),
+            name: "grep".to_string(),
+            arguments: json!({ "queries": ["fn main"] }),
+        }],
+    }
+}
+
+fn results_for(id: &str) -> Turn {
+    Turn::ToolResults(vec![ToolResult {
+        id: id.to_string(),
+        content: "src/main.rs: lines 1".to_string(),
+        is_error: false,
+    }])
+}
+
+/// Where each `cache_control` sits, as `(message index, block index)`.
+fn breakpoints(body: &Value) -> Vec<(usize, usize)> {
+    let mut found = Vec::new();
+    for (message_index, message) in body["messages"]
+        .as_array()
+        .expect("messages")
+        .iter()
+        .enumerate()
+    {
+        for (block_index, block) in message["content"]
+            .as_array()
+            .expect("content")
+            .iter()
+            .enumerate()
+        {
+            if block.get("cache_control").is_some() {
+                found.push((message_index, block_index));
+            }
+        }
+    }
+    found
+}
+
+#[test]
+fn the_two_newest_user_messages_are_cache_breakpoints() {
+    let turns = vec![
+        Turn::User("find main".to_string()),
+        assistant_calling("toolu_1"),
+        results_for("toolu_1"),
+        assistant_calling("toolu_2"),
+        results_for("toolu_2"),
+    ];
+    let body = build_body(&target(), &system("be helpful"), &turns, &[]);
+
+    assert_eq!(breakpoints(&body), vec![(2, 0), (4, 0)]);
+    // With the system prompt that makes three, under Anthropic's limit of four.
+    assert!(body["system"][0].get("cache_control").is_some());
+}
+
+#[test]
+fn a_single_user_message_is_the_only_message_breakpoint() {
+    let body = build_body(&target(), &system(""), &[Turn::User("hi".to_string())], &[]);
+    assert_eq!(breakpoints(&body), vec![(0, 0)]);
+}
+
+#[test]
+fn current_state_follows_the_newest_user_message_uncached() {
+    let prompt = Prompt {
+        system: "be helpful".to_string(),
+        current_state: "Current environment:\n- Working directory: /work\n".to_string(),
+    };
+
+    let body = build_body(&target(), &prompt, &[Turn::User("hi".to_string())], &[]);
+    let content = body["messages"][0]["content"].as_array().expect("content");
+    assert_eq!(content.len(), 2);
+    assert_eq!(content[0]["text"], "hi");
+    assert!(content[0].get("cache_control").is_some());
+    assert_eq!(content[1]["text"], prompt.current_state.as_str());
+    assert!(content[1].get("cache_control").is_none());
+
+    // After tool results it joins the same user message, behind the `tool_result` blocks.
+    let turns = vec![
+        Turn::User("find main".to_string()),
+        assistant_calling("toolu_1"),
+        results_for("toolu_1"),
+    ];
+    let body = build_body(&target(), &prompt, &turns, &[]);
+    let messages = body["messages"].as_array().expect("messages");
+    assert_eq!(messages.len(), 3);
+    let content = messages[2]["content"].as_array().expect("content");
+    assert_eq!(content[0]["type"], "tool_result");
+    assert!(content[0].get("cache_control").is_some());
+    assert_eq!(content[1]["text"], prompt.current_state.as_str());
+    assert!(content[1].get("cache_control").is_none());
+}
+
+#[test]
+fn current_state_after_the_agent_is_a_new_user_message() {
+    let prompt = Prompt {
+        system: String::new(),
+        current_state: "Current environment:\n".to_string(),
+    };
+    let turns = vec![
+        Turn::User("hi".to_string()),
+        Turn::Assistant {
+            text: "hello".to_string(),
+            reasoning: String::new(),
+            tool_calls: Vec::new(),
+        },
+    ];
+    let body = build_body(&target(), &prompt, &turns, &[]);
+    let messages = body["messages"].as_array().expect("messages");
+    assert_eq!(messages.len(), 3);
+    assert_eq!(messages[2]["role"], "user");
+    assert_eq!(messages[2]["content"][0]["text"], "Current environment:\n");
 }
 
 #[test]
@@ -44,7 +178,7 @@ fn tool_results_go_into_a_user_turn() {
         is_error: false,
     }])];
 
-    let body = build_body(&target(), "", &turns, &[]);
+    let body = build_body(&target(), &system(""), &turns, &[]);
     let message = &body["messages"][0];
     assert_eq!(message["role"], "user");
     assert_eq!(message["content"][0]["type"], "tool_result");
@@ -64,7 +198,7 @@ fn tool_arguments_stay_an_object() {
         }],
     }];
 
-    let body = build_body(&target(), "", &turns, &[]);
+    let body = build_body(&target(), &system(""), &turns, &[]);
     let content = &body["messages"][0]["content"];
     assert_eq!(content[0]["type"], "text");
     assert_eq!(content[1]["type"], "tool_use");
@@ -185,4 +319,68 @@ fn message_stop_does_not_end_the_reply_a_second_time() {
 fn a_broken_event_is_ignored() {
     assert!(parse_event("content_block_delta", "not json").is_empty());
     assert!(parse_event("content_block_start", r#"{"index":0}"#).is_empty());
+}
+
+#[test]
+fn empty_current_state_changes_nothing() {
+    let turns = [Turn::User("hi".to_string())];
+    let prompt = Prompt {
+        system: "be helpful".to_string(),
+        current_state: String::new(),
+    };
+    let body = build_body(&target(), &prompt, &turns, &[]);
+    assert_eq!(
+        body["messages"][0]["content"].as_array().map(Vec::len),
+        Some(1)
+    );
+}
+
+#[test]
+fn a_custom_endpoint_gets_no_cache_fields() {
+    let custom = ProviderTarget {
+        is_custom: true,
+        ..target()
+    };
+    let turns = vec![
+        Turn::User("find main".to_string()),
+        assistant_calling("toolu_1"),
+        results_for("toolu_1"),
+    ];
+    let body = build_body(&custom, &system("be helpful"), &turns, &[]);
+
+    assert_eq!(body["system"], "be helpful");
+    assert!(breakpoints(&body).is_empty(), "{body}");
+    assert!(!body.to_string().contains("cache_control"));
+}
+
+#[test]
+fn the_built_in_endpoint_gets_cache_fields() {
+    let body = build_body(
+        &target(),
+        &system("be helpful"),
+        &[Turn::User("hi".to_string())],
+        &[],
+    );
+
+    assert!(body["system"].is_array());
+    assert_eq!(breakpoints(&body), vec![(0, 0)]);
+}
+
+/// A request whose whole prompt came from the cache reports no uncached input at all.
+#[test]
+fn a_fully_cached_input_still_counts() {
+    let start = parse_event(
+        "message_start",
+        r#"{"message":{"usage":{"input_tokens":0,"cache_read_input_tokens":900,
+            "output_tokens":1}}}"#,
+    );
+    assert_eq!(
+        start,
+        vec![Delta::Usage(TokenUsage {
+            input: 900,
+            output: 1,
+            cache_read: 900,
+            cache_write: 0,
+        })]
+    );
 }

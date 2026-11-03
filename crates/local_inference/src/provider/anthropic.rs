@@ -15,6 +15,7 @@ use serde_json::{Value, json};
 
 use crate::config::ProviderTarget;
 use crate::convert::Turn;
+use crate::prompt::Prompt;
 use crate::provider::{Delta, StopReason, TokenUsage};
 use crate::tools::ToolSchema;
 
@@ -31,13 +32,36 @@ pub fn headers(target: &ProviderTarget) -> Vec<(&'static str, String)> {
     ]
 }
 
+/// Builds the request body, with prompt-cache breakpoints.
+///
+/// Anthropic caches a request prefix only up to a block marked with `cache_control`, at most four
+/// per request, and reads it back when a later request repeats that prefix exactly. The cache
+/// covers tools, then the system prompt, then the messages, so three marks are set:
+///
+/// - the system prompt, which caches the tools with it;
+/// - the last block of the newest user-role message, before the current state: what the next
+///   request will repeat;
+/// - the last block of the user-role message before that, which is where the previous request put
+///   its mark. A mark also finds a cached prefix up to 20 blocks back, but a turn with many
+///   parallel tool calls can be longer than that.
+///
+/// A prefix shorter than the model's minimum is not cached, and that is not an error. A custom
+/// endpoint gets no marks and a plain-string system prompt.
 pub fn build_body(
     target: &ProviderTarget,
-    system_prompt: &str,
+    prompt: &Prompt,
     turns: &[Turn],
     tools: &[ToolSchema],
 ) -> Value {
-    let messages = turns.iter().map(message_for).collect::<Vec<_>>();
+    // A custom endpoint that speaks this schema is often a proxy or another vendor's server,
+    // which may reject `cache_control` or a system prompt given as blocks, so it gets neither.
+    let caches = !target.is_custom;
+    let mut messages = turns.iter().map(message_for).collect::<Vec<_>>();
+    if caches {
+        mark_cache_breakpoints(&mut messages);
+    }
+    push_current_state(&mut messages, &prompt.current_state);
+
     let tools = tools
         .iter()
         .map(|tool| {
@@ -53,13 +77,61 @@ pub fn build_body(
         "model": target.model,
         "max_tokens": MAX_OUTPUT_TOKENS,
         "stream": true,
-        "system": system_prompt,
         "messages": messages,
     });
+    if !caches {
+        body["system"] = Value::String(prompt.system.clone());
+    } else if !prompt.system.is_empty() {
+        // An empty text block is rejected, so an empty system prompt is left out.
+        body["system"] = json!([{
+            "type": "text",
+            "text": prompt.system,
+            "cache_control": cache_control(),
+        }]);
+    }
     if !tools.is_empty() {
         body["tools"] = Value::Array(tools);
     }
     body
+}
+
+fn cache_control() -> Value {
+    json!({ "type": "ephemeral" })
+}
+
+/// Marks the last block of the two newest user-role messages. See [`build_body`].
+fn mark_cache_breakpoints(messages: &mut [Value]) {
+    for message in messages
+        .iter_mut()
+        .rev()
+        .filter(|message| message["role"] == "user")
+        .take(2)
+    {
+        if let Some(block) = message["content"]
+            .as_array_mut()
+            .and_then(|content| content.last_mut())
+        {
+            block["cache_control"] = cache_control();
+        }
+    }
+}
+
+/// Adds the current state as its own text block at the end of the last user-role message, or as
+/// a new user message when the conversation ends with the agent. Its own block keeps every block
+/// before it, and so the cached prefix, the same as in the next request.
+fn push_current_state(messages: &mut Vec<Value>, current_state: &str) {
+    if current_state.is_empty() {
+        return;
+    }
+    let block = json!({ "type": "text", "text": current_state });
+    match messages.last_mut() {
+        Some(last) if last["role"] == "user" => {
+            if let Some(content) = last["content"].as_array_mut() {
+                content.push(block);
+            }
+        }
+        _ => messages.push(json!({ "role": "user", "content": [block] })),
+    }
 }
 
 fn message_for(turn: &Turn) -> Value {
@@ -181,12 +253,9 @@ fn usage(usage: &Value) -> Option<TokenUsage> {
     let count = |key: &str| usage[key].as_u64().unwrap_or(0) as u32;
     let cache_read = count("cache_read_input_tokens");
     let cache_write = count("cache_creation_input_tokens");
-    let uncached_input = count("input_tokens");
-    let input = if uncached_input == 0 {
-        0
-    } else {
-        uncached_input + cache_read + cache_write
-    };
+    // A report that carries only the output count sums to zero here, which `TokenUsage::merge`
+    // reads as no input count rather than as zero input.
+    let input = count("input_tokens") + cache_read + cache_write;
     Some(TokenUsage {
         input,
         output: count("output_tokens"),

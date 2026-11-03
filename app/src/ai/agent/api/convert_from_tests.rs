@@ -173,3 +173,34 @@ fn transfer_control_tool_call_converts_to_action_message() {
         }
     }
 }
+
+/// A tool result that `local_inference` stores in the task during a live session is not drawn a
+/// second time: the exchange already shows the result the client produced.
+#[test]
+fn a_tool_call_result_has_no_client_representation() {
+    let task_id = TaskId::new("task-id".to_string());
+    let message = api::Message {
+        id: "result".to_string(),
+        task_id: "task-id".to_string(),
+        message: Some(api::message::Message::ToolCallResult(
+            api::message::ToolCallResult {
+                tool_call_id: "call-1".to_string(),
+                context: None,
+                result: Some(api::message::tool_call_result::Result::Cancel(())),
+            },
+        )),
+        ..Default::default()
+    };
+
+    let output = message
+        .to_client_output_message(ConversionParams {
+            task_id: &task_id,
+            active_code_review: None,
+        })
+        .expect("conversion should succeed");
+
+    assert!(matches!(
+        output,
+        MaybeAIAgentOutputMessage::NoClientRepresentation
+    ));
+}

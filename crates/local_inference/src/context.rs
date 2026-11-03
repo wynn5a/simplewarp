@@ -6,10 +6,13 @@
 //!
 //! Two kinds of text come out of here, and they go to different places:
 //!
-//! - [`environment`] describes where the agent is running: the working directory, OS, shell, git
-//!   state, project rules and available skills. The client sends it with every request, including
-//!   the ones that only return tool results, and it is not stored in the conversation history, so
-//!   it goes in the system prompt, where a replayed history gets it again.
+//! - [`environment`] and [`current_state`] describe where the agent is running. The client sends
+//!   that context with every request, including the ones that only return tool results, and it is
+//!   not stored in the conversation history, so every request carries it afresh. It is split by
+//!   how often it changes, because a provider caches a request by its prefix: [`environment`]
+//!   (OS, shell, project rules, skills) changes only with the user's setup and goes in the system
+//!   prompt; [`current_state`] (working directory, time, git state) changes from one request to
+//!   the next and goes after the newest turn, where a change costs nothing that was cached.
 //! - [`attachments`] is what the user attached to this one message: terminal blocks, files,
 //!   selected text and diffs. It follows the user's text in the same turn.
 
@@ -26,8 +29,8 @@ const MAX_ITEM_CHARS: usize = 60_000;
 /// The most characters of attachments that go to the model for one message.
 const MAX_TOTAL_CHARS: usize = 200_000;
 
-/// Describes the machine and the project, for the system prompt. Empty when the request carries
-/// no context.
+/// Describes the machine and the project, for the system prompt: the facts that stay the same
+/// across the requests of a conversation. Empty when the request carries no context.
 pub fn environment(context: Option<&api::InputContext>) -> String {
     let Some(context) = context else {
         return String::new();
@@ -35,13 +38,10 @@ pub fn environment(context: Option<&api::InputContext>) -> String {
     let mut out = String::new();
 
     let mut facts = Vec::new();
-    if let Some(directory) = &context.directory {
-        if !directory.pwd.is_empty() {
-            facts.push(format!("Working directory: {}", directory.pwd));
-        }
-        if !directory.home.is_empty() {
-            facts.push(format!("Home directory: {}", directory.home));
-        }
+    if let Some(directory) = &context.directory
+        && !directory.home.is_empty()
+    {
+        facts.push(format!("Home directory: {}", directory.home));
     }
     if let Some(os) = &context.operating_system {
         let mut line = os.platform.clone();
@@ -60,46 +60,6 @@ pub fn environment(context: Option<&api::InputContext>) -> String {
             let _ = write!(line, " {}", shell.version);
         }
         facts.push(format!("Shell: {line}"));
-    }
-    if let Some(time) = &context.current_time
-        && let Some(time) = DateTime::<Utc>::from_timestamp(time.seconds, 0)
-    {
-        facts.push(format!(
-            "Current time: {}",
-            time.format("%Y-%m-%d %H:%M UTC")
-        ));
-    }
-    if let Some(git) = &context.git {
-        if let Some(repository) = &git.repository
-            && !repository.name.is_empty()
-        {
-            let mut line = String::new();
-            if !repository.owner.is_empty() {
-                let _ = write!(line, "{}/", repository.owner);
-            }
-            line.push_str(&repository.name);
-            if !repository.host.is_empty() {
-                let _ = write!(line, " on {}", repository.host);
-            }
-            facts.push(format!("Git repository: {line}"));
-        }
-        if !git.branch.is_empty() {
-            facts.push(format!("Git branch: {}", git.branch));
-        } else if !git.head.is_empty() {
-            facts.push(format!("Git HEAD (detached): {}", git.head));
-        }
-        if let Some(pull_request) = &git.pull_request
-            && pull_request.number > 0
-        {
-            let mut line = format!("#{}", pull_request.number);
-            if !pull_request.base_branch.is_empty() {
-                let _ = write!(line, " into {}", pull_request.base_branch);
-            }
-            if !pull_request.url.is_empty() {
-                let _ = write!(line, " ({})", pull_request.url);
-            }
-            facts.push(format!("Pull request for this branch: {line}"));
-        }
     }
     for codebase in &context.codebases {
         if !codebase.path.is_empty() {
@@ -168,6 +128,67 @@ pub fn environment(context: Option<&api::InputContext>) -> String {
         }
     }
 
+    out
+}
+
+/// The facts that change from one request to the next: the working directory, the time and the
+/// git state, one `- ` line each. Empty when the request carries none.
+pub fn current_state(context: Option<&api::InputContext>) -> String {
+    let Some(context) = context else {
+        return String::new();
+    };
+
+    let mut facts = Vec::new();
+    if let Some(directory) = &context.directory
+        && !directory.pwd.is_empty()
+    {
+        facts.push(format!("Working directory: {}", directory.pwd));
+    }
+    if let Some(time) = &context.current_time
+        && let Some(time) = DateTime::<Utc>::from_timestamp(time.seconds, 0)
+    {
+        facts.push(format!(
+            "Current time: {}",
+            time.format("%Y-%m-%d %H:%M UTC")
+        ));
+    }
+    if let Some(git) = &context.git {
+        if let Some(repository) = &git.repository
+            && !repository.name.is_empty()
+        {
+            let mut line = String::new();
+            if !repository.owner.is_empty() {
+                let _ = write!(line, "{}/", repository.owner);
+            }
+            line.push_str(&repository.name);
+            if !repository.host.is_empty() {
+                let _ = write!(line, " on {}", repository.host);
+            }
+            facts.push(format!("Git repository: {line}"));
+        }
+        if !git.branch.is_empty() {
+            facts.push(format!("Git branch: {}", git.branch));
+        } else if !git.head.is_empty() {
+            facts.push(format!("Git HEAD (detached): {}", git.head));
+        }
+        if let Some(pull_request) = &git.pull_request
+            && pull_request.number > 0
+        {
+            let mut line = format!("#{}", pull_request.number);
+            if !pull_request.base_branch.is_empty() {
+                let _ = write!(line, " into {}", pull_request.base_branch);
+            }
+            if !pull_request.url.is_empty() {
+                let _ = write!(line, " ({})", pull_request.url);
+            }
+            facts.push(format!("Pull request for this branch: {line}"));
+        }
+    }
+
+    let mut out = String::new();
+    for fact in facts {
+        let _ = writeln!(out, "- {fact}");
+    }
     out
 }
 

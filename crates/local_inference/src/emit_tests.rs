@@ -735,3 +735,200 @@ fn a_call_to_an_mcp_tool_is_emitted_as_a_call_mcp_tool() {
     assert_eq!(mcp.name, "search");
     assert_eq!(mcp.server_id, "3f9c2a10-1b2c");
 }
+
+fn shell_result_input(id: &str, output: &str) -> api::request::input::ToolCallResult {
+    api::request::input::ToolCallResult {
+        tool_call_id: id.to_string(),
+        result: Some(
+            api::request::input::tool_call_result::Result::RunShellCommand(
+                api::RunShellCommandResult {
+                    result: Some(api::run_shell_command_result::Result::CommandFinished(
+                        api::ShellCommandFinished {
+                            output: output.to_string(),
+                            ..Default::default()
+                        },
+                    )),
+                    ..Default::default()
+                },
+            ),
+        ),
+    }
+}
+
+fn request_with_inputs(
+    task: api::Task,
+    inputs: Vec<api::request::input::user_inputs::user_input::Input>,
+) -> api::Request {
+    api::Request {
+        task_context: Some(api::request::TaskContext { tasks: vec![task] }),
+        input: Some(api::request::Input {
+            r#type: Some(api::request::input::Type::UserInputs(
+                api::request::input::UserInputs {
+                    inputs: inputs
+                        .into_iter()
+                        .map(|input| api::request::input::user_inputs::UserInput {
+                            input: Some(input),
+                        })
+                        .collect(),
+                },
+            )),
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
+}
+
+fn result_input(
+    result: api::request::input::ToolCallResult,
+) -> api::request::input::user_inputs::user_input::Input {
+    api::request::input::user_inputs::user_input::Input::ToolCallResult(result)
+}
+
+/// The ids of the stored tool results, or `?` followed by the text of a stored question.
+fn stored_inputs(events: &[api::ResponseEvent]) -> Vec<String> {
+    stored_messages(events)
+        .into_iter()
+        .filter_map(|message| match message {
+            api::message::Message::ToolCallResult(result) => Some(result.tool_call_id),
+            api::message::Message::UserQuery(query) => Some(format!("?{}", query.query)),
+            _ => None,
+        })
+        .collect()
+}
+
+fn task(id: &str) -> api::Task {
+    api::Task {
+        id: id.to_string(),
+        ..Default::default()
+    }
+}
+
+/// Without this a later request replays the calls with a placeholder in place of their results.
+#[test]
+fn tool_results_are_stored_in_input_order_before_the_reply() {
+    let request = request_with_inputs(
+        task("task-1"),
+        vec![
+            result_input(shell_result_input("call-2", "second")),
+            result_input(shell_result_input("call-1", "first")),
+        ],
+    );
+    let mut emitter = Emitter::new(&request);
+    let start = emitter.start();
+
+    let actions = actions_of(&start);
+    assert!(matches!(actions[0], Action::BeginTransaction(_)));
+    let Action::AddMessagesToTask(add) = &actions[1] else {
+        panic!("expected the results to be added, got {:?}", actions[1]);
+    };
+    assert_eq!(add.task_id, "task-1");
+    assert!(
+        add.messages
+            .iter()
+            .all(|message| message.task_id == "task-1")
+    );
+    assert_eq!(stored_inputs(&start), vec!["call-2", "call-1"]);
+
+    // The reply comes after, in its own message.
+    let reply = actions_of(&emitter.on_delta(Delta::Text("done".to_string())));
+    let Action::AddMessagesToTask(add_reply) = &reply[0] else {
+        panic!("expected the reply to be added");
+    };
+    assert!(matches!(
+        add_reply.messages[0].message,
+        Some(api::message::Message::AgentOutput(_))
+    ));
+}
+
+#[test]
+fn results_and_a_question_are_stored_in_input_order() {
+    let request = request_with_inputs(
+        task("task-1"),
+        vec![
+            result_input(shell_result_input("call-1", "first")),
+            api::request::input::user_inputs::user_input::Input::UserQuery(
+                api::request::input::UserQuery {
+                    query: "and now?".to_string(),
+                    ..Default::default()
+                },
+            ),
+        ],
+    );
+    let mut emitter = Emitter::new(&request);
+
+    assert_eq!(stored_inputs(&emitter.start()), vec!["call-1", "?and now?"]);
+}
+
+/// A request that failed after storing its results is retried with the same results.
+#[test]
+fn a_resent_result_is_not_stored_twice() {
+    let mut history = task("task-1");
+    history.messages.push(api::Message {
+        id: "stored".to_string(),
+        message: Some(api::message::Message::ToolCallResult(
+            crate::convert::stored_result(&shell_result_input("call-1", "first")),
+        )),
+        ..Default::default()
+    });
+    let request = request_with_inputs(
+        history,
+        vec![
+            result_input(shell_result_input("call-1", "first")),
+            result_input(shell_result_input("call-2", "second")),
+        ],
+    );
+    let mut emitter = Emitter::new(&request);
+
+    assert_eq!(stored_inputs(&emitter.start()), vec!["call-2"]);
+}
+
+#[test]
+fn a_result_without_an_id_is_not_stored() {
+    let request = request_with_inputs(
+        task("task-1"),
+        vec![result_input(shell_result_input("", "orphan"))],
+    );
+    let mut emitter = Emitter::new(&request);
+
+    assert!(stored_messages(&emitter.start()).is_empty());
+}
+
+#[test]
+fn a_stored_result_is_truncated() {
+    let long = "x".repeat(crate::convert::MAX_RESULT_CHARS * 2);
+    let request = request_with_inputs(
+        task("task-1"),
+        vec![result_input(shell_result_input("call-1", &long))],
+    );
+    let mut emitter = Emitter::new(&request);
+
+    let stored = stored_messages(&emitter.start());
+    let [api::message::Message::ToolCallResult(result)] = stored.as_slice() else {
+        panic!("expected one stored tool result, got {stored:?}");
+    };
+    let result = result.clone();
+    let Some(api::message::tool_call_result::Result::RunShellCommand(shell)) = result.result else {
+        panic!("expected a shell result");
+    };
+    let Some(api::run_shell_command_result::Result::CommandFinished(finished)) = shell.result
+    else {
+        panic!("expected a finished command");
+    };
+    assert!(finished.output.chars().count() <= crate::convert::MAX_RESULT_CHARS);
+}
+
+/// What the emitter stores is exactly the stored form that the model was shown this time, so a
+/// later replay shows the same text.
+#[test]
+fn the_stored_result_is_the_stored_form_of_the_input() {
+    let input = shell_result_input("call-1", &"x".repeat(crate::convert::MAX_RESULT_CHARS * 2));
+    let request = request_with_inputs(task("task-1"), vec![result_input(input.clone())]);
+    let mut emitter = Emitter::new(&request);
+
+    assert_eq!(
+        stored_messages(&emitter.start()),
+        vec![api::message::Message::ToolCallResult(
+            crate::convert::stored_result(&input)
+        )]
+    );
+}

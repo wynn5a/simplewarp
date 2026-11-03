@@ -117,6 +117,8 @@ memory 会进入以后每次请求的 system prompt，写错的代价比一次�
 
 ### P0 历史保真和缓存（规模：S–M）
 
+实现规格：[`native-agent-harness/p0-history-fidelity.md`](native-agent-harness/p0-history-fidelity.md)。
+
 1. **回传工具结果。** `Emitter::start`（`crates/local_inference/src/emit.rs:139` 附近）现在只回传用户
    问题。改成同时把 `Request::input` 里的每个工具结果以 `Message::ToolCallResult` 写进 task，位置在
    本轮回复之前，和用户问题的回传方式相同。

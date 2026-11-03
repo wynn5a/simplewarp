@@ -8,6 +8,7 @@ use serde_json::Value;
 
 use crate::config::{ProviderTarget, Schema};
 use crate::convert::Turn;
+use crate::prompt::Prompt;
 use crate::tools::ToolSchema;
 
 pub mod anthropic;
@@ -80,16 +81,14 @@ pub enum StopReason {
 /// Builds the JSON body for a request.
 pub fn build_body(
     target: &ProviderTarget,
-    system_prompt: &str,
+    prompt: &Prompt,
     turns: &[Turn],
     tools: &[ToolSchema],
 ) -> Value {
     match target.schema {
-        Schema::AnthropicMessages => anthropic::build_body(target, system_prompt, turns, tools),
-        Schema::OpenaiChatCompletions => openai::build_body(target, system_prompt, turns, tools),
-        Schema::OpenaiResponses => {
-            openai_responses::build_body(target, system_prompt, turns, tools)
-        }
+        Schema::AnthropicMessages => anthropic::build_body(target, prompt, turns, tools),
+        Schema::OpenaiChatCompletions => openai::build_body(target, prompt, turns, tools),
+        Schema::OpenaiResponses => openai_responses::build_body(target, prompt, turns, tools),
     }
 }
 

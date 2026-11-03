@@ -1520,3 +1520,96 @@ fn test_into_exchanges_drops_passive_code_diff_exchanges() {
         [AIAgentInput::UserQuery { query, .. }] if query == "real question"
     ));
 }
+
+/// `local_inference` stores each tool result that a request carries, with no `request_id`, right
+/// after the call it answers. A restore must show it as one action result, not as a cancellation.
+#[test]
+fn test_into_exchanges_restores_an_echoed_tool_result_once() {
+    use crate::ai::agent::{AIAgentActionId, AIAgentOutputStatus, FinishedAIAgentOutput};
+
+    let task = api::Task {
+        id: "task1".to_string(),
+        messages: vec![
+            restored_message(
+                "query",
+                "",
+                api::message::Message::UserQuery(api::message::UserQuery {
+                    query: "list the crates".to_string(),
+                    ..Default::default()
+                }),
+            ),
+            restored_message(
+                "call",
+                "",
+                api::message::Message::ToolCall(api::message::ToolCall {
+                    tool_call_id: "call-1".to_string(),
+                    tool: Some(api::message::tool_call::Tool::RunShellCommand(
+                        api::message::tool_call::RunShellCommand {
+                            command: "ls crates".to_string(),
+                            ..Default::default()
+                        },
+                    )),
+                }),
+            ),
+            restored_message(
+                "result",
+                "",
+                api::message::Message::ToolCallResult(api::message::ToolCallResult {
+                    tool_call_id: "call-1".to_string(),
+                    context: None,
+                    result: Some(api::message::tool_call_result::Result::RunShellCommand(
+                        api::RunShellCommandResult {
+                            command: "ls crates".to_string(),
+                            result: Some(api::run_shell_command_result::Result::CommandFinished(
+                                api::ShellCommandFinished {
+                                    command_id: "block-1".to_string(),
+                                    output: "ai\nwarpui".to_string(),
+                                    ..Default::default()
+                                },
+                            )),
+                            ..Default::default()
+                        },
+                    )),
+                }),
+            ),
+            restored_message(
+                "reply",
+                "",
+                api::message::Message::AgentOutput(api::message::AgentOutput {
+                    text: "Two crates.".to_string(),
+                }),
+            ),
+        ],
+        dependencies: None,
+        description: "".to_string(),
+        summary: "".to_string(),
+        server_data: "".to_string(),
+    };
+
+    let exchanges = task.into_exchanges();
+    assert_eq!(exchanges.len(), 1);
+    let exchange = &exchanges[0];
+
+    let call_id = AIAgentActionId::from("call-1".to_string());
+    let action_results = exchange
+        .input
+        .iter()
+        .filter_map(AIAgentInput::action_result)
+        .filter(|result| result.id == call_id)
+        .count();
+    assert_eq!(action_results, 1);
+    assert_eq!(
+        exchange
+            .input
+            .iter()
+            .filter(|input| matches!(input, AIAgentInput::UserQuery { .. }))
+            .count(),
+        1
+    );
+    assert!(matches!(
+        exchange.output_status,
+        AIAgentOutputStatus::Finished {
+            finished_output: FinishedAIAgentOutput::Success { .. }
+        }
+    ));
+}

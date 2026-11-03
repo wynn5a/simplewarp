@@ -1,4 +1,5 @@
-//! The system prompt for the local agent.
+//! The prompt for the local agent: the system prompt, and the current state that follows the
+//! newest turn.
 //!
 //! Warp's server owned this text, so a local build must carry its own. The prompt has to do two
 //! jobs that the server used to do: tell the model what the tools mean, and tell it how the
@@ -12,20 +13,50 @@
 //! - The client refuses to start a command while another is still running, so the prompt points
 //!   at `read_shell_command_output` instead of `sleep`.
 
+use crate::context;
 use crate::mcp::McpCatalog;
 
-/// The system prompt for one request: the fixed text, then what the client says about the
-/// machine and the project (see [`crate::context::environment`]).
-pub fn system_prompt(request: &warp_multi_agent_api::Request) -> String {
-    let context = request
-        .input
-        .as_ref()
-        .and_then(|input| input.context.as_ref());
-    let mut prompt = SYSTEM_PROMPT.to_string();
-    prompt.push_str(&crate::context::environment(context));
-    prompt.push_str(&McpCatalog::from_request(request).prompt_section());
-    prompt
+/// What a request tells the model besides the conversation itself.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Prompt {
+    /// The system prompt: the fixed text, then what the client says about the machine and the
+    /// project (see [`context::environment`]) and the MCP servers. It stays the same across the
+    /// requests of a conversation, so a provider can cache it with the conversation prefix.
+    pub system: String,
+    /// What is true at the moment of this request (see [`context::current_state`]), or empty.
+    /// Each provider puts it after the newest turn and it is never stored, so a change to it does
+    /// not touch the cached prefix.
+    pub current_state: String,
 }
+
+impl Prompt {
+    pub fn for_request(request: &warp_multi_agent_api::Request) -> Self {
+        let context = request
+            .input
+            .as_ref()
+            .and_then(|input| input.context.as_ref());
+
+        let mut system = SYSTEM_PROMPT.to_string();
+        system.push_str(&context::environment(context));
+        system.push_str(&McpCatalog::from_request(request).prompt_section());
+
+        let facts = context::current_state(context);
+        let current_state = if facts.is_empty() {
+            String::new()
+        } else {
+            format!("{CURRENT_STATE_INTRO}\n{facts}")
+        };
+
+        Self {
+            system,
+            current_state,
+        }
+    }
+}
+
+/// Introduces the current state, which arrives in a user turn but is not from the user.
+const CURRENT_STATE_INTRO: &str = "Current environment (attached by the client to this request; \
+it is not part of the user's message, and earlier messages do not carry it):";
 
 /// The fixed part of the system prompt.
 pub const SYSTEM_PROMPT: &str = "\
