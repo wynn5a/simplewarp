@@ -2105,6 +2105,15 @@ getters. Kept: `all_linearized_messages` and `AIFactView::current_page` (used by
 test). Format, three clippy runs, `-p warp` lib tests 3,734/3,734, `integration_tests` feature and
 the integration crate compile.
 
+### Decision: a native pi-like harness, not pi itself (2026-11-03)
+
+User ruling: grow agent mode into a pi-like harness (history fidelity, prompt caching, context
+accounting, auto-compaction, agent-written memory, steering, auto-retry) natively in Rust, rather
+than run pi over its RPC mode. pi executes its own tools and has no client-side-execution or
+tool-approval protocol, so driving it would lose PTY command blocks and diff approvals, and add a
+second provider config, a second session store and a Node runtime. Plan:
+[../specs/plans/native-agent-harness.md](../specs/plans/native-agent-harness.md).
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the
