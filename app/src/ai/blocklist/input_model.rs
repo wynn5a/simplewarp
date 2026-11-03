@@ -568,6 +568,12 @@ impl BlocklistAIInputModel {
                     let classification =
                         classifier.detect_input_type(input.clone(), &context).await;
 
+                    log::debug!(
+                        "[Input autodetection] input_type={:?} source={:?}",
+                        classification.input_type,
+                        classification.source,
+                    );
+
                     futures_lite::future::yield_now().await;
                     classification.input_type
                 },
