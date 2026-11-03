@@ -503,6 +503,13 @@ message Request {
     // `runner_id` for orchestrated child agents.
     bool supports_orchestration_runners = 31;
 
+    // If `true`, the client sends this request again when it fails before the
+    // reply starts, in a way that a later identical request can succeed (a rate
+    // limit, an overloaded provider, a dropped connection). Nothing about such a
+    // failure is reported but the error, so the retry does not store the
+    // request's inputs a second time. (SimpleWarp local change.)
+    bool will_retry_failures_before_reply = 32;
+
     // The model IDs provided in the model config can either be a warp-hosted
     // model ID (e.g. "gemini-2.5-pro") or the `config_key` for a model provided
     // in `custom_model_providers`.

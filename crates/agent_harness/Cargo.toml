@@ -5,6 +5,6 @@ edition = "2024"
 authors.workspace = true
 publish.workspace = true
 license.workspace = true
-description = "Pure agent-loop policy for SimpleWarp's agent mode: context budgets and, later, compaction, steering and retries"
+description = "Pure agent-loop policy for SimpleWarp's agent mode: context budgets, compaction, steering and retries"
 
 [dependencies]

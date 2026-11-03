@@ -4,10 +4,14 @@ use std::sync::Arc;
 use ai::agent::action_result::{AnyFileContent, FileContext, ReadFilesResult};
 use warp_multi_agent_api as api;
 
-use super::{add_memories, convert_local_inference_error, estimate_input_tokens};
+use super::{
+    add_memories, convert_local_inference_error, convert_local_inference_failure,
+    estimate_input_tokens,
+};
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
-    AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment, AIAgentInput, UserQueryMode,
+    AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment, AIAgentInput,
+    RenderableAIError, UserQueryMode,
 };
 use crate::ai::agent_memory::{AGENT_MEMORY_TITLE, ProjectMemories, RequestMemories, RuleText};
 use crate::server::server_api::AIApiError;
@@ -193,4 +197,49 @@ fn a_numeric_429_inside_the_stream_maps_to_a_429() {
         panic!("expected an HTTP status error, got {error:?}");
     };
     assert_eq!(*status, http::StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[test]
+fn local_failures_carry_the_retry_facts() {
+    let overloaded = convert_local_inference_failure(
+        local_inference::Error::ProviderStatus {
+            status: 503,
+            body: String::new(),
+            retry_after: Some(std::time::Duration::from_secs(2)),
+        },
+        /*before_reply*/ true,
+    );
+    let AIApiError::Provider { error, failure } = overloaded.as_ref() else {
+        panic!("expected a provider failure, got {overloaded:?}");
+    };
+    assert!(failure.before_reply && failure.retryable);
+    assert_eq!(failure.retry_after, Some(std::time::Duration::from_secs(2)));
+    assert!(matches!(
+        error.as_ref(),
+        AIApiError::ErrorStatus(http::StatusCode::SERVICE_UNAVAILABLE, _)
+    ));
+
+    let no_key = convert_local_inference_failure(
+        local_inference::Error::NoApiKey {
+            model: "m".to_string(),
+        },
+        /*before_reply*/ true,
+    );
+    let AIApiError::Provider { failure, .. } = no_key.as_ref() else {
+        panic!("expected a provider failure, got {no_key:?}");
+    };
+    assert!(!failure.retryable);
+
+    let rate_limit = convert_local_inference_failure(
+        local_inference::Error::ProviderStatus {
+            status: 429,
+            body: String::new(),
+            retry_after: None,
+        },
+        /*before_reply*/ true,
+    );
+    assert!(matches!(
+        RenderableAIError::from(&rate_limit),
+        RenderableAIError::QuotaLimit { .. }
+    ));
 }

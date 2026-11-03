@@ -302,20 +302,21 @@ fn push_input(turns: &mut Vec<Turn>, input: &api::request::Input, answered: &Has
     use api::request::input::user_inputs::user_input::Input as UserInput;
 
     match input.r#type.as_ref() {
+        // Tool results go first, right after the calls they answer, as both providers require; a
+        // question sent with them (a steer) follows, whatever order the request listed them in.
         Some(Type::UserInputs(inputs)) => {
+            for entry in &inputs.inputs {
+                if let Some(UserInput::ToolCallResult(result)) = entry.input.as_ref()
+                    && !answered.contains(&result.tool_call_id)
+                {
+                    push_rendered(turns, render_input_result(result));
+                }
+            }
             let mut has_query = false;
             for entry in &inputs.inputs {
-                match entry.input.as_ref() {
-                    Some(UserInput::UserQuery(query)) => {
-                        push_query(turns, query);
-                        has_query = true;
-                    }
-                    Some(UserInput::ToolCallResult(result)) => {
-                        if !answered.contains(&result.tool_call_id) {
-                            push_rendered(turns, render_input_result(result));
-                        }
-                    }
-                    _ => {}
+                if let Some(UserInput::UserQuery(query)) = entry.input.as_ref() {
+                    push_query(turns, query);
+                    has_query = true;
                 }
             }
             // What the user attached to the request belongs with their message, not with a

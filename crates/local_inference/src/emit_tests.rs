@@ -42,17 +42,21 @@ fn the_reply_opens_with_init_and_a_transaction() {
     ));
 }
 
+/// The task is created before the transaction opens, so rolling back a failed attempt keeps it.
 #[test]
-fn a_request_with_no_task_creates_one() {
+fn a_request_with_no_task_creates_one_outside_the_transaction() {
     let mut emitter = Emitter::new(&api::Request::default());
     let events = emitter.start();
 
-    let actions = actions_of(&events);
-    assert!(matches!(actions[0], Action::BeginTransaction(_)));
-    let Action::CreateTask(create) = &actions[1] else {
-        panic!("expected a CreateTask, got {:?}", actions[1]);
+    let create_event = actions_of(&events[1..2]);
+    let [Action::CreateTask(create)] = create_event.as_slice() else {
+        panic!("expected a CreateTask on its own, got {create_event:?}");
     };
     assert!(!create.task.as_ref().expect("a task").id.is_empty());
+    assert!(matches!(
+        actions_of(&events[2..])[0],
+        Action::BeginTransaction(_)
+    ));
 }
 
 #[test]
@@ -1286,4 +1290,42 @@ fn a_summary_that_stopped_for_another_reason_is_rolled_back() {
             "The model did not finish the summary.",
         );
     }
+}
+
+#[test]
+fn results_are_stored_before_the_question() {
+    use api::request::input::user_inputs::UserInput;
+    use api::request::input::user_inputs::user_input::Input;
+
+    let request = request_with_input_type(
+        "task-1",
+        api::request::input::Type::UserInputs(api::request::input::UserInputs {
+            inputs: vec![
+                UserInput {
+                    input: Some(Input::UserQuery(api::request::input::UserQuery {
+                        query: "use snake_case".to_string(),
+                        ..Default::default()
+                    })),
+                },
+                UserInput {
+                    input: Some(Input::ToolCallResult(api::request::input::ToolCallResult {
+                        tool_call_id: "call-1".to_string(),
+                        ..Default::default()
+                    })),
+                },
+            ],
+        }),
+    );
+
+    let stored = stored_messages(&Emitter::new(&request).start());
+    assert!(
+        matches!(
+            stored.as_slice(),
+            [
+                api::message::Message::ToolCallResult(_),
+                api::message::Message::UserQuery(_)
+            ]
+        ),
+        "{stored:?}"
+    );
 }

@@ -409,6 +409,9 @@ impl QueuedPromptsPanelView {
                 conversation_id, ..
             }
             | QueuedQueryEvent::RowUnlocked { conversation_id }
+            | QueuedQueryEvent::TextChanged {
+                conversation_id, ..
+            }
             | QueuedQueryEvent::Reordered { conversation_id }
             | QueuedQueryEvent::EditEntered {
                 conversation_id, ..
@@ -457,18 +460,10 @@ impl QueuedPromptsPanelView {
                 self.edit_editor.update(ctx, |editor, ctx| {
                     editor.clear_buffer(ctx);
                 });
-
-                // The row's text changed, so refresh its cached preview.
-                let row = QueuedQueryModel::as_ref(ctx)
-                    .queue(active_conv_id)
-                    .iter()
-                    .find(|row| row.id() == *query_id);
-                if let (Some(row), Some(state)) = (row, self.row_states.get_mut(query_id)) {
-                    state.preview_text = truncate_from_end(
-                        &row.text().lines().collect::<Vec<_>>().join(" "),
-                        PROMPT_PREVIEW_MAX_CHARS,
-                    );
-                }
+                self.refresh_preview(active_conv_id, *query_id, ctx);
+            }
+            QueuedQueryEvent::TextChanged { query_id, .. } => {
+                self.refresh_preview(active_conv_id, *query_id, ctx);
             }
             QueuedQueryEvent::EditCancelled { .. } => {
                 self.edit_editor.update(ctx, |editor, ctx| {
@@ -504,6 +499,25 @@ impl QueuedPromptsPanelView {
             | QueuedQueryEvent::DefaultModeChanged => {}
         }
         ctx.notify();
+    }
+
+    /// Refreshes the cached preview of a row whose text changed.
+    fn refresh_preview(
+        &mut self,
+        conversation_id: AIConversationId,
+        query_id: QueuedQueryId,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let row = QueuedQueryModel::as_ref(ctx)
+            .queue(conversation_id)
+            .iter()
+            .find(|row| row.id() == query_id);
+        if let (Some(row), Some(state)) = (row, self.row_states.get_mut(&query_id)) {
+            state.preview_text = truncate_from_end(
+                &row.text().lines().collect::<Vec<_>>().join(" "),
+                PROMPT_PREVIEW_MAX_CHARS,
+            );
+        }
     }
 
     fn handle_edit_editor_event(&mut self, event: &EditorEvent, ctx: &mut ViewContext<Self>) {

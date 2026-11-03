@@ -1923,6 +1923,7 @@ impl Workspace {
             | AISettingsChangedEvent::PromptSubmissionMode
             | AISettingsChangedEvent::AutoApproveBypassesCommandDenylist
             | AISettingsChangedEvent::AutoCompactionEnabled
+            | AISettingsChangedEvent::AutoRetryEnabled
             | AISettingsChangedEvent::AgentMemoryAutoApprove => {
                 ctx.notify();
             }
@@ -14965,6 +14966,10 @@ impl Workspace {
             context.set.insert(flags::AUTO_COMPACTION_ENABLED_FLAG);
         }
 
+        if *ai_settings.auto_retry_enabled.value() {
+            context.set.insert(flags::AUTO_RETRY_ENABLED_FLAG);
+        }
+
         if *ai_settings.auto_approve_bypasses_command_denylist.value() {
             context
                 .set
@@ -15005,6 +15010,9 @@ impl Workspace {
         }
 
         match ai_settings.default_prompt_submission_mode {
+            crate::settings::PromptSubmissionMode::Steer => {
+                context.set.insert(flags::PROMPT_SUBMISSION_STEER);
+            }
             crate::settings::PromptSubmissionMode::Interrupt => {
                 context.set.insert(flags::PROMPT_SUBMISSION_INTERRUPT);
             }

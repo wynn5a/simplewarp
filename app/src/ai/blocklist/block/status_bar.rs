@@ -43,8 +43,9 @@ use crate::ai::blocklist::summarization_cancel_dialog::{
 };
 use crate::ai::blocklist::{
     BlocklistAIActionEvent, BlocklistAIActionModel, BlocklistAIContextEvent,
-    BlocklistAIContextModel, BlocklistAIController, BlocklistAIHistoryEvent, BlocklistAIInputEvent,
-    BlocklistAIInputModel, QueuedQueryEvent, QueuedQueryModel, ResponseStreamId,
+    BlocklistAIContextModel, BlocklistAIController, BlocklistAIControllerEvent,
+    BlocklistAIHistoryEvent, BlocklistAIInputEvent, BlocklistAIInputModel, QueuedQueryEvent,
+    QueuedQueryModel, ResponseStreamId,
 };
 use crate::ai::llms::LLMPreferences;
 use crate::settings::{InputModeSettings, InputSettings};
@@ -193,6 +194,11 @@ impl BlocklistAIStatusBar {
                 }
                 BlocklistAIHistoryEvent::UpdatedAutoexecuteOverride { .. } => ctx.notify(),
                 _ => (),
+            }
+        });
+        ctx.subscribe_to_model(&controller, |_, _, event, ctx| {
+            if matches!(event, BlocklistAIControllerEvent::RetryStatusChanged { .. }) {
+                ctx.notify();
             }
         });
         ctx.subscribe_to_model(&context_model, |_, _, event, ctx| {
@@ -750,11 +756,20 @@ impl BlocklistAIStatusBar {
             model.as_ref(),
             app,
         );
-        let default_warping_text = fallback_warping_text
-            .as_deref()
-            .unwrap_or(LOAD_OUTPUT_MESSAGE)
-            .to_owned();
-        let secondary_element = if fallback_warping_text.is_some() {
+        let retry_text = self
+            .controller
+            .as_ref(app)
+            .pending_retry(conversation.id())
+            .map(|notice| format!("Retrying ({}/{})…", notice.retry, notice.max_retries));
+        let is_retrying = retry_text.is_some();
+        let default_warping_text = retry_text.unwrap_or_else(|| {
+            fallback_warping_text
+                .as_deref()
+                .unwrap_or(LOAD_OUTPUT_MESSAGE)
+                .to_owned()
+        });
+        // While retrying, the fallback model's explanation no longer describes what is happening.
+        let secondary_element = if fallback_warping_text.is_some() && !is_retrying {
             Some(render_fallback_explanation(model.as_ref(), app))
         } else {
             self.render_tip(app)

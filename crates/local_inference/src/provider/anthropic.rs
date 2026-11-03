@@ -241,6 +241,17 @@ pub fn parse_event(event_name: &str, data: &str) -> Vec<Delta> {
             }
             deltas
         }
+        // A failure after the stream opened, such as `overloaded_error`.
+        "error" => {
+            let error = &value["error"];
+            vec![Delta::Error {
+                code: error["type"].as_str().unwrap_or_default().to_string(),
+                message: error["message"]
+                    .as_str()
+                    .unwrap_or("the reply failed without an error message")
+                    .to_string(),
+            }]
+        }
         // `message_stop` closes the stream, but `message_delta` already carried the reason.
         // Emitting a second stop here would end the reply twice.
         _ => Vec::new(),

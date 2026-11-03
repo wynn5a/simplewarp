@@ -9,7 +9,7 @@ use super::convert_to::convert_input;
 use super::{ConvertToAPITypeError, RequestParams, ResponseStream};
 use crate::ai::agent::{AIAgentInput, redaction};
 use crate::ai::agent_memory::{RequestMemories, RuleText};
-use crate::server::server_api::AIApiError;
+use crate::server::server_api::{AIApiError, ProviderFailure};
 use crate::terminal::model::session::SessionType;
 
 pub async fn generate_multi_agent_output(
@@ -84,6 +84,7 @@ pub async fn generate_multi_agent_output(
             supports_v4a_file_diffs: true,
             supports_bundled_skills: true,
             custom_model_providers: params.custom_model_providers,
+            will_retry_failures_before_reply: params.will_retry_failures_before_reply,
             ..Default::default()
         }),
         metadata: Some(api::request::Metadata {
@@ -120,7 +121,10 @@ pub async fn generate_multi_agent_output(
                 .then(|result| async {
                     match result {
                         Ok(event) => Ok(event),
-                        Err(error) => Err(convert_local_inference_error(error)),
+                        Err(local_inference::Failure {
+                            error,
+                            before_reply,
+                        }) => Err(convert_local_inference_failure(error, before_reply)),
                     }
                 })
                 .take_until(cancellation_rx);
@@ -128,7 +132,11 @@ pub async fn generate_multi_agent_output(
         }
         Err(error) => {
             let (tx, rx) = async_channel::unbounded();
-            let _ = tx.send(Err(convert_local_inference_error(error))).await;
+            let _ = tx
+                .send(Err(convert_local_inference_failure(
+                    error, /*before_reply*/ true,
+                )))
+                .await;
             Ok(Box::pin(rx))
         }
     }
@@ -196,6 +204,23 @@ fn rule_files(rules: &[RuleText]) -> Vec<api::FileContent> {
         .collect()
 }
 
+/// Maps a failed local-inference request onto [`AIApiError::Provider`]: the error the AI UI
+/// already renders, with the facts that decide whether the request is sent again.
+fn convert_local_inference_failure(
+    error: local_inference::Error,
+    before_reply: bool,
+) -> Arc<AIApiError> {
+    let failure = ProviderFailure {
+        before_reply,
+        retryable: error.is_retryable(),
+        retry_after: error.retry_after(),
+    };
+    Arc::new(AIApiError::Provider {
+        error: convert_local_inference_error(error),
+        failure,
+    })
+}
+
 /// Maps a local-inference failure onto the error type that the AI UI already renders.
 ///
 /// A missing key and a rejected key are the two failures a user can fix themselves, so they keep
@@ -207,12 +232,12 @@ fn convert_local_inference_error(error: local_inference::Error) -> Arc<AIApiErro
         LocalError::NoApiKey { ref model } => AIApiError::Other(anyhow::anyhow!(
             "No API key is set for model `{model}`. Add one in Settings > AI."
         )),
-        LocalError::ProviderStatus { status, ref body } => {
-            match http::StatusCode::from_u16(status) {
-                Ok(status) => AIApiError::ErrorStatus(status, body.clone()),
-                Err(_) => AIApiError::Other(anyhow::anyhow!("{error}")),
-            }
-        }
+        LocalError::ProviderStatus {
+            status, ref body, ..
+        } => match http::StatusCode::from_u16(status) {
+            Ok(status) => AIApiError::ErrorStatus(status, body.clone()),
+            Err(_) => AIApiError::Other(anyhow::anyhow!("{error}")),
+        },
         // A rate limit reported inside the stream is the same limit as an HTTP 429, so it takes
         // the quota path. The body mirrors a provider error body so its message is shown.
         LocalError::ProviderStream {

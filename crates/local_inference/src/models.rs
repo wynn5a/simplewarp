@@ -92,6 +92,7 @@ pub async fn list_models(provider: Provider, api_key: &str) -> Result<Vec<Provid
         return Err(Error::ProviderStatus {
             status: status.as_u16(),
             body,
+            retry_after: None,
         });
     }
 

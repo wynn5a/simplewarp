@@ -18,8 +18,13 @@ window = the model's window capped by the execution profile's limit, and the com
 how much to keep verbatim, the cut that keeps about `keep_recent_tokens` at a user or assistant
 entry and never between a tool call and its results (and marks a turn split inside), the
 read/modified file lists, the labelled transcript with tool results cut to 2,000 characters, and the
-fixed-structure summary prompts, initial and incremental). Steering merges and retry policy join it
-in later phases of `specs/plans/native-agent-harness.md`.
+fixed-structure summary prompts, initial and incremental), steering (`steering`, pi's `steer`: a
+prompt submitted while the agent works goes ahead of the queued prompts, merged into a steer
+already there unless the user is editing it, and a step whose tool results are all the root task's
+takes every steer not being edited, merged in order) and retries (`retry`: a 408, 429 that is not
+an exhausted quota, or 5xx other than 501/505, an overloaded or rate-limited stream, or a dropped
+connection is worth retrying; `retry-after-ms`/`retry-after` in seconds, honoured up to 60 s and
+not retried beyond it (an unrepresentable value counts as none); 2/4/8 s backoff otherwise; at most 3 retries).
 
 ## Boundary
 

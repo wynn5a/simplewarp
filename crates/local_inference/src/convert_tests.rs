@@ -1706,3 +1706,40 @@ fn a_remember_result_is_stored_as_sent() {
     };
     assert_eq!(remember, sent);
 }
+
+#[test]
+fn a_steer_after_tool_results_follows_them() {
+    use api::request::input::user_inputs::UserInput;
+    use api::request::input::user_inputs::user_input::Input;
+
+    let mut request = request_with_messages(vec![user_message("go"), shell_call("call-1", "ls")]);
+    request.input = Some(api::request::Input {
+        context: None,
+        r#type: Some(api::request::input::Type::UserInputs(
+            api::request::input::UserInputs {
+                inputs: vec![
+                    UserInput {
+                        input: Some(Input::UserQuery(api::request::input::UserQuery {
+                            query: "use snake_case".to_string(),
+                            ..Default::default()
+                        })),
+                    },
+                    UserInput {
+                        input: Some(Input::ToolCallResult(input_result(
+                            api::request::input::tool_call_result::Result::RunShellCommand(
+                                Default::default(),
+                            ),
+                        ))),
+                    },
+                ],
+            },
+        )),
+    });
+
+    let turns = turns_from_request(&request);
+    let [.., Turn::ToolResults(results), Turn::User(steer)] = turns.as_slice() else {
+        panic!("expected the results then the steer: {turns:?}");
+    };
+    assert_eq!(results[0].id, "call-1");
+    assert_eq!(steer, "use snake_case");
+}

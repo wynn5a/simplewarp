@@ -1,27 +1,28 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::Duration;
 
+use agent_harness::retry::{self, Decision, MAX_RETRIES};
 use futures::channel::oneshot;
 use uuid::Uuid;
 use warp_errors::report_error;
+use warpui::r#async::Timer;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::ai::agent::CancellationReason;
 use crate::ai::agent::api::{self, ConvertToAPITypeError, generate_multi_agent_output};
 use crate::ai::agent::conversation::AIConversationId;
+use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::network::NetworkStatus;
 use crate::server::server_api::AIApiError;
+use crate::settings::AISettings;
 
-/// Maximum number of times a single MAA request is re-sent before the failure is
-/// surfaced.
-const MAX_RETRIES: usize = 3;
-
-/// What to do about a failed or truncated MAA response attempt.
+/// What to do about a failed or truncated response attempt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RecoveryAction {
-    /// Re-send the same request immediately.
-    RetryNow,
+    /// Re-send the same request after the wait.
+    RetryAfter(Duration),
     /// Re-send the same request once connectivity returns.
     RetryWhenOnline,
     /// Resume the conversation with a fresh request after the stream completes.
@@ -30,29 +31,76 @@ enum RecoveryAction {
     Fail,
 }
 
+/// What a failed attempt says about recovering from it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct AttemptFailure {
+    /// No part of the reply had reached the client.
+    before_reply: bool,
+    /// The retry policy would send the same request again.
+    retryable: bool,
+    retry_after: Option<Duration>,
+    /// A fresh request (a resume) may succeed.
+    is_recoverable: bool,
+}
+
+impl AttemptFailure {
+    /// A provider failure reports what it knows; for any other error, an attempt that had received
+    /// no client actions failed before the reply.
+    fn of(error: &AIApiError, has_received_client_actions: bool) -> Self {
+        match error {
+            AIApiError::Provider { error, failure } => Self {
+                before_reply: failure.before_reply,
+                retryable: failure.retryable,
+                retry_after: failure.retry_after,
+                is_recoverable: error.is_recoverable(),
+            },
+            other => Self {
+                before_reply: !has_received_client_actions,
+                retryable: other.is_recoverable(),
+                retry_after: None,
+                is_recoverable: other.is_recoverable(),
+            },
+        }
+    }
+}
+
 /// Decides how to recover from a failed response-stream attempt.
 ///
-/// Before any client actions have been received, the request can be re-sent verbatim
-/// (immediately, or once connectivity returns). After actions have streamed,
-/// re-sending is unsafe, so recovery uses a fresh `ResumeConversation` request.
+/// Before any of the reply has arrived, the request can be re-sent verbatim, as the retry policy
+/// allows: `may_retry` is whether it allowed a retry when this attempt was sent. After part of the
+/// reply has arrived, re-sending would duplicate it, so recovery uses a fresh
+/// `ResumeConversation` request.
 fn recovery_action(
-    has_received_client_actions: bool,
-    is_recoverable: bool,
-    has_retry_budget: bool,
+    failure: AttemptFailure,
+    may_retry: bool,
+    retries_done: u32,
     can_attempt_resume_on_error: bool,
     is_online: bool,
 ) -> RecoveryAction {
-    if !has_received_client_actions && is_recoverable && has_retry_budget {
-        if is_online {
-            RecoveryAction::RetryNow
-        } else {
-            RecoveryAction::RetryWhenOnline
+    if failure.before_reply {
+        match retry::decide(
+            may_retry,
+            retries_done,
+            failure.retryable,
+            failure.retry_after,
+        ) {
+            Decision::Retry { delay, .. } if is_online => RecoveryAction::RetryAfter(delay),
+            Decision::Retry { .. } => RecoveryAction::RetryWhenOnline,
+            Decision::GiveUp => RecoveryAction::Fail,
         }
-    } else if has_received_client_actions && is_recoverable && can_attempt_resume_on_error {
+    } else if failure.is_recoverable && can_attempt_resume_on_error {
         RecoveryAction::Resume
     } else {
         RecoveryAction::Fail
     }
+}
+
+/// An automatic retry the stream is about to make.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RetryNotice {
+    /// Which retry this is, from 1.
+    pub retry: u32,
+    pub max_retries: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -75,7 +123,11 @@ impl ResponseStreamId {
 pub struct ResponseStream {
     id: ResponseStreamId,
     params: api::RequestParams,
-    retry_count: usize,
+    retry_count: u32,
+    /// Whether the retry policy allowed a retry when the current attempt was sent.
+    attempt_may_retry: bool,
+    /// Whether a `Retrying` notice is showing while a retry waits.
+    is_retry_notice_shown: bool,
     cancellation_tx: Option<oneshot::Sender<()>>,
     /// Track whether we've received any client actions
     /// If true, we cannot retry on subsequent errors since actions may have been executed
@@ -134,6 +186,8 @@ impl ResponseStream {
             id,
             params: api::RequestParams::new_for_test(),
             retry_count: 0,
+            attempt_may_retry: false,
+            is_retry_notice_shown: false,
             cancellation_tx: Some(cancellation_tx),
             has_received_client_actions: false,
             can_attempt_resume_on_error: false,
@@ -146,12 +200,14 @@ impl ResponseStream {
     }
 
     pub fn new(
-        params: api::RequestParams,
+        mut params: api::RequestParams,
         can_attempt_resume_on_error: bool,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
         let (cancellation_tx, cancellation_rx) = oneshot::channel();
 
+        let attempt_may_retry = retry::will_retry(*AISettings::as_ref(ctx).auto_retry_enabled, 0);
+        params.will_retry_failures_before_reply = attempt_may_retry;
         let request_id = Uuid::new_v4();
         Self::spawn_request(request_id, params.clone(), cancellation_rx, ctx);
         Self {
@@ -159,6 +215,8 @@ impl ResponseStream {
             params,
             cancellation_tx: Some(cancellation_tx),
             retry_count: 0,
+            attempt_may_retry,
+            is_retry_notice_shown: false,
             has_received_client_actions: false,
             can_attempt_resume_on_error,
             should_resume_conversation_after_stream_finished: false,
@@ -180,6 +238,16 @@ impl ResponseStream {
 
     fn retry(&mut self, ctx: &mut ModelContext<Self>) {
         self.retry_count += 1;
+        self.attempt_may_retry = retry::will_retry(
+            *AISettings::as_ref(ctx).auto_retry_enabled,
+            self.retry_count,
+        );
+        self.params.will_retry_failures_before_reply = self.attempt_may_retry;
+        self.refresh_conversation_state(ctx);
+        if self.is_retry_notice_shown {
+            self.is_retry_notice_shown = false;
+            ctx.emit(ResponseStreamEvent::Retrying(None));
+        }
         // Reset per-attempt state for the new attempt.
         self.has_received_client_actions = false;
         self.stream_finished_received = false;
@@ -195,6 +263,26 @@ impl ResponseStream {
         let request_id = Uuid::new_v4();
         self.current_request_id = Some(request_id);
         Self::spawn_request(request_id, self.params.clone(), cancellation_rx, ctx);
+    }
+
+    /// Takes the conversation's tasks and server token as they are now into the request.
+    ///
+    /// A failed attempt before its reply is rolled back, which leaves the conversation as the
+    /// request found it, except that the first request of a new conversation has created its root
+    /// task (outside the transaction) and been given a token. Sending the original snapshot again
+    /// would create the root a second time.
+    fn refresh_conversation_state(&mut self, ctx: &ModelContext<Self>) {
+        let history = BlocklistAIHistoryModel::as_ref(ctx);
+        let Some(conversation) = history
+            .conversation_for_response_stream(&self.id)
+            .and_then(|conversation_id| history.conversation(&conversation_id))
+        else {
+            return;
+        };
+        self.params.tasks = conversation.compute_active_tasks();
+        if let Some(token) = conversation.server_conversation_token() {
+            self.params.conversation_token = Some(token.clone());
+        }
     }
 
     /// Sends the request for `request_id`.
@@ -304,53 +392,57 @@ impl ResponseStream {
                 ctx.emit(ResponseStreamEvent::ReceivedEvent(Consumable::new(event)));
             }
             Err(e) => {
-                let is_online = NetworkStatus::as_ref(ctx).is_online();
-                match recovery_action(
-                    self.has_received_client_actions,
-                    e.is_recoverable(),
-                    self.retry_count < MAX_RETRIES,
-                    self.can_attempt_resume_on_error,
-                    is_online,
-                ) {
-                    RecoveryAction::RetryNow => {
-                        log::warn!(
-                            "MultiAgent request failed, retrying (attempt {}/{}) - Error: {e:?}",
-                            self.retry_count + 1,
-                            MAX_RETRIES
-                        );
-                        self.retry(ctx);
-                        // Don't emit the error event, we're retrying
-                        return;
-                    }
-                    RecoveryAction::RetryWhenOnline => {
-                        log::warn!(
-                            "MultiAgent request failed while offline; retrying (attempt {}/{}) once connectivity returns - Error: {e:?}",
-                            self.retry_count + 1,
-                            MAX_RETRIES
-                        );
-                        self.defer_retry_until_online(ctx);
-                        return;
-                    }
-                    RecoveryAction::Resume => {
-                        // Recoverable failure after client actions: we'll resume the
-                        // conversation once the stream finishes rather than surface the
-                        // error, so the UI suppresses the banner. Log it so the
-                        // auto-recovery isn't completely silent.
-                        log::warn!(
-                            "MultiAgent request failed after client actions; resuming conversation after stream finishes - Error: {e:?}"
-                        );
-                        // The resume spawn itself waits for connectivity.
-                        self.should_resume_conversation_after_stream_finished = true;
-                    }
-                    RecoveryAction::Fail => {}
+                if self.recover_or_retry(e, ctx) {
+                    return;
                 }
-                self.error_event_emitted = true;
-
-                self.report_request_failure(e, is_online);
-
                 ctx.emit(ResponseStreamEvent::ReceivedEvent(Consumable::new(event)));
             }
         }
+    }
+
+    /// Recovers from a failed attempt. Returns true when the request will be sent again, in which
+    /// case the failure is not surfaced; otherwise records it as surfaced, with a resume scheduled
+    /// when one applies.
+    fn recover_or_retry(&mut self, error: &Arc<AIApiError>, ctx: &mut ModelContext<Self>) -> bool {
+        let is_online = NetworkStatus::as_ref(ctx).is_online();
+        match recovery_action(
+            AttemptFailure::of(error, self.has_received_client_actions),
+            self.attempt_may_retry,
+            self.retry_count,
+            self.can_attempt_resume_on_error,
+            is_online,
+        ) {
+            RecoveryAction::RetryAfter(delay) => {
+                log::warn!(
+                    "Agent request failed before its reply; retrying ({}/{MAX_RETRIES}) in {delay:?}",
+                    self.retry_count + 1,
+                );
+                self.retry_after(delay, ctx);
+                return true;
+            }
+            RecoveryAction::RetryWhenOnline => {
+                log::warn!(
+                    "Agent request failed while offline; retrying ({}/{MAX_RETRIES}) once connectivity returns",
+                    self.retry_count + 1,
+                );
+                self.defer_retry_until_online(ctx);
+                return true;
+            }
+            RecoveryAction::Resume => {
+                // Recoverable failure after part of the reply: we'll resume the conversation once
+                // the stream finishes rather than surface the error, so the UI suppresses the
+                // banner. Log it so the auto-recovery isn't completely silent.
+                log::warn!(
+                    "Agent request failed after its reply started; resuming conversation after stream finishes"
+                );
+                // The resume spawn itself waits for connectivity.
+                self.should_resume_conversation_after_stream_finished = true;
+            }
+            RecoveryAction::Fail => {}
+        }
+        self.error_event_emitted = true;
+        self.report_request_failure(error, is_online);
+        false
     }
 
     fn on_response_stream_complete(&mut self, request_id: Uuid, ctx: &mut ModelContext<Self>) {
@@ -371,55 +463,12 @@ impl ResponseStream {
                 "generate_multi_agent_output stream ended without emitting StreamFinished event."
             );
             let unexpected_eof = Arc::new(AIApiError::UnexpectedEof);
-            let is_online = NetworkStatus::as_ref(ctx).is_online();
-            match recovery_action(
-                self.has_received_client_actions,
-                unexpected_eof.is_recoverable(),
-                self.retry_count < MAX_RETRIES,
-                self.can_attempt_resume_on_error,
-                is_online,
-            ) {
-                RecoveryAction::RetryNow => {
-                    log::warn!(
-                        "MultiAgent request failed, retrying (attempt {}/{}) - Error: {unexpected_eof:?}",
-                        self.retry_count + 1,
-                        MAX_RETRIES
-                    );
-                    self.retry(ctx);
-                    return;
-                }
-                RecoveryAction::RetryWhenOnline => {
-                    log::warn!(
-                        "MultiAgent request failed while offline; retrying (attempt {}/{}) once connectivity returns - Error: {unexpected_eof:?}",
-                        self.retry_count + 1,
-                        MAX_RETRIES
-                    );
-                    self.defer_retry_until_online(ctx);
-                    return;
-                }
-                RecoveryAction::Resume => {
-                    // Recoverable truncation after client actions: we'll resume the
-                    // conversation once the stream finishes rather than surface the
-                    // error, so the UI suppresses the banner. Log it so the
-                    // auto-recovery isn't completely silent.
-                    log::warn!(
-                        "MultiAgent request truncated after client actions; resuming conversation after stream finishes - Error: {unexpected_eof:?}"
-                    );
-                    self.should_resume_conversation_after_stream_finished = true;
-                    self.error_event_emitted = true;
-                    self.report_request_failure(&unexpected_eof, is_online);
-                    ctx.emit(ResponseStreamEvent::ReceivedEvent(Consumable::new(Err(
-                        unexpected_eof,
-                    ))));
-                }
-                RecoveryAction::Fail => {
-                    self.error_event_emitted = true;
-                    self.report_request_failure(&unexpected_eof, is_online);
-                    ctx.emit(ResponseStreamEvent::ReceivedEvent(Consumable::new(Err(
-                        unexpected_eof,
-                    ))));
-                }
+            if self.recover_or_retry(&unexpected_eof, ctx) {
+                return;
             }
+            ctx.emit(ResponseStreamEvent::ReceivedEvent(Consumable::new(Err(
+                unexpected_eof,
+            ))));
         }
 
         ctx.emit(ResponseStreamEvent::AfterStreamFinished { cancellation: None });
@@ -439,6 +488,24 @@ impl ResponseStream {
                 "error_debug" => %format!("{error:?}"),
             }
         );
+    }
+
+    /// Re-sends the request after `delay`, showing that it is retrying meanwhile; cancellation
+    /// invalidates the pending retry through `current_request_id`.
+    fn retry_after(&mut self, delay: Duration, ctx: &mut ModelContext<Self>) {
+        self.deferred_retry_pending = true;
+        self.is_retry_notice_shown = true;
+        ctx.emit(ResponseStreamEvent::Retrying(Some(RetryNotice {
+            retry: self.retry_count + 1,
+            max_retries: MAX_RETRIES,
+        })));
+        let request_id_at_defer = self.current_request_id;
+        let _ = ctx.spawn(Timer::after(delay), move |me, _, ctx| {
+            if request_id_at_defer.is_none() || me.current_request_id != request_id_at_defer {
+                return;
+            }
+            me.retry(ctx);
+        });
     }
 
     /// Parks a retry until connectivity returns; cancellation invalidates the parked
@@ -505,6 +572,9 @@ pub enum ResponseStreamEvent {
     WaitingForNetwork {
         waiting: bool,
     },
+    /// A failed attempt will be sent again after a wait (`Some`), or the wait is over and the
+    /// request has been sent again (`None`).
+    Retrying(Option<RetryNotice>),
     AfterStreamFinished {
         /// Some for cancellation (with context), None for natural completion (uses dynamic lookup).
         cancellation: Option<StreamCancellation>,

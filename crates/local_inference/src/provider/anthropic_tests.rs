@@ -420,3 +420,18 @@ fn a_prompt_output_cap_lowers_max_tokens_but_never_raises_it() {
         32_000
     );
 }
+
+#[test]
+fn an_error_event_is_a_stream_error() {
+    let deltas = parse_event(
+        "error",
+        r#"{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}"#,
+    );
+    assert_eq!(
+        deltas,
+        vec![Delta::Error {
+            code: "overloaded_error".to_string(),
+            message: "Overloaded".to_string(),
+        }]
+    );
+}

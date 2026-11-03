@@ -90,6 +90,9 @@ pub struct RequestParams {
     pub autonomy_level: warp_multi_agent_api::AutonomyLevel,
     pub isolation_level: warp_multi_agent_api::IsolationLevel,
     pub supported_tools_override: Option<Vec<warp_multi_agent_api::ToolType>>,
+    /// Whether the caller sends this request again if it fails retryably before its reply. See
+    /// `warp_multi_agent_api::request::Settings::will_retry_failures_before_reply`.
+    pub will_retry_failures_before_reply: bool,
 }
 
 pub type Event = Result<warp_multi_agent_api::ResponseEvent, Arc<AIApiError>>;
@@ -125,6 +128,7 @@ impl RequestParams {
             autonomy_level: Default::default(),
             isolation_level: Default::default(),
             supported_tools_override: None,
+            will_retry_failures_before_reply: false,
         }
     }
 
@@ -230,6 +234,7 @@ impl RequestParams {
             autonomy_level,
             isolation_level,
             supported_tools_override: request_input.supported_tools_override.clone(),
+            will_retry_failures_before_reply: false,
         }
     }
 }

@@ -37,6 +37,19 @@ system prompt that says what is worth keeping) carries one fact and a scope (`gl
 `project` when the scope is missing or unknown); the client saves it and reports where. The facts
 reach later requests as rules, the same way as the user's own.
 
+A reply's opening (`Init`, the transaction, the echoed inputs, a summary's unfinished placeholder)
+goes out before the provider is called (a `CreateTask` for a request with no task comes first, outside
+the transaction, so a rollback never removes the conversation's root task), so a request stopped while the provider is still thinking
+keeps what it sent and a summary shows as in progress at once. A request that fails before the
+provider starts replying reports it (`Failure::before_reply`), with whether `agent-harness`'s retry
+policy would send it again (`Error::is_retryable`, which reads the `retry-after` headers of an HTTP
+error and Anthropic's in-stream `error` events). When the client says it will retry
+(`Settings.will_retry_failures_before_reply`) and the failure is retryable, or the request is a
+summary, a `RollbackTransaction` precedes the error, so a retry stores nothing twice and a failed
+summary leaves no unfinished summary behind; otherwise the transaction is committed with the error
+and the task keeps what the request sent. A request carrying tool results and a question (a steer) has the results
+replayed and stored first, right after the calls they answer, then the question.
+
 A request the provider rejects for exceeding the context window (Anthropic "prompt is too long",
 OpenAI `context_length_exceeded` before or inside the stream, the vLLM-style "maximum context length
 is" wording, Gemini's "input token count … exceeds the maximum") ends the stream with

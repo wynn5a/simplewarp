@@ -166,9 +166,11 @@ impl ThinkingDisplayMode {
     rename_all = "snake_case"
 )]
 pub enum PromptSubmissionMode {
-    /// Cancel the in-flight response and submit the new prompt immediately
-    /// (default).
+    /// Hold the new prompt and send it with the results of the tools that are running, so the
+    /// agent sees it at its next step (default).
     #[default]
+    Steer,
+    /// Cancel the in-flight response and submit the new prompt immediately.
     Interrupt,
     /// Hold the new prompt until the in-flight response finishes, then submit.
     Queue,
@@ -188,6 +190,7 @@ impl PromptSubmissionMode {
     /// Display name for the settings dropdown.
     pub fn display_name(&self) -> &'static str {
         match self {
+            PromptSubmissionMode::Steer => "Steer at the next step",
             PromptSubmissionMode::Interrupt => "Interrupt response",
             PromptSubmissionMode::Queue => "Queue until response finishes",
         }
@@ -195,6 +198,7 @@ impl PromptSubmissionMode {
 
     pub fn command_palette_description(&self) -> &'static str {
         match self {
+            PromptSubmissionMode::Steer => "Set default prompt submission: steer at the next step",
             PromptSubmissionMode::Interrupt => "Set default prompt submission: interrupt response",
             PromptSubmissionMode::Queue => {
                 "Set default prompt submission: queue until response finishes"
@@ -206,7 +210,7 @@ impl PromptSubmissionMode {
 /// What happens when a prompt is submitted while an agent controls an agent-requested
 /// long-running command (LRC).
 ///
-/// Only consulted when [`PromptSubmissionMode`] is `Interrupt`: in `Queue` mode
+/// Only consulted when [`PromptSubmissionMode`] is `Steer` or `Interrupt`: in `Queue` mode
 /// prompts always queue until the full response finishes, so this setting is
 /// hidden and ignored.
 #[derive(
@@ -698,7 +702,7 @@ define_settings_group!(AISettings, settings: [
     default_prompt_submission_mode: PromptSubmissionMode,
 
     // What happens when a prompt is submitted while an agent controls an agent-requested
-    // long-running command. Only consulted when `default_prompt_submission_mode` is `Interrupt`;
+    // long-running command. Not consulted when `default_prompt_submission_mode` is `Queue`;
     // per-LRC manual overrides live on `QueuedQueryModel`.
     long_running_command_submission_mode: LongRunningCommandSubmissionMode,
 
@@ -735,6 +739,18 @@ define_settings_group!(AISettings, settings: [
         private: false,
         toml_path: "agents.warp_agent.other.show_conversation_history",
         description: "Whether conversation history appears in the tools panel.",
+    }
+
+    // Whether a request that fails transiently before its reply (rate limit, overloaded
+    // provider, dropped connection) is sent again automatically.
+    auto_retry_enabled: AutoRetryEnabled {
+        type: bool,
+        default: true,
+        supported_platforms: SupportedPlatforms::ALL,
+        surface: settings::SettingSurfaces::GUI,
+        private: false,
+        toml_path: "agents.warp_agent.other.auto_retry_enabled",
+        description: "Whether agent requests that fail transiently (rate limits, overloaded providers, dropped connections) are retried automatically.",
     }
 
     // Whether the agent compacts a conversation on its own when its context fills up.

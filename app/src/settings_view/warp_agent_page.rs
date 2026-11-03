@@ -231,6 +231,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     let mode_bindings: Vec<FixedBinding> = PromptSubmissionMode::iter()
         .map(|mode| {
             let context_flag = match mode {
+                PromptSubmissionMode::Steer => flags::PROMPT_SUBMISSION_STEER,
                 PromptSubmissionMode::Interrupt => flags::PROMPT_SUBMISSION_INTERRUPT,
                 PromptSubmissionMode::Queue => flags::PROMPT_SUBMISSION_QUEUE,
             };
@@ -247,7 +248,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     app.register_fixed_bindings(mode_bindings);
 
     // The LRC submission mode only applies (and is only shown) when the default
-    // prompt submission mode is Interrupt, so its palette entries are gated on it.
+    // prompt submission mode is not Queue, so its palette entries are gated on that.
     let lrc_mode_bindings: Vec<FixedBinding> = LongRunningCommandSubmissionMode::iter()
         .map(|mode| {
             let context_flag = match mode {
@@ -263,7 +264,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 builder(SettingsAction::WarpAgent(
                     WarpAgentPageAction::SetLongRunningCommandSubmissionMode(mode),
                 )),
-                ai_context.clone() & id!(flags::PROMPT_SUBMISSION_INTERRUPT) & !id!(context_flag),
+                ai_context.clone() & !id!(flags::PROMPT_SUBMISSION_QUEUE) & !id!(context_flag),
             )
             .with_group(bindings::BindingGroup::WarpAi.as_str())
         })
@@ -321,6 +322,15 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                         & id!(flags::AUTO_APPROVE_BYPASSES_COMMAND_DENYLIST_FLAG),
                 ),
                 None,
+            )
+            .with_group(bindings::BindingGroup::WarpAi),
+            ToggleSettingActionPair::new(
+                "automatic retries",
+                builder(SettingsAction::WarpAgent(
+                    WarpAgentPageAction::ToggleAutoRetry,
+                )),
+                &(context.clone() & id!(flags::IS_ANY_AI_ENABLED)),
+                flags::AUTO_RETRY_ENABLED_FLAG,
             )
             .with_group(bindings::BindingGroup::WarpAi),
             ToggleSettingActionPair::new(
@@ -1192,6 +1202,7 @@ pub enum WarpAgentPageAction {
     ToggleIncludeAgentCommandsInHistory,
     ToggleAutoApproveBypassesCommandDenylist,
     ToggleAutoCompaction,
+    ToggleAutoRetry,
 
     // Custom inference
     OpenAddCustomEndpointModal,
@@ -1369,6 +1380,12 @@ impl TypedActionView for WarpAgentPageView {
             WarpAgentPageAction::ToggleAutoCompaction => {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     report_if_error!(settings.auto_compaction_enabled.toggle_and_save_value(ctx));
+                });
+                ctx.notify();
+            }
+            WarpAgentPageAction::ToggleAutoRetry => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    report_if_error!(settings.auto_retry_enabled.toggle_and_save_value(ctx));
                 });
                 ctx.notify();
             }
@@ -1737,13 +1754,14 @@ struct AIInputWidget {
     show_agent_tips_toggle: SwitchStateHandle,
     include_agent_commands_in_history_toggle: SwitchStateHandle,
     auto_approve_bypasses_command_denylist_toggle: SwitchStateHandle,
+    auto_retry_toggle: SwitchStateHandle,
 }
 
 impl SettingsWidget for AIInputWidget {
     type View = WarpAgentPageView;
 
     fn search_terms(&self) -> &str {
-        "oz agent ai input natural language detection autodetection prompt terminal command commands history shell executed execution queue interrupt submission submit auto-queue response while responding default long-running long running lrc auto-approve fast forward denylist permissions"
+        "oz agent ai input natural language detection autodetection prompt terminal command commands history shell executed execution queue interrupt submission submit auto-queue steer steering response while responding default long-running long running lrc auto-approve fast forward denylist permissions retry retries rate limit overloaded"
     }
 
     fn render(
@@ -1839,9 +1857,9 @@ impl SettingsWidget for AIInputWidget {
             &view.default_prompt_submission_mode_dropdown,
         ));
 
-        // Only meaningful in Interrupt mode: with Queue selected, prompts already
-        // queue until the end of the full response, so the LRC mode is hidden.
-        if ai_settings.default_prompt_submission_mode == PromptSubmissionMode::Interrupt {
+        // Not meaningful in Queue mode: prompts already queue until the end of the full
+        // response, so the LRC mode is hidden.
+        if ai_settings.default_prompt_submission_mode != PromptSubmissionMode::Queue {
             widget_children.push(
                 Container::new(render_dropdown_item(
                     appearance,
@@ -1859,6 +1877,29 @@ impl SettingsWidget for AIInputWidget {
                 .finish(),
             );
         }
+
+        widget_children.push(
+            Container::new(
+                Flex::column()
+                    .with_child(render_ai_setting_toggle(
+                        "Retry failed requests automatically",
+                        WarpAgentPageAction::ToggleAutoRetry,
+                        *ai_settings.auto_retry_enabled,
+                        is_any_ai_enabled,
+                        self.auto_retry_toggle.clone(),
+                        app,
+                    ))
+                    .with_child(render_ai_setting_description(
+                        "Rate limits, overloaded providers and dropped connections are retried \
+                         up to 3 times before an error is shown.",
+                        is_any_ai_enabled,
+                        app,
+                    ))
+                    .finish(),
+            )
+            .with_margin_top(styles::DESCRIPTION_MARGIN_BOTTOM)
+            .finish(),
+        );
 
         Flex::column().with_children(widget_children).finish()
     }

@@ -42,6 +42,9 @@ It is no longer synced with upstream.
   `scope` GLOBAL/PROJECT), top-level `RememberResult` (`Success { project_root, already_saved }` /
   `Error { message }`), `Message.ToolCallResult.remember = 43`,
   `Request.Input.ToolCallResult.remember = 38`, and `ToolType.REMEMBER = 36`.
+- `Request.Settings.will_retry_failures_before_reply = 32` (false = the client does not retry, the
+  old behavior): the local adapter sends nothing but the error for a retryable failure before the
+  reply, so a retry does not store the inputs twice (harness P4).
 
 ## Boundary
 

@@ -228,6 +228,8 @@ P3 正文的实现规格：[`native-agent-harness/p3-memory.md`](native-agent-ha
 
 ### P4 运行中的交互（规模：M）
 
+实现规格：[`native-agent-harness/p4-steering-and-retry.md`](native-agent-harness/p4-steering-and-retry.md)。
+
 1. **插话（steer）。** agent 运行时，输入框提交的内容默认作为插话：
    - 不打断正在执行的工具，在下一次 `send_follow_up_for_conversation` 时和工具结果一起发出，作为
      本轮里附带的用户消息。

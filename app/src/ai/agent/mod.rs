@@ -671,6 +671,7 @@ impl From<&Arc<AIApiError>> for RenderableAIError {
         // state rather than ERROR state.
         let is_user_error = !value.is_recoverable();
         match value.as_ref() {
+            AIApiError::Provider { error, .. } => Self::from(error),
             AIApiError::ErrorStatus(http::StatusCode::TOO_MANY_REQUESTS, body) => {
                 Self::QuotaLimit {
                     user_display_message: quota_limit_display_message(body),

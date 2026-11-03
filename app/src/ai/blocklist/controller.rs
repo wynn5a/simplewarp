@@ -11,6 +11,7 @@ mod slash_command;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use agent_harness::steering;
 use ai::skills::{ParsedSkill, SkillPathOrigin, SkillReference};
 use anyhow::anyhow;
 use chrono::{DateTime, Local};
@@ -26,12 +27,12 @@ use warp_multi_agent_api::{Task, ToolType, message};
 use warpui::r#async::SpawnedFutureHandle;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
-use self::response_stream::{ResponseStream, ResponseStreamEvent};
+use self::response_stream::{ResponseStream, ResponseStreamEvent, RetryNotice};
 use super::action_model::{BlocklistAIActionEvent, BlocklistAIActionModel};
 use super::context_model::{BlocklistAIContextModel, PendingAttachment, PendingFile};
 use super::conversation_selection::{ConversationSelectionEvent, ConversationSelectionHandle};
 use super::history_model::BlocklistAIHistoryModel;
-use super::queued_query::{QueuedQueryId, QueuedQueryModel};
+use super::queued_query::{QueuedQuery, QueuedQueryId, QueuedQueryModel};
 use super::{BlocklistAIInputModel, ResponseStreamId};
 use crate::ai::agent::api::{self, ServerConversationToken};
 use crate::ai::agent::conversation::{AIConversation, AIConversationId, ConversationStatus};
@@ -118,6 +119,10 @@ pub enum BlocklistAIControllerEvent {
     /// Emitted when an AI output response is fully received, particularly relevant when output is
     /// being streamed.
     FinishedReceivingOutput { conversation_id: AIConversationId },
+
+    /// A request of the conversation started or stopped waiting to be retried. See
+    /// [`BlocklistAIController::pending_retry`].
+    RetryStatusChanged { conversation_id: AIConversationId },
 }
 
 #[derive(Debug)]
@@ -237,6 +242,9 @@ pub struct BlocklistAIController {
 
     /// Resumes sent after an overflow was compacted. Another overflow on one is an error.
     overflow_retries: HashSet<ResponseStreamId>,
+
+    /// The automatic retry each conversation's in-flight request is making, if any.
+    pending_retries: HashMap<AIConversationId, RetryNotice>,
 }
 
 enum InputQueryType {
@@ -435,6 +443,27 @@ impl BlocklistAIController {
             compactions: HashMap::new(),
             compact_after_overflow: HashSet::new(),
             overflow_retries: HashSet::new(),
+            pending_retries: HashMap::new(),
+        }
+    }
+
+    /// The automatic retry the conversation's in-flight request is waiting to make.
+    pub fn pending_retry(&self, conversation_id: AIConversationId) -> Option<RetryNotice> {
+        self.pending_retries.get(&conversation_id).copied()
+    }
+
+    fn set_pending_retry(
+        &mut self,
+        conversation_id: AIConversationId,
+        notice: Option<RetryNotice>,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let changed = match notice {
+            Some(notice) => self.pending_retries.insert(conversation_id, notice) != Some(notice),
+            None => self.pending_retries.remove(&conversation_id).is_some(),
+        };
+        if changed {
+            ctx.emit(BlocklistAIControllerEvent::RetryStatusChanged { conversation_id });
         }
     }
 
@@ -1008,22 +1037,99 @@ impl BlocklistAIController {
             vec![],
             ctx,
         );
-        let request_input = RequestInput::for_actions_results(
+        let mut request_input = RequestInput::for_actions_results(
             finished_results,
-            context,
+            context.clone(),
             &self.active_session,
             conversation_id,
             self.terminal_view_id,
             ctx,
         );
+        let steers = self.add_steers(&mut request_input, context, ctx);
 
-        let _ = self.send_request_input(
+        // A steer came from the queue, not the input, so the input and its attachments are left as
+        // the user has them, as for a queued prompt.
+        let sent = self.send_request_input(
             request_input,
             None,
             /*can_attempt_resume_on_error*/ true,
-            /*is_queued_prompt*/ false,
+            /*is_queued_prompt*/ !steers.is_empty(),
             ctx,
         );
+        if sent.is_err() && !steers.is_empty() {
+            QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
+                model.return_steers(conversation_id, steers, ctx);
+            });
+        }
+    }
+
+    /// Adds the conversation's queued steers to a step's tool results, as one question after them,
+    /// and returns the queue rows it took (to be put back if the request is not sent).
+    ///
+    /// The question carries the step's `context` rather than context gathered anew, plus the
+    /// steers' own images, so the request describes the environment once.
+    fn add_steers(
+        &mut self,
+        request_input: &mut RequestInput,
+        context: Arc<[AIAgentContext]>,
+        ctx: &mut ModelContext<Self>,
+    ) -> Vec<QueuedQuery> {
+        let conversation_id = request_input.conversation_id;
+        let Some(root_task_id) = BlocklistAIHistoryModel::as_ref(ctx)
+            .conversation(&conversation_id)
+            .map(|conversation| conversation.get_root_task_id().clone())
+        else {
+            return Vec::new();
+        };
+        let results_on_root_task_only = request_input
+            .input_messages
+            .keys()
+            .all(|task_id| *task_id == root_task_id);
+        let steers = QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
+            model.take_steers(conversation_id, results_on_root_task_only, ctx)
+        });
+        if steers.is_empty() {
+            return steers;
+        }
+        log::info!(
+            "Sending {} steer(s) with the agent's tool results",
+            steers.len()
+        );
+        let text = steers.iter().fold(String::new(), |text, steer| {
+            steering::merge(&text, steer.text())
+        });
+        let mut images = Vec::new();
+        let mut files = Vec::new();
+        for attachment in steers.iter().flat_map(|steer| steer.attachments()) {
+            match attachment {
+                PendingAttachment::Image(image) => {
+                    images.push(AIAgentContext::Image(image.clone()))
+                }
+                PendingAttachment::File(file) => files.push(file.clone()),
+            }
+        }
+        let (query, user_query_mode) = extract_user_query_mode(text);
+        let mut referenced_attachments =
+            parse_context_attachments(&query, self.context_model.as_ref(ctx), ctx);
+        add_pending_file_attachments(&mut referenced_attachments, files);
+        let context = if images.is_empty() {
+            context
+        } else {
+            context.iter().cloned().chain(images).collect()
+        };
+        request_input
+            .input_messages
+            .entry(root_task_id)
+            .or_default()
+            .push(AIAgentInput::UserQuery {
+                query,
+                context,
+                referenced_attachments,
+                user_query_mode,
+                running_command: None,
+                intended_agent: Some(warp_multi_agent_api::AgentType::Primary),
+            });
+        steers
     }
 
     pub fn resume_conversation(
@@ -1702,6 +1808,15 @@ impl BlocklistAIController {
                     );
                 });
             }
+            ResponseStreamEvent::Retrying(notice) => {
+                let Some(conversation_id) = BlocklistAIHistoryModel::as_ref(ctx)
+                    .conversation_for_response_stream(&stream_id)
+                else {
+                    log::warn!("Could not find conversation for response stream: {stream_id:?}");
+                    return;
+                };
+                self.set_pending_retry(conversation_id, *notice, ctx);
+            }
             ResponseStreamEvent::AfterStreamFinished { cancellation } => {
                 // Cancellations provide conversation_id (survives truncation); otherwise use dynamic lookup.
                 let conversation_id = match &cancellation {
@@ -1720,6 +1835,7 @@ impl BlocklistAIController {
                     }
                 };
 
+                self.set_pending_retry(conversation_id, None, ctx);
                 let history_model = BlocklistAIHistoryModel::handle(ctx);
                 let Some(conversation) = history_model.as_ref(ctx).conversation(&conversation_id)
                 else {

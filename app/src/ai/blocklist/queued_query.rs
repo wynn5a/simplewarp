@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use agent_harness::steering::{self, Placement, QueuedRow};
 use uuid::Uuid;
 use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity};
 
@@ -42,6 +43,9 @@ pub enum QueuedQueryOrigin {
     ForkAndCompactSlashCommand,
     /// A prompt held back for an automatic compaction that was cancelled before it was sent.
     HeldForCompaction,
+    /// Submitted in steer mode while the agent was working: sent with the next tool results, or
+    /// as a normal queued prompt if the task ends first.
+    Steer,
 }
 
 /// Whether a queued row is an agent prompt or a shell command. Attachments live inside the
@@ -202,6 +206,11 @@ pub enum QueuedQueryEvent {
     /// the action snapshot fires.
     RowUnlocked {
         conversation_id: AIConversationId,
+    },
+    /// A row's text changed other than through an edit: a later steer was merged into it.
+    TextChanged {
+        conversation_id: AIConversationId,
+        query_id: QueuedQueryId,
     },
     Removed {
         conversation_id: AIConversationId,
@@ -530,6 +539,113 @@ impl QueuedQueryModel {
         query_id
     }
 
+    /// Queues a steer: merged into the steer ahead of the other queued rows, or inserted there, as
+    /// [`steering::placement`] decides.
+    pub fn add_steer(
+        &mut self,
+        conversation_id: AIConversationId,
+        text: String,
+        attachments: Vec<PendingAttachment>,
+        ctx: &mut ModelContext<Self>,
+    ) -> QueuedQueryId {
+        let state = self.queues.entry(conversation_id).or_default();
+        let rows = state
+            .queue
+            .iter()
+            .map(|row| steering_row(row, state.editing))
+            .collect::<Vec<_>>();
+        match steering::placement(&rows) {
+            Placement::MergeInto(index) => {
+                let row = &mut state.queue[index];
+                row.text = steering::merge(&row.text, &text);
+                if let QueuedQueryKind::Prompt {
+                    attachments: existing,
+                } = &mut row.kind
+                {
+                    existing.extend(attachments);
+                }
+                let query_id = row.id;
+                ctx.emit(QueuedQueryEvent::TextChanged {
+                    conversation_id,
+                    query_id,
+                });
+                query_id
+            }
+            Placement::InsertAt(index) => {
+                let query = QueuedQuery::new_with_attachments(
+                    text.trim().to_string(),
+                    QueuedQueryOrigin::Steer,
+                    attachments,
+                );
+                let query_id = query.id;
+                state.queue.insert(index, query);
+                ctx.emit(QueuedQueryEvent::Appended {
+                    conversation_id,
+                    query_id,
+                });
+                query_id
+            }
+        }
+    }
+
+    /// Removes and returns the steers a step sends with its tool results, in queue order. See
+    /// [`steering::steers_to_inject`].
+    pub fn take_steers(
+        &mut self,
+        conversation_id: AIConversationId,
+        results_on_root_task_only: bool,
+        ctx: &mut ModelContext<Self>,
+    ) -> Vec<QueuedQuery> {
+        let Some(state) = self.queues.get_mut(&conversation_id) else {
+            return Vec::new();
+        };
+        let rows = state
+            .queue
+            .iter()
+            .map(|row| steering_row(row, state.editing))
+            .collect::<Vec<_>>();
+        let taken = steering::steers_to_inject(&rows, results_on_root_task_only);
+        let mut steers = Vec::with_capacity(taken.len());
+        for index in taken.into_iter().rev() {
+            steers.push(state.queue.remove(index));
+        }
+        steers.reverse();
+        for steer in &steers {
+            ctx.emit(QueuedQueryEvent::Removed {
+                conversation_id,
+                query_id: steer.id,
+            });
+        }
+        steers
+    }
+
+    /// Puts back steers that [`Self::take_steers`] took for a request that was not sent, ahead of
+    /// the other queued rows as a new steer would go.
+    pub fn return_steers(
+        &mut self,
+        conversation_id: AIConversationId,
+        steers: Vec<QueuedQuery>,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let state = self.queues.entry(conversation_id).or_default();
+        let head = state
+            .queue
+            .iter()
+            .take_while(|row| match steering_row(row, state.editing) {
+                QueuedRow::Steer { .. } | QueuedRow::Locked => true,
+                QueuedRow::Other => false,
+            })
+            .count();
+        let ids = steers.iter().map(QueuedQuery::id).collect::<Vec<_>>();
+        state.queue.splice(head..head, steers);
+        for query_id in ids {
+            ctx.emit(QueuedQueryEvent::Appended {
+                conversation_id,
+                query_id,
+            });
+        }
+    }
+
     /// Puts a row at the head of `conversation_id`'s queue, for a prompt that was submitted before
     /// the rows already queued.
     pub fn push_front(
@@ -767,16 +883,32 @@ impl QueuedQueryModel {
     }
 }
 
+/// What `row` is to the steering rules, given the row being edited. A row queued for the end of
+/// an agent-controlled command stays ahead of steers like a locked one, so it still fires when the
+/// command finishes.
+fn steering_row(row: &QueuedQuery, editing: Option<QueuedQueryId>) -> QueuedRow {
+    if row.is_locked() || row.origin == QueuedQueryOrigin::LrcAutoQueue {
+        QueuedRow::Locked
+    } else if row.origin == QueuedQueryOrigin::Steer {
+        QueuedRow::Steer {
+            editing: editing == Some(row.id),
+        }
+    } else {
+        QueuedRow::Other
+    }
+}
+
 /// Returns true when queue mode is auto-enabled for `conversation_id`: an agent controls
 /// `active_block`'s agent-requested long-running command, and the user's settings opt into
-/// queueing prompts for the duration of such commands.
+/// queueing prompts for the duration of such commands (which they can only do outside `Queue`
+/// mode, where every prompt queues anyway).
 pub(crate) fn is_lrc_auto_queue_active(
     active_block: &Block,
     conversation_id: AIConversationId,
     app: &AppContext,
 ) -> bool {
     let ai_settings = AISettings::as_ref(app);
-    ai_settings.default_prompt_submission_mode == PromptSubmissionMode::Interrupt
+    ai_settings.default_prompt_submission_mode != PromptSubmissionMode::Queue
         && ai_settings.long_running_command_submission_mode
             == LongRunningCommandSubmissionMode::QueueUntilCommandCompletes
         && active_block.is_agent_in_control()

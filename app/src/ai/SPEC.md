@@ -36,6 +36,21 @@ usage), and the finished summary resets the usage to its compacted estimate. A h
 sent even when its compaction fails; when the compaction is cancelled its question goes back to the
 head of the queued prompts, and a failed compaction waits for new content before trying again.
 
+A prompt submitted while the agent works is, by default (also for users who never changed the
+setting, who move from the old Interrupt default), a steer (Settings > AI > Input, "Default
+prompt submission mode"; Interrupt and Queue remain, and a user's explicit choice is kept): it
+waits in the queued prompts, merged with any steer ahead of it, and the next step sends it with the
+tool results as one question after them, so no running tool is interrupted and the question shows
+at the head of that step; a steer no step picks up is sent as a queued prompt when the task ends, or
+goes back to the input on Stop when the input is empty and the conversation is in view; a step
+that cannot be sent puts its steers back (`agent-harness` owns where a steer goes and which ones a step
+takes). A request that fails before its reply starts with a rate limit, an overloaded provider or a
+dropped connection is sent again after 2/4/8 s or the provider's `retry-after` (up to 3 retries,
+never once part of the reply has arrived; `agent-harness` owns the policy, Settings > AI can turn it
+off; what a failed attempt stored is rolled back, and the retry carries the conversation's tasks as
+they are then); the status bar shows
+"Retrying (n/3)…" while a retry waits, and Stop cancels it.
+
 Rules reach every request as project-rules context: the project's rule files (one per directory,
 `WARP.md` > `AGENTS.md` > `CLAUDE.md`, from `ai-core`'s project context), `~/.agents/AGENTS.md`,
 and the Knowledge rules when rules are on, both those for all work and those saved for the

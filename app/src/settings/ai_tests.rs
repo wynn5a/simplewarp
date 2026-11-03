@@ -37,6 +37,16 @@ fn compaction_settings_default_to_the_approved_values() {
 }
 
 #[test]
+fn steer_is_the_default_submission_mode_and_retries_are_on() {
+    assert_eq!(PromptSubmissionMode::default(), PromptSubmissionMode::Steer);
+    assert!(*AutoRetryEnabled::new(None).value());
+    assert_eq!(
+        AutoRetryEnabled::toml_path(),
+        Some("agents.warp_agent.other.auto_retry_enabled")
+    );
+}
+
+#[test]
 fn agent_memory_writes_ask_by_default() {
     assert!(!*AgentMemoryAutoApprove::new(None).value());
     assert!(*MemoryEnabled::new(None).value());

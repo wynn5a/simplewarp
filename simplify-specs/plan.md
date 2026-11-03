@@ -2202,6 +2202,38 @@ global rules plus the current repository's memories (merged into that project's 
 The Knowledge page labels "Added by agent" / "Project: …" and edits keep both fields.
 `memory_enabled` was already on by default. Memory content is never logged.
 
+### Round: harness P4 — steering and auto-retry (2026-11-03)
+
+Spec: [../specs/plans/native-agent-harness/p4-steering-and-retry.md](../specs/plans/native-agent-harness/p4-steering-and-retry.md).
+Steering (pi's `steer`): `PromptSubmissionMode::Steer`, the new default (an explicit
+Interrupt/Queue choice is kept, since `set_value` always writes the file). A plain prompt submitted
+while the agent is `InProgress` (not blocked on approval, no agent-controlled command) becomes a
+`QueuedQueryOrigin::Steer` row ahead of the other queued rows, merged into the steer already there
+(`QueuedQueryEvent::TextChanged`); `send_follow_up_for_conversation` takes the steers not being
+edited and sends them as one `UserQuery` after the root task's tool results (`is_queued_prompt`, so
+the input is untouched). The question shows at the head of that step, is echoed into the task and
+counted by the estimate; a steer no step takes is drained as a queued prompt when the task ends
+(back to the input on Stop when the input is empty and the conversation is in view); a held
+follow-up whose compaction is cancelled requeues it, and a follow-up that could not be sent puts
+its steers back. Steers carry the follow-up's context, not a second copy, and never overtake rows
+queued for the end of an agent-controlled command. Long-
+running-command rules now apply outside `Queue` (were `Interrupt`-only). `local_inference` replays
+and stores a request's tool results before its question. Auto-retry: `agent_harness::retry`
+(transient: 408, 429 unless an exhausted quota, 5xx but 501/505, overloaded/rate-limited stream
+codes, dropped connections; `retry-after-ms`/`retry-after` honoured up to 60 s, never beyond;
+2/4/8 s; 3 retries). `local_inference` still sends a reply's opening at once (so a stop before the reply keeps the
+question and a summary shows as in progress immediately), reports `Failure { error, before_reply }`,
+reads `retry-after` headers and Anthropic's in-stream `error` event, and rolls the opening back
+before the error (a `CreateTask` stays outside the transaction; a retry re-reads the conversation's
+tasks and token) for a retryable pre-reply failure the client will retry (proto, additive:
+`Request.Settings.will_retry_failures_before_reply = 32`) or for a failed summary. The app wraps it as `AIApiError::Provider { error, failure }` (rendering unchanged, 429 still
+`QuotaLimit`); `ResponseStream` re-sends before the reply after the policy's delay (offline still
+waits for the network), never after it (the existing one resume), and no longer instantly re-sends
+config errors 3 times. Status bar "Retrying (n/3)…" with Stop; Settings > AI > Input toggle
+"Retry failed requests automatically" + Command Palette pair. Format, three clippy runs,
+`agent_harness`/`local_inference`/`warp_multi_agent_api`/`persistence`/`ai` 505/505, `-p warp` lib
+3,788/3,788, `integration_tests` compiles. Not run against a live provider or in the GUI.
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the

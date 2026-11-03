@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use warp_errors::{AnyhowErrorExt, ErrorExt, register_error};
 use warpui::{Entity, ModelContext, SingletonEntity};
@@ -35,6 +36,25 @@ pub enum AIApiError {
     /// between chunks, surfacing as a clean EOF.
     #[error("Response stream ended unexpectedly before completion.")]
     UnexpectedEof,
+
+    /// A failed call to the user's provider, with what decides whether it is sent again. Shown
+    /// and classified as `error`.
+    #[error("{error}")]
+    Provider {
+        error: Arc<AIApiError>,
+        failure: ProviderFailure,
+    },
+}
+
+/// What a failed provider call says about sending it again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProviderFailure {
+    /// The provider had not started replying, so the client has nothing of the reply.
+    pub before_reply: bool,
+    /// The retry policy would send the same request again.
+    pub retryable: bool,
+    /// The wait the provider asked for before another request.
+    pub retry_after: Option<Duration>,
 }
 
 impl From<reqwest::Error> for AIApiError {
@@ -90,6 +110,7 @@ impl AIApiError {
 
         match self {
             AIApiError::ErrorStatus(status, _) => is_recoverable_status(*status),
+            AIApiError::Provider { error, .. } => error.is_recoverable(),
             AIApiError::Transport(e) => {
                 if let Some(status) = e.status() {
                     return is_recoverable_status(status);
@@ -113,6 +134,7 @@ impl ErrorExt for AIApiError {
             AIApiError::Other(error) => error.is_actionable(),
             AIApiError::ErrorStatus(_, _) => self.is_recoverable(),
             AIApiError::UnexpectedEof => true,
+            AIApiError::Provider { error, .. } => error.is_actionable(),
         }
     }
 }

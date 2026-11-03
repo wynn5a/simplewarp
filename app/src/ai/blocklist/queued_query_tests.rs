@@ -926,3 +926,128 @@ fn remove_pending_lrc_rows_no_ops_when_no_pending_rows() {
         model.read(&app, |m, _| assert_eq!(m.queue(conv).len(), 1));
     });
 }
+
+fn add_steer(
+    model: &warpui::ModelHandle<QueuedQueryModel>,
+    app: &mut App,
+    conversation_id: AIConversationId,
+    text: &str,
+    attachments: Vec<PendingAttachment>,
+) -> QueuedQueryId {
+    model.update(app, |model, ctx| {
+        model.add_steer(conversation_id, text.to_owned(), attachments, ctx)
+    })
+}
+
+#[test]
+fn steers_merge_at_the_front_of_the_queue() {
+    with_model(|mut app, model, events| {
+        let conv = AIConversationId::new();
+        let queued = append_user(&model, &mut app, conv, "after the task");
+        let first = add_steer(
+            &model,
+            &mut app,
+            conv,
+            "use snake_case",
+            vec![image_attachment("a.png")],
+        );
+        events.borrow_mut().clear();
+        let second = add_steer(
+            &model,
+            &mut app,
+            conv,
+            " and skip the tests ",
+            vec![image_attachment("b.png")],
+        );
+
+        assert_eq!(first, second, "the second steer joins the first");
+        model.read(&app, |m, _| {
+            let queue = m.queue(conv);
+            assert_eq!(queue.len(), 2);
+            assert_eq!(queue[0].origin(), QueuedQueryOrigin::Steer);
+            assert_eq!(queue[0].text(), "use snake_case\n\nand skip the tests");
+            assert_eq!(queue[0].attachments().len(), 2);
+            assert_eq!(queue[1].id(), queued);
+        });
+        assert!(matches!(
+            events.borrow().as_slice(),
+            [QueuedQueryEvent::TextChanged { query_id, .. }] if *query_id == first
+        ));
+    });
+}
+
+#[test]
+fn taking_steers_leaves_other_rows_and_rows_being_edited() {
+    with_model(|mut app, model, _events| {
+        let conv = AIConversationId::new();
+        let edited = add_steer(&model, &mut app, conv, "being edited", vec![]);
+        model.update(&mut app, |m, ctx| m.enter_edit_mode(conv, edited, ctx));
+        let taken = add_steer(&model, &mut app, conv, "send me", vec![]);
+        let queued = append_user(&model, &mut app, conv, "after the task");
+
+        let steers = model.update(&mut app, |m, ctx| m.take_steers(conv, true, ctx));
+        assert_eq!(
+            steers.iter().map(QueuedQuery::id).collect::<Vec<_>>(),
+            vec![taken]
+        );
+        model.read(&app, |m, _| {
+            let ids = m
+                .queue(conv)
+                .iter()
+                .map(QueuedQuery::id)
+                .collect::<Vec<_>>();
+            assert_eq!(ids, vec![edited, queued]);
+        });
+
+        let none = model.update(&mut app, |m, ctx| m.take_steers(conv, false, ctx));
+        assert!(none.is_empty(), "subagent results carry no steer");
+    });
+}
+
+#[test]
+fn steers_stay_behind_prompts_queued_for_the_end_of_a_command() {
+    with_model(|mut app, model, _events| {
+        let conv = AIConversationId::new();
+        let lrc = model.update(&mut app, |m, ctx| {
+            m.append(
+                conv,
+                QueuedQuery::new(
+                    "after the command".to_owned(),
+                    QueuedQueryOrigin::LrcAutoQueue,
+                ),
+                ctx,
+            )
+        });
+        let steer = add_steer(&model, &mut app, conv, "use snake_case", vec![]);
+
+        model.read(&app, |m, _| {
+            let ids = m
+                .queue(conv)
+                .iter()
+                .map(QueuedQuery::id)
+                .collect::<Vec<_>>();
+            assert_eq!(ids, vec![lrc, steer]);
+        });
+    });
+}
+
+#[test]
+fn steers_that_were_not_sent_go_back_ahead_of_the_queue() {
+    with_model(|mut app, model, _events| {
+        let conv = AIConversationId::new();
+        let steer = add_steer(&model, &mut app, conv, "use snake_case", vec![]);
+        let steers = model.update(&mut app, |m, ctx| m.take_steers(conv, true, ctx));
+        let queued = append_user(&model, &mut app, conv, "after the task");
+
+        model.update(&mut app, |m, ctx| m.return_steers(conv, steers, ctx));
+
+        model.read(&app, |m, _| {
+            let ids = m
+                .queue(conv)
+                .iter()
+                .map(QueuedQuery::id)
+                .collect::<Vec<_>>();
+            assert_eq!(ids, vec![steer, queued]);
+        });
+    });
+}

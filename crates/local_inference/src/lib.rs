@@ -14,6 +14,9 @@
 //!   after:   client ──────────────────► provider
 //! ```
 
+use std::time::Duration;
+
+use agent_harness::retry;
 use futures::stream::BoxStream;
 use warp_multi_agent_api as api;
 
@@ -37,7 +40,18 @@ pub use models::{Provider, ProviderModel, context_window, list_models};
 pub use stream::generate_local_output;
 
 /// A response event stream, in the shape that the client already consumes.
-pub type OutputStream = BoxStream<'static, Result<api::ResponseEvent, Error>>;
+pub type OutputStream = BoxStream<'static, Result<api::ResponseEvent, Failure>>;
+
+/// A request that failed, as the stream reports it.
+#[derive(Debug, thiserror::Error)]
+#[error("{error}")]
+pub struct Failure {
+    #[source]
+    pub error: Error,
+    /// True when the provider had not started replying: the client has the reply's opening at
+    /// most, rolled back when it will send the same request again, so a retry duplicates nothing.
+    pub before_reply: bool,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -66,7 +80,12 @@ pub enum Error {
     Http(#[from] reqwest::Error),
 
     #[error("the provider answered {status}: {body}")]
-    ProviderStatus { status: u16, body: String },
+    ProviderStatus {
+        status: u16,
+        body: String,
+        /// The wait the provider asked for before another request.
+        retry_after: Option<Duration>,
+    },
 
     #[error("the provider reported an error mid-stream ({code}): {message}")]
     ProviderStream { code: String, message: String },
@@ -77,3 +96,55 @@ pub enum Error {
     #[error("could not decode the provider reply: {0}")]
     Decode(#[from] serde_json::Error),
 }
+
+impl Error {
+    /// Whether the client should send the same request again, by [`retry::is_retryable`].
+    pub fn is_retryable(&self) -> bool {
+        let failure = match self {
+            Error::ProviderStatus { status, body, .. } => retry::Failure::Status {
+                status: *status,
+                body,
+            },
+            Error::ProviderStream { code, message } => retry::Failure::Stream { code, message },
+            Error::Http(_) => retry::Failure::Connection,
+            Error::EventSource(error) => match error.as_ref() {
+                reqwest_eventsource::Error::Transport(_) => retry::Failure::Connection,
+                reqwest_eventsource::Error::Utf8(_)
+                | reqwest_eventsource::Error::Parser(_)
+                | reqwest_eventsource::Error::InvalidStatusCode(..)
+                | reqwest_eventsource::Error::InvalidContentType(..)
+                | reqwest_eventsource::Error::InvalidLastEventId(_)
+                | reqwest_eventsource::Error::StreamEnded => return false,
+            },
+            Error::NoSettings
+            | Error::NoModel
+            | Error::NoApiKey { .. }
+            | Error::NoModelConfigured
+            | Error::AggregatorModel { .. }
+            | Error::NoInput
+            | Error::Decode(_) => return false,
+        };
+        retry::is_retryable(&failure, self.retry_after())
+    }
+
+    /// The wait the provider asked for before another request.
+    pub fn retry_after(&self) -> Option<Duration> {
+        match self {
+            Error::ProviderStatus { retry_after, .. } => *retry_after,
+            Error::NoSettings
+            | Error::NoModel
+            | Error::NoApiKey { .. }
+            | Error::NoModelConfigured
+            | Error::AggregatorModel { .. }
+            | Error::NoInput
+            | Error::Http(_)
+            | Error::ProviderStream { .. }
+            | Error::EventSource(_)
+            | Error::Decode(_) => None,
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "lib_tests.rs"]
+mod tests;

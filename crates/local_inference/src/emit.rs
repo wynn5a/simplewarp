@@ -9,6 +9,7 @@
 //!
 //! ```text
 //! Init
+//! CreateTask               (only when the request carried no task, outside the transaction)
 //! BeginTransaction
 //!   AddMessagesToTask        (the tool results and the question that the request carried)
 //!   AddMessagesToTask        (the first piece of text, which makes the message)
@@ -47,8 +48,8 @@ pub struct Emitter {
     text_message_id: Option<String>,
     /// The message that streamed reasoning is appended to, once it exists.
     reasoning_message_id: Option<String>,
-    /// The input this reply answers, in the form that the task keeps: the tool results and the
-    /// question that the request carried, in the order the request carried them.
+    /// The input this reply answers, in the form that the task keeps: the tool results that the
+    /// request carried, then its question.
     ///
     /// The client sends these in `Request::input` and keeps its own copy for the blocks it draws,
     /// but it never puts them in the task. Warp's server did that, and everything that reads a
@@ -161,15 +162,19 @@ impl Emitter {
             },
         ))];
 
-        let mut actions = vec![Action::BeginTransaction(Default::default())];
+        // The task is created outside the transaction: rolling back a failed attempt must not take
+        // the conversation's root task with it, since the retry adds to that task.
         if self.needs_create_task {
-            actions.push(Action::CreateTask(api::client_action::CreateTask {
-                task: Some(api::Task {
-                    id: self.task_id.clone(),
-                    ..Default::default()
-                }),
-            }));
+            events.push(actions_event(vec![Action::CreateTask(
+                api::client_action::CreateTask {
+                    task: Some(api::Task {
+                        id: self.task_id.clone(),
+                        ..Default::default()
+                    }),
+                },
+            )]));
         }
+        let mut actions = vec![Action::BeginTransaction(Default::default())];
 
         // Store the input before the reply to it.
         //
@@ -258,6 +263,12 @@ impl Emitter {
         } else {
             vec![actions_event(actions)]
         }
+    }
+
+    /// The event that undoes everything the reply stored, for a request that failed before the
+    /// provider replied and is not to be kept.
+    pub fn rollback(&self) -> api::ResponseEvent {
+        actions_event(vec![Action::RollbackTransaction(Default::default())])
     }
 
     /// The model that the request names.
@@ -580,26 +591,23 @@ fn stored_inputs_from_request(request: &api::Request) -> Vec<api::message::Messa
         .as_ref()
         .and_then(|input| input.r#type.as_ref())
     {
-        Some(Type::UserInputs(inputs)) => {
-            let mut query = stored_input_from_request(request);
-            inputs
-                .inputs
-                .iter()
-                .filter_map(|entry| match entry.input.as_ref()? {
-                    UserInput::ToolCallResult(result) => stored_result(result),
-                    UserInput::UserQuery(user_query) if !user_query.query.is_empty() => {
-                        query.take()
-                    }
-                    UserInput::UserQuery(_)
-                    | UserInput::CliAgentUserQuery(_)
-                    | UserInput::MessagesReceivedFromAgents(_)
-                    | UserInput::EventsFromAgents(_)
-                    | UserInput::PassiveSuggestionResult(_)
-                    | UserInput::OrchestrationConfigUpdate(_)
-                    | UserInput::ConversationHandoff(_) => None,
-                })
-                .collect()
-        }
+        // The results answer the calls that end the stored conversation, so they come first; a
+        // question sent with them (a steer) follows, whatever order the request listed them in.
+        Some(Type::UserInputs(inputs)) => inputs
+            .inputs
+            .iter()
+            .filter_map(|entry| match entry.input.as_ref()? {
+                UserInput::ToolCallResult(result) => stored_result(result),
+                UserInput::UserQuery(_)
+                | UserInput::CliAgentUserQuery(_)
+                | UserInput::MessagesReceivedFromAgents(_)
+                | UserInput::EventsFromAgents(_)
+                | UserInput::PassiveSuggestionResult(_)
+                | UserInput::OrchestrationConfigUpdate(_)
+                | UserInput::ConversationHandoff(_) => None,
+            })
+            .chain(stored_input_from_request(request))
+            .collect(),
         Some(Type::ToolCallResult(result)) => stored_result(result).into_iter().collect(),
         _ => stored_input_from_request(request).into_iter().collect(),
     }

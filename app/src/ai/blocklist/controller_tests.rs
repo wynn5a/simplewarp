@@ -751,3 +751,498 @@ fn a_failed_overflow_compaction_records_the_failure_and_does_not_resume() {
         });
     });
 }
+
+fn action_result_input(task_id: TaskId) -> AIAgentInput {
+    use ai::agent::action_result::{AnyFileContent, FileContext, ReadFilesResult};
+
+    use crate::ai::agent::{AIAgentActionResult, AIAgentActionResultType};
+
+    AIAgentInput::ActionResult {
+        result: AIAgentActionResult {
+            id: "call-1".to_string().into(),
+            task_id,
+            result: AIAgentActionResultType::ReadFiles(ReadFilesResult::Success {
+                files: vec![FileContext::new(
+                    "lib.rs".to_string(),
+                    AnyFileContent::StringContent("fn main() {}".to_string()),
+                    None,
+                    None,
+                )],
+                failed_files: Vec::new(),
+            }),
+        },
+        context: Arc::new([]),
+    }
+}
+
+fn results_request_input(conversation_id: AIConversationId, task_id: TaskId) -> RequestInput {
+    let mut request_input = held_request_input(conversation_id, task_id.clone());
+    request_input.input_messages =
+        HashMap::from([(task_id.clone(), vec![action_result_input(task_id)])]);
+    request_input
+}
+
+#[test]
+fn a_steer_is_sent_with_the_tool_results() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+
+        terminal.update(&mut app, |view, ctx| {
+            let conversation_id = BlocklistAIHistoryModel::handle(ctx)
+                .update(ctx, |history, ctx| {
+                    history.start_new_conversation(view.id(), false, false, ctx)
+                });
+            let task_id = BlocklistAIHistoryModel::as_ref(ctx)
+                .conversation(&conversation_id)
+                .unwrap()
+                .get_root_task_id()
+                .clone();
+            QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
+                model.add_steer(
+                    conversation_id,
+                    "use snake_case".to_string(),
+                    vec![image_attachment("shot.png")],
+                    ctx,
+                );
+                model.append(
+                    conversation_id,
+                    QueuedQuery::new(
+                        "after the task".to_string(),
+                        QueuedQueryOrigin::QueueSlashCommand,
+                    ),
+                    ctx,
+                );
+            });
+            let mut request_input = results_request_input(conversation_id, task_id.clone());
+
+            let steers = view.ai_controller().update(ctx, |controller, ctx| {
+                controller.add_steers(&mut request_input, Arc::new([]), ctx)
+            });
+
+            assert_eq!(steers.len(), 1);
+            let inputs = &request_input.input_messages[&task_id];
+            assert!(matches!(inputs[0], AIAgentInput::ActionResult { .. }));
+            let AIAgentInput::UserQuery { query, context, .. } = &inputs[1] else {
+                panic!("expected the steer after the results: {inputs:?}");
+            };
+            assert_eq!(query, "use snake_case");
+            assert!(context.iter().any(|context| matches!(
+                context,
+                AIAgentContext::Image(image) if image.file_name == "shot.png"
+            )));
+            let queue = QueuedQueryModel::as_ref(ctx).queue(conversation_id);
+            assert_eq!(queue.len(), 1);
+            assert_eq!(queue[0].text(), "after the task");
+        });
+    });
+}
+
+#[test]
+fn a_steer_waits_when_results_belong_to_a_subagent() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+
+        terminal.update(&mut app, |view, ctx| {
+            let conversation_id = BlocklistAIHistoryModel::handle(ctx)
+                .update(ctx, |history, ctx| {
+                    history.start_new_conversation(view.id(), false, false, ctx)
+                });
+            QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
+                model.add_steer(conversation_id, "use snake_case".to_string(), vec![], ctx);
+            });
+            let subagent_task = TaskId::new("subagent".to_string());
+            let mut request_input = results_request_input(conversation_id, subagent_task.clone());
+
+            let steers = view.ai_controller().update(ctx, |controller, ctx| {
+                controller.add_steers(&mut request_input, Arc::new([]), ctx)
+            });
+
+            assert!(steers.is_empty());
+            assert_eq!(request_input.input_messages[&subagent_task].len(), 1);
+            assert_eq!(
+                QueuedQueryModel::as_ref(ctx).queue(conversation_id).len(),
+                1
+            );
+        });
+    });
+}
+
+#[test]
+fn a_cancelled_compaction_requeues_a_held_steer() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+
+        terminal.update(&mut app, |view, ctx| {
+            let conversation_id = BlocklistAIHistoryModel::handle(ctx)
+                .update(ctx, |history, ctx| {
+                    history.start_new_conversation(view.id(), false, false, ctx)
+                });
+            let task_id = BlocklistAIHistoryModel::as_ref(ctx)
+                .conversation(&conversation_id)
+                .unwrap()
+                .get_root_task_id()
+                .clone();
+            QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
+                model.add_steer(conversation_id, "use snake_case".to_string(), vec![], ctx);
+            });
+            let mut request_input = results_request_input(conversation_id, task_id);
+            let stream_id = ResponseStreamId::new_for_test();
+
+            view.ai_controller().update(ctx, |controller, ctx| {
+                let steers = controller.add_steers(&mut request_input, Arc::new([]), ctx);
+                assert_eq!(steers.len(), 1);
+                controller.hold_for_compaction_for_test(stream_id.clone(), request_input);
+                controller.continue_after_stream(
+                    &stream_id,
+                    conversation_id,
+                    super::compaction::StreamOutcome::Cancelled,
+                    ctx,
+                );
+            });
+
+            let queue = QueuedQueryModel::as_ref(ctx).queue(conversation_id);
+            assert_eq!(queue.len(), 1);
+            assert_eq!(queue[0].text(), "use snake_case");
+            assert_eq!(queue[0].origin(), QueuedQueryOrigin::HeldForCompaction);
+        });
+    });
+}
+
+/// Starts a request on a new conversation through a mock stream, returning the conversation, its
+/// root task, the stream's id and the stream.
+fn start_mock_request(
+    app: &mut App,
+    terminal: &warpui::ViewHandle<crate::terminal::TerminalView>,
+) -> (
+    AIConversationId,
+    TaskId,
+    ResponseStreamId,
+    warpui::ModelHandle<ResponseStream>,
+) {
+    terminal.update(app, |view, ctx| {
+        let terminal_view_id = view.id();
+        let stream_id = ResponseStreamId::new_for_test();
+        let (conversation_id, task_id) =
+            BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
+                let conversation_id =
+                    history.start_new_conversation(terminal_view_id, false, false, ctx);
+                // A later turn: the root task already exists, so the reply adds to it.
+                let conversation = history.conversation_mut(&conversation_id).unwrap();
+                conversation.upgrade_optimistic_root_to_server_task_for_test(
+                    warp_multi_agent_api::Task {
+                        id: "root".to_string(),
+                        ..Default::default()
+                    },
+                );
+                let task_id = conversation.get_root_task_id().clone();
+                let mut request_input = held_request_input(conversation_id, task_id.clone());
+                request_input.input_messages = HashMap::from([(task_id.clone(), vec![])]);
+                history
+                    .update_conversation_for_new_request_input(
+                        request_input,
+                        stream_id.clone(),
+                        terminal_view_id,
+                        ctx,
+                    )
+                    .unwrap();
+                (conversation_id, task_id)
+            });
+        let stream = ctx.add_model(|_| ResponseStream::new_for_test(stream_id.clone()));
+        view.ai_controller().update(ctx, |controller, ctx| {
+            controller.register_mock_stream_for_test(
+                stream_id.clone(),
+                conversation_id,
+                stream.clone(),
+                ctx,
+            );
+        });
+        (conversation_id, task_id, stream_id, stream)
+    })
+}
+
+/// The events `local_inference` sends before the provider replies: `Init`, then a transaction
+/// that stores the question.
+fn emit_opening(app: &mut App, stream: &warpui::ModelHandle<ResponseStream>, task_id: &TaskId) {
+    use warp_multi_agent_api::client_action::Action;
+
+    let task_id = task_id.to_string();
+    stream.update(app, |stream, ctx| {
+        stream.emit_response_event_for_test(
+            warp_multi_agent_api::ResponseEvent {
+                r#type: Some(response_event::Type::Init(response_event::StreamInit {
+                    request_id: "test-request".to_string(),
+                    conversation_id: "test-server-conversation".to_string(),
+                    run_id: String::new(),
+                })),
+            },
+            ctx,
+        );
+        let actions = [
+            Action::BeginTransaction(Default::default()),
+            Action::AddMessagesToTask(warp_multi_agent_api::client_action::AddMessagesToTask {
+                task_id: task_id.clone(),
+                messages: vec![warp_multi_agent_api::Message {
+                    id: "question".to_string(),
+                    task_id,
+                    message: Some(warp_multi_agent_api::message::Message::UserQuery(
+                        warp_multi_agent_api::message::UserQuery {
+                            query: "fix the build".to_string(),
+                            ..Default::default()
+                        },
+                    )),
+                    ..Default::default()
+                }],
+            }),
+        ];
+        stream.emit_response_event_for_test(
+            warp_multi_agent_api::ResponseEvent {
+                r#type: Some(response_event::Type::ClientActions(
+                    response_event::ClientActions {
+                        actions: actions
+                            .into_iter()
+                            .map(|action| warp_multi_agent_api::ClientAction {
+                                action: Some(action),
+                            })
+                            .collect(),
+                    },
+                )),
+            },
+            ctx,
+        );
+    });
+}
+
+fn stored_questions(app: &App, conversation_id: AIConversationId, task_id: &TaskId) -> usize {
+    BlocklistAIHistoryModel::handle(app).read(app, |history, _| {
+        history
+            .conversation(&conversation_id)
+            .and_then(|conversation| conversation.get_task(task_id))
+            .map_or(0, |task| {
+                task.messages()
+                    .filter(|message| {
+                        matches!(
+                            message.message,
+                            Some(warp_multi_agent_api::message::Message::UserQuery(_))
+                        )
+                    })
+                    .count()
+            })
+    })
+}
+
+/// A request stopped while the provider is still thinking keeps the question it sent.
+#[test]
+fn a_request_cancelled_before_the_reply_keeps_its_question() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+        let (conversation_id, task_id, stream_id, stream) = start_mock_request(&mut app, &terminal);
+
+        emit_opening(&mut app, &stream, &task_id);
+        terminal.update(&mut app, |view, ctx| {
+            view.ai_controller().update(ctx, |controller, ctx| {
+                controller.cancel_request(&stream_id, CancellationReason::ManuallyCancelled, ctx);
+            });
+        });
+
+        assert_eq!(stored_questions(&app, conversation_id, &task_id), 1);
+    });
+}
+
+/// A failure the client retries rolls back what the attempt stored, so the retry stores the
+/// question once.
+#[test]
+fn a_retried_failure_rolls_back_the_stored_question() {
+    use warp_multi_agent_api::client_action::Action;
+
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+        let (conversation_id, task_id, _, stream) = start_mock_request(&mut app, &terminal);
+
+        emit_opening(&mut app, &stream, &task_id);
+        assert_eq!(stored_questions(&app, conversation_id, &task_id), 1);
+        stream.update(&mut app, |stream, ctx| {
+            stream.emit_response_event_for_test(
+                warp_multi_agent_api::ResponseEvent {
+                    r#type: Some(response_event::Type::ClientActions(
+                        response_event::ClientActions {
+                            actions: vec![warp_multi_agent_api::ClientAction {
+                                action: Some(Action::RollbackTransaction(Default::default())),
+                            }],
+                        },
+                    )),
+                },
+                ctx,
+            );
+        });
+        assert_eq!(stored_questions(&app, conversation_id, &task_id), 0);
+
+        // The retried attempt opens again and stores the question once.
+        emit_opening(&mut app, &stream, &task_id);
+        assert_eq!(stored_questions(&app, conversation_id, &task_id), 1);
+    });
+}
+
+fn emit_event(
+    app: &mut App,
+    stream: &warpui::ModelHandle<ResponseStream>,
+    r#type: response_event::Type,
+) {
+    stream.update(app, |stream, ctx| {
+        stream.emit_response_event_for_test(
+            warp_multi_agent_api::ResponseEvent {
+                r#type: Some(r#type),
+            },
+            ctx,
+        );
+    });
+}
+
+fn actions_event(
+    actions: Vec<warp_multi_agent_api::client_action::Action>,
+) -> response_event::Type {
+    response_event::Type::ClientActions(response_event::ClientActions {
+        actions: actions
+            .into_iter()
+            .map(|action| warp_multi_agent_api::ClientAction {
+                action: Some(action),
+            })
+            .collect(),
+    })
+}
+
+/// The first request of a new conversation fails before its reply and is retried: the rollback
+/// keeps the root task it created (outside the transaction), so the retry, which carries the
+/// conversation's tasks as they are now, adds to it.
+#[test]
+fn a_new_conversation_survives_a_retried_first_request() {
+    use warp_multi_agent_api::client_action::{Action, AddMessagesToTask, CreateTask};
+
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+        let (conversation_id, stream) = terminal.update(&mut app, |view, ctx| {
+            let terminal_view_id = view.id();
+            let stream_id = ResponseStreamId::new_for_test();
+            let conversation_id =
+                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
+                    let conversation_id =
+                        history.start_new_conversation(terminal_view_id, false, false, ctx);
+                    let task_id = history
+                        .conversation(&conversation_id)
+                        .unwrap()
+                        .get_root_task_id()
+                        .clone();
+                    history
+                        .update_conversation_for_new_request_input(
+                            held_request_input(conversation_id, task_id),
+                            stream_id.clone(),
+                            terminal_view_id,
+                            ctx,
+                        )
+                        .unwrap();
+                    conversation_id
+                });
+            let stream = ctx.add_model(|_| ResponseStream::new_for_test(stream_id.clone()));
+            view.ai_controller().update(ctx, |controller, ctx| {
+                controller.register_mock_stream_for_test(
+                    stream_id,
+                    conversation_id,
+                    stream.clone(),
+                    ctx,
+                );
+            });
+            (conversation_id, stream)
+        });
+        let init = || {
+            response_event::Type::Init(response_event::StreamInit {
+                request_id: "test-request".to_string(),
+                conversation_id: "test-server-conversation".to_string(),
+                run_id: String::new(),
+            })
+        };
+        let store_question = || {
+            actions_event(vec![
+                Action::BeginTransaction(Default::default()),
+                Action::AddMessagesToTask(AddMessagesToTask {
+                    task_id: "root".to_string(),
+                    messages: vec![warp_multi_agent_api::Message {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        task_id: "root".to_string(),
+                        message: Some(warp_multi_agent_api::message::Message::UserQuery(
+                            warp_multi_agent_api::message::UserQuery {
+                                query: "fix the build".to_string(),
+                                ..Default::default()
+                            },
+                        )),
+                        ..Default::default()
+                    }],
+                }),
+            ])
+        };
+
+        // The first attempt creates the root, stores the question and is rolled back.
+        emit_event(&mut app, &stream, init());
+        emit_event(
+            &mut app,
+            &stream,
+            actions_event(vec![Action::CreateTask(CreateTask {
+                task: Some(warp_multi_agent_api::Task {
+                    id: "root".to_string(),
+                    ..Default::default()
+                }),
+            })]),
+        );
+        emit_event(&mut app, &stream, store_question());
+        emit_event(
+            &mut app,
+            &stream,
+            actions_event(vec![Action::RollbackTransaction(Default::default())]),
+        );
+
+        let root = TaskId::new("root".to_string());
+        BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
+            let conversation = history.conversation(&conversation_id).unwrap();
+            assert_eq!(conversation.get_root_task_id(), &root);
+            let tasks = conversation.compute_active_tasks();
+            assert_eq!(tasks.len(), 1, "the retry carries the created root");
+            assert_eq!(tasks[0].id, "root");
+            assert_eq!(conversation.exchange_count(), 1);
+        });
+        assert_eq!(stored_questions(&app, conversation_id, &root), 0);
+
+        // The retry carries that task, so it opens without creating one and finishes.
+        emit_event(&mut app, &stream, init());
+        emit_event(&mut app, &stream, store_question());
+        emit_event(
+            &mut app,
+            &stream,
+            actions_event(vec![Action::CommitTransaction(Default::default())]),
+        );
+        emit_event(
+            &mut app,
+            &stream,
+            response_event::Type::Finished(response_event::StreamFinished {
+                reason: Some(response_event::stream_finished::Reason::Done(
+                    response_event::stream_finished::Done {},
+                )),
+                ..Default::default()
+            }),
+        );
+
+        assert_eq!(stored_questions(&app, conversation_id, &root), 1);
+        BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
+            let conversation = history.conversation(&conversation_id).unwrap();
+            assert_eq!(conversation.all_tasks().count(), 1);
+            assert_eq!(conversation.exchange_count(), 1, "the block is intact");
+            assert_eq!(
+                conversation.status(),
+                &crate::ai::agent::conversation::ConversationStatus::Success
+            );
+        });
+    });
+}

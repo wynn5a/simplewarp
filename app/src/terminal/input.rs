@@ -188,7 +188,7 @@ use crate::session_management::SessionNavigationPromptElements;
 use crate::settings::{
     AISettings, AISettingsChangedEvent, AliasExpansionSettings, AppEditorSettings,
     AppEditorSettingsChangedEvent, InputModeSettings, InputSettings, InputSettingsChangedEvent,
-    MAX_TIMES_TO_SHOW_AUTOSUGGESTION_HINT,
+    MAX_TIMES_TO_SHOW_AUTOSUGGESTION_HINT, PromptSubmissionMode,
 };
 use crate::settings_view::{SettingsSection, flags};
 use crate::suggestions::ignored_suggestions_model::{
@@ -9853,7 +9853,7 @@ impl Input {
         };
 
         if !queue_enabled && !is_summarizing && !queued_for_pending_lrc {
-            return false;
+            return self.maybe_steer_input(conversation_id, is_command, ctx);
         }
 
         let conversation_in_progress = BlocklistAIHistoryModel::as_ref(ctx)
@@ -9934,6 +9934,67 @@ impl Input {
         QueuedQueryModel::handle(ctx)
             .update(ctx, |model, ctx| model.append(conversation_id, query, ctx));
 
+        true
+    }
+
+    /// Holds the current input as a steer, to be sent with the agent's next tool results, when
+    /// the default submission mode is `Steer` and the agent is working on `conversation_id` with no
+    /// agent-controlled command in the way (those follow the long-running command rules). Returns
+    /// true when the input was held, in which case the caller should skip normal submission.
+    ///
+    /// Only a plain prompt steers: a slash or skill command is submitted as usual, and an agent
+    /// waiting for an approval is answered as usual too, since it runs nothing that a submission
+    /// would interrupt.
+    fn maybe_steer_input(
+        &mut self,
+        conversation_id: AIConversationId,
+        is_command: bool,
+        ctx: &mut ViewContext<Self>,
+    ) -> bool {
+        if is_command
+            || AISettings::as_ref(ctx).default_prompt_submission_mode != PromptSubmissionMode::Steer
+        {
+            return false;
+        }
+        let is_working = BlocklistAIHistoryModel::as_ref(ctx)
+            .conversation(&conversation_id)
+            .is_some_and(|conversation| {
+                !conversation.is_empty() && conversation.status().is_in_progress()
+            });
+        let agent_controls_a_command = self
+            .model
+            .lock()
+            .block_list()
+            .active_block()
+            .is_agent_in_control();
+        if !is_working || agent_controls_a_command {
+            return false;
+        }
+
+        let prompt = self.editor.as_ref(ctx).buffer_text(ctx);
+        if prompt.trim().is_empty()
+            || !matches!(
+                self.slash_command_model
+                    .as_ref(ctx)
+                    .detect_command(&prompt, ctx),
+                SlashCommandEntryState::None
+            )
+        {
+            return false;
+        }
+
+        self.ai_input_model.update(ctx, |model, ctx| {
+            model.handle_input_buffer_submitted(ctx);
+        });
+        self.editor.update(ctx, |editor, ctx| {
+            editor.clear_buffer(ctx);
+        });
+        let attachments = self.ai_context_model.update(ctx, |context_model, ctx| {
+            context_model.take_pending_attachments(ctx)
+        });
+        QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
+            model.add_steer(conversation_id, prompt, attachments, ctx)
+        });
         true
     }
 
