@@ -7,7 +7,7 @@ use warp_multi_agent_api as api;
 
 use crate::ai::agent::{
     AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment, AIAgentContext, AIAgentInput,
-    DriveObjectPayload, MCPContext, RunningCommand, StaticQueryType, UserQueryMode,
+    DriveObjectPayload, MCPContext, RunningCommand, UserQueryMode,
 };
 use crate::ai::block_context::BlockContext;
 
@@ -15,38 +15,6 @@ fn local_datetime_to_timestamp(timestamp: DateTime<Local>) -> prost_types::Times
     prost_types::Timestamp {
         seconds: timestamp.timestamp(),
         nanos: timestamp.timestamp_subsec_nanos() as i32,
-    }
-}
-
-impl TryFrom<StaticQueryType> for api::request::input::query_with_canned_response::Type {
-    type Error = ConvertToAPITypeError;
-
-    fn try_from(value: StaticQueryType) -> Result<Self, Self::Error> {
-        match value {
-            StaticQueryType::Install => Ok(
-                api::request::input::query_with_canned_response::Type::Install(
-                    api::request::input::query_with_canned_response::Install {},
-                ),
-            ),
-            StaticQueryType::Code => {
-                Ok(api::request::input::query_with_canned_response::Type::Code(
-                    api::request::input::query_with_canned_response::Code {},
-                ))
-            }
-            StaticQueryType::Deploy => Ok(
-                api::request::input::query_with_canned_response::Type::Deploy(
-                    api::request::input::query_with_canned_response::Deploy {},
-                ),
-            ),
-            StaticQueryType::SomethingElse => Ok(
-                api::request::input::query_with_canned_response::Type::SomethingElse(
-                    api::request::input::query_with_canned_response::SomethingElse {},
-                ),
-            ),
-            StaticQueryType::EvaluationSuite => {
-                Err(anyhow::anyhow!("EvaluationSuite StaticQueryType not yet supported").into())
-            }
-        }
     }
 }
 
@@ -65,22 +33,6 @@ pub(super) fn convert_input(
     let mut api_inputs = vec![];
     if inputs.len() == 1 {
         match inputs.pop().expect("Input exists.") {
-            AIAgentInput::UserQuery {
-                query,
-                context,
-                static_query_type: Some(query_type),
-                ..
-            } => {
-                return Ok(api::request::Input {
-                    context: Some(convert_context(context.as_ref())),
-                    r#type: Some(api::request::input::Type::QueryWithCannedResponse(
-                        api::request::input::QueryWithCannedResponse {
-                            query,
-                            r#type: Some(query_type.try_into()?),
-                        },
-                    )),
-                });
-            }
             AIAgentInput::ResumeConversation { context } => {
                 return Ok(api::request::Input {
                     context: Some(convert_context(context.as_ref())),
@@ -226,7 +178,6 @@ fn convert_input_to_user_input(
     match input {
         AIAgentInput::UserQuery {
             query,
-            static_query_type: None,
             referenced_attachments,
             user_query_mode,
             running_command: None,
@@ -244,7 +195,6 @@ fn convert_input_to_user_input(
         ),
         AIAgentInput::UserQuery {
             query,
-            static_query_type: None,
             referenced_attachments,
             user_query_mode,
             running_command: Some(RunningCommand{

@@ -19,7 +19,7 @@ use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::block::FinishReason;
 use crate::ai::blocklist::{
     AutofireAction, BlocklistAIControllerEvent, BlocklistAIHistoryModel, PendingAttachment,
-    QueuedQuery, QueuedQueryId, QueuedQueryModel, QueuedQueryOrigin, ResponseStreamId,
+    QueuedQuery, QueuedQueryId, QueuedQueryModel, QueuedQueryOrigin,
 };
 use crate::search::slash_command_menu::static_commands::commands;
 use crate::terminal::input::{Event as InputEvent, Input};
@@ -1057,7 +1057,6 @@ fn finished_receiving_output_drains_queue_when_sibling_block_masks_turn_end() {
             view.handle_ai_controller_event(
                 view.ai_controller.clone(),
                 &BlocklistAIControllerEvent::FinishedReceivingOutput {
-                    stream_id: ResponseStreamId::new_for_test(),
                     conversation_id: finished_conversation,
                 },
                 ctx,

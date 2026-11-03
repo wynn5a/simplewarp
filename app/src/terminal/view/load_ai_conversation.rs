@@ -71,12 +71,7 @@ pub enum ConversationRestorationInNewPaneType {
 
     /// Load a conversation for the cloud conversation viewer or CLI.
     /// The conversation has already been converted from ConversationData.
-    Historical {
-        conversation: AIConversation,
-        /// The ambient agent task ID, if this is an ambient agent conversation.
-        /// Used to display the session ended tombstone.
-        ambient_agent_task_id: Option<crate::ai::ambient_agents::AmbientAgentTaskId>,
-    },
+    Historical { conversation: AIConversation },
 
     /// Fork an existing conversation into this new pane.
     /// This is like Historical but requires special persistence handling.
@@ -793,19 +788,14 @@ impl TerminalView {
         let command_block_index = params.command_block_index;
         let exchange = params.exchange;
 
-        let ai_block_model = match AIBlockModelImpl::<AIBlock>::new(
-            exchange_id,
-            conversation_id,
-            true,
-            params.use_live_appearance,
-            ctx,
-        ) {
-            Ok(ai_block_model) => ai_block_model,
-            Err(err) => {
-                log::warn!("AI block creation failed. {err}");
-                return;
-            }
-        };
+        let ai_block_model =
+            match AIBlockModelImpl::<AIBlock>::new(exchange_id, conversation_id, true, ctx) {
+                Ok(ai_block_model) => ai_block_model,
+                Err(err) => {
+                    log::warn!("AI block creation failed. {err}");
+                    return;
+                }
+            };
 
         let shell_launch_data = params.active_session.as_ref(ctx).shell_launch_data(ctx);
 
@@ -816,7 +806,6 @@ impl TerminalView {
                 ClientIdentifiers {
                     conversation_id: params.conversation_id,
                     client_exchange_id: params.exchange_id,
-                    response_stream_id: None,
                 },
                 params.ai_controller,
                 params.working_directory,

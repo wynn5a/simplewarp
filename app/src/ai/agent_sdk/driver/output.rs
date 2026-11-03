@@ -7,12 +7,11 @@ pub mod text {
 
     use itertools::Itertools;
 
-    use crate::AIAgentActionResultType;
     use crate::ai::agent::{
-        AIAgentActionType, AIAgentInput, AIAgentOutput, AIAgentOutputMessageType,
-        ArtifactCreatedData, CallMCPToolResult, FileGlobResult, FileGlobV2Result, GrepResult,
-        ReadFilesResult, ReadMCPResourceResult, RequestCommandOutputResult, RequestFileEditsResult,
-        WriteToLongRunningShellCommandResult,
+        AIAgentActionResultType, AIAgentActionType, AIAgentInput, AIAgentOutput,
+        AIAgentOutputMessageType, ArtifactCreatedData, CallMCPToolResult, FileGlobResult,
+        FileGlobV2Result, GrepResult, ReadFilesResult, ReadMCPResourceResult,
+        RequestCommandOutputResult, RequestFileEditsResult, WriteToLongRunningShellCommandResult,
     };
 
     /// Format an agent input as a human-readable string. For action results, it's assumed that
@@ -325,9 +324,6 @@ pub mod text {
                         )?;
                     }
                 },
-                AIAgentOutputMessageType::SkillInvoked(invoked_skill) => {
-                    writeln!(w, "Skill Read: {}", invoked_skill.name)?;
-                }
             }
         }
 
@@ -360,14 +356,13 @@ pub mod json {
 
     use serde::Serialize;
 
-    use crate::AIAgentActionResultType;
     use crate::ai::agent::comment::ReviewComment;
     use crate::ai::agent::{
-        AIAgentActionType, AIAgentInput, AIAgentOutput, AIAgentOutputMessage,
-        AIAgentOutputMessageType, ArtifactCreatedData, CallMCPToolResult, FileContext,
-        FileGlobResult, FileGlobV2Result, GrepResult, ReadFilesFailedFile, ReadFilesResult,
-        ReadMCPResourceResult, RequestCommandOutputResult, RequestFileEditsResult, SubagentCall,
-        WriteToLongRunningShellCommandResult,
+        AIAgentActionResultType, AIAgentActionType, AIAgentInput, AIAgentOutput,
+        AIAgentOutputMessage, AIAgentOutputMessageType, ArtifactCreatedData, CallMCPToolResult,
+        FileContext, FileGlobResult, FileGlobV2Result, GrepResult, ReadFilesFailedFile,
+        ReadFilesResult, ReadMCPResourceResult, RequestCommandOutputResult, RequestFileEditsResult,
+        SubagentCall, WriteToLongRunningShellCommandResult,
     };
     use crate::code::buffer_location::LocalOrRemotePath;
 
@@ -405,9 +400,6 @@ pub mod json {
         },
         #[serde(rename = "artifact_created")]
         ArtifactCreated(JsonArtifact<'a>),
-        SkillInvoked {
-            name: &'a str,
-        },
     }
 
     #[derive(Serialize)]
@@ -827,11 +819,6 @@ pub mod json {
                 }
                 AIAgentOutputMessageType::ArtifactCreated(data) => {
                     Some(JsonMessage::ArtifactCreated(JsonArtifact::from(data)))
-                }
-                AIAgentOutputMessageType::SkillInvoked(invoked_skill) => {
-                    Some(JsonMessage::SkillInvoked {
-                        name: &invoked_skill.name,
-                    })
                 }
             }
         }

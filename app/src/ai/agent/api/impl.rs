@@ -91,10 +91,7 @@ pub async fn generate_multi_agent_output(
                 .as_ref()
                 .map(|token| token.as_str().to_string())
                 .unwrap_or_default(),
-            ambient_agent_task_id: params
-                .ambient_agent_task_id
-                .map(|id| id.to_string())
-                .unwrap_or_default(),
+            ambient_agent_task_id: String::new(),
             forked_from_conversation_id: if params.conversation_token.is_none() {
                 // We only include this param on our initial request to the server
                 // (when the forked conversation has not been assigned a new id yet).

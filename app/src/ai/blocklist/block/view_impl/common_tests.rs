@@ -51,7 +51,6 @@ fn query_prefix_highlight_len_does_not_guess_from_plain_user_query_text() {
     let input = AIAgentInput::UserQuery {
         query: "/review-pr tighten the summary".to_string(),
         context: Arc::new([]),
-        static_query_type: None,
         referenced_attachments: HashMap::new(),
         user_query_mode: UserQueryMode::Normal,
         running_command: None,
@@ -69,7 +68,6 @@ fn query_prefix_highlight_len_keeps_existing_plan_highlighting() {
     let input = AIAgentInput::UserQuery {
         query: "write tests".to_string(),
         context: Arc::new([]),
-        static_query_type: None,
         referenced_attachments: HashMap::new(),
         user_query_mode: UserQueryMode::Plan,
         running_command: None,

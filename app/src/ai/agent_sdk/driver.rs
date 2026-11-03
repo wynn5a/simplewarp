@@ -1676,13 +1676,6 @@ impl AgentDriver {
                         return;
                     }
 
-                    // wait_for_events keeps the run alive via the
-                    // action_model's running_actions; the executor owns
-                    // the watchdog. Don't resolve run_exit.
-                    if conversation.status().is_waiting_for_events() {
-                        return;
-                    }
-
                     if conversation.status().is_transient_error() {
                         // An automatic recovery is in flight. Don't terminate yet, but bound
                         // the wait so the CLI doesn't hang if it never completes; a successful
@@ -1765,7 +1758,6 @@ impl AgentDriver {
                 | BlocklistAIHistoryEvent::CreatedSubtask { .. }
                 | BlocklistAIHistoryEvent::UpgradedTask { .. }
                 | BlocklistAIHistoryEvent::UpdatedConversationTitle { .. }
-                | BlocklistAIHistoryEvent::UpdatedConversationMetadata { .. }
                 | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
                 | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
                 | BlocklistAIHistoryEvent::ConversationServerTokenAssigned { .. }

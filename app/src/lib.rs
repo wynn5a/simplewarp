@@ -98,7 +98,6 @@ pub mod tab_configs;
 pub mod terminal;
 pub mod themes;
 use ::ai::project_context::model::ProjectContextModel;
-pub use ai::agent::{AIAgentActionResultType, FileEdit};
 use ai::agent_conversations_model::AgentConversationsModel;
 use ai::agent_management::AgentNotificationsModel;
 use ai::blocklist::{BlocklistAIHistoryModel, BlocklistAIPermissions};

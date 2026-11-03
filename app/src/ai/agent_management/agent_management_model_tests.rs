@@ -26,11 +26,6 @@ fn should_trigger_notification_returns_false_for_in_progress() {
 }
 
 #[test]
-fn should_trigger_notification_returns_false_for_waiting_for_events() {
-    assert!(!ConversationStatus::WaitingForEvents.should_trigger_notification());
-}
-
-#[test]
 fn should_trigger_notification_returns_false_for_cancelled() {
     assert!(!ConversationStatus::Cancelled.should_trigger_notification());
 }

@@ -805,40 +805,6 @@ impl LLMPreferences {
         }
     }
 
-    /// Updates the active execution profile's default Agent Mode model.
-    pub fn update_active_profile_base_model(
-        &self,
-        preferred_llm_id: &LLMId,
-        terminal_view_id: Option<EntityId>,
-        ctx: &mut ModelContext<Self>,
-    ) -> bool {
-        let profiles = AIExecutionProfilesModel::handle(ctx);
-        let profile_id = profiles
-            .as_ref(ctx)
-            .active_profile(terminal_view_id, ctx)
-            .id()
-            .clone();
-        let (persisted, changed) = profiles.update(ctx, |profiles, ctx| {
-            let profile = profiles
-                .get_profile_by_id(&profile_id, ctx)
-                .expect("active execution profile should exist");
-            if profile.data().base_model.as_ref() == Some(preferred_llm_id) {
-                return (true, false);
-            }
-            profiles.set_base_model(&profile_id, Some(preferred_llm_id.clone()), ctx);
-            let persisted = profiles
-                .get_profile_by_id(&profile_id, ctx)
-                .is_some_and(|profile| {
-                    profile.data().base_model.as_ref() == Some(preferred_llm_id)
-                });
-            (persisted, persisted)
-        });
-        if changed {
-            ctx.emit(LLMPreferencesEvent::UpdatedActiveAgentModeLLM);
-        }
-        persisted
-    }
-
     /// Copies the raw per-pane Agent Mode override from `source_terminal_view_id`
     /// onto `new_terminal_view_id`, removing any existing override when the
     /// source has none. Combined with copying the source's execution profile,
@@ -877,33 +843,6 @@ impl LLMPreferences {
     /// Triggers a snapshot save to persist LLM override changes.
     fn trigger_snapshot_save(&self, ctx: &mut ModelContext<Self>) {
         ctx.dispatch_global_action("workspace:save_app", ());
-    }
-
-    pub fn update_preferred_coding_llm(
-        &self,
-        preferred_llm_id: &LLMId,
-        terminal_view_id: Option<EntityId>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let new_value = if preferred_llm_id == &self.models_by_feature.coding.default_id {
-            None
-        } else {
-            Some(preferred_llm_id.clone())
-        };
-
-        let mut changed = false;
-        AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles, ctx| {
-            let profile = profiles.active_profile(terminal_view_id, ctx);
-
-            if profile.data().coding_model != new_value {
-                profiles.set_coding_model(profile.id(), new_value, ctx);
-                changed = true;
-            }
-        });
-
-        if changed {
-            ctx.emit(LLMPreferencesEvent::UpdatedActiveCodingLLM);
-        }
     }
 
     /// Clear any model selections where the model is no longer supported
@@ -1036,7 +975,6 @@ impl LLMPreferences {
 pub enum LLMPreferencesEvent {
     UpdatedAvailableLLMs,
     UpdatedActiveAgentModeLLM,
-    UpdatedActiveCodingLLM,
 }
 
 impl Entity for LLMPreferences {

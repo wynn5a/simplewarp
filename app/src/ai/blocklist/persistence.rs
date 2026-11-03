@@ -93,7 +93,6 @@ impl TryFrom<PersistedAIInputType> for AIAgentInput {
                 query: text,
                 context,
                 referenced_attachments,
-                static_query_type: None,
                 user_query_mode: UserQueryMode::default(),
                 running_command: None,
                 intended_agent: None,

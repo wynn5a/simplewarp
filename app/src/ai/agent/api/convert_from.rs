@@ -52,8 +52,6 @@ pub(crate) fn convert_user_query_mode(mode: Option<&api::UserQueryMode>) -> User
 /// Unexpected errors when trying to convert an [`api::Message`] to an [`AIAgentOutputMessage`].
 #[derive(Debug, thiserror::Error)]
 pub enum MessageToAIAgentOutputMessageError {
-    #[error("Missing expected message")]
-    MissingMessage,
     #[error("Error converting tool to action: {0:?}")]
     ToolError(#[from] ToolToAIAgentActionError),
 }

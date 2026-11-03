@@ -47,9 +47,7 @@ pub(crate) fn classify_renderable_error(error: &RenderableAIError) -> AgentTaskS
         | RenderableAIError::ContextWindowExceeded(_)
         | RenderableAIError::InvalidApiKey { .. }
         | RenderableAIError::AgentExitedShell { .. } => AgentTaskState::Failed,
-        RenderableAIError::InternalWarpError
-        | RenderableAIError::TransientNetworkError { .. }
-        | RenderableAIError::CloudStartupFailed(_) => AgentTaskState::Error,
+        RenderableAIError::TransientNetworkError { .. } => AgentTaskState::Error,
         RenderableAIError::Other { is_user_error, .. } => {
             if *is_user_error {
                 AgentTaskState::Failed

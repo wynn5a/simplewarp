@@ -355,7 +355,6 @@ impl CLISubagentView {
                             *exchange_id,
                             *conversation_id,
                             false,
-                            false,
                             ctx,
                         ) {
                             model.on_updated_output(
@@ -418,14 +417,9 @@ impl CLISubagentView {
                     .and_then(|t| t.last_exchange().map(|e| e.id))
             })
             .expect("Exchange exists.");
-        let model = AIBlockModelImpl::<CLISubagentView>::new(
-            exchange_id,
-            conversation_id,
-            false,
-            false,
-            ctx,
-        )
-        .expect("Exchange exists.");
+        let model =
+            AIBlockModelImpl::<CLISubagentView>::new(exchange_id, conversation_id, false, ctx)
+                .expect("Exchange exists.");
         model.on_updated_output(
             Box::new(|me, ctx| {
                 me.handle_updated_exchange_output(ctx);

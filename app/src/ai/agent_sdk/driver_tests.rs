@@ -264,7 +264,9 @@ fn idle_timeout_sender_complete_with_optional_idle_some_then_cancel_invalidates_
 
 fn error_status() -> SDKConversationOutputStatus {
     SDKConversationOutputStatus::Error {
-        error: RenderableAIError::InternalWarpError,
+        error: RenderableAIError::AgentExitedShell {
+            command: "exit".to_string(),
+        },
     }
 }
 

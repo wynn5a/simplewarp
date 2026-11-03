@@ -1355,7 +1355,6 @@ fn seed_in_progress_conversation(
             input: vec![AIAgentInput::UserQuery {
                 query: "run the dev server".to_owned(),
                 context: Default::default(),
-                static_query_type: None,
                 referenced_attachments: Default::default(),
                 user_query_mode: UserQueryMode::Normal,
                 running_command: None,
@@ -5576,8 +5575,6 @@ fn test_alias_expansion_disabled_in_ai_input_mode() {
                         input_type: InputType::AI,
                         is_locked: true,
                     },
-                    true, /* is_input_buffer_empty */
-                    None,
                     ctx,
                 );
             });
@@ -5605,8 +5602,6 @@ fn test_alias_expansion_disabled_in_ai_input_mode() {
                         input_type: InputType::Shell,
                         is_locked: true,
                     },
-                    false, /* is_input_buffer_empty */
-                    None,
                     ctx,
                 );
             });
@@ -6028,63 +6023,6 @@ fn enter_fullscreen_agent_view_for_test(terminal: &ViewHandle<TerminalView>, app
 }
 
 #[test]
-fn test_terminal_prefix_sets_shell_prefix_decision_source() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-        enter_fullscreen_agent_view_for_test(&terminal, &mut app);
-
-        input.update(&mut app, |input, ctx| {
-            input.user_insert(TERMINAL_INPUT_PREFIX, ctx);
-        });
-
-        input.read(&app, |input, ctx| {
-            assert!(input.buffer_text(ctx).is_empty());
-            app.read_model(input.ai_input_model(), |input_model, _| {
-                assert_eq!(input_model.input_type(), InputType::Shell);
-                assert!(input_model.is_input_type_locked());
-                assert_eq!(
-                    input_model.last_ai_autodetection_source(),
-                    Some(InputTypeAutoDetectionSource::ShellPrefix)
-                );
-            });
-        });
-    });
-}
-
-#[test]
-fn test_source_less_locked_config_clears_decision_source() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        input.update(&mut app, |input, ctx| {
-            input.ai_input_model().update(ctx, |input_model, ctx| {
-                let locked_shell_config = InputConfig {
-                    input_type: InputType::Shell,
-                    is_locked: true,
-                };
-                input_model.set_input_config(
-                    locked_shell_config,
-                    true,
-                    Some(InputTypeAutoDetectionSource::ShellPrefix),
-                    ctx,
-                );
-                input_model.set_input_config(locked_shell_config, true, None, ctx);
-            });
-        });
-
-        input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |input_model, _| {
-                assert_eq!(input_model.last_ai_autodetection_source(), None);
-            });
-        });
-    });
-}
-
-#[test]
 fn test_ai_context_menu_closes_when_space_immediately_after_at_symbol() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
@@ -6141,8 +6079,6 @@ fn test_ai_context_menu_preserves_lock_state() {
                         input_type: InputType::Shell,
                         is_locked: true,
                     },
-                    true, /* is_input_buffer_empty */
-                    None,
                     ctx,
                 );
             });
@@ -6173,8 +6109,6 @@ fn test_ai_context_menu_preserves_lock_state() {
                         input_type: InputType::Shell,
                         is_locked: false,
                     },
-                    true, /* is_input_buffer_empty */
-                    None,
                     ctx,
                 );
             });
@@ -6324,7 +6258,7 @@ fn test_remove_ignored_suggestion_on_ai_query_execution() {
         // Set up AI input mode and execute the query
         input.update(&mut app, |input, ctx| {
             input.ai_input_model.update(ctx, |ai_input, ctx| {
-                ai_input.set_input_type(InputType::AI, None, ctx);
+                ai_input.set_input_type(InputType::AI, ctx);
             });
             input.clear_buffer_and_reset_undo_stack(ctx);
             input.user_insert(test_query, ctx);
@@ -6401,8 +6335,6 @@ fn test_terminal_only_ai_enter_enters_agent_view_and_clears_buffer() {
                         input_type: InputType::AI,
                         is_locked: false,
                     },
-                    false, /* is_input_buffer_empty */
-                    None,
                     ctx,
                 );
             });
@@ -6458,8 +6390,6 @@ fn test_terminal_only_escape_locks_shell_mode() {
                         input_type: InputType::AI,
                         is_locked: false,
                     },
-                    true, /* is_input_buffer_empty */
-                    None,
                     ctx,
                 );
             });
@@ -6477,12 +6407,6 @@ fn test_terminal_only_escape_locks_shell_mode() {
         });
         assert_eq!(config.input_type, InputType::Shell);
         assert!(config.is_locked);
-        let source = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.last_ai_autodetection_source()
-            })
-        });
-        assert_eq!(source, Some(InputTypeAutoDetectionSource::ManualToggle));
     });
 }
 

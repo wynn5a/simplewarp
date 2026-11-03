@@ -396,11 +396,6 @@ impl BlocklistAIStatusBar {
         ctx.notify();
     }
 
-    pub fn notify_and_notify_children(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.notify();
-        self.agent_message_bar.update(ctx, |_, ctx| ctx.notify());
-    }
-
     fn reset_model_for_exchange(
         &mut self,
         exchange_id: AIAgentExchangeId,
@@ -428,7 +423,6 @@ impl BlocklistAIStatusBar {
                     AIBlockModelImpl::<BlocklistAIStatusBar>::new(
                         e.id,
                         conversation.id(),
-                        false,
                         false,
                         ctx,
                     )

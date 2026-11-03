@@ -386,7 +386,6 @@ impl ShellCommandExecutor {
 
                 // Emit event to transfer control to user.
                 ctx.emit(ShellCommandExecutorEvent::TransferControlToUser {
-                    action_id: action_id.clone(),
                     reason: reason.clone(),
                 });
 
@@ -872,12 +871,8 @@ pub enum ShellCommandExecutorEvent {
         input: Bytes,
         mode: AIAgentPtyWriteMode,
     },
-    CancelExecution,
     /// Emitted when the agent requests to transfer control of a long-running command to the user.
-    TransferControlToUser {
-        action_id: AIAgentActionId,
-        reason: String,
-    },
+    TransferControlToUser { reason: String },
 }
 
 impl Entity for ShellCommandExecutor {

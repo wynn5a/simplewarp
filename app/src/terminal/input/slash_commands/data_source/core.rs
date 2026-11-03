@@ -124,7 +124,6 @@ impl SlashCommandDataSource {
             | AgentViewControllerEvent::ExitedAgentView { .. } => {
                 me.recompute_active_commands(ctx);
             }
-            _ => (),
         });
         ctx.subscribe_to_model(&InputSettings::handle(ctx), |me, _, event, ctx| {
             if matches!(

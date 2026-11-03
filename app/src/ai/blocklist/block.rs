@@ -64,13 +64,13 @@ use super::inline_action::code_diff_view::{
 use super::inline_action::requested_action::{CTRL_C_KEYSTROKE, ENTER_KEYSTROKE};
 use super::{
     BlocklistAIActionModel, BlocklistAIController, BlocklistAIHistoryEvent,
-    BlocklistAIHistoryModel, BlocklistAIPermissions, ResponseStreamId,
+    BlocklistAIHistoryModel, BlocklistAIPermissions,
 };
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResultType, AIAgentActionType, AIAgentAttachment,
     AIAgentContext, AIAgentInput, AIAgentOutput, AIAgentOutputMessageType, AIAgentTextSection,
-    AIIdentifiers, CancellationReason, MessageId, ProgrammingLanguage, RequestCommandOutputResult,
+    CancellationReason, FileEdit, MessageId, ProgrammingLanguage, RequestCommandOutputResult,
     RequestFileEditsResult, ServerOutputId, SummarizationType,
 };
 use crate::ai::blocklist::agent_view::AgentViewController;
@@ -97,7 +97,6 @@ use crate::code_review::comments::{
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 use crate::editor::InteractionState;
 use crate::notebooks::editor::view::{EditorViewEvent, RichTextEditorView};
-use crate::server::ids::SyncId;
 use crate::settings::{
     AISettings, AISettingsChangedEvent, AgentModeCodingPermissionsType, FontSettings,
     InputModeSettings, InputModeSettingsChangedEvent,
@@ -122,7 +121,7 @@ use crate::view_components::action_button::{
 use crate::view_components::compactible_action_button::CompactibleActionButton;
 use crate::view_components::find::FindEvent;
 use crate::workspace::{ForkAIConversationParams, ForkedConversationDestination, WorkspaceAction};
-use crate::{Appearance, FileEdit, ToastStack};
+use crate::{Appearance, ToastStack};
 
 const HAS_PENDING_ACTION: &str = "HasPendingAction";
 const DISPATCHED_REQUESTED_EDIT_KEYMAP_CONTEXT: &str = "PendingAIRequestedEdits";
@@ -1318,10 +1317,6 @@ impl AIBlock {
         ctx.notify();
     }
 
-    pub fn contains_action(&self, action_id: &AIAgentActionId) -> bool {
-        self.requested_action_ids.contains(action_id)
-    }
-
     pub fn contains_action_result(&self, action_id: &AIAgentActionId, app: &AppContext) -> bool {
         self.model.inputs_to_render(app).iter().any(|input| {
             input
@@ -1584,13 +1579,7 @@ impl AIBlock {
                         },
                     ..
                 } => {
-                    self.handle_requested_edit_complete(
-                        id,
-                        title,
-                        file_edits.clone(),
-                        output.server_output_id.clone(),
-                        ctx,
-                    );
+                    self.handle_requested_edit_complete(id, title, file_edits.clone(), ctx);
                 }
                 AIAgentAction {
                     id,
@@ -1962,22 +1951,14 @@ impl AIBlock {
         action_id: &AIAgentActionId,
         title: &Option<String>,
         file_edits: Vec<FileEdit>,
-        server_output_id: Option<ServerOutputId>,
         ctx: &mut ViewContext<Self>,
     ) {
-        let identifiers = AIIdentifiers {
-            client_conversation_id: Some(self.client_ids.conversation_id),
-            client_exchange_id: Some(self.client_ids.client_exchange_id),
-            server_output_id,
-            server_conversation_id: None,
-            model_id: self.model.model_id(ctx),
-        };
         let view = ctx.add_typed_action_view(|ctx| {
             CodeDiffView::new(
                 action_id,
                 self.model.as_ref(),
                 title.clone(),
-                identifiers,
+                self.client_ids.conversation_id,
                 self.action_model.clone(),
                 self.shell_launch_data.clone().map(|data| data.into()),
                 ctx,
@@ -2058,9 +2039,6 @@ impl AIBlock {
                 CodeDiffViewEvent::CopiedEmptyText => {
                     ctx.emit(AIBlockEvent::CopiedEmptyText);
                 }
-                CodeDiffViewEvent::Blur => {
-                    ctx.emit(AIBlockEvent::FocusTerminal);
-                }
                 CodeDiffViewEvent::DisplayModeChanged => {
                     ctx.notify();
                 }
@@ -2081,7 +2059,7 @@ impl AIBlock {
                             .value(),
                     });
                 }
-                CodeDiffViewEvent::OpenMCPConfig { path, .. } => {
+                CodeDiffViewEvent::OpenMCPConfig { path } => {
                     ctx.emit(AIBlockEvent::OpenCodeInWarp {
                         source: CodeSource::Link {
                             path: path.clone(),
@@ -2460,18 +2438,6 @@ impl AIBlock {
         }
     }
 
-    pub fn response_stream_id(&self) -> Option<&ResponseStreamId> {
-        self.client_ids.response_stream_id.as_ref()
-    }
-
-    pub fn current_working_directory(&self) -> Option<&String> {
-        self.current_working_directory.as_ref()
-    }
-
-    pub fn output_status(&self, app: &AppContext) -> AIBlockOutputStatus {
-        self.model.status(app)
-    }
-
     /// Returns `true` if this AI block contains user input.
     pub fn has_user_input(&self, app: &AppContext) -> bool {
         self.model
@@ -2502,14 +2468,6 @@ impl AIBlock {
     /// requested action(s) that are still receiving output.
     pub fn is_finished(&self) -> bool {
         self.finish_reason.is_some()
-    }
-
-    pub fn is_manually_cancelled(&self) -> bool {
-        self.finish_reason == Some(FinishReason::Cancelled)
-    }
-
-    pub fn is_complete(&self) -> bool {
-        self.finish_reason == Some(FinishReason::Complete)
     }
 
     pub fn finish_reason(&self) -> Option<FinishReason> {
@@ -3290,10 +3248,6 @@ impl AIBlock {
         get_rich_content_position_id(&self.view_id)
     }
 
-    pub fn status(&self, app: &AppContext) -> AIBlockOutputStatus {
-        self.model.status(app)
-    }
-
     pub fn has_expanded_running_commands(&self, app: &AppContext) -> bool {
         self.requested_commands
             .iter()
@@ -3734,10 +3688,6 @@ pub enum AIBlockEvent {
     DismissLinkTooltip,
     ShowSecretTooltip(RichContentSecretTooltipInfo),
     DismissSecretTooltip,
-    OpenAIFactCollection {
-        /// If set, open the fact collection to the specific rule.
-        sync_id: Option<SyncId>,
-    },
     FocusTerminal,
     OpenThemeChooser,
     #[cfg(windows)]
@@ -3757,14 +3707,9 @@ pub enum AIBlockEvent {
     /// the point-based model selection, so this signal is required.
     SelectionChanged,
     CopiedEmptyText,
-    OpenSettings,
     OpenCodeInWarp {
         source: CodeSource,
         layout: crate::util::file::external_editor::settings::EditorLayout,
-    },
-    /// Emitted when the resume conversation button is clicked
-    ResumeConversation {
-        conversation_id: AIConversationId,
     },
     InsertForkSlashCommand,
     ToggleCodeReviewPane {
@@ -3795,9 +3740,6 @@ pub enum AIBlockAction {
     SelectText,
 
     CopyAIBlockCodeSnippet(String),
-
-    /// Resume the stopped conversation
-    ResumeConversation,
 
     /// Fork the conversation
     ForkConversation,
@@ -3840,7 +3782,6 @@ pub enum AIBlockAction {
         secret_range: SecretRange,
         location: TextLocation,
     },
-    OpenAIFactCollection,
     ToggleAutoexecuteReadonlyCommandsSpeedbumpCheckbox,
     ToggleAutoreadFilesSpeedbumpCheckbox,
     Rated {
@@ -3930,11 +3871,6 @@ impl TypedActionView for AIBlock {
                     *scroll_pinned_to_bottom = *pinned_to_bottom;
                     ctx.notify();
                 }
-            }
-            AIBlockAction::ResumeConversation => {
-                ctx.emit(AIBlockEvent::ResumeConversation {
-                    conversation_id: self.client_ids.conversation_id,
-                });
             }
             AIBlockAction::ForkConversation => {
                 // Fully reset the fork button's interaction state before navigation.
@@ -4053,9 +3989,6 @@ impl TypedActionView for AIBlock {
                 secret_range,
             } => {
                 self.show_secret_tooltip(location, secret_range, ctx);
-            }
-            AIBlockAction::OpenAIFactCollection => {
-                ctx.emit(AIBlockEvent::OpenAIFactCollection { sync_id: None });
             }
             AIBlockAction::CommentExpanded { id } => {
                 let Some(comment) = self.comment_states.get_mut(id) else {

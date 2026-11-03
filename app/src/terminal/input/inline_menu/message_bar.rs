@@ -45,7 +45,6 @@ impl<A: InlineMenuAction, T: 'static + Send + Sync> InlineMenuMessageBar<A, T> {
             | AgentViewControllerEvent::ExitedAgentView { .. } => {
                 ctx.notify();
             }
-            _ => (),
         });
 
         Self {

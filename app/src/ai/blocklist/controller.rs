@@ -36,11 +36,10 @@ use crate::ai::agent::conversation::{AIConversation, AIConversationId, Conversat
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
     AIAgentActionResult, AIAgentAttachment, AIAgentContext, AIAgentExchangeId, AIAgentInput,
-    AIAgentOutputStatus, AIIdentifiers, CancellationOutcome, CancellationReason, EntrypointType,
-    FinishedAIAgentOutput, RenderableAIError, RequestMetadata, RunningCommand, StaticQueryType,
+    AIAgentOutputStatus, CancellationOutcome, CancellationReason, EntrypointType,
+    FinishedAIAgentOutput, RenderableAIError, RequestMetadata, RunningCommand,
     TransientNetworkErrorKind, UserQueryMode, extract_user_query_mode,
 };
-use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::ai::skills::{ActiveSkillLookupError, SkillManager};
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
@@ -112,28 +111,11 @@ pub enum BlocklistAIControllerEvent {
         /// buffer) should skip those effects when this is true — the user may have typed
         /// new input while the agent was busy and we don't want to wipe it.
         is_queued_prompt: bool,
-        /// The model ID used for this request. None for slash commands that don't
-        /// send a model request (e.g., /fork).
-        model_id: LLMId,
-        /// The ID of the response stream for this request.
-        stream_id: ResponseStreamId,
     },
 
     /// Emitted when an AI output response is fully received, particularly relevant when output is
     /// being streamed.
-    FinishedReceivingOutput {
-        stream_id: ResponseStreamId,
-        conversation_id: AIConversationId,
-    },
-
-    /// Emitted when the export-to-file slash command is executed.
-    ExportConversationToFile {
-        filename: Option<String>,
-    },
-
-    ExecuteLocalHarnessCommand {
-        command: String,
-    },
+    FinishedReceivingOutput { conversation_id: AIConversationId },
 }
 
 #[derive(Debug)]
@@ -241,11 +223,6 @@ pub struct BlocklistAIController {
     /// The ID of the terminal view this controller is associated with.
     terminal_view_id: EntityId,
 
-    /// Ambient agent task ID attached to this controller. This is a property of the controller, and not an individual
-    /// conversation, because the ambient agent task driver owns the entire Warp window working on a task, and any
-    /// sessions within it. In the future, one task may span several sessions with background processes.
-    ambient_agent_task_id: Option<AmbientAgentTaskId>,
-
     /// Pending auto-resume tasks that are waiting for network connectivity.
     /// These should be cancelled when a new request is sent for the same conversation.
     pending_auto_resume_handles: HashMap<AIConversationId, SpawnedFutureHandle>,
@@ -256,7 +233,6 @@ enum InputQueryType {
     /// map to other `AIAgentInput` types depending on various factors.
     UserSubmittedQueryFromInput {
         query: String,
-        static_query_type: Option<StaticQueryType>,
         running_command: Option<RunningCommand>,
     },
     /// A custom [`AIInputType`].
@@ -444,7 +420,6 @@ impl BlocklistAIController {
             terminal_model,
             in_flight_response_streams: PendingResponseStreams::new(),
             terminal_view_id,
-            ambient_agent_task_id: None,
             pending_auto_resume_handles: HashMap::new(),
         }
     }
@@ -555,9 +530,7 @@ impl BlocklistAIController {
         let queued_query_id = input_query.queued_query_id;
         let ai_input = match input_query.input_query {
             InputQueryType::UserSubmittedQueryFromInput {
-                static_query_type,
-                running_command,
-                ..
+                running_command, ..
             } => {
                 // Resolve the attachment set for this submission. The direct-send branch
                 // preserves existing behavior: live input staging is still consumed by regular
@@ -577,7 +550,6 @@ impl BlocklistAIController {
                     query,
                     &task_id,
                     conversation_id,
-                    static_query_type,
                     user_query_mode,
                     running_command,
                     additional_attachments,
@@ -618,13 +590,11 @@ impl BlocklistAIController {
     pub fn send_user_query_in_new_conversation(
         &mut self,
         query: String,
-        static_query_type: Option<StaticQueryType>,
         entrypoint_type: EntrypointType,
         ctx: &mut ModelContext<Self>,
     ) {
         self.send_user_query_in_new_conversation_internal(
             query,
-            static_query_type,
             entrypoint_type,
             /*is_queued_prompt*/ false,
             /*queued_query_id*/ None,
@@ -636,7 +606,6 @@ impl BlocklistAIController {
     fn send_user_query_in_new_conversation_internal(
         &mut self,
         query: String,
-        static_query_type: Option<StaticQueryType>,
         entrypoint_type: EntrypointType,
         is_queued_prompt: bool,
         queued_query_id: Option<QueuedQueryId>,
@@ -674,7 +643,6 @@ impl BlocklistAIController {
                     },
                     input_query: InputQueryType::UserSubmittedQueryFromInput {
                         query,
-                        static_query_type,
                         running_command: Some(running_command),
                     },
                     additional_attachments: HashMap::new(),
@@ -690,7 +658,6 @@ impl BlocklistAIController {
                     which_task: WhichTask::NewConversation,
                     input_query: InputQueryType::UserSubmittedQueryFromInput {
                         query,
-                        static_query_type,
                         running_command: None,
                     },
                     additional_attachments: HashMap::new(),
@@ -877,7 +844,6 @@ impl BlocklistAIController {
                 },
                 input_query: InputQueryType::UserSubmittedQueryFromInput {
                     query,
-                    static_query_type: None,
                     running_command,
                 },
                 additional_attachments,
@@ -1238,7 +1204,6 @@ impl BlocklistAIController {
             tasks: active_tasks,
             server_conversation_token: conversation_server_token,
             forked_from_conversation_token: conversation_forked_from_token,
-            ambient_agent_task_id: self.ambient_agent_task_id,
         };
 
         // Log an error if tool call results do not have corresponding tool calls in task context
@@ -1257,24 +1222,8 @@ impl BlocklistAIController {
             ctx,
         );
 
-        let server_conversation_token_for_identifiers =
-            conversation_data.server_conversation_token.clone();
-
         let response_stream = ctx.add_model(|ctx| {
-            // Create AIIdentifiers for the response stream
-            let ai_identifiers = AIIdentifiers {
-                server_output_id: None, // Will be populated by the successful response
-                server_conversation_id: server_conversation_token_for_identifiers.map(Into::into),
-                client_conversation_id: Some(conversation_data.id),
-                client_exchange_id: None,
-                model_id: Some(request_params.model.clone()),
-            };
-            ResponseStream::new(
-                request_params.clone(),
-                ai_identifiers,
-                can_attempt_resume_on_error,
-                ctx,
-            )
+            ResponseStream::new(request_params.clone(), can_attempt_resume_on_error, ctx)
         });
         let response_stream_id = response_stream.as_ref(ctx).id().clone();
         let response_stream_clone = response_stream.clone();
@@ -1329,8 +1278,6 @@ impl BlocklistAIController {
         ctx.emit(BlocklistAIControllerEvent::SentRequest {
             contains_user_query: input_contains_user_query,
             is_queued_prompt,
-            model_id: request_params.model.clone(),
-            stream_id: response_stream_id.clone(),
         });
         history_model.update(ctx, |history_model, ctx| {
             history_model.mark_active_conversation_id(
@@ -1820,10 +1767,7 @@ impl BlocklistAIController {
                 });
                 ctx.unsubscribe_from_model(response_stream);
 
-                ctx.emit(BlocklistAIControllerEvent::FinishedReceivingOutput {
-                    stream_id,
-                    conversation_id,
-                });
+                ctx.emit(BlocklistAIControllerEvent::FinishedReceivingOutput { conversation_id });
             }
         }
     }
@@ -2010,8 +1954,6 @@ impl Entity for BlocklistAIController {
 pub struct ClientIdentifiers {
     pub conversation_id: AIConversationId,
     pub client_exchange_id: AIAgentExchangeId,
-    /// Not populated for restored AI blocks.
-    pub response_stream_id: Option<ResponseStreamId>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2019,7 +1961,6 @@ fn input_for_query(
     query: String,
     task_id: &TaskId,
     conversation_id: AIConversationId,
-    static_query_type: Option<StaticQueryType>,
     user_query_mode: UserQueryMode,
     running_command: Option<RunningCommand>,
     additional_attachments: HashMap<String, AIAgentAttachment>,
@@ -2065,7 +2006,6 @@ fn input_for_query(
     AIAgentInput::UserQuery {
         query,
         context,
-        static_query_type,
         referenced_attachments,
         user_query_mode,
         running_command,

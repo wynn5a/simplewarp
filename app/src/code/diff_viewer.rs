@@ -25,13 +25,6 @@ impl DisplayMode {
         DisplayMode::Embedded { max_height }
     }
 
-    pub fn max_height(&self) -> Option<f32> {
-        match self {
-            DisplayMode::FullPane => None,
-            DisplayMode::Embedded { max_height } => Some(*max_height),
-        }
-    }
-
     pub(crate) fn scroll_wheel_behavior(&self) -> ScrollWheelBehavior {
         ScrollWheelBehavior::AlwaysHandle
     }

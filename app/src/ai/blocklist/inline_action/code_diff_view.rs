@@ -42,8 +42,9 @@ use warpui::{
     ViewHandle, WeakViewHandle,
 };
 
+use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::icons::{self, yellow_stop_icon};
-use crate::ai::agent::{AIAgentActionId, AIIdentifiers, FileEdit, RequestFileEditsResult};
+use crate::ai::agent::{AIAgentActionId, FileEdit, RequestFileEditsResult};
 use crate::ai::blocklist::action_model::{
     AIActionStatus, BlocklistAIActionEvent, BlocklistAIActionModel,
 };
@@ -201,7 +202,6 @@ pub enum CodeDiffViewEvent {
     TextSelected,
     CopiedEmptyText,
     EditorFocused,
-    Blur,
     DisplayModeChanged,
     ToggleCodeReviewPane {
         entrypoint: CodeReviewPaneEntrypoint,
@@ -213,7 +213,6 @@ pub enum CodeDiffViewEvent {
     },
     /// Emitted when the user opens an MCP config file from a code diff
     OpenMCPConfig {
-        provider: MCPProvider,
         path: PathBuf,
     },
 }
@@ -278,7 +277,6 @@ pub enum CodeDiffViewAction {
         mouse_state: MouseStateHandle,
     },
     OpenMCPConfig {
-        provider: MCPProvider,
         path: PathBuf,
         mouse_state: MouseStateHandle,
     },
@@ -346,8 +344,8 @@ pub struct CodeDiffView {
     display_mode: DisplayMode,
     title: Option<String>,
     focus_handle: Option<PaneFocusHandle>,
-    /// Client and server identifiers for the AI output associated with the code diffs.
-    identifiers: AIIdentifiers,
+    /// The conversation whose agent output requested these code diffs.
+    conversation_id: AIConversationId,
     /// `False` until a user makes the first edit to one of the diffs in the view.
     user_edited_file_contents: bool,
     /// The ID of the pane that opened this code diff view.
@@ -485,7 +483,7 @@ impl CodeDiffView {
         action_id: &AIAgentActionId,
         model: &dyn AIBlockModel<View = crate::ai::blocklist::AIBlock>,
         title: Option<String>,
-        identifiers: AIIdentifiers,
+        conversation_id: AIConversationId,
         action_model: ModelHandle<BlocklistAIActionModel>,
         session_platform: Option<SessionPlatform>,
         ctx: &mut ViewContext<Self>,
@@ -502,7 +500,7 @@ impl CodeDiffView {
             action_id,
             initial_state,
             title,
-            identifiers,
+            conversation_id,
             session_platform,
             ctx,
         );
@@ -548,7 +546,7 @@ impl CodeDiffView {
         action_id: &AIAgentActionId,
         initial_state: CodeDiffState,
         title: Option<String>,
-        identifiers: AIIdentifiers,
+        conversation_id: AIConversationId,
         session_platform: Option<SessionPlatform>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
@@ -677,7 +675,7 @@ impl CodeDiffView {
             display_mode,
             title,
             focus_handle: None,
-            identifiers,
+            conversation_id,
             user_edited_file_contents: false,
             original_pane_id: None,
             scrollable_state: Default::default(),
@@ -858,14 +856,13 @@ impl CodeDiffView {
     }
 
     fn mark_action_as_reverted(&self, ctx: &mut ViewContext<Self>) {
-        if let Some(conversation_id) = self.identifiers.client_conversation_id {
-            let action_id = self.action_id.clone();
-            BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                if let Some(conversation) = history_model.conversation_mut(&conversation_id) {
-                    conversation.mark_action_as_reverted(action_id, ctx);
-                }
-            });
-        }
+        let conversation_id = self.conversation_id;
+        let action_id = self.action_id.clone();
+        BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
+            if let Some(conversation) = history_model.conversation_mut(&conversation_id) {
+                conversation.mark_action_as_reverted(action_id, ctx);
+            }
+        });
     }
 
     /// Set the view state to the specified state.
@@ -1258,7 +1255,6 @@ impl CodeDiffView {
                 color,
                 move |ctx| {
                     ctx.dispatch_typed_action(CodeDiffViewAction::OpenMCPConfig {
-                        provider,
                         path: config_path.clone(),
                         mouse_state: mcp_button_handle.clone(),
                     });
@@ -1522,10 +1518,6 @@ impl CodeDiffView {
             )
             .finish(),
         }
-    }
-
-    pub fn state(&self) -> &CodeDiffState {
-        &self.state
     }
 
     pub fn is_complete(&self) -> bool {
@@ -1818,20 +1810,13 @@ impl TypedActionView for CodeDiffView {
                     path: path.clone(),
                 });
             }
-            CodeDiffViewAction::OpenMCPConfig {
-                provider,
-                path,
-                mouse_state,
-            } => {
+            CodeDiffViewAction::OpenMCPConfig { path, mouse_state } => {
                 // Resets the interaction state of the button to avoid an immediate re-hover
                 if let Ok(mut state) = mouse_state.lock() {
                     state.reset_interaction_state();
                 }
 
-                ctx.emit(CodeDiffViewEvent::OpenMCPConfig {
-                    provider: *provider,
-                    path: path.clone(),
-                });
+                ctx.emit(CodeDiffViewEvent::OpenMCPConfig { path: path.clone() });
             }
         }
     }

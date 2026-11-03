@@ -44,10 +44,8 @@ fn earlier_and_later() -> (DateTime<Local>, DateTime<Local>) {
     (earlier, later)
 }
 
-const HISTORY_MATCH_AI: Option<(InputType, InputTypeAutoDetectionSource)> =
-    Some((InputType::AI, InputTypeAutoDetectionSource::HistoryMatch));
-const HISTORY_MATCH_SHELL: Option<(InputType, InputTypeAutoDetectionSource)> =
-    Some((InputType::Shell, InputTypeAutoDetectionSource::HistoryMatch));
+const HISTORY_MATCH_AI: Option<InputType> = Some(InputType::AI);
+const HISTORY_MATCH_SHELL: Option<InputType> = Some(InputType::Shell);
 
 #[test]
 fn no_match_from_either_source_is_not_history_match() {
@@ -300,7 +298,7 @@ fn locked_ai_write_requires_policy_permission() {
 
         // Rejected: the policy forbids locking to AI.
         input_model.update(&mut app, |model, ctx| {
-            model.set_input_config(AI_LOCKED, true, None, ctx);
+            model.set_input_config(AI_LOCKED, ctx);
         });
         input_model.read(&app, |model, _| {
             assert_eq!(model.input_config(), SHELL_UNLOCKED);
@@ -308,7 +306,7 @@ fn locked_ai_write_requires_policy_permission() {
 
         // Locked shell (and unlocked AI) writes are not gated.
         input_model.update(&mut app, |model, ctx| {
-            model.set_input_config(SHELL_LOCKED, true, None, ctx);
+            model.set_input_config(SHELL_LOCKED, ctx);
         });
         input_model.read(&app, |model, _| {
             assert_eq!(model.input_config(), SHELL_LOCKED);

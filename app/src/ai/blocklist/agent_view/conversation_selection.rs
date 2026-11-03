@@ -54,7 +54,6 @@ impl AgentViewConversationSelection {
                     is_exit_before_new_entrance: *is_exit_before_new_entrance,
                 });
             }
-            AgentViewControllerEvent::ExitConfirmed { .. } => {}
         });
         ctx.subscribe_to_model(
             &BlocklistAIHistoryModel::handle(ctx),

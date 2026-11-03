@@ -22,7 +22,6 @@ use warpui::{AppContext, EntityId, SingletonEntity as _};
 
 use super::{AIAgentInput, MCPContext, MCPServer, RequestMetadata, ServerOutputId};
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::{RequestInput, SessionContext};
 use crate::ai::llms::LLMId;
 use crate::ai::mcp::TemplatableMCPServerManager;
@@ -69,7 +68,6 @@ pub struct RequestParams {
     pub input: Vec<AIAgentInput>,
     pub conversation_token: Option<ServerConversationToken>,
     pub forked_from_conversation_token: Option<ServerConversationToken>,
-    pub ambient_agent_task_id: Option<AmbientAgentTaskId>,
     pub tasks: Vec<warp_multi_agent_api::Task>,
     pub metadata: Option<RequestMetadata>,
     pub session_context: SessionContext,
@@ -103,7 +101,6 @@ pub struct ConversationData {
     pub tasks: Vec<warp_multi_agent_api::Task>,
     pub server_conversation_token: Option<ServerConversationToken>,
     pub forked_from_conversation_token: Option<ServerConversationToken>,
-    pub ambient_agent_task_id: Option<AmbientAgentTaskId>,
 }
 
 /// The user's active rules, in a stable order so that an unchanged set of rules produces an
@@ -132,7 +129,6 @@ impl RequestParams {
             input: vec![],
             conversation_token: None,
             forked_from_conversation_token: None,
-            ambient_agent_task_id: None,
             tasks: vec![],
             metadata: None,
             session_context: SessionContext::new_for_test(),
@@ -232,7 +228,6 @@ impl RequestParams {
             input: request_input.all_inputs().cloned().collect(),
             conversation_token: conversation.server_conversation_token,
             forked_from_conversation_token: conversation.forked_from_conversation_token,
-            ambient_agent_task_id: conversation.ambient_agent_task_id,
             tasks: conversation.tasks,
             metadata,
             session_context,

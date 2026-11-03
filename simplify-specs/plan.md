@@ -2086,6 +2086,25 @@ set to "OpenAI Responses" now speaks it; before, it was silently sent Chat Compl
 reported inside a stream ends it with `Error::ProviderStream`; rate-limit codes map to
 `QuotaLimit`. User ruling: built-in OpenAI keys move to Responses only once this has settled.
 
+### Round: agent dead-code audit (2026-11-03)
+
+Method: narrow every `pub` in `app/src/ai` to `pub(crate)` so rustc reports items nothing uses,
+delete them, revert the narrowing, repeat until a pass finds nothing new. Removed (−2,100 lines,
+85 files): the always-`None` canned-query path (`StaticQueryType`, `QueryWithCannedResponse`); the
+NLD decision-source telemetry (`InputTypeAutoDetectionSource`, two dead args on
+`set_input_config`); `AIIdentifiers` and `agent/telemetry.rs`; `ResponseStream` timing and
+retry-telemetry fields; next-command history telemetry, `Cycling` state and `is_from_cycle`; the
+`WaitingForEvents` status left from the deleted orchestration; the always-`None`
+`ambient_agent_task_id` request plumbing; the session-sharing token-rebinding path and its
+`UpdatedConversationMetadata` event; `RenderableAIError::{InternalWarpError, CloudStartupFailed}`;
+never-emitted events and actions (`ExitConfirmed`, `ExportConversationToFile`,
+`ExecuteLocalHarnessCommand`, `CancelExecution`, the CLI-agent code-review toggle, the shortcut
+visibility event, AI-block resume / open-rules / open-settings); unread event fields and dead
+getters. Kept: `all_linearized_messages` and `AIFactView::current_page` (used by the
+`integration_tests` feature) and `ConversationServerTokenAssigned.conversation_id` (asserted by a
+test). Format, three clippy runs, `-p warp` lib tests 3,734/3,734, `integration_tests` feature and
+the integration crate compile.
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the

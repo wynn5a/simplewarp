@@ -1,4 +1,3 @@
-use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
@@ -325,20 +324,6 @@ impl BlocklistAIHistoryModel {
         conversation.write_updated_conversation_state(ctx);
     }
 
-    fn update_cached_metadata_for_conversation(&mut self, conversation_id: AIConversationId) {
-        let Some(conversation) = self.conversations_by_id.get(&conversation_id) else {
-            return;
-        };
-        let Some(metadata) = self.all_conversations_metadata.get_mut(&conversation_id) else {
-            return;
-        };
-
-        metadata.server_conversation_token = conversation.server_conversation_token().cloned();
-        if metadata.server_conversation_token.is_some() {
-            metadata.has_cloud_data = true;
-        }
-    }
-
     /// Renames a conversation in place. Returns an error message suitable for
     /// user display when the conversation is not loaded.
     pub(crate) fn rename_conversation_locally(
@@ -385,76 +370,8 @@ impl BlocklistAIHistoryModel {
         ctx.emit(BlocklistAIHistoryEvent::UpdatedConversationTitle {
             terminal_view_id,
             conversation_id,
-            title,
         });
     }
-    /// Sets a live conversation's server token, updates the reverse index, and
-    /// synchronizes any cached metadata entry for the same conversation.
-    ///
-    /// Returns whether the token changed.
-    pub fn set_server_conversation_token_for_conversation(
-        &mut self,
-        conversation_id: AIConversationId,
-        token: String,
-    ) -> bool {
-        let new_token = ServerConversationToken::new(token.clone());
-        {
-            let Some(conversation) = self.conversations_by_id.get_mut(&conversation_id) else {
-                return false;
-            };
-
-            let old_token = conversation.server_conversation_token().cloned();
-            if old_token.as_ref() == Some(&new_token) {
-                return false;
-            }
-
-            // Drop the old entry only if it still points at the given
-            // conversation_id, so we don't wrongly remove an entry that's
-            // been remapped.
-            if let Some(old_token) = old_token
-                && let Entry::Occupied(entry) =
-                    self.server_token_to_conversation_id.entry(old_token)
-                && *entry.get() == conversation_id
-            {
-                entry.remove();
-            }
-
-            conversation.set_server_conversation_token(token);
-        }
-
-        self.server_token_to_conversation_id
-            .insert(new_token, conversation_id);
-        self.update_cached_metadata_for_conversation(conversation_id);
-        true
-    }
-
-    /// Sets a live conversation's server token, updates the reverse index,
-    /// synchronizes cached metadata, persists the rebound token to SQLite,
-    /// and emits refresh events for live consumers.
-    #[cfg(test)]
-    pub fn set_server_conversation_token_for_conversation_and_persist(
-        &mut self,
-        conversation_id: AIConversationId,
-        token: String,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if !self.set_server_conversation_token_for_conversation(conversation_id, token) {
-            return;
-        }
-        self.persist_conversation_state(conversation_id, ctx);
-        let terminal_view_id = self.terminal_view_id_for_conversation(&conversation_id);
-        ctx.emit(BlocklistAIHistoryEvent::UpdatedConversationMetadata {
-            terminal_view_id,
-            conversation_id,
-        });
-        if let Some(terminal_view_id) = terminal_view_id {
-            ctx.emit(BlocklistAIHistoryEvent::ConversationServerTokenAssigned {
-                conversation_id,
-                terminal_view_id,
-            });
-        }
-    }
-
     /// Returns the ID of the conversation that processed or is processing the response stream.
     ///
     /// A given response stream may only correspond to a single conversation at any given time,
@@ -600,10 +517,7 @@ impl BlocklistAIHistoryModel {
         }
 
         // Emit event so consumers can populate their associated view references.
-        ctx.emit(BlocklistAIHistoryEvent::RestoredConversations {
-            terminal_view_id,
-            conversation_ids,
-        });
+        ctx.emit(BlocklistAIHistoryEvent::RestoredConversations { terminal_view_id });
     }
 
     /// Sets the active conversation ID for a terminal view and moves the conversation
@@ -664,7 +578,6 @@ impl BlocklistAIHistoryModel {
                 BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalViews {
                     conversation_id,
                     previous_terminal_view_id,
-                    new_terminal_view_id: terminal_view_id,
                 },
             );
         }
@@ -1861,7 +1774,6 @@ pub enum BlocklistAIHistoryEvent {
     ReassignedExchange {
         exchange_id: AIAgentExchangeId,
         terminal_view_id: EntityId,
-        new_task_id: TaskId,
         new_conversation_id: AIConversationId,
     },
 
@@ -1931,28 +1843,18 @@ pub enum BlocklistAIHistoryEvent {
     /// Emitted when conversations are restored for a terminal view.
     RestoredConversations {
         terminal_view_id: EntityId,
-        conversation_ids: Vec<AIConversationId>,
-    },
-
-    /// Emitted when conversation metadata is updated.
-    /// `terminal_view_id` is None when updating historical-only conversations.
-    UpdatedConversationMetadata {
-        terminal_view_id: Option<EntityId>,
-        conversation_id: AIConversationId,
     },
 
     /// Emitted when a conversation title changes.
     UpdatedConversationTitle {
         terminal_view_id: Option<EntityId>,
         conversation_id: AIConversationId,
-        title: String,
     },
 
     /// Emitted when conversation artifacts are updated (plans, PRs, etc.)
     UpdatedConversationArtifacts {
         terminal_view_id: EntityId,
         conversation_id: AIConversationId,
-        artifact: Artifact,
     },
 
     /// Emitted when a conversation first receives its server-assigned conversation token
@@ -1973,7 +1875,6 @@ pub enum BlocklistAIHistoryEvent {
     ConversationTransferredBetweenTerminalViews {
         conversation_id: AIConversationId,
         previous_terminal_view_id: EntityId,
-        new_terminal_view_id: EntityId,
     },
 }
 
@@ -2038,11 +1939,7 @@ impl BlocklistAIHistoryEvent {
             | BlocklistAIHistoryEvent::ConversationServerTokenAssigned {
                 terminal_view_id, ..
             } => Some(*terminal_view_id),
-            // UpdatedConversationMetadata can have None when updating historical-only conversations
-            BlocklistAIHistoryEvent::UpdatedConversationMetadata {
-                terminal_view_id, ..
-            }
-            | BlocklistAIHistoryEvent::UpdatedConversationTitle {
+            BlocklistAIHistoryEvent::UpdatedConversationTitle {
                 terminal_view_id, ..
             } => *terminal_view_id,
         }

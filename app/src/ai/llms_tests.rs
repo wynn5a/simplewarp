@@ -1,18 +1,13 @@
-use settings::Setting as _;
 use warpui::App;
 
 use super::*;
 use crate::LaunchMode;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
-use crate::ai::execution_profiles::{
-    AIExecutionProfile, ExecutionProfileId, ExecutionProfilesConfig,
-};
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::server_api::ServerApiProvider;
-use crate::settings::AISettings;
 use crate::terminal::input::models::query_model_picker_choices;
 use crate::test_util::settings::initialize_settings_for_tests;
 
@@ -572,28 +567,6 @@ fn agent_llm(id: &str, display_name: &str) -> LLMInfo {
     }
 }
 
-/// Preferences whose agent-mode models are a server-style list with an
-/// `"auto"` default plus one concrete model.
-fn preferences_for_profile_model_tests() -> LLMPreferences {
-    let agent_mode = AvailableLLMs::new(
-        "auto".into(),
-        vec![
-            agent_llm("auto", "auto (cost-efficient)"),
-            agent_llm("claude-opus", "Opus"),
-        ],
-    )
-    .expect("choices are non-empty");
-    LLMPreferences {
-        models_by_feature: ModelsByFeature {
-            agent_mode,
-            ..Default::default()
-        },
-        base_llm_for_terminal_view: HashMap::new(),
-        custom_llms: Vec::new(),
-        provider_llms: Vec::new(),
-    }
-}
-
 #[test]
 fn shared_model_picker_query_orders_filters_and_marks_disabled_choices() {
     with_model_picker_query_test_context(|preferences, app| {
@@ -623,66 +596,5 @@ fn shared_model_picker_query_orders_filters_and_marks_disabled_choices() {
         assert_eq!(filtered[0].llm.id.as_str(), "gpt-5");
         assert!(filtered[0].name_match_result.is_some());
         assert!(filtered[0].is_selectable());
-    });
-}
-
-#[test]
-fn updating_active_profile_base_model_persists_and_updates_resolution() {
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-        app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| NetworkStatus::new());
-        app.add_singleton_model(CloudModel::mock);
-        app.add_singleton_model(|_| UpdateManager::mock());
-        app.add_singleton_model(|_| TemplatableMCPServerManager::default());
-        // This test exercises the settings-authoritative profile path. A launch that finds no
-        // existing collection starts pending, so seed an explicit collection first.
-        app.update(|ctx| {
-            let mut seeded = ExecutionProfilesConfig::default();
-            seeded.insert(
-                ExecutionProfileId::default_profile(),
-                AIExecutionProfile::default(),
-            );
-            AISettings::handle(ctx)
-                .update(ctx, |settings, ctx| {
-                    settings.execution_profiles.set_value(seeded, ctx)
-                })
-                .expect("seeding the execution profile collection should succeed");
-        });
-        let profiles = app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
-        });
-        let preferences = app.add_singleton_model(|_| preferences_for_profile_model_tests());
-        let surface_id = EntityId::new();
-        let profile_id = profiles.read(&app, |profiles, ctx| {
-            profiles.active_profile(Some(surface_id), ctx).id().clone()
-        });
-        let persisted = preferences.update(&mut app, |preferences, ctx| {
-            preferences.update_active_profile_base_model(
-                &LLMId::from("claude-opus"),
-                Some(surface_id),
-                ctx,
-            )
-        });
-
-        assert!(persisted);
-        profiles.read(&app, |profiles, ctx| {
-            let profile = profiles
-                .get_profile_by_id(&profile_id, ctx)
-                .expect("active profile should exist");
-            assert_eq!(
-                profile.data().base_model.as_ref().map(LLMId::as_str),
-                Some("claude-opus")
-            );
-        });
-        preferences.read(&app, |preferences, ctx| {
-            assert_eq!(
-                preferences
-                    .get_active_base_model(ctx, Some(surface_id))
-                    .id
-                    .as_str(),
-                "claude-opus"
-            );
-        });
     });
 }

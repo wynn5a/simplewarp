@@ -307,7 +307,6 @@ impl ConvertToExchanges for &api::Task {
                     current_inputs.push(AIAgentInput::UserQuery {
                         query: user_query.query.clone(),
                         context: convert_input_context(user_query.context.as_ref()),
-                        static_query_type: None,
                         referenced_attachments: HashMap::new(),
                         user_query_mode: convert_user_query_mode(user_query.mode.as_ref()),
                         running_command: None,
@@ -325,7 +324,6 @@ impl ConvertToExchanges for &api::Task {
                             current_inputs.push(AIAgentInput::UserQuery {
                                 query: auto_code_diff.query.clone(),
                                 context: convert_input_context(query.context.as_ref()),
-                                static_query_type: None,
                                 referenced_attachments: HashMap::new(),
                                 user_query_mode: UserQueryMode::default(), // SystemQuery doesn't have mode field
                                 running_command: None,

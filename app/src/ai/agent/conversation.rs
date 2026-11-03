@@ -508,7 +508,7 @@ impl AIConversation {
     /// the single source of truth for both the status message and the
     /// FAILED-vs-ERROR classification used by status consumers (Oz task sync, the
     /// ambient SDK driver), so callers should pass a structured error rather than a
-    /// bare string — wrap free-form text via [`RenderableAIError::other`].
+    /// bare string.
     pub fn update_status_with_error(
         &mut self,
         status: ConversationStatus,
@@ -566,14 +566,7 @@ impl AIConversation {
             .or_else(|| self.forked_from_server_conversation_token())
     }
 
-    /// Updates the server conversation token for this conversation.
-    ///
-    /// This is used internally for session sharing when a forked conversation receives
-    /// its new server-assigned token. The viewer needs to update the conversation's token
-    /// from the original (forked-from) token to the new token so subsequent messages can
-    /// be matched to the correct conversation.
-    ///
-    /// This should only be called by session sharing viewer logic when linking forked conversations.
+    #[cfg(test)]
     pub(crate) fn set_server_conversation_token(&mut self, token: String) {
         self.server_conversation_token = Some(ServerConversationToken::new(token));
     }
@@ -626,14 +619,6 @@ impl AIConversation {
             .filter(|task| active_task_ids.contains(task.id.as_str()))
             .cloned()
             .collect()
-    }
-
-    /// Returns the start timestamp of the earliest [`AIAgentExchange`] in the conversation, if
-    /// any.
-    pub fn start_ts(&self) -> Option<DateTime<Local>> {
-        self.root_task_exchanges()
-            .next()
-            .map(|exchange| exchange.start_time)
     }
 
     pub fn has_opened_code_review(&self) -> bool {
@@ -828,12 +813,11 @@ impl AIConversation {
         terminal_view_id: EntityId,
         ctx: &mut ModelContext<BlocklistAIHistoryModel>,
     ) {
-        self.artifacts.push(artifact.clone());
+        self.artifacts.push(artifact);
         self.write_updated_conversation_state(ctx);
         ctx.emit(BlocklistAIHistoryEvent::UpdatedConversationArtifacts {
             terminal_view_id,
             conversation_id: self.id,
-            artifact,
         });
     }
 
@@ -1006,7 +990,6 @@ impl AIConversation {
         ctx.emit(BlocklistAIHistoryEvent::ReassignedExchange {
             exchange_id,
             terminal_view_id,
-            new_task_id: root_task_id,
             new_conversation_id: self.id,
         });
         Ok(())
@@ -2798,12 +2781,8 @@ pub enum UpdateConversationError {
     TaskNotFound,
     #[error("Task never initialized with CreateTask client action.")]
     TaskNotInitialized,
-    #[error("Message not found.")]
-    MessageNotFound,
     #[error("Attempted to update already-finished output.")]
     OutputAlreadyFinished,
-    #[error("Attempted to update output that was never initialized.")]
-    OutputNeverInitialized,
     #[error("Failed to convert API message to client type: {0}")]
     ConversionError(#[from] MessageToAIAgentOutputMessageError),
     #[error("No active task")]
@@ -2934,10 +2913,6 @@ pub enum ConversationStatus {
 
     /// The last turn of the agent resulted in an action whose execution is blocked by the user.
     Blocked { blocked_action: String },
-
-    /// Agent yielded via wait_for_events and is listening for inbound
-    /// input. Quiescent but not terminal.
-    WaitingForEvents,
 }
 
 impl std::fmt::Display for ConversationStatus {
@@ -2949,7 +2924,6 @@ impl std::fmt::Display for ConversationStatus {
             ConversationStatus::TransientError => write!(f, "Reconnecting"),
             ConversationStatus::Cancelled => write!(f, "Cancelled"),
             ConversationStatus::Blocked { .. } => write!(f, "Blocked"),
-            ConversationStatus::WaitingForEvents => write!(f, "Waiting"),
         }
     }
 }
@@ -2964,7 +2938,6 @@ impl ConversationStatus {
             // Recovery pending: keep the in-progress treatment rather than an error one.
             ConversationStatus::TransientError => in_progress_icon(appearance),
             ConversationStatus::Cancelled => gray_stop_icon(appearance),
-            ConversationStatus::WaitingForEvents => in_progress_icon(appearance),
         }
     }
 
@@ -2976,7 +2949,6 @@ impl ConversationStatus {
             ConversationStatus::TransientError => (Icon::ClockLoader, theme.ansi_fg_yellow()),
             ConversationStatus::Cancelled => (Icon::StopFilled, internal_colors::neutral_5(theme)),
             ConversationStatus::Blocked { .. } => (Icon::StopFilled, theme.ansi_fg_yellow()),
-            ConversationStatus::WaitingForEvents => (Icon::ClockLoader, theme.ansi_fg_magenta()),
         }
     }
 
@@ -3003,12 +2975,6 @@ impl ConversationStatus {
             self,
             ConversationStatus::Success | ConversationStatus::Error | ConversationStatus::Cancelled
         )
-    }
-
-    /// True iff the agent has yielded via `wait_for_events` and is listening
-    /// for inbound input.
-    pub fn is_waiting_for_events(&self) -> bool {
-        matches!(self, ConversationStatus::WaitingForEvents)
     }
 
     pub fn is_error(&self) -> bool {

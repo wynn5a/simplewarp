@@ -9,7 +9,6 @@ fn user_query_input(query: &str, mode: UserQueryMode) -> AIAgentInput {
     AIAgentInput::UserQuery {
         query: query.to_string(),
         context: Arc::new([]),
-        static_query_type: None,
         referenced_attachments: HashMap::new(),
         user_query_mode: mode,
         running_command: None,

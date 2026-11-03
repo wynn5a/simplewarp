@@ -132,7 +132,7 @@ fn on_diffs_applied_seeds_registered_storage() {
         let seeded = storage.diffs.borrow_mut().take();
         let diffs = seeded.expect("registered storage should be seeded");
         assert_eq!(diffs.len(), 1);
-        assert_eq!(diffs[0].file_path(), "/tmp/x.rs");
+        assert_eq!(diffs[0].base.file_path, "/tmp/x.rs");
     });
 }
 

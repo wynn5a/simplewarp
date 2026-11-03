@@ -21,19 +21,6 @@ pub struct ParseAmbientAgentTaskIdError(#[from] uuid::Error);
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AmbientAgentTaskId(NonNilUuid);
 
-impl AmbientAgentTaskId {
-    /// Mints a task id without a server round-trip, for local-only children
-    /// whose server task row no longer exists.
-    pub fn new() -> Self {
-        let mut uuid = Uuid::new_v4();
-        while uuid.is_nil() {
-            uuid = Uuid::new_v4();
-        }
-        // `NonNilUuid::try_from` only fails on nil, which the loop excludes.
-        Self(NonNilUuid::try_from(uuid).expect("fresh v4 UUID is non-nil"))
-    }
-}
-
 impl Display for AmbientAgentTaskId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
@@ -99,13 +86,12 @@ pub fn conversation_output_status_from_conversation(
             terminal_status_from_last_exchange(conversation)
         }
 
-        // `InProgress` and `WaitingForEvents` are not terminal, but we preserve the
+        // `InProgress` is not terminal, but we preserve the
         // existing behavior of reporting a terminal outcome whenever the last exchange
         // has already finished.
         ConversationStatus::InProgress
         | ConversationStatus::Success
-        | ConversationStatus::Cancelled
-        | ConversationStatus::WaitingForEvents => terminal_status_from_last_exchange(conversation),
+        | ConversationStatus::Cancelled => terminal_status_from_last_exchange(conversation),
     }
 }
 

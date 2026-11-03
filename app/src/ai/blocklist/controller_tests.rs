@@ -75,7 +75,6 @@ fn input_for_query_converts_prompt_attachments_and_ignores_live_staging() {
                 "build a query".to_owned(),
                 &task_id,
                 conversation_id,
-                None,
                 UserQueryMode::Normal,
                 None,
                 HashMap::new(),

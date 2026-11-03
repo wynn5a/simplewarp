@@ -17,40 +17,23 @@ use std::rc::Rc;
 use warpui::AppContext;
 
 use super::conversation_selection::ConversationSelectionEvent;
-use super::input_model::{InputConfig, InputTypeAutoDetectionSource};
+use super::input_model::InputConfig;
 use crate::settings::AISettingsChangedEvent;
 
-/// A config write produced by an [`InputModePolicy`] decision. The fields
-/// mirror exactly what the previously-inlined decision code passed to the
-/// model's internal setter: the config, the decision source recorded with it,
-/// and (for one agent-view entry path) a brief autodetection suppression so
-/// the applied config isn't immediately overridden by a keystroke-driven
-/// detection pass.
+/// A config write produced by an [`InputModePolicy`] decision.
 pub struct PolicyConfigUpdate {
     /// The config to apply.
     pub config: InputConfig,
-    /// The decision source recorded alongside the config.
-    pub decision_source: Option<InputTypeAutoDetectionSource>,
-    /// Whether to briefly suppress autodetection before applying.
+    /// Whether to briefly suppress autodetection before applying, so the applied config isn't
+    /// immediately overridden by a keystroke-driven detection pass.
     pub temporarily_disable_autodetection: bool,
 }
 
 impl PolicyConfigUpdate {
-    /// An update with no decision source and no autodetection suppression.
+    /// An update without autodetection suppression.
     pub fn new(config: InputConfig) -> Self {
         Self {
             config,
-            decision_source: None,
-            temporarily_disable_autodetection: false,
-        }
-    }
-
-    /// An update recorded with `decision_source`, without autodetection
-    /// suppression.
-    pub fn with_source(config: InputConfig, decision_source: InputTypeAutoDetectionSource) -> Self {
-        Self {
-            config,
-            decision_source: Some(decision_source),
             temporarily_disable_autodetection: false,
         }
     }

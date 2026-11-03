@@ -835,7 +835,6 @@ impl TypedActionView for AgentInputFooter {
 pub enum AgentInputFooterEvent {
     SelectFile,
     WriteToPty(String),
-    ToggleCodeReviewPane(CLIAgent),
     /// Toggle the file explorer side panel. `None` when no CLI agent session is
     /// attached to this pane.
     ToggleFileExplorer(Option<CLIAgent>),

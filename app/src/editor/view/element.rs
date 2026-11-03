@@ -1281,13 +1281,13 @@ impl EditorElement {
         Ok(FrameLayouts::new(frames, start_line, end_line))
     }
 
-    fn should_show_cycle_next_command_hint(&self, is_cycling: bool, ctx: &AppContext) -> bool {
+    fn should_show_cycle_next_command_hint(&self, ctx: &AppContext) -> bool {
         self.view_snapshot
             .editor_model
             .as_ref(ctx)
             .buffer(ctx)
             .is_empty()
-            && (self.view_snapshot.active_next_command_suggestion() || is_cycling)
+            && self.view_snapshot.active_next_command_suggestion()
     }
 
     /// Adds icons used in the input editor but not other editors.
@@ -1297,7 +1297,6 @@ impl EditorElement {
         autosuggestion_ignore: &ViewHandle<AutosuggestionIgnore>,
         show_autosuggestion_keybinding_hint: bool,
         show_autosuggestion_ignore_button: bool,
-        is_cycling: bool,
         ctx: &AppContext,
     ) -> Self {
         // Text in the input is cut off at line heights < 1, so it's not possible
@@ -1316,7 +1315,7 @@ impl EditorElement {
             }
         }
         // If the input buffer is empty, down arrow cycles suggestions.
-        let cycle_next_command_hint = if self.should_show_cycle_next_command_hint(is_cycling, ctx) {
+        let cycle_next_command_hint = if self.should_show_cycle_next_command_hint(ctx) {
             let appearance = Appearance::as_ref(ctx);
             Some(
                 self.render_cycle_next_command_hint(warp_core::ui::theme::Fill::Solid(

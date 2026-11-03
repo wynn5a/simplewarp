@@ -4,7 +4,7 @@ use warpui::{AppContext, ModelHandle, SingletonEntity};
 
 use super::super::conversation_selection::ConversationSelectionEvent;
 use super::super::input_mode_policy::{InputModePolicy, PolicyConfigUpdate};
-use super::super::input_model::{InputConfig, InputType, InputTypeAutoDetectionSource};
+use super::super::input_model::{InputConfig, InputType};
 use super::super::{BlocklistAIContextModel, ConversationSelectionHandle};
 use super::AgentViewEntryOrigin;
 use crate::settings::{AISettings, AISettingsChangedEvent};
@@ -77,13 +77,10 @@ impl InputModePolicy for AgentViewInputModePolicy {
                 origin,
             } => {
                 if !is_fullscreen {
-                    Some(PolicyConfigUpdate::with_source(
-                        InputConfig {
-                            input_type: InputType::AI,
-                            is_locked: true,
-                        },
-                        InputTypeAutoDetectionSource::InlineAgentViewEntry,
-                    ))
+                    Some(PolicyConfigUpdate::new(InputConfig {
+                        input_type: InputType::AI,
+                        is_locked: true,
+                    }))
                 } else if matches!(origin, AgentViewEntryOrigin::ClearBuffer) {
                     let is_autodetection_enabled =
                         AISettings::as_ref(app).is_ai_autodetection_enabled();
@@ -92,13 +89,10 @@ impl InputModePolicy for AgentViewInputModePolicy {
                         is_locked: !is_autodetection_enabled,
                     }))
                 } else if self.ai_context_model.as_ref(app).has_locking_attachment() {
-                    Some(PolicyConfigUpdate::with_source(
-                        InputConfig {
-                            input_type: InputType::AI,
-                            is_locked: true,
-                        },
-                        InputTypeAutoDetectionSource::AttachmentForcedAi,
-                    ))
+                    Some(PolicyConfigUpdate::new(InputConfig {
+                        input_type: InputType::AI,
+                        is_locked: true,
+                    }))
                 } else {
                     let is_autodetection_enabled =
                         AISettings::as_ref(app).is_ai_autodetection_enabled();
@@ -107,7 +101,6 @@ impl InputModePolicy for AgentViewInputModePolicy {
                             input_type: InputType::AI,
                             is_locked: !is_autodetection_enabled,
                         },
-                        decision_source: None,
                         temporarily_disable_autodetection: is_autodetection_enabled,
                     })
                 }

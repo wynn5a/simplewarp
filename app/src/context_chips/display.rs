@@ -14,7 +14,7 @@ use super::display_chip::{DisplayChip, DisplayChipConfig, PromptDisplayChipEvent
 use super::prompt_type::PromptType;
 use super::{ChipResult, ContextChipKind, git_line_changes_from_chips};
 use crate::ai::blocklist::agent_view::AgentViewController;
-use crate::ai::blocklist::{BlocklistAIContextModel, BlocklistAIInputEvent, BlocklistAIInputModel};
+use crate::ai::blocklist::{BlocklistAIInputEvent, BlocklistAIInputModel};
 use crate::completer::SessionContext;
 use crate::context_chips::display_chip::{DisplayChipAction, PromptChipShellCommand};
 use crate::terminal::input::MenuPositioningProvider;
@@ -24,8 +24,6 @@ use crate::terminal::model_events::ModelEventDispatcher;
 pub struct PromptDisplay {
     prompt: ModelHandle<PromptType>,
     display_chips: Vec<ViewHandle<DisplayChip>>,
-    ai_input_model: ModelHandle<BlocklistAIInputModel>,
-    ai_context_model: ModelHandle<BlocklistAIContextModel>,
     terminal_view_id: EntityId,
     menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
     session_context: Option<SessionContext>,
@@ -55,7 +53,6 @@ impl PromptDisplay {
     pub fn new(
         prompt: ModelHandle<PromptType>,
         ai_input_model: ModelHandle<BlocklistAIInputModel>,
-        ai_context_model: ModelHandle<BlocklistAIContextModel>,
         terminal_view_id: EntityId,
         menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
         session_context: Option<SessionContext>,
@@ -84,8 +81,6 @@ impl PromptDisplay {
         Self {
             prompt,
             display_chips: vec![],
-            ai_input_model,
-            ai_context_model,
             terminal_view_id,
             menu_positioning_provider,
             session_context,
@@ -149,8 +144,6 @@ impl PromptDisplay {
                     ctx,
                     chip_result.clone(),
                     DisplayChipConfig {
-                        ai_input_model: self.ai_input_model.clone(),
-                        ai_context_model: self.ai_context_model.clone(),
                         terminal_view_id: self.terminal_view_id,
                         menu_positioning_provider: self.menu_positioning_provider.clone(),
                         session_context: self.session_context.clone(),

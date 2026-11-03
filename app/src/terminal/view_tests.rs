@@ -761,7 +761,6 @@ fn agent_view_user_query_input(query: &str) -> AIAgentInput {
     AIAgentInput::UserQuery {
         query: query.to_owned(),
         context: Default::default(),
-        static_query_type: None,
         referenced_attachments: Default::default(),
         user_query_mode: UserQueryMode::Normal,
         running_command: None,
@@ -905,7 +904,6 @@ fn updated_conversation_metadata_refreshes_selected_conversation_pane_title() {
                 &BlocklistAIHistoryEvent::UpdatedConversationTitle {
                     terminal_view_id: Some(view.view_id),
                     conversation_id,
-                    title: "Renamed title".to_string(),
                 },
                 ctx,
             );
@@ -1018,7 +1016,6 @@ fn agent_jump_user_query(query: &str) -> AIAgentInput {
     AIAgentInput::UserQuery {
         query: query.to_owned(),
         context: Default::default(),
-        static_query_type: None,
         referenced_attachments: Default::default(),
         user_query_mode: UserQueryMode::Normal,
         running_command: None,
@@ -1174,7 +1171,6 @@ fn restoring_conversation_to_new_pane_transfers_blocks_from_previous_terminal_vi
                 vec![AIAgentInput::UserQuery {
                     query: "first query".to_owned(),
                     context: Default::default(),
-                    static_query_type: None,
                     referenced_attachments: Default::default(),
                     user_query_mode: UserQueryMode::Normal,
                     running_command: None,
@@ -1287,7 +1283,6 @@ fn clicking_old_banner_for_open_conversation_focuses_current_terminal_view_witho
                 vec![AIAgentInput::UserQuery {
                     query: "first query".to_owned(),
                     context: Default::default(),
-                    static_query_type: None,
                     referenced_attachments: Default::default(),
                     user_query_mode: UserQueryMode::Normal,
                     running_command: None,
@@ -1426,7 +1421,6 @@ fn appended_exchange_renders_in_current_terminal_view_after_conversation_transfe
                 vec![AIAgentInput::UserQuery {
                     query: "first query".to_owned(),
                     context: Default::default(),
-                    static_query_type: None,
                     referenced_attachments: Default::default(),
                     user_query_mode: UserQueryMode::Normal,
                     running_command: None,
@@ -1477,7 +1471,6 @@ fn appended_exchange_renders_in_current_terminal_view_after_conversation_transfe
                 let exchange = exchange_with_inputs(vec![AIAgentInput::UserQuery {
                     query: "follow up".to_owned(),
                     context: Default::default(),
-                    static_query_type: None,
                     referenced_attachments: Default::default(),
                     user_query_mode: UserQueryMode::Normal,
                     running_command: None,
@@ -5469,7 +5462,6 @@ fn close_find_bar_clears_ai_block_find_highlights() {
                 AIAgentInput::UserQuery {
                     query: "highlight the needle here".to_owned(),
                     context: Default::default(),
-                    static_query_type: None,
                     referenced_attachments: Default::default(),
                     user_query_mode: UserQueryMode::Normal,
                     running_command: None,
@@ -5602,7 +5594,6 @@ fn copy_selected_text_from_ai_block() {
                 AIAgentInput::UserQuery {
                     query: "the quick brown fox".to_owned(),
                     context: Default::default(),
-                    static_query_type: None,
                     referenced_attachments: Default::default(),
                     user_query_mode: UserQueryMode::Normal,
                     running_command: None,

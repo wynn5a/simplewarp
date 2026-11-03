@@ -368,7 +368,9 @@ fn test_server_token_assignment_emits_conversation_updated() {
         let token = "assigned-token-after-entry-build";
         BlocklistAIHistoryModel::handle(&app).update(&mut app, |model, _| {
             model
-                .set_server_conversation_token_for_conversation(conversation_id, token.to_string());
+                .conversation_mut(&conversation_id)
+                .expect("conversation was restored")
+                .set_server_conversation_token(token.to_string());
         });
         agent_model.update(&mut app, |model, ctx| {
             model.handle_history_event(

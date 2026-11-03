@@ -42,8 +42,6 @@ use warpui::{
 use super::{RichContentInsertionPosition, TerminalAction, TerminalView};
 use crate::ai::blocklist::block::cli_controller::CLISubagentEvent;
 use crate::cmd_or_ctrl_shift;
-use crate::code_review::diff_state::GitDeltaPreference;
-use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 use crate::settings::{
     AISettings, AISettingsChangedEvent, CompiledCommandsForCodingAgentToolbar, InputModeSettings,
 };
@@ -203,15 +201,6 @@ impl TerminalView {
             UseAgentToolbarEvent::WriteToPty(text) => {
                 // Route like user-typed terminal input so the usual PTY write gates apply.
                 self.write_user_bytes_to_pty(text.as_bytes().to_vec(), ctx);
-            }
-            UseAgentToolbarEvent::ToggleCodeReviewPane(cli_agent) => {
-                self.toggle_code_review_pane(
-                    GitDeltaPreference::Always,
-                    CodeReviewPaneEntrypoint::CLIAgentView,
-                    Some(*cli_agent),
-                    true, // focus_new_pane
-                    ctx,
-                );
             }
             UseAgentToolbarEvent::ToggleFileExplorer(_) => {
                 self.toggle_file_tree(ctx);
@@ -803,9 +792,6 @@ impl UseAgentToolbar {
             AgentInputFooterEvent::WriteToPty(text) => {
                 ctx.emit(UseAgentToolbarEvent::WriteToPty(text.clone()));
             }
-            AgentInputFooterEvent::ToggleCodeReviewPane(agent) => {
-                ctx.emit(UseAgentToolbarEvent::ToggleCodeReviewPane(*agent));
-            }
             AgentInputFooterEvent::ToggleFileExplorer(agent) => {
                 ctx.emit(UseAgentToolbarEvent::ToggleFileExplorer(*agent));
             }
@@ -885,7 +871,6 @@ pub enum UseAgentToolbarEvent {
     /// Write text to the PTY (from CLI agent view).
     WriteToPty(String),
     /// Toggle the code review pane (from CLI agent view).
-    ToggleCodeReviewPane(CLIAgent),
     /// Toggle the file explorer. `None` when no CLI agent session is attached
     /// to this pane.
     ToggleFileExplorer(Option<CLIAgent>),

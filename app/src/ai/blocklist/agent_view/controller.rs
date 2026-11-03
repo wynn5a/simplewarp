@@ -32,8 +32,6 @@ pub enum ExitAgentViewError {
     LongRunningCommand,
     #[error("Cannot exit conversation as a viewer.")]
     ConversationViewer,
-    #[error("Cannot exit cloud agent.")]
-    AmbientAgent,
 }
 
 /// The display mode for an active agent view.
@@ -101,15 +99,10 @@ pub enum AgentViewEntryOrigin {
     Input {
         was_prompt_autodetected: bool,
     },
-    PromptChip,
     /// Entered agent view by selecting a conversation (e.g. selector).
     ConversationSelector,
-    /// Entered agent view clicking a conversation item in the Agent Mode homepage (tab zero state).
-    AgentModeHomepage,
     /// Entered agent view by clicking an existing agent view block.
     AgentViewBlock,
-    /// Entered agent view due to an automatic follow-up (not a direct user selection).
-    AutoFollowUp,
     /// Entered agent view due to conversation restoration on startup or forking.
     RestoreExistingConversation,
     /// Entered agent view due to a server-driven conversation split (StartNewConversation client action).
@@ -133,7 +126,6 @@ pub enum AgentViewEntryOrigin {
     CodeReviewContext,
     /// Entered agent view by selecting a conversation from the inline history menu.
     InlineHistoryMenu,
-    InlineConversationMenu,
     ConversationListView,
     /// Entered agent view because the default session mode setting is Agent.
     DefaultSessionMode,
@@ -215,13 +207,6 @@ impl AgentViewState {
     pub fn display_mode(&self) -> Option<AgentViewDisplayMode> {
         match self {
             AgentViewState::Active { display_mode, .. } => Some(*display_mode),
-            AgentViewState::Inactive => None,
-        }
-    }
-
-    pub fn origin(&self) -> Option<AgentViewEntryOrigin> {
-        match self {
-            AgentViewState::Active { origin, .. } => Some(origin.clone()),
             AgentViewState::Inactive => None,
         }
     }
@@ -347,15 +332,6 @@ impl AgentViewController {
             pending_confirmation: None,
             pending_confirmation_abort_handle: None,
         }
-    }
-
-    pub fn pane_group_id(&self) -> Option<EntityId> {
-        self.pane_group_id
-    }
-
-    /// Returns the [`EntityId`] of the [`TerminalView`] that owns this controller.
-    pub fn terminal_view_id(&self) -> EntityId {
-        self.terminal_view_id
     }
 
     pub fn set_pane_group_id(&mut self, pane_group_id: EntityId) {
@@ -839,7 +815,6 @@ impl AgentViewController {
         if should_confirm {
             if self.is_exit_confirmation_active_for(conversation_id) {
                 self.clear_exit_confirmation(ctx);
-                ctx.emit(AgentViewControllerEvent::ExitConfirmed { conversation_id });
             } else {
                 self.set_exit_confirmation(conversation_id, trigger, ctx);
                 return;
@@ -853,8 +828,8 @@ impl AgentViewController {
         let AgentViewState::Active {
             conversation_id,
             origin,
-            display_mode,
             original_conversation_length,
+            ..
         } = old_state
         else {
             return;
@@ -875,10 +850,8 @@ impl AgentViewController {
         ctx.emit(AgentViewControllerEvent::ExitedAgentView {
             conversation_id,
             origin,
-            display_mode,
             original_exchange_count: original_conversation_length,
             final_exchange_count,
-            was_ambient_agent: false,
             is_exit_before_new_entrance,
         });
     }
@@ -897,20 +870,13 @@ pub enum AgentViewControllerEvent {
         conversation_id: AIConversationId,
         /// The origin of the agent view entry that is now being exited.
         origin: AgentViewEntryOrigin,
-        /// The display mode of the agent view that is being exited.
-        display_mode: AgentViewDisplayMode,
         /// The number of exchanges in the conversation when agent view was entered.
         original_exchange_count: usize,
         /// The number of exchanges in the conversation when agent view is being exited.
         final_exchange_count: usize,
-        /// Whether this was an ambient (cloud) agent session.
-        was_ambient_agent: bool,
         /// Whether this exit is immediately followed by entering a new agent view.
         /// (e.g. Cmd+K while already in agent view to start a new conversation).
         is_exit_before_new_entrance: bool,
-    },
-    ExitConfirmed {
-        conversation_id: AIConversationId,
     },
 }
 

@@ -8,8 +8,7 @@ use warpui::{AppContext, ViewContext};
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
-    AIAgentExchangeId, AIAgentInput, AIAgentOutput, CancellationReason, RenderableAIError,
-    ServerOutputId, Shared,
+    AIAgentExchangeId, AIAgentInput, AIAgentOutput, RenderableAIError, ServerOutputId, Shared,
 };
 use crate::ai::llms::LLMId;
 
@@ -25,7 +24,6 @@ pub enum AIBlockOutputStatus {
     },
     Cancelled {
         partial_output: Option<Shared<AIAgentOutput>>,
-        reason: CancellationReason,
     },
     Failed {
         partial_output: Option<Shared<AIAgentOutput>>,
@@ -40,23 +38,6 @@ impl AIBlockOutputStatus {
             self,
             AIBlockOutputStatus::Pending | AIBlockOutputStatus::PartiallyReceived { .. }
         )
-    }
-
-    /// Returns `true` if the response stream was cancelled.
-    pub fn is_cancelled(&self) -> bool {
-        matches!(self, AIBlockOutputStatus::Cancelled { .. })
-    }
-
-    /// Returns the reason for the cancellation, if any.
-    pub fn cancellation_reason(&self) -> Option<&CancellationReason> {
-        match self {
-            AIBlockOutputStatus::Cancelled { reason, .. } => Some(reason),
-            _ => None,
-        }
-    }
-
-    pub fn is_complete(&self) -> bool {
-        matches!(self, AIBlockOutputStatus::Complete { .. })
     }
 
     /// Returns the output to be rendered, if any.
@@ -103,17 +84,8 @@ pub trait AIBlockModel {
     /// Returns the `server_output_id` associated with this output rendered in this block, if any.
     fn server_output_id(&self, app: &AppContext) -> Option<ServerOutputId>;
 
-    /// Returns the model ID used to generate the output in this block, which may differ from the
-    /// requested model ID because of failover, etc.
-    fn model_id(&self, app: &AppContext) -> Option<LLMId>;
-
     /// Return `true` if the block is a restored-from-history AI block.
     fn is_restored(&self) -> bool {
-        false
-    }
-
-    /// Return `true` if the block was created in the process of forking a conversation.
-    fn is_forked(&self) -> bool {
         false
     }
 
@@ -204,10 +176,6 @@ pub mod testing {
         }
 
         fn server_output_id(&self, _app: &AppContext) -> Option<ServerOutputId> {
-            None
-        }
-
-        fn model_id(&self, _app: &AppContext) -> Option<LLMId> {
             None
         }
 

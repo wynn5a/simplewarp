@@ -139,7 +139,6 @@ impl ActiveAgentViewsModel {
                 // Emit so subscribers can move this conversation to the Past section.
                 ctx.emit(ActiveAgentViewsEvent::ConversationClosed);
             }
-            _ => {}
         });
     }
 

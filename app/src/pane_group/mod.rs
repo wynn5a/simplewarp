@@ -3672,7 +3672,6 @@ impl PaneGroup {
     ) -> bool {
         let restoration = ConversationRestorationInNewPaneType::Historical {
             conversation: *cloud_conversation,
-            ambient_agent_task_id: None,
         };
 
         // Get the initial working directory from the restored conversation.

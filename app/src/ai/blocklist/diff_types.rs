@@ -36,11 +36,6 @@ impl FileDiff {
             diff_type,
         }
     }
-
-    /// Returns the absolute path this diff targets.
-    pub fn file_path(&self) -> String {
-        self.base.file_path.clone()
-    }
 }
 
 /// Derives the 1-indexed changed line ranges described by a diff's deltas.

@@ -156,13 +156,9 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
         | AIBlockOutputStatus::Failed { .. } => {
             if let Some(output) = status.output_to_render() {
                 let output = output.get();
-                let is_output_for_static_prompt_suggestions =
-                    props.model.contains_static_prompt_suggestion_input(app);
-
                 let mut should_render_footer =
                     props.model.is_latest_visible_exchange_in_root_task(app)
                         && !has_expanded_last_requested_command
-                        && !is_output_for_static_prompt_suggestions
                         && !is_conversation_in_progress
                         && !status
                             .error()

@@ -95,12 +95,10 @@ impl ConversationStatus {
             ConversationStatus::Success
             | ConversationStatus::Blocked { .. }
             | ConversationStatus::Error => true,
-            // Streaming hasn't reached a notable state; a recovering or
-            // yielded conversation is still active; user-cancellations are
-            // self-evident.
+            // Streaming hasn't reached a notable state; a recovering
+            // conversation is still active; user-cancellations are self-evident.
             ConversationStatus::InProgress
             | ConversationStatus::TransientError
-            | ConversationStatus::WaitingForEvents
             | ConversationStatus::Cancelled => false,
         }
     }

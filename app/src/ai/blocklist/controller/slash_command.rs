@@ -165,8 +165,6 @@ impl SlashCommandRequest {
             controller.terminal_view_id,
             ctx,
         );
-        let model_id = request_input.model_id.clone();
-
         match controller.send_request_input(
             request_input,
             Some(RequestMetadata {
@@ -178,7 +176,7 @@ impl SlashCommandRequest {
             is_queued_prompt,
             ctx,
         ) {
-            Ok((_, stream_id)) => {
+            Ok(_) => {
                 // Direct skills consume live pending context; queued skills consume row-owned
                 // context and must not clear a new draft's staged attachments.
                 if is_invoke_skill && !is_queued_prompt {
@@ -191,8 +189,6 @@ impl SlashCommandRequest {
                     ctx.emit(BlocklistAIControllerEvent::SentRequest {
                         contains_user_query: true,
                         is_queued_prompt,
-                        model_id,
-                        stream_id,
                     });
                 }
             }

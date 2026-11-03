@@ -150,16 +150,17 @@ use super::ssh::util::{InteractiveSshCommand, SshWarpifyCommand, parse_interacti
 use super::warpify::success_block::{WarpifySuccessBlock, WarpifySuccessBlockEvent};
 use super::warpify::trigger_state::{SshBlockState, WarpifyState};
 use super::{CLIAgent, GridType};
+use crate::ActiveSession as WindowActiveSession;
 #[cfg(any(test, feature = "integration_tests"))]
 use crate::ai::agent::UserQueryMode;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId, ConversationStatus};
 use crate::ai::agent::redaction::redact_secrets;
 use crate::ai::agent::{
-    AIAgentActionId, AIAgentActionType, AIAgentContext, AIAgentExchangeId, AIAgentInput,
-    AIAgentOutputStatus, AIAgentPtyWriteMode, AIAgentTextSection, AgentReviewCommentBatch,
-    CancellationReason, CurrentHead, DiffBase, FinishedAIAgentOutput, RenderableAIError,
-    ServerOutputId,
+    AIAgentActionId, AIAgentActionResultType, AIAgentActionType, AIAgentContext, AIAgentExchangeId,
+    AIAgentInput, AIAgentOutputStatus, AIAgentPtyWriteMode, AIAgentTextSection,
+    AgentReviewCommentBatch, CancellationReason, CurrentHead, DiffBase, FinishedAIAgentOutput,
+    RenderableAIError, ServerOutputId,
 };
 use crate::ai::blocklist::agent_view::{
     AgentViewController, AgentViewControllerEvent, AgentViewConversationSelection,
@@ -184,9 +185,9 @@ use crate::ai::blocklist::{
     BlocklistAIContextModel, BlocklistAIController, BlocklistAIControllerEvent,
     BlocklistAIHistoryEvent, BlocklistAIHistoryModel, BlocklistAIInputEvent, BlocklistAIInputModel,
     ClientIdentifiers, ConversationSelection, ConversationStatusUpdate, InputConfig, InputType,
-    InputTypeAutoDetectionSource, LegacyPassiveSuggestionsEvent, LegacyPassiveSuggestionsModel,
-    PRE_REWIND_PREFIX, PendingAttachment, PendingQueryState, QueuedQuery, QueuedQueryId,
-    QueuedQueryModel, QueuedQueryOrigin, ShellCommandExecutor, ShellCommandExecutorEvent,
+    LegacyPassiveSuggestionsEvent, LegacyPassiveSuggestionsModel, PRE_REWIND_PREFIX,
+    PendingAttachment, PendingQueryState, QueuedQuery, QueuedQueryId, QueuedQueryModel,
+    QueuedQueryOrigin, ShellCommandExecutor, ShellCommandExecutorEvent,
     block_context_from_terminal_model, get_ai_block_overflow_menu_element_position_id,
     get_attached_blocks_chip_element_position_id, is_lrc_auto_queue_active,
 };
@@ -393,7 +394,6 @@ use crate::workspace::{
     CommandSearchOptions, ForkAIConversationParams, ForkFromExchange,
     ForkedConversationDestination, ToastStack, WorkspaceAction,
 };
-use crate::{AIAgentActionResultType, ActiveSession as WindowActiveSession};
 
 lazy_static! {
     // A set of commands that perform minimal work that we use as a baseline to measure the latency of blocks.
@@ -1306,10 +1306,6 @@ pub enum Event {
     // Tell the pane group to open the workflow modal with an unsaved workflow.
     OpenWorkflowWithTemporary(Box<Workflow>),
     OpenWarpDriveObjectInPane(ObjectUid),
-    OpenAIFactCollection {
-        /// If set, open the fact collection to the specific rule.
-        sync_id: Option<SyncId>,
-    },
     OpenPromptEditor,
     OpenAgentToolbarEditor,
     OpenCLIAgentToolbarEditor,
@@ -2550,7 +2546,6 @@ impl TerminalView {
 
                     ctx.notify();
                 }
-                AgentViewControllerEvent::ExitConfirmed { .. } => {}
             }
             // Entering or exiting agent view changes whether we need git
             // status updates.
@@ -2607,8 +2602,7 @@ impl TerminalView {
             if !model.is_autodetection_enabled_for_current_context(ctx)
                 && let Some(input_config) = initial_input_config
             {
-                let is_input_buffer_empty = true;
-                model.set_input_config(input_config, is_input_buffer_empty, None, ctx);
+                model.set_input_config(input_config, ctx);
             }
             model
         });
@@ -3704,9 +3698,6 @@ impl TerminalView {
         event: &BlocklistAIControllerEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        if let BlocklistAIControllerEvent::ExecuteLocalHarnessCommand { command } = event {
-            self.execute_command_or_set_pending(command, ctx);
-        }
         if let BlocklistAIControllerEvent::FinishedReceivingOutput {
             conversation_id, ..
         } = event
@@ -4170,9 +4161,6 @@ impl TerminalView {
                 new_conversation_id,
                 ..
             } => history_model.terminal_view_id_for_conversation(new_conversation_id),
-            BlocklistAIHistoryEvent::UpdatedConversationMetadata {
-                conversation_id, ..
-            } => history_model.terminal_view_id_for_conversation(conversation_id),
             BlocklistAIHistoryEvent::StartedNewConversation { .. }
             | BlocklistAIHistoryEvent::CreatedSubtask { .. }
             | BlocklistAIHistoryEvent::UpgradedTask { .. }
@@ -4212,7 +4200,6 @@ impl TerminalView {
                 event,
                 BlocklistAIHistoryEvent::UpdatedConversationStatus { .. }
                     | BlocklistAIHistoryEvent::UpdatedConversationTitle { .. }
-                    | BlocklistAIHistoryEvent::UpdatedConversationMetadata { .. }
                     | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
                     | BlocklistAIHistoryEvent::UpdatedStreamingExchange { .. }
                     | BlocklistAIHistoryEvent::SetActiveConversation { .. }
@@ -4227,7 +4214,6 @@ impl TerminalView {
                 task_id,
                 conversation_id,
                 is_hidden,
-                response_stream_id,
                 ..
             } => {
                 self.maybe_send_lrc_queued_prompts_after_subagent_handoff(*conversation_id, ctx);
@@ -4246,7 +4232,6 @@ impl TerminalView {
                     *exchange_id,
                     *conversation_id,
                     false,
-                    false,
                     ctx,
                 ) {
                     Ok(ai_block_model) => ai_block_model,
@@ -4264,7 +4249,6 @@ impl TerminalView {
                         ClientIdentifiers {
                             conversation_id: *conversation_id,
                             client_exchange_id: *exchange_id,
-                            response_stream_id: response_stream_id.clone(),
                         },
                         self.ai_controller.clone(),
                         self.pwd(),
@@ -4345,7 +4329,6 @@ impl TerminalView {
                         let new_model = match AIBlockModelImpl::<AIBlock>::new(
                             *exchange_id,
                             *new_conversation_id,
-                            false,
                             false,
                             ctx,
                         ) {
@@ -4539,7 +4522,6 @@ impl TerminalView {
             BlocklistAIHistoryEvent::UpdatedAutoexecuteOverride { .. }
             | BlocklistAIHistoryEvent::RestoredConversations { .. }
             | BlocklistAIHistoryEvent::UpgradedTask { .. }
-            | BlocklistAIHistoryEvent::UpdatedConversationMetadata { .. }
             | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
             | BlocklistAIHistoryEvent::ConversationServerTokenAssigned { .. } => {}
         }
@@ -4875,10 +4857,7 @@ impl TerminalView {
         self.input.update(ctx, |input, ctx| {
             // Remove the @-trigger text (e.g. "@uncom") that was used to open the context menu.
             input.replace_at_symbol_with_text(&attachment_reference, ctx);
-            input.ensure_agent_mode_for_ai_features(
-                Some(InputTypeAutoDetectionSource::AttachmentForcedAi),
-                ctx,
-            );
+            input.ensure_agent_mode_for_ai_features(ctx);
         });
 
         // Load the diff data asynchronously and complete the attachment when done
@@ -5169,12 +5148,7 @@ impl TerminalView {
             ShellCommandExecutorEvent::WriteToPty { input, mode } => {
                 self.write_agent_bytes_to_pty(input.to_vec(), mode, ctx);
             }
-            ShellCommandExecutorEvent::CancelExecution => {
-                // We need to manually invoke ctrl-c to terminate the running command because the
-                // user's ctrl-c was directed to the AIBlock instead of the command's shell block.
-                self.ctrl_c(ctx);
-            }
-            ShellCommandExecutorEvent::TransferControlToUser { reason, .. } => {
+            ShellCommandExecutorEvent::TransferControlToUser { reason } => {
                 // Transfer control of the long-running command to the user.
                 self.cli_subagent_controller.update(ctx, |controller, ctx| {
                     controller.switch_control_to_user(
@@ -12895,8 +12869,6 @@ impl TerminalView {
                     input_type: InputType::AI,
                     is_locked: true,
                 },
-                query.is_none(),
-                Some(InputTypeAutoDetectionSource::AskAi),
                 ctx,
             );
         });
@@ -12953,11 +12925,7 @@ impl TerminalView {
         }
 
         self.ai_input_model.update(ctx, |ai_input, ctx| {
-            ai_input.set_input_type(
-                InputType::AI,
-                Some(InputTypeAutoDetectionSource::AskAi),
-                ctx,
-            );
+            ai_input.set_input_type(InputType::AI, ctx);
         });
 
         if !context_block_indices.is_empty() {
@@ -13772,14 +13740,8 @@ impl TerminalView {
                     .mark_rich_content_dirty(block.id());
                 ctx.notify();
             }
-            AIBlockEvent::OpenAIFactCollection { sync_id } => {
-                ctx.emit(Event::OpenAIFactCollection { sync_id: *sync_id });
-            }
             AIBlockEvent::FocusTerminal => {
                 self.redetermine_global_focus(ctx);
-            }
-            AIBlockEvent::ResumeConversation { conversation_id } => {
-                self.handle_resume_conversation(conversation_id, ctx);
             }
             AIBlockEvent::InsertForkSlashCommand => {
                 let command_name = commands::FORK.name;
@@ -13798,9 +13760,6 @@ impl TerminalView {
             }
             AIBlockEvent::CopiedEmptyText => {
                 self.copy(ctx);
-            }
-            AIBlockEvent::OpenSettings => {
-                ctx.emit(Event::OpenSettings(SettingsSection::WarpAgent));
             }
             AIBlockEvent::OpenCodeInWarp { source, layout } => {
                 ctx.emit(Event::OpenCodeInWarp {
@@ -15684,7 +15643,6 @@ impl TerminalView {
                 are_file_symbols_indexed: false,
             }]
             .into(),
-            static_query_type: None,
             referenced_attachments: Default::default(),
             user_query_mode: UserQueryMode::default(),
             running_command: None,
@@ -15713,7 +15671,6 @@ impl TerminalView {
                 ClientIdentifiers {
                     client_exchange_id: Default::default(),
                     conversation_id,
-                    response_stream_id: None,
                 },
                 self.ai_controller.clone(),
                 None,
@@ -15824,8 +15781,6 @@ impl TerminalView {
                         .input_config()
                         .with_input_type(InputType::AI)
                         .unlocked_if_autodetection_enabled(false, ctx),
-                    true,
-                    Some(InputTypeAutoDetectionSource::InlineCodeReviewSend),
                     ctx,
                 );
             });

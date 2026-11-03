@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Local};
 use futures::stream::AbortHandle;
+pub use input_classifier::InputType;
 use input_classifier::util::{is_agent_follow_up_input, is_one_off_natural_language_word};
-pub use input_classifier::{InputClassifierDecisionSource, InputType};
 use instant::Instant;
 use parking_lot::FairMutex;
 use serde::{Deserialize, Serialize};
@@ -19,65 +19,6 @@ use warp_completer::completer::CompletionContext;
 #[cfg(any(test, feature = "test-util"))]
 use warpui::EntityId;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
-
-/// The source of the final input type decision applied to the user input.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InputTypeAutoDetectionSource {
-    /// Decision produced by the input classifier pipeline.
-    InputClassifierDecisionSource(InputClassifierDecisionSource),
-    /// User explicitly toggled the input type via cmd + I.
-    ManualToggle,
-    /// `!` shell prefix force-locked the input to Shell mode.
-    ShellPrefix,
-    /// Image / file attachment in progress force-locked AI mode.
-    AttachmentForcedAi,
-    /// First token matched the autodetection command denylist.
-    Denylist,
-    /// Buffer text closely matched a recent shell command history or agent
-    /// prompt history entry.
-    HistoryMatch,
-    /// Input matched the natural-language follow-up allowlist after a preceding AI block.
-    NaturalLanguageAgentFollowUpAllowList,
-    /// Inline history menu selection set the input type.
-    HistorySelection,
-    /// Inserting a workflow into the input set the input type based on workflow kind.
-    WorkflowInsertion,
-    /// Accepting a shell command autosuggestion forced Shell mode.
-    CommandAutosuggestionAccepted,
-    /// Accepting an Agent Mode query autosuggestion forced AI mode.
-    AgentQueryAutosuggestionAccepted,
-    /// Empty-buffer conversation context render forced AI so conversation context renders.
-    ConversationContextRender,
-    /// Locking the input for a CLI subagent's terminal-control handoff.
-    /// Distinguishes an agent-installed AI lock from a user-forced one so the
-    /// post-agent reset only restores autodetection when the lock was installed
-    /// for agent terminal control.
-    AgentTerminalControl,
-    /// Starting a new agent conversation forced AI mode.
-    StartNewConversation,
-    /// Ask-AI flow (text/block selection, programmatic Ask-AI lock) forced AI mode.
-    AskAi,
-    /// Detected/composing slash or skill command forced AI mode.
-    SlashCommand,
-    /// Entering inline agent view force-locked AI without an explicit user toggle.
-    InlineAgentViewEntry,
-    /// Inline code review send overrode the input mode to AI.
-    InlineCodeReviewSend,
-    /// Fullscreen AgentView inline history command cycling force-locked Shell.
-    FullscreenInlineHistoryCycling,
-    /// Closing history suggestions restored the previously saved config.
-    RestoreSavedConfig,
-    /// `set_input_config_for_classic_mode` reset (CtrlC, delete-all-left, etc.).
-    ClassicModeReset,
-    /// Inserting from the AI `@` context menu forced AI mode.
-    AtContextMenuInsert,
-}
-
-impl From<InputClassifierDecisionSource> for InputTypeAutoDetectionSource {
-    fn from(value: InputClassifierDecisionSource) -> Self {
-        Self::InputClassifierDecisionSource(value)
-    }
-}
 
 use super::ConversationSelectionHandle;
 use super::context_model::BlocklistAIContextModel;
@@ -174,15 +115,8 @@ impl InputConfig {
 pub struct BlocklistAIInputModel {
     input_config: InputConfig,
 
-    /// the latest input type classification decision source
-    last_ai_autodetection_source: Option<InputTypeAutoDetectionSource>,
-
     /// Timestamp of the last time the input type was explicitly set.
     last_explicit_input_type_set_at: Option<Instant>,
-
-    /// Whether the input buffer was empty at the time the lock was set.  This will be true
-    /// if a persistent lock is in place and a buffer is submitted.
-    was_lock_set_with_empty_buffer: bool,
 
     conversation_selection: ConversationSelectionHandle,
 
@@ -229,9 +163,7 @@ impl BlocklistAIInputModel {
             conversation_selection,
             ai_context_model,
             policy,
-            last_ai_autodetection_source: None,
             last_explicit_input_type_set_at: None,
-            was_lock_set_with_empty_buffer: false,
             autodetect_abort_handle: None,
             model,
         }
@@ -262,9 +194,7 @@ impl BlocklistAIInputModel {
             conversation_selection,
             ai_context_model,
             policy,
-            last_ai_autodetection_source: None,
             last_explicit_input_type_set_at: None,
-            was_lock_set_with_empty_buffer: false,
             autodetect_abort_handle: None,
             model,
         })
@@ -311,9 +241,6 @@ impl BlocklistAIInputModel {
             || active_block.is_agent_tagged_in()
             || active_block.is_eligible_for_agent_handoff()
     }
-    pub fn last_ai_autodetection_source(&self) -> Option<InputTypeAutoDetectionSource> {
-        self.last_ai_autodetection_source
-    }
 
     /// Sets the input config iff the input is in classic mode (i.e. not UDI).
     pub fn set_input_config_for_classic_mode(
@@ -331,28 +258,15 @@ impl BlocklistAIInputModel {
         if !matches!(input_type, InputBoxType::Classic) {
             return;
         }
-        self.set_input_config_internal(
-            new_config,
-            Some(InputTypeAutoDetectionSource::ClassicModeReset),
-            ctx,
-        );
+        self.set_input_config_internal(new_config, ctx);
     }
 
     /// Swaps between Agent/Shell input types while preserving lock state. Temporarily disables
     /// autodetection.
-    pub fn set_input_type(
-        &mut self,
-        input_type: InputType,
-        decision_source: Option<InputTypeAutoDetectionSource>,
-        ctx: &mut ModelContext<Self>,
-    ) {
+    pub fn set_input_type(&mut self, input_type: InputType, ctx: &mut ModelContext<Self>) {
         self.temporarily_disable_autodetection();
         let current_config = self.input_config();
-        self.set_input_config_internal(
-            current_config.with_input_type(input_type),
-            decision_source,
-            ctx,
-        );
+        self.set_input_config_internal(current_config.with_input_type(input_type), ctx);
     }
 
     /// Applies a policy-produced config update via the internal setter.
@@ -360,14 +274,13 @@ impl BlocklistAIInputModel {
         if update.temporarily_disable_autodetection {
             self.temporarily_disable_autodetection();
         }
-        self.set_input_config_internal(update.config, update.decision_source, ctx);
+        self.set_input_config_internal(update.config, ctx);
     }
 
     /// Does not disable autodetection.
     fn set_input_config_internal(
         &mut self,
         new_config: InputConfig,
-        decision_source: Option<InputTypeAutoDetectionSource>,
         ctx: &mut ModelContext<Self>,
     ) -> bool {
         // Locking the input to AI is only allowed when the view's policy permits it (e.g. the
@@ -380,14 +293,12 @@ impl BlocklistAIInputModel {
         }
 
         if self.input_config == new_config {
-            self.last_ai_autodetection_source = decision_source;
             return false;
         }
 
         let old_config = self.input_config;
 
         self.input_config = new_config;
-        self.last_ai_autodetection_source = decision_source;
 
         // Emit specific events for what actually changed
         if old_config.input_type != new_config.input_type {
@@ -402,19 +313,12 @@ impl BlocklistAIInputModel {
     }
 
     /// Allows you to set the input config and mutate the lock state. Temporarily disables autodetection.
-    pub fn set_input_config(
-        &mut self,
-        new_config: InputConfig,
-        is_input_buffer_empty: bool,
-        decision_source: Option<InputTypeAutoDetectionSource>,
-        ctx: &mut ModelContext<Self>,
-    ) {
+    pub fn set_input_config(&mut self, new_config: InputConfig, ctx: &mut ModelContext<Self>) {
         self.temporarily_disable_autodetection();
-        self.set_input_config_internal(new_config, decision_source, ctx);
+        self.set_input_config_internal(new_config, ctx);
         if new_config.is_locked {
             self.abort_in_progress_detection();
         }
-        self.was_lock_set_with_empty_buffer = self.is_input_type_locked() && is_input_buffer_empty;
     }
 
     /// Returns `false` if the input type is locked and we will not attempt to automatically detect
@@ -455,7 +359,6 @@ impl BlocklistAIInputModel {
                 input_type,
                 is_locked: false,
             },
-            None,
             ctx,
         );
         // The goal of this function is to allow autodetection to run, but if we
@@ -482,15 +385,7 @@ impl BlocklistAIInputModel {
             }
         };
 
-        self.set_input_config(
-            new_config,
-            // We know the buffer is currently empty, as it was just submitted.
-            true, None, ctx,
-        );
-    }
-
-    pub fn was_lock_set_with_empty_buffer(&self) -> bool {
-        self.was_lock_set_with_empty_buffer
+        self.set_input_config(new_config, ctx);
     }
 
     /// Aborts any in progress work for autodetection.
@@ -556,7 +451,6 @@ impl BlocklistAIInputModel {
                     input_type: InputType::Shell,
                     ..self.input_config()
                 },
-                Some(InputTypeAutoDetectionSource::Denylist),
                 ctx,
             );
             return;
@@ -607,20 +501,14 @@ impl BlocklistAIInputModel {
                     if matches!(current_input_type, InputType::AI)
                         && is_one_off_natural_language_word(first_token_str.to_lowercase().as_str())
                     {
-                        return (
-                            InputType::AI,
-                            InputClassifierDecisionSource::NaturalLanguageOneOffAllowlist.into(),
-                        );
+                        return InputType::AI;
                     }
 
                     // If this is clearly intended to be a follow-up to an AI block, classify it as AI.
                     if is_agent_follow_up
                         && is_agent_follow_up_input(&buffer_cloned.trim().to_lowercase())
                     {
-                        return (
-                            InputType::AI,
-                            InputTypeAutoDetectionSource::NaturalLanguageAgentFollowUpAllowList,
-                        );
+                        return InputType::AI;
                     }
 
                     // If we have history entries (i.e., a live session), check for
@@ -681,9 +569,9 @@ impl BlocklistAIInputModel {
                         classifier.detect_input_type(input.clone(), &context).await;
 
                     futures_lite::future::yield_now().await;
-                    (classification.input_type, classification.source.into())
+                    classification.input_type
                 },
-                move |me, (new_input_type, decision_source), ctx| {
+                move |me, new_input_type, ctx| {
                     // In theory, we shouldn't need to check this, as we only run autodetection if the input
                     // is not locked, and we should abort the autodetect future if the input is locked, but
                     // we do it anyway out of an abundance of caution.
@@ -701,7 +589,6 @@ impl BlocklistAIInputModel {
                             input_type: new_input_type,
                             ..me.input_config()
                         },
-                        Some(decision_source),
                         ctx,
                     );
                 },
@@ -798,7 +685,7 @@ async fn most_recent_close_match<'a>(
 fn resolve_history_match(
     command_match: HistoryMatch,
     prompt_match: HistoryMatch,
-) -> Option<(InputType, InputTypeAutoDetectionSource)> {
+) -> Option<InputType> {
     use HistoryMatch::{MatchedAt, MatchedWithoutTimestamp, NoMatch};
 
     match (command_match, prompt_match) {
@@ -811,29 +698,29 @@ fn resolve_history_match(
         (MatchedAt(command_ts), MatchedAt(prompt_ts)) => {
             if prompt_ts > command_ts {
                 log::debug!("found match from prompt history at {prompt_ts:?}");
-                Some((InputType::AI, InputTypeAutoDetectionSource::HistoryMatch))
+                Some(InputType::AI)
             } else {
                 log::debug!("found match from command history at {command_ts:?}");
-                Some((InputType::Shell, InputTypeAutoDetectionSource::HistoryMatch))
+                Some(InputType::Shell)
             }
         }
         (MatchedWithoutTimestamp, MatchedAt(prompt_ts)) => {
             log::debug!("found match from prompt history at {prompt_ts:?}");
-            Some((InputType::AI, InputTypeAutoDetectionSource::HistoryMatch))
+            Some(InputType::AI)
         }
         (MatchedAt(_) | MatchedWithoutTimestamp, MatchedWithoutTimestamp) => {
             log::debug!("found match from command history");
-            Some((InputType::Shell, InputTypeAutoDetectionSource::HistoryMatch))
+            Some(InputType::Shell)
         }
         // Command-only match -> Shell.
         (MatchedAt(_) | MatchedWithoutTimestamp, NoMatch) => {
             log::debug!("found match from command history");
-            Some((InputType::Shell, InputTypeAutoDetectionSource::HistoryMatch))
+            Some(InputType::Shell)
         }
         // Prompt-only match -> AI.
         (NoMatch, MatchedAt(_) | MatchedWithoutTimestamp) => {
             log::debug!("found match from prompt history");
-            Some((InputType::AI, InputTypeAutoDetectionSource::HistoryMatch))
+            Some(InputType::AI)
         }
     }
 }

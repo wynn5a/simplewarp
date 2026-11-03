@@ -131,10 +131,6 @@ impl ConversationNavigationData {
         self.pane_view_locator
     }
 
-    pub fn is_in_active_pane(&self) -> bool {
-        self.is_in_active_pane
-    }
-
     pub fn window_id(&self) -> Option<WindowId> {
         self.window_id
     }

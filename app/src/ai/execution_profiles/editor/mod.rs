@@ -49,8 +49,6 @@ pub enum ExecutionProfileEditorViewEvent {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExecutionProfileEditorViewAction {
-    Save,
-    Close,
     SetBaseModel {
         id: LLMId,
     },
@@ -504,13 +502,6 @@ impl ExecutionProfileEditorView {
                         |prefs, _| prefs.get_base_llm_choices_for_agent_mode().collect_vec(),
                         |id| ExecutionProfileEditorViewAction::SetBaseModel { id },
                         |prefs, app| prefs.get_default_base_model(app).id.clone(),
-                        ctx,
-                    );
-                }
-                LLMPreferencesEvent::UpdatedActiveCodingLLM => {
-                    Self::refresh_coding_model_dropdown(
-                        &me.coding_model_dropdown,
-                        current_permissions.coding_model.clone(),
                         ctx,
                     );
                 }
@@ -1012,13 +1003,6 @@ impl TypedActionView for ExecutionProfileEditorView {
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         match action {
-            ExecutionProfileEditorViewAction::Save => {
-                // TODO: Implement save logic
-                log::info!("Save profile");
-            }
-            ExecutionProfileEditorViewAction::Close => {
-                ctx.emit(ExecutionProfileEditorViewEvent::Pane(PaneEvent::Close));
-            }
             ExecutionProfileEditorViewAction::SetBaseModel { id } => {
                 AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
                     profiles_model.set_base_model(&self.profile_id, Some(id.clone()), ctx);

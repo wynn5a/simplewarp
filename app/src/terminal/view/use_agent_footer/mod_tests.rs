@@ -49,10 +49,6 @@ impl AIBlockModel for PendingAIBlockModel {
         None
     }
 
-    fn model_id(&self, _app: &AppContext) -> Option<LLMId> {
-        None
-    }
-
     fn base_model<'a>(&'a self, _app: &'a AppContext) -> Option<&'a LLMId> {
         Some(&self.model_id)
     }
@@ -130,7 +126,6 @@ fn insert_pending_ai_block(
         vec![AIAgentInput::UserQuery {
             query: "help with this running command".to_owned(),
             context: vec![].into(),
-            static_query_type: None,
             referenced_attachments: Default::default(),
             user_query_mode: UserQueryMode::default(),
             running_command: None,
@@ -144,7 +139,6 @@ fn insert_pending_ai_block(
             ClientIdentifiers {
                 client_exchange_id: Default::default(),
                 conversation_id,
-                response_stream_id: None,
             },
             view.ai_controller.clone(),
             None,

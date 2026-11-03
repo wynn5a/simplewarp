@@ -329,7 +329,6 @@ impl ProfileModelSelector {
                     me.refresh_state(ctx);
                     ctx.notify();
                 }
-                _ => (),
             },
         );
 

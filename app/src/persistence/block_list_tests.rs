@@ -244,7 +244,6 @@ fn empty_input_skip_filters_out_non_query_inputs() {
     let user_query = AIAgentInput::UserQuery {
         query: "hello".to_string(),
         context: Default::default(),
-        static_query_type: None,
         referenced_attachments: Default::default(),
         user_query_mode: UserQueryMode::default(),
         running_command: None,

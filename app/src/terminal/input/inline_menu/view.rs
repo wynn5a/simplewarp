@@ -393,7 +393,6 @@ impl<A: InlineMenuAction, T: 'static + Send + Sync> InlineMenuView<A, T> {
         ctx.subscribe_to_model(&agent_view_controller, |_, _, event, ctx| match event {
             AgentViewControllerEvent::EnteredAgentView { .. }
             | AgentViewControllerEvent::ExitedAgentView { .. } => ctx.notify(),
-            _ => (),
         });
 
         ctx.subscribe_to_model(

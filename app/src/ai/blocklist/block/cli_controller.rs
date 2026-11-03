@@ -210,7 +210,6 @@ impl CLISubagentController {
                 ctx.emit(CLISubagentEvent::UpdatedControl {
                     block_id: active_block.id().clone(),
                     requested_command_action_id: action_id,
-                    agent_has_control: active_block.is_agent_in_control(),
                 });
             }
             BlocklistAIActionEvent::ExecutingAction(..) => {
@@ -222,7 +221,6 @@ impl CLISubagentController {
                 ctx.emit(CLISubagentEvent::UpdatedControl {
                     block_id: active_block.id().clone(),
                     requested_command_action_id: action_id,
-                    agent_has_control: active_block.is_agent_in_control(),
                 });
             }
             BlocklistAIActionEvent::FinishedAction { action_id, .. } => {
@@ -240,7 +238,6 @@ impl CLISubagentController {
                 ctx.emit(CLISubagentEvent::UpdatedControl {
                     block_id: active_block.id().clone(),
                     requested_command_action_id: action_id,
-                    agent_has_control: active_block.is_agent_in_control(),
                 });
 
                 // Updates the last snapshot timestamp for the active block after the agent has read the block output.
@@ -382,7 +379,6 @@ impl CLISubagentController {
 
         let action_id = active_block.requested_command_action_id().cloned();
         let conversation_id = active_block.ai_conversation_id();
-        let agent_has_control = active_block.is_agent_in_control();
         // Conversation cancellation potentially takes a lock on terminal model if the
         // cancelled action is a shell command action, so we have to drop the terminal
         // model lock before actually cancelling the conversation.
@@ -407,7 +403,6 @@ impl CLISubagentController {
         ctx.emit(CLISubagentEvent::UpdatedControl {
             block_id: block_id.clone(),
             requested_command_action_id: action_id,
-            agent_has_control,
         });
     }
 
@@ -435,7 +430,6 @@ impl CLISubagentController {
              conversation_id={conversation_id:?}, lrc_state={lrc_state_debug}"
         );
         let action_id = active_block.requested_command_action_id().cloned();
-        let agent_has_control = active_block.is_agent_in_control();
         drop(terminal_model);
         self.agent_view_controller.update(ctx, |controller, ctx| {
             if !controller.is_inline()
@@ -477,7 +471,6 @@ impl CLISubagentController {
         ctx.emit(CLISubagentEvent::UpdatedControl {
             block_id: block_id.clone(),
             requested_command_action_id: action_id,
-            agent_has_control,
         });
 
         // Emit a special event if control was transferred from agent, so the executor can be notified.
@@ -543,7 +536,6 @@ impl CLISubagentController {
                 };
 
                 let action_id = block.requested_command_action_id().cloned();
-                let agent_has_control = block.is_agent_in_control();
                 drop(terminal_model);
 
                 // When the CLI subagent is first created for a long running command,
@@ -552,7 +544,6 @@ impl CLISubagentController {
                 ctx.emit(CLISubagentEvent::UpdatedControl {
                     block_id: block_id.clone(),
                     requested_command_action_id: action_id.clone(),
-                    agent_has_control,
                 });
                 self.active_subagents_by_block
                     .entry(block_id.clone())
@@ -627,26 +618,12 @@ pub enum CLISubagentEvent {
     UpdatedControl {
         block_id: BlockId,
         requested_command_action_id: Option<AIAgentActionId>,
-        agent_has_control: bool,
     },
     UpdatedLastSnapshot,
     ToggledHideResponses,
     /// Emitted when the user hands control back to the agent after a
     /// TransferShellCommandControlToUser action.
     ControlHandedBackAfterTransfer,
-}
-
-impl CLISubagentEvent {
-    pub fn block_id(&self) -> Option<&BlockId> {
-        match self {
-            Self::SpawnedSubagent { block_id, .. }
-            | Self::FinishedSubagent { block_id, .. }
-            | Self::UpdatedControl { block_id, .. } => Some(block_id),
-            Self::UpdatedLastSnapshot
-            | Self::ToggledHideResponses
-            | Self::ControlHandedBackAfterTransfer => None,
-        }
-    }
 }
 
 impl Entity for CLISubagentController {

@@ -14,14 +14,14 @@ impl AgentShortcutViewModel {
         agent_view_controller: ModelHandle<AgentViewController>,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        ctx.subscribe_to_model(&input_buffer_model, |me, _, event, ctx| {
+        ctx.subscribe_to_model(&input_buffer_model, |me, _, event, _| {
             if me.is_shortcut_view_open && !event.new_content.is_empty() {
-                me.hide_shortcut_view(ctx);
+                me.hide_shortcut_view();
             }
         });
-        ctx.subscribe_to_model(&agent_view_controller, |me, _, event, ctx| {
+        ctx.subscribe_to_model(&agent_view_controller, |me, _, event, _| {
             if matches!(event, AgentViewControllerEvent::ExitedAgentView { .. }) {
-                me.hide_shortcut_view(ctx);
+                me.hide_shortcut_view();
             }
         });
 
@@ -34,29 +34,15 @@ impl AgentShortcutViewModel {
         self.is_shortcut_view_open
     }
 
-    pub fn open_shortcut_view(&mut self, ctx: &mut ModelContext<Self>) {
-        self.set_shortcut_view_visibility(true, ctx);
+    pub fn toggle_shortcut_view(&mut self) {
+        self.is_shortcut_view_open = !self.is_shortcut_view_open;
     }
 
-    pub fn hide_shortcut_view(&mut self, ctx: &mut ModelContext<Self>) {
-        self.set_shortcut_view_visibility(false, ctx);
-    }
-
-    fn set_shortcut_view_visibility(&mut self, is_open: bool, ctx: &mut ModelContext<Self>) {
-        if is_open == self.is_shortcut_view_open {
-            return;
-        }
-        self.is_shortcut_view_open = is_open;
-        ctx.emit(AgentShortcutEvent::ToggledViewVisibility {
-            is_visible: is_open,
-        });
+    fn hide_shortcut_view(&mut self) {
+        self.is_shortcut_view_open = false;
     }
 }
 
 impl Entity for AgentShortcutViewModel {
-    type Event = AgentShortcutEvent;
-}
-
-pub enum AgentShortcutEvent {
-    ToggledViewVisibility { is_visible: bool },
+    type Event = ();
 }

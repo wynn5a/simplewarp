@@ -20,7 +20,6 @@ pub struct AIBlockModelImpl<V> {
     exchange_id: AIAgentExchangeId,
     conversation_id: AIConversationId,
     is_restored: bool,
-    is_forked: bool,
     _view: PhantomData<V>,
 }
 
@@ -32,7 +31,6 @@ where
         exchange_id: AIAgentExchangeId,
         conversation_id: AIConversationId,
         is_restored: bool,
-        is_forked: bool,
         app: &AppContext,
     ) -> Result<Self> {
         BlocklistAIHistoryModel::as_ref(app)
@@ -55,7 +53,6 @@ where
                 exchange_id,
                 conversation_id,
                 is_restored,
-                is_forked,
                 _view: PhantomData,
             })
     }
@@ -88,10 +85,6 @@ where
         self.is_restored
     }
 
-    fn is_forked(&self) -> bool {
-        self.is_forked
-    }
-
     fn status(&self, app: &AppContext) -> AIBlockOutputStatus {
         let history_model = BlocklistAIHistoryModel::as_ref(app);
         let Some(conversation) = history_model.conversation(&self.conversation_id) else {
@@ -120,12 +113,9 @@ where
                 FinishedAIAgentOutput::Success { output } => AIBlockOutputStatus::Complete {
                     output: output.get_owned(),
                 },
-                FinishedAIAgentOutput::Cancelled { output, reason } => {
-                    AIBlockOutputStatus::Cancelled {
-                        partial_output: output.as_ref().map(Shared::get_owned),
-                        reason: *reason,
-                    }
-                }
+                FinishedAIAgentOutput::Cancelled { output, .. } => AIBlockOutputStatus::Cancelled {
+                    partial_output: output.as_ref().map(Shared::get_owned),
+                },
                 FinishedAIAgentOutput::Error { error, output } => AIBlockOutputStatus::Failed {
                     partial_output: output.as_ref().map(Shared::get_owned),
                     error: error.clone(),
@@ -175,13 +165,6 @@ where
         let conversation = history_model.conversation(&self.conversation_id)?;
         let exchange = conversation.exchange_with_id(self.exchange_id)?;
         exchange.output_status.server_output_id()
-    }
-
-    fn model_id(&self, app: &AppContext) -> Option<LLMId> {
-        let history_model = BlocklistAIHistoryModel::as_ref(app);
-        let conversation = history_model.conversation(&self.conversation_id)?;
-        let exchange = conversation.exchange_with_id(self.exchange_id)?;
-        exchange.output_status.model_id()
     }
 
     fn on_updated_output(

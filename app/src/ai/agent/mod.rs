@@ -7,7 +7,6 @@ pub(crate) mod linearization;
 pub(crate) mod redaction;
 pub(crate) mod task;
 mod task_store;
-pub(super) mod telemetry;
 pub(super) mod util;
 
 use std::collections::{HashMap, HashSet};
@@ -21,14 +20,13 @@ pub use ai::agent::FileLocations;
 pub use ai::agent::action::*;
 pub use ai::agent::action_result::*;
 use ai::skills::ParsedSkill;
-use chrono::{DateTime, Local, TimeDelta};
+use chrono::{DateTime, Local};
 use comment::ReviewComment;
 use derivative::Derivative;
 use markdown_parser::{FormattedTable, FormattedText, FormattedTextInline, parse_markdown};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use task::TaskId;
-pub use telemetry::AIIdentifiers;
 use uuid::Uuid;
 use warp_editor::render::model::LineCount;
 use warp_multi_agent_api::{AgentType, diff_hunk as diff_hunk_api};
@@ -238,16 +236,6 @@ impl Display for FinishedAIAgentOutput {
 }
 
 impl FinishedAIAgentOutput {
-    pub fn server_output_id(&self) -> Option<ServerOutputId> {
-        self.output()
-            .and_then(|output| output.get().server_output_id.clone())
-    }
-
-    pub fn model_id(&self) -> Option<LLMId> {
-        self.output()
-            .and_then(|output| output.get().model_info.as_ref().map(|m| m.model_id.clone()))
-    }
-
     pub fn output(&self) -> Option<&Shared<AIAgentOutput>> {
         match self {
             Self::Cancelled { output, .. } => output.as_ref(),
@@ -338,11 +326,6 @@ impl AIAgentOutputStatus {
             } => Some(reason),
             _ => None,
         }
-    }
-
-    pub fn model_id(&self) -> Option<LLMId> {
-        self.output()
-            .and_then(|output| output.get().model_info.as_ref().map(|m| m.model_id.clone()))
     }
 
     pub fn output(&self) -> Option<&Shared<AIAgentOutput>> {
@@ -548,7 +531,6 @@ impl AIAgentOutput {
                     last_was_action = false;
                 }
                 AIAgentOutputMessageType::ArtifactCreated(_) => continue,
-                AIAgentOutputMessageType::SkillInvoked(_) => continue,
             }
         }
 
@@ -567,7 +549,6 @@ pub enum RenderableAIError {
     QuotaLimit {
         user_display_message: Option<String>,
     },
-    InternalWarpError,
     ContextWindowExceeded(String),
     InvalidApiKey {
         provider: String,
@@ -599,11 +580,6 @@ pub enum RenderableAIError {
     AgentExitedShell {
         command: String,
     },
-    /// A cloud-mode startup failure. Carries the raw server error message and
-    /// surfaces it without the generic apology prefix, matching the dedicated
-    /// GUI error card (`render_cloud_mode_error_screen`) which shows the
-    /// message directly.
-    CloudStartupFailed(String),
 }
 
 impl RenderableAIError {
@@ -652,19 +628,6 @@ impl RenderableAIError {
     /// flight, so transient blips that recover on their own don't surface an alarming error.
     pub fn should_suppress_during_recovery(&self) -> bool {
         self.will_attempt_resume()
-    }
-
-    /// Constructs a generic [`RenderableAIError::Other`] from a message.
-    /// `is_user_error` selects the task classification (true → FAILED, false →
-    /// ERROR). The resume/network flags are false: this is for terminal,
-    /// out-of-band errors that are not auto-resumed.
-    pub fn other(error_message: impl Into<String>, is_user_error: bool) -> Self {
-        Self::Other {
-            error_message: error_message.into(),
-            will_attempt_resume: false,
-            waiting_for_network: false,
-            is_user_error,
-        }
     }
 }
 
@@ -739,8 +702,7 @@ impl From<&Arc<AIApiError>> for RenderableAIError {
             ),
             AIApiError::Deserialization(DeserializationError::Json(_))
             | AIApiError::ErrorStatus(_, _)
-            | AIApiError::Other(_)
-            | AIApiError::Stream { .. } => Self::Other {
+            | AIApiError::Other(_) => Self::Other {
                 error_message: format!("Request failed with error: {value:?}"),
                 will_attempt_resume: false,
                 waiting_for_network: false,
@@ -762,7 +724,6 @@ impl Display for RenderableAIError {
                     write!(f, "Quota limit reached.")
                 }
             }
-            Self::InternalWarpError => write!(f, "Internal SimpleWarp error."),
             Self::ContextWindowExceeded(message) => {
                 write!(f, "Context window exceeded: {message}")
             }
@@ -783,7 +744,6 @@ impl Display for RenderableAIError {
                  could not continue. Ensure the agent is not asked to run commands or source \
                  scripts that can exit the shell."
             ),
-            Self::CloudStartupFailed(msg) => write!(f, "{msg}"),
         }
     }
 }
@@ -949,10 +909,6 @@ impl Display for AIAgentAction {
 }
 
 impl AIAgentAction {
-    pub fn is_request_command_output(&self) -> bool {
-        self.action.is_request_command_output()
-    }
-
     pub fn is_get_specific_files(&self) -> bool {
         self.action.is_read_files()
     }
@@ -963,21 +919,6 @@ impl AIAgentAction {
 
     pub fn is_file_glob(&self) -> bool {
         self.action.is_file_glob()
-    }
-
-    pub fn executable_command(&self) -> Option<String> {
-        match &self.action {
-            AIAgentActionType::RequestCommandOutput { command, .. } => Some(command.clone()),
-            _ => None,
-        }
-    }
-
-    pub fn is_write_to_shell_command(&self) -> bool {
-        self.action.is_write_to_shell_command()
-    }
-
-    pub fn matches_command(&self, command: &String) -> bool {
-        Some(command) == self.executable_command().as_ref()
     }
 }
 
@@ -1265,12 +1206,6 @@ impl AgentOutputText {
     pub fn text(&self) -> &str {
         self.markdown_text.as_str()
     }
-    /// Returns the cached parsed Markdown, if parsing succeeded.
-    pub fn formatted_text_arc(&self) -> Option<Arc<FormattedText>> {
-        self.formatted_lines
-            .as_ref()
-            .map(FormattedTextWrapper::formatted_text_arc)
-    }
 }
 
 impl From<String> for AgentOutputText {
@@ -1397,17 +1332,6 @@ impl Display for SubagentCall {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct InvokedSkill {
-    pub name: String,
-}
-
-impl Display for InvokedSkill {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "InvokedSkill: {}", self.name)
-    }
-}
-
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum AIAgentOutputMessageType {
@@ -1440,7 +1364,6 @@ pub enum AIAgentOutputMessageType {
     },
     /// Notification that an artifact was created (e.g. a PR).
     ArtifactCreated(ArtifactCreatedData),
-    SkillInvoked(InvokedSkill),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -1575,9 +1498,6 @@ impl Display for AIAgentOutputMessage {
                     "File artifact uploaded: {filepath} (artifact: {artifact_uid})"
                 )?,
             },
-            AIAgentOutputMessageType::SkillInvoked(invoked_skill) => {
-                write!(f, "Skill Invoked: {}", invoked_skill.name)?
-            }
         }
         Ok(())
     }
@@ -1995,15 +1915,6 @@ pub enum DriveObjectPayload {
     },
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum StaticQueryType {
-    Install,
-    Code,
-    Deploy,
-    SomethingElse,
-    EvaluationSuite,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(clippy::enum_variant_names)]
 pub enum EntrypointType {
@@ -2011,6 +1922,17 @@ pub enum EntrypointType {
     UserInitiated,
     CloneRepository,
     ResumeConversation,
+}
+
+impl EntrypointType {
+    pub fn entrypoint(&self) -> String {
+        match self {
+            Self::InitProjectRules => "INIT_PROJECT_RULES".to_string(),
+            Self::UserInitiated => "USER_INITIATED".to_string(),
+            Self::CloneRepository => "CLONE_REPOSITORY".to_string(),
+            Self::ResumeConversation => "RESUME_CONVERSATION".to_string(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -2064,7 +1986,6 @@ pub enum AIAgentInput {
     UserQuery {
         query: String,
         context: Arc<[AIAgentContext]>,
-        static_query_type: Option<StaticQueryType>,
         referenced_attachments: HashMap<String, AIAgentAttachment>,
         user_query_mode: UserQueryMode,
         running_command: Option<RunningCommand>,
@@ -2285,29 +2206,6 @@ impl AIAgentInput {
         }
     }
 
-    /// Returns all of the attachments for the given input,
-    /// converting any blocks blocks attached in the context into the correct type of attachment.
-    pub fn attachments(&self) -> Option<Vec<AIAgentAttachment>> {
-        match self {
-            Self::UserQuery {
-                referenced_attachments,
-                ..
-            } => {
-                let res: Vec<AIAgentAttachment> =
-                    referenced_attachments.values().cloned().collect();
-                Some(res)
-            }
-            Self::ActionResult { .. }
-            | Self::ResumeConversation { .. }
-            | Self::InitProjectRules { .. }
-            | Self::CreateNewProject { .. }
-            | Self::CloneRepository { .. }
-            | Self::CodeReview { .. }
-            | Self::SummarizeConversation { .. }
-            | Self::InvokeSkill { .. } => None,
-        }
-    }
-
     /// Returns true if this input type provides its own display query that should be preserved
     /// without prepending "/agent".
     pub fn has_custom_display_query(&self) -> bool {
@@ -2461,11 +2359,6 @@ impl AIAgentExchange {
                 })
             )
         })
-    }
-
-    pub fn duration(&self) -> Option<TimeDelta> {
-        self.finish_time
-            .map(|finish_time| finish_time.signed_duration_since(self.start_time))
     }
 }
 

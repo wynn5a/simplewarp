@@ -30,13 +30,6 @@ pub enum AIApiError {
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 
-    #[error("Got error when streaming {stream_type}: {source:#}")]
-    Stream {
-        stream_type: &'static str,
-        #[source]
-        source: anyhow::Error,
-    },
-
     /// Synthesized client-side when a response stream ends without a stream-finished
     /// event: the server always sends one, but the transport can truncate the response
     /// between chunks, surfacing as a clean EOF.
@@ -118,7 +111,6 @@ impl ErrorExt for AIApiError {
             },
             AIApiError::Transport(error) => error.is_actionable(),
             AIApiError::Other(error) => error.is_actionable(),
-            AIApiError::Stream { source, .. } => source.is_actionable(),
             AIApiError::ErrorStatus(_, _) => self.is_recoverable(),
             AIApiError::UnexpectedEof => true,
         }
