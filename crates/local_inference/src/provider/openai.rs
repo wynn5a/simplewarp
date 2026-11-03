@@ -156,6 +156,23 @@ pub fn parse_event(data: &str) -> Vec<Delta> {
         return Vec::new();
     };
 
+    // Not part of the OpenAI schema, but OpenRouter and several compatible servers report a failure
+    // after the stream opened as a chunk with an `error` object.
+    let error = &value["error"];
+    if error.is_object() {
+        let code = match &error["code"] {
+            Value::String(code) => code.clone(),
+            Value::Number(code) => code.to_string(),
+            _ => error["type"].as_str().unwrap_or_default().to_string(),
+        };
+        let message = error["message"]
+            .as_str()
+            .filter(|message| !message.is_empty())
+            .unwrap_or("the reply failed without an error message")
+            .to_string();
+        return vec![Delta::Error { code, message }];
+    }
+
     let mut deltas = Vec::new();
     // The usage chunk comes last and usually has no choices, but some servers attach `usage` to
     // the chunk that carries the `finish_reason`.
@@ -227,6 +244,7 @@ fn usage(usage: &Value) -> Option<TokenUsage> {
         output: count(&usage["completion_tokens"]),
         cache_read: count(&usage["prompt_tokens_details"]["cached_tokens"]),
         cache_write: 0,
+        reasoning: count(&usage["completion_tokens_details"]["reasoning_tokens"]),
     })
 }
 

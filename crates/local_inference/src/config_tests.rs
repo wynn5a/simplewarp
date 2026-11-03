@@ -274,3 +274,18 @@ fn a_custom_endpoint_named_auto_still_wins() {
     let target = resolve_target(&request_with(settings)).expect("expected a target");
     assert_eq!(target.model, "qwen3-coder");
 }
+
+#[test]
+fn only_a_custom_chat_completions_endpoint_replays_reasoning() {
+    let target = |schema, is_custom| ProviderTarget {
+        schema,
+        base_url: String::new(),
+        api_key: String::new(),
+        model: String::new(),
+        is_custom,
+    };
+    assert!(target(Schema::OpenaiChatCompletions, true).replays_reasoning());
+    assert!(!target(Schema::OpenaiChatCompletions, false).replays_reasoning());
+    assert!(!target(Schema::OpenaiResponses, true).replays_reasoning());
+    assert!(!target(Schema::AnthropicMessages, true).replays_reasoning());
+}

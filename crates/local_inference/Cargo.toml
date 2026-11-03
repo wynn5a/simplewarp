@@ -8,6 +8,7 @@ license.workspace = true
 description = "Calls LLM providers direct from the client, with no Warp server in the path"
 
 [dependencies]
+agent_harness.workspace = true
 chrono.workspace = true
 futures.workspace = true
 log.workspace = true

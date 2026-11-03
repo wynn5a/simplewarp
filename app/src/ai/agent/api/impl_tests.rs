@@ -1,6 +1,14 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use ai::agent::action_result::{AnyFileContent, FileContext, ReadFilesResult};
 use warp_multi_agent_api as api;
 
-use super::{add_global_rules, convert_local_inference_error};
+use super::{add_global_rules, convert_local_inference_error, estimate_input_tokens};
+use crate::ai::agent::task::TaskId;
+use crate::ai::agent::{
+    AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment, AIAgentInput, UserQueryMode,
+};
 use crate::server::server_api::AIApiError;
 
 #[test]
@@ -50,4 +58,74 @@ fn any_other_error_inside_the_stream_is_not_a_quota_limit() {
         message: "boom".to_string(),
     });
     assert!(matches!(error.as_ref(), AIApiError::Other(_)));
+}
+
+fn read_files_input(content: &str) -> AIAgentInput {
+    AIAgentInput::ActionResult {
+        result: AIAgentActionResult {
+            id: "call-1".to_string().into(),
+            task_id: TaskId::new("task".to_string()),
+            result: AIAgentActionResultType::ReadFiles(ReadFilesResult::Success {
+                files: vec![FileContext::new(
+                    "big.rs".to_string(),
+                    AnyFileContent::StringContent(content.to_string()),
+                    None,
+                    None,
+                )],
+                failed_files: Vec::new(),
+            }),
+        },
+        context: Arc::new([]),
+    }
+}
+
+#[test]
+fn a_file_read_is_estimated_by_its_content_not_its_path() {
+    let small = estimate_input_tokens(vec![read_files_input(&"x".repeat(400))]);
+    let large = estimate_input_tokens(vec![read_files_input(&"x".repeat(8_000))]);
+
+    assert!(small >= 100, "{small}");
+    assert!(large >= 2_000, "{large}");
+    // Proportional to the content, give or take the file header.
+    assert!(
+        large - small >= 1_900 && large - small <= 1_910,
+        "{small} {large}"
+    );
+}
+
+#[test]
+fn a_question_is_estimated_with_its_attachments() {
+    let question = |attachments: HashMap<String, AIAgentAttachment>| AIAgentInput::UserQuery {
+        query: "why did it fail?".to_string(),
+        context: Arc::new([]),
+        referenced_attachments: attachments,
+        user_query_mode: UserQueryMode::Normal,
+        running_command: None,
+        intended_agent: None,
+    };
+    let bare = estimate_input_tokens(vec![question(HashMap::new())]);
+    let attached = estimate_input_tokens(vec![question(HashMap::from([(
+        "block".to_string(),
+        AIAgentAttachment::PlainText("y".repeat(4_000)),
+    )]))]);
+
+    assert!(bare > 0);
+    assert!(attached >= bare + 1_000, "{bare} {attached}");
+}
+
+#[test]
+fn no_input_is_estimated_as_nothing() {
+    assert_eq!(estimate_input_tokens(Vec::new()), 0);
+}
+
+#[test]
+fn a_numeric_429_inside_the_stream_maps_to_a_429() {
+    let error = convert_local_inference_error(local_inference::Error::ProviderStream {
+        code: "429".to_string(),
+        message: "Rate limit exceeded: free-models-per-day".to_string(),
+    });
+    let AIApiError::ErrorStatus(status, _) = error.as_ref() else {
+        panic!("expected an HTTP status error, got {error:?}");
+    };
+    assert_eq!(*status, http::StatusCode::TOO_MANY_REQUESTS);
 }

@@ -30,9 +30,23 @@ built-in Anthropic endpoint mark cache breakpoints on the system prompt and the 
 messages (custom Anthropic-schema endpoints get no cache fields). Cache reads and
 writes are reported in the stream's token usage.
 
+A request the provider rejects for exceeding the context window (Anthropic "prompt is too long",
+OpenAI `context_length_exceeded` before or inside the stream, the vLLM-style "maximum context length
+is" wording, Gemini's "input token count … exceeds the maximum") ends the stream with
+`StreamFinished` reason `ContextWindowExceeded` instead of an HTTP error; only a 400 whose code or
+wording is specific to that failure counts, and an overflowed `/compact` rolls its transaction back
+so no unfinished summary is left in the task. Every finish that carries an input count also reports
+how full the context is, in `ConversationUsageMetadata`: `total_input_tokens` is the request's input
+and an `Other` context segment the part of the reply later requests carry (output less reasoning
+that is not sent back; `TokenUsage.output` stays the billed total). Model metadata includes each
+first-party model's input-token window (`context_window`: a prefix table, lowered by Anthropic's
+`/models` `max_input_tokens` when that is smaller), and `convert::input_text` gives the text an
+input adds to what the model sees, for estimates.
+
 ## Boundary
 
-The wire contract is the external `warp_multi_agent_api` crate (git dependency,
+It depends on [`agent-harness`](../agent_harness/SPEC.md) for the token-estimate rule only. The wire
+contract is the external `warp_multi_agent_api` crate (git dependency,
 `warp-proto-apis`): the adapter must keep speaking that request/response shape so the client side
 stays unchanged. API keys never leave the machine; the configured provider is the only network
 destination this crate may talk to.

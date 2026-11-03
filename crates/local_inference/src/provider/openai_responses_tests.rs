@@ -242,6 +242,7 @@ fn completed_reports_usage_then_the_stop_reason() {
                 output: 40,
                 cache_read: 500,
                 cache_write: 0,
+                reasoning: 0,
             }),
             Delta::Stop(StopReason::EndTurn),
         ]
@@ -441,4 +442,28 @@ fn empty_current_state_changes_nothing() {
         build_body(&target(), &with_state(""), &turns, &[]),
         build_body(&target(), &system("be helpful"), &turns, &[])
     );
+}
+
+#[test]
+fn a_response_that_failed_for_its_length_is_an_overflow_error() {
+    let deltas = parse_event(
+        r#"{"type":"response.failed","response":{"status":"failed","error":{"code":"context_length_exceeded","message":"Your input exceeds the context window of this model. Please adjust your input and try again."}}}"#,
+    );
+    let [Delta::Error { code, message }] = deltas.as_slice() else {
+        panic!("expected one error, got {deltas:?}");
+    };
+    assert!(crate::overflow::is_overflow_error(code, message));
+}
+
+#[test]
+fn reasoning_tokens_are_read_from_the_output_details() {
+    let deltas = parse_event(
+        r#"{"type":"response.completed","response":{"status":"completed","output":[],
+            "usage":{"input_tokens":812,"output_tokens":400,
+                     "output_tokens_details":{"reasoning_tokens":320}}}}"#,
+    );
+    let Some(Delta::Usage(usage)) = deltas.first() else {
+        panic!("expected usage, got {deltas:?}");
+    };
+    assert_eq!(usage.reasoning, 320);
 }

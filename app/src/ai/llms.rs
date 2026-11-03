@@ -140,6 +140,8 @@ pub struct LLMInfo {
     pub spec: Option<LLMSpec>,
     pub provider: LLMProvider,
     pub host_configs: HashMap<LLMModelHost, RoutingHostConfig>,
+    /// Input tokens the model accepts, when known.
+    pub context_window: Option<u32>,
 }
 
 impl<'de> Deserialize<'de> for LLMInfo {
@@ -182,6 +184,8 @@ impl<'de> Deserialize<'de> for LLMInfo {
             provider: LLMProvider,
             #[serde(default)]
             host_configs: HostConfigsWire,
+            #[serde(default)]
+            context_window: Option<u32>,
         }
 
         let wire = WireLLMInfo::deserialize(deserializer)?;
@@ -214,6 +218,7 @@ impl<'de> Deserialize<'de> for LLMInfo {
             disable_reason: wire.disable_reason,
             spec: wire.spec,
             host_configs,
+            context_window: wire.context_window,
         })
     }
 }
@@ -261,6 +266,7 @@ impl LLMInfo {
             spec: None,
             provider: LLMProvider::Unknown,
             host_configs: HashMap::new(),
+            context_window: None,
         }
     }
 }
@@ -403,6 +409,7 @@ fn builtin_llm(id: &str, display_name: &str, provider: LLMProvider) -> LLMInfo {
         spec: None,
         provider,
         host_configs: HashMap::new(),
+        context_window: local_inference::context_window(id),
     }
 }
 
@@ -938,6 +945,23 @@ impl LLMPreferences {
         });
     }
 
+    /// The context window to measure agent mode usage against in `terminal_view_id`: the active
+    /// base model's window, capped by the active execution profile's `context_window_limit`.
+    pub fn active_context_window(
+        &self,
+        app: &AppContext,
+        terminal_view_id: Option<EntityId>,
+    ) -> Option<u32> {
+        let model_window = self
+            .get_active_base_model(app, terminal_view_id)
+            .context_window;
+        let limit = AIExecutionProfilesModel::as_ref(app)
+            .active_profile(terminal_view_id, app)
+            .data()
+            .context_window_limit;
+        agent_harness::budget::effective_window(model_window, limit)
+    }
+
     pub fn vision_supported(&self, app: &AppContext, terminal_view_id: Option<EntityId>) -> bool {
         self.get_active_base_model(app, terminal_view_id)
             .vision_supported
@@ -1023,8 +1047,14 @@ fn provider_llm_info_from(model: &local_inference::ProviderModel) -> LLMInfo {
         spec: None,
         provider: LLMProvider::Unknown,
         host_configs: HashMap::new(),
+        context_window: model.context_window,
     }
 }
+
+/// The window assumed for a custom-endpoint model, whose real window this app cannot learn. Most
+/// current open and hosted models take at least this much; an execution profile's
+/// `context_window_limit` lowers it for one that takes less.
+const CUSTOM_ENDPOINT_CONTEXT_WINDOW: u32 = 128_000;
 
 fn custom_llm_info_from(endpoint: &CustomEndpoint, model: &CustomEndpointModel) -> LLMInfo {
     let label = model.display_label().to_owned();
@@ -1039,6 +1069,7 @@ fn custom_llm_info_from(endpoint: &CustomEndpoint, model: &CustomEndpointModel) 
         spec: None,
         provider: LLMProvider::Unknown,
         host_configs: HashMap::new(),
+        context_window: Some(CUSTOM_ENDPOINT_CONTEXT_WINDOW),
     }
 }
 

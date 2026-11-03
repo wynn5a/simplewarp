@@ -170,6 +170,7 @@ fn the_usage_chunk_is_read_even_without_choices() {
             output: 40,
             cache_read: 512,
             cache_write: 0,
+            reasoning: 0,
         })]
     );
 }
@@ -346,4 +347,41 @@ fn empty_current_state_changes_nothing() {
         build_body(&target(), &with_state(""), &turns, &[])["messages"][1]["content"],
         "hi"
     );
+}
+
+#[test]
+fn an_error_chunk_is_an_error() {
+    assert_eq!(
+        parse_event(
+            r#"{"error":{"message":"This model's maximum context length is 65536 tokens. However, you requested 70000 tokens.","type":"invalid_request_error","code":"context_length_exceeded"}}"#
+        ),
+        vec![Delta::Error {
+            code: "context_length_exceeded".to_string(),
+            message: "This model's maximum context length is 65536 tokens. However, you requested 70000 tokens.".to_string(),
+        }]
+    );
+}
+
+#[test]
+fn an_error_chunk_with_a_numeric_code_keeps_it() {
+    assert_eq!(
+        parse_event(r#"{"error":{"code":502,"message":"Upstream error"}}"#),
+        vec![Delta::Error {
+            code: "502".to_string(),
+            message: "Upstream error".to_string(),
+        }]
+    );
+}
+
+#[test]
+fn reasoning_tokens_are_read_from_the_completion_details() {
+    let deltas = parse_event(
+        r#"{"choices":[],"usage":{"prompt_tokens":812,"completion_tokens":400,
+            "completion_tokens_details":{"reasoning_tokens":320}}}"#,
+    );
+    let [Delta::Usage(usage)] = deltas.as_slice() else {
+        panic!("expected usage, got {deltas:?}");
+    };
+    assert_eq!(usage.output, 400);
+    assert_eq!(usage.reasoning, 320);
 }

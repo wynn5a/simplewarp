@@ -298,6 +298,7 @@ fn the_finish_reports_the_merged_token_usage_for_the_requested_model() {
         output: 1,
         cache_read: 800,
         cache_write: 100,
+        reasoning: 0,
     }));
     let _ = emitter.on_delta(Delta::Usage(TokenUsage {
         output: 57,
@@ -931,4 +932,145 @@ fn the_stored_result_is_the_stored_form_of_the_input() {
             crate::convert::stored_result(&input)
         )]
     );
+}
+
+#[test]
+fn an_overflow_finishes_as_context_window_exceeded_and_runs_no_tool() {
+    let mut emitter = Emitter::new(&request_with_task("task-1"));
+    let _ = emitter.start();
+    let _ = emitter.on_delta(Delta::ToolCallStart {
+        index: 0,
+        id: "call-1".to_string(),
+        name: "run_shell_command".to_string(),
+    });
+    let _ = emitter.on_delta(Delta::ToolCallArguments {
+        index: 0,
+        fragment: r#"{"command":"ls"}"#.to_string(),
+    });
+
+    let events = emitter.finish(StopReason::ContextWindowExceeded);
+
+    let actions = actions_of(&events);
+    assert!(
+        matches!(actions.as_slice(), [Action::CommitTransaction(_)]),
+        "only the commit, no tool call: {actions:?}"
+    );
+    assert!(matches!(
+        finished_of(&events).reason,
+        Some(api::response_event::stream_finished::Reason::ContextWindowExceeded(_))
+    ));
+}
+
+#[test]
+fn an_overflowed_summary_is_rolled_back() {
+    let request = request_with_input_type(
+        "task-1",
+        api::request::input::Type::SummarizeConversation(Default::default()),
+    );
+    let mut emitter = Emitter::new(&request);
+    let _ = emitter.start();
+
+    let actions = actions_of(&emitter.finish(StopReason::ContextWindowExceeded));
+    assert!(
+        matches!(actions.as_slice(), [Action::RollbackTransaction(_)]),
+        "a summary cut off by the window leaves nothing behind: {actions:?}"
+    );
+}
+
+#[test]
+fn an_overflowed_reply_is_committed() {
+    let mut emitter = Emitter::new(&request_with_query("task-1", "hi"));
+    let _ = emitter.start();
+
+    let actions = actions_of(&emitter.finish(StopReason::ContextWindowExceeded));
+    assert!(matches!(actions.last(), Some(Action::CommitTransaction(_))));
+}
+
+/// The `(request input, reply kept in the context)` that a finish reports.
+fn context_split(events: &[api::ResponseEvent]) -> Option<(u32, u32)> {
+    use api::response_event::stream_finished::ContextWindowSegmentType as SegmentType;
+
+    let metadata = finished_of(events).conversation_usage_metadata.as_ref()?;
+    let tokens = |segment_type: SegmentType| {
+        metadata
+            .context_window_segments
+            .iter()
+            .filter(|segment| segment.segment_type == segment_type as i32)
+            .map(|segment| segment.token_count)
+            .sum::<u32>()
+    };
+    assert_eq!(
+        tokens(SegmentType::ConversationHistory),
+        metadata.total_input_tokens
+    );
+    Some((metadata.total_input_tokens, tokens(SegmentType::Other)))
+}
+
+fn finish_with_usage(emitter: &mut Emitter, usage: TokenUsage) -> Vec<api::ResponseEvent> {
+    let _ = emitter.start();
+    let _ = emitter.on_delta(Delta::Usage(usage));
+    emitter.finish(StopReason::EndTurn)
+}
+
+#[test]
+fn reported_reasoning_is_left_out_of_the_context() {
+    let mut emitter = Emitter::new(&request_with_task("task-1"));
+    let events = finish_with_usage(
+        &mut emitter,
+        TokenUsage {
+            input: 5_000,
+            output: 1_200,
+            reasoning: 1_000,
+            ..Default::default()
+        },
+    );
+
+    assert_eq!(context_split(&events), Some((5_000, 200)));
+    // The billed output still counts the reasoning.
+    assert_eq!(finished_of(&events).token_usage[0].output, 1_200);
+}
+
+#[test]
+fn unreported_reasoning_is_estimated_from_its_text() {
+    let mut emitter = Emitter::new(&request_with_task("task-1"));
+    let _ = emitter.start();
+    let _ = emitter.on_delta(Delta::Reasoning("x".repeat(400)));
+    let _ = emitter.on_delta(Delta::Usage(TokenUsage {
+        input: 5_000,
+        output: 300,
+        ..Default::default()
+    }));
+    let events = emitter.finish(StopReason::EndTurn);
+
+    assert_eq!(context_split(&events), Some((5_000, 200)));
+}
+
+#[test]
+fn replayed_reasoning_stays_in_the_context() {
+    let mut emitter = Emitter::new(&request_with_task("task-1")).replaying_reasoning(true);
+    let events = finish_with_usage(
+        &mut emitter,
+        TokenUsage {
+            input: 5_000,
+            output: 1_200,
+            reasoning: 1_000,
+            ..Default::default()
+        },
+    );
+
+    assert_eq!(context_split(&events), Some((5_000, 1_200)));
+}
+
+#[test]
+fn a_reply_without_an_input_count_reports_no_context() {
+    let mut emitter = Emitter::new(&request_with_task("task-1"));
+    let events = finish_with_usage(
+        &mut emitter,
+        TokenUsage {
+            output: 50,
+            ..Default::default()
+        },
+    );
+
+    assert_eq!(context_split(&events), None);
 }

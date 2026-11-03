@@ -207,6 +207,7 @@ rustls.workspace = true
 warp_isolation_platform.workspace = true
 warp_ripgrep.workspace = true
 local_inference.workspace = true
+agent_harness.workspace = true
 async-io.workspace = true
 cloud_object_persistence.workspace = true
 comfy-table = "7.1.4"

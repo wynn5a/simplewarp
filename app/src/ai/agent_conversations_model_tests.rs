@@ -336,6 +336,7 @@ fn test_server_token_assignment_emits_conversation_updated() {
                 root_task_is_optimistic: None,
                 autoexecute_override: None,
                 token_usage: None,
+                context_tokens: None,
             },
         );
 

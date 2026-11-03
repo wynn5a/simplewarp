@@ -1444,3 +1444,63 @@ fn storing_a_list_or_an_error_keeps_it_bounded() {
     assert!(rendered.is_error);
     assert_eq!(rendered.content, truncate(&long));
 }
+
+fn input_of_result(result: api::request::input::ToolCallResult) -> api::request::Input {
+    use api::request::input::user_inputs::UserInput;
+    use api::request::input::user_inputs::user_input::Input;
+
+    api::request::Input {
+        context: None,
+        r#type: Some(api::request::input::Type::UserInputs(
+            api::request::input::UserInputs {
+                inputs: vec![UserInput {
+                    input: Some(Input::ToolCallResult(result)),
+                }],
+            },
+        )),
+    }
+}
+
+#[test]
+fn input_text_holds_a_file_read_as_the_model_sees_it() {
+    let content = "x".repeat(10_000);
+    let text = input_text(&input_of_result(read_input("call-1", "big.rs", &content)));
+
+    assert!(text.contains("--- big.rs ---"));
+    assert!(text.contains(&content));
+}
+
+#[test]
+fn input_text_holds_a_truncated_result_not_the_whole_output() {
+    let long = marked_text(MAX_RESULT_CHARS * 4);
+    let text = input_text(&input_of_result(shell_input("call-1", &long)));
+
+    assert!(
+        text.chars().count() < MAX_RESULT_CHARS * 2,
+        "{}",
+        text.len()
+    );
+    assert!(text.chars().count() > MAX_RESULT_CHARS / 2);
+}
+
+#[test]
+fn input_text_holds_the_question_and_its_attachments() {
+    let referenced = std::collections::HashMap::from([(
+        "block".to_string(),
+        api::Attachment {
+            value: Some(api::attachment::Value::PlainText("the output".to_string())),
+        },
+    )]);
+    let mut context = api::InputContext::default();
+    context
+        .selected_text
+        .push(api::input_context::SelectedText {
+            text: "picked".to_string(),
+        });
+    let request = user_inputs_request("why did it fail?", referenced, Some(context));
+
+    let text = input_text(request.input.as_ref().expect("an input"));
+    assert!(text.starts_with("why did it fail?"));
+    assert!(text.contains("the output"));
+    assert!(text.contains("picked"));
+}

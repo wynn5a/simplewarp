@@ -4,6 +4,7 @@ pub mod toolbar_item;
 
 use std::sync::Arc;
 
+use agent_harness::budget::format_tokens;
 use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::Vector2F;
@@ -17,8 +18,8 @@ use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_if_error;
 use warpui::elements::{
     ChildView, Clipped, ConstrainedBox, Container, CrossAxisAlignment, DispatchEventResult,
-    Element, EventHandler, Flex, MainAxisAlignment, MainAxisSize, ParentElement, Shrinkable, Wrap,
-    WrapFill, WrapFillEntireRun,
+    Element, EventHandler, Flex, MainAxisAlignment, MainAxisSize, ParentElement, Shrinkable, Text,
+    Wrap, WrapFill, WrapFillEntireRun,
 };
 use warpui::{
     AppContext, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
@@ -28,9 +29,12 @@ use warpui::{
 use crate::ai::blocklist::history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::blocklist::prompt::prompt_alert::PromptAlertView;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
+use crate::ai::llms::LLMPreferences;
 use crate::appearance::Appearance;
 use crate::completer::SessionContext;
-use crate::context_chips::display_chip::{DisplayChip, DisplayChipConfig, PromptChipShellCommand};
+use crate::context_chips::display_chip::{
+    DisplayChip, DisplayChipConfig, PromptChipShellCommand, udi_font_size,
+};
 use crate::context_chips::prompt_type::PromptType;
 use crate::context_chips::{self, ContextChipKind};
 use crate::network::NetworkStatus;
@@ -278,6 +282,10 @@ impl AgentInputFooter {
         );
         // Subscribe to AIExecutionProfilesModel to potentially show/hide the profile selector button when profiles are added/removed
         ctx.subscribe_to_model(&AIExecutionProfilesModel::handle(ctx), |_, _, _, ctx| {
+            ctx.notify();
+        });
+        // The context usage is measured against the active model's window.
+        ctx.subscribe_to_model(&LLMPreferences::handle(ctx), |_, _, _, ctx| {
             ctx.notify();
         });
 
@@ -666,7 +674,8 @@ impl AgentInputFooter {
             // was folded permanently off (round 4an, part 2/2) — it required
             // a Warp account/server, which this build never has. The variant
             // stays for persisted-toolbar-layout backwards compatibility.
-            AgentToolbarItemKind::ContextWindowUsage | AgentToolbarItemKind::HandoffToCloud => None,
+            AgentToolbarItemKind::HandoffToCloud => None,
+            AgentToolbarItemKind::ContextWindowUsage => self.render_context_window_usage(app),
             AgentToolbarItemKind::FileExplorer => item
                 .is_available(app)
                 .then(|| ChildView::new(&self.file_explorer_button).finish()),
@@ -675,6 +684,45 @@ impl AgentInputFooter {
             | AgentToolbarItemKind::VoiceInput
             | AgentToolbarItemKind::Settings => None,
         }
+    }
+
+    /// "used / window" for the active conversation, in the warning color once it is near the
+    /// window. Hidden until a request has reported its usage, and when the window is unknown.
+    fn render_context_window_usage(&self, app: &AppContext) -> Option<Box<dyn Element>> {
+        let usage = BlocklistAIHistoryModel::as_ref(app)
+            .active_conversation(self.terminal_view_id)?
+            .context_usage();
+        if !usage.has_report() {
+            return None;
+        }
+        let window =
+            LLMPreferences::as_ref(app).active_context_window(app, Some(self.terminal_view_id))?;
+
+        let appearance = Appearance::as_ref(app);
+        let theme = appearance.theme();
+        let color = if usage.is_near_limit(window) {
+            theme.ui_warning_color()
+        } else {
+            context_chips::readable_chip_label_color(theme, theme.surface_1())
+        };
+        let label = format!(
+            "{} / {}",
+            format_tokens(usage.used_tokens()),
+            format_tokens(u64::from(window))
+        );
+        Some(
+            Container::new(
+                Text::new_inline(
+                    label,
+                    appearance.ui_font_family(),
+                    udi_font_size(appearance),
+                )
+                .with_color(color)
+                .finish(),
+            )
+            .with_horizontal_padding(4.)
+            .finish(),
+        )
     }
 
     #[cfg(test)]

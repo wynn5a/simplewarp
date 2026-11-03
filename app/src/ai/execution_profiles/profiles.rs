@@ -388,6 +388,26 @@ impl AIExecutionProfilesModel {
         );
     }
 
+    #[cfg(test)]
+    pub fn set_context_window_limit(
+        &mut self,
+        profile_id: &ExecutionProfileId,
+        limit: Option<u32>,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        self.edit_profile_internal(
+            profile_id,
+            |profile| {
+                if profile.context_window_limit != limit {
+                    profile.context_window_limit = limit;
+                    return true;
+                }
+                false
+            },
+            ctx,
+        );
+    }
+
     pub fn set_coding_model(
         &mut self,
         profile_id: &ExecutionProfileId,

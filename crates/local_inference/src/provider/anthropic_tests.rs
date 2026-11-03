@@ -278,6 +278,17 @@ fn the_stop_reason_comes_from_message_delta() {
 }
 
 #[test]
+fn running_out_of_window_mid_reply_is_a_context_window_stop() {
+    assert_eq!(
+        parse_event(
+            "message_delta",
+            r#"{"delta":{"stop_reason":"model_context_window_exceeded"}}"#
+        ),
+        vec![Delta::Stop(StopReason::ContextWindowExceeded)]
+    );
+}
+
+#[test]
 fn usage_comes_from_message_start_and_message_delta() {
     let start = parse_event(
         "message_start",
@@ -291,6 +302,7 @@ fn usage_comes_from_message_start_and_message_delta() {
             output: 1,
             cache_read: 800,
             cache_write: 100,
+            reasoning: 0,
         })]
     );
 
@@ -381,6 +393,7 @@ fn a_fully_cached_input_still_counts() {
             output: 1,
             cache_read: 900,
             cache_write: 0,
+            reasoning: 0,
         })]
     );
 }

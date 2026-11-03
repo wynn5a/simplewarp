@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use agent_harness::budget::estimate_tokens;
 use futures_util::StreamExt;
 use warp_multi_agent_api as api;
 
 use super::convert_to::convert_input;
 use super::{ConvertToAPITypeError, RequestParams, ResponseStream};
-use crate::ai::agent::redaction;
+use crate::ai::agent::{AIAgentInput, redaction};
 use crate::server::server_api::AIApiError;
 use crate::terminal::model::session::SessionType;
 
@@ -132,6 +133,18 @@ pub async fn generate_multi_agent_output(
     }
 }
 
+/// Estimated tokens that `inputs` add to the conversation the model sees: the question with its
+/// attachments and each tool result, rendered as `local_inference` renders them for the model.
+/// Inputs that cannot be converted count as nothing.
+pub fn estimate_input_tokens(inputs: Vec<AIAgentInput>) -> u64 {
+    if inputs.is_empty() {
+        return 0;
+    }
+    convert_input(inputs)
+        .map(|input| estimate_tokens(&local_inference::convert::input_text(&input)))
+        .unwrap_or_default()
+}
+
 /// Hands the user's own rules to the local adapter as a project-rules entry with no root path.
 ///
 /// The request has no field for them, because the server used to read them from the user's
@@ -196,7 +209,11 @@ fn convert_local_inference_error(error: local_inference::Error) -> Arc<AIApiErro
 fn is_rate_limit_code(code: &str) -> bool {
     matches!(
         code,
-        "rate_limit_exceeded" | "insufficient_quota" | "subscription_sharing_usage_limit_exceeded"
+        // OpenRouter reports a rate limit inside the stream with the numeric code 429.
+        "429"
+            | "rate_limit_exceeded"
+            | "insufficient_quota"
+            | "subscription_sharing_usage_limit_exceeded"
     )
 }
 

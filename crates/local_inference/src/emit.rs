@@ -17,9 +17,14 @@
 //! CommitTransaction
 //! Finished(Done)
 //! ```
+//!
+//! A request the provider rejects for not fitting in the context window ends the same way, with
+//! `Finished(ContextWindowExceeded)` in place of `Finished(Done)`, so the client can react to it
+//! rather than to a bare HTTP error.
 
 use std::collections::{BTreeMap, HashSet};
 
+use agent_harness::budget::estimate_tokens_for_chars;
 use serde_json::Value;
 use uuid::Uuid;
 use warp_multi_agent_api as api;
@@ -62,6 +67,10 @@ pub struct Emitter {
     /// The model that the request names, reported with the token usage.
     model_id: String,
     usage: TokenUsage,
+    /// True when later requests send this reply's reasoning back, so it stays in the context.
+    replays_reasoning: bool,
+    /// Characters of reasoning streamed so far, for a provider that does not count it.
+    reasoning_chars: u64,
 }
 
 struct PendingTool {
@@ -113,7 +122,16 @@ impl Emitter {
                 .map(|config| config.base.clone())
                 .unwrap_or_default(),
             usage: TokenUsage::default(),
+            replays_reasoning: false,
+            reasoning_chars: 0,
         }
+    }
+
+    /// Records whether later requests send this reply's reasoning back. See
+    /// [`crate::ProviderTarget::replays_reasoning`].
+    pub fn replaying_reasoning(mut self, replays_reasoning: bool) -> Self {
+        self.replays_reasoning = replays_reasoning;
+        self
     }
 
     /// The events that open the reply.
@@ -225,6 +243,58 @@ impl Emitter {
         }
     }
 
+    /// The model that the request names.
+    pub fn model_id(&self) -> &str {
+        &self.model_id
+    }
+
+    /// How much of the context the conversation takes up once this reply is in it, when the
+    /// provider reported its input.
+    ///
+    /// The proto has no field for this, so it rides on `ConversationUsageMetadata`, whose
+    /// `total_input_tokens` is the input of the latest call: that field holds this request's input,
+    /// and the context segments split the total into the request ([`SegmentType::ConversationHistory`])
+    /// and the part of the reply that later requests carry ([`SegmentType::Other`]). That part is
+    /// the output less the reasoning, unless the reasoning is sent back. Where the provider does not
+    /// count reasoning (Anthropic), it is estimated from the reasoning text that streamed; thinking
+    /// that streams no text is counted as kept, an overestimate the next request corrects.
+    fn context_usage(
+        &self,
+    ) -> Option<api::response_event::stream_finished::ConversationUsageMetadata> {
+        use api::response_event::stream_finished::{
+            ContextWindowSegment, ContextWindowSegmentType as SegmentType,
+        };
+
+        if self.usage.input == 0 {
+            return None;
+        }
+        let reasoning = if self.replays_reasoning {
+            0
+        } else if self.usage.reasoning > 0 {
+            u64::from(self.usage.reasoning)
+        } else {
+            estimate_tokens_for_chars(self.reasoning_chars)
+        };
+        let kept_output = u64::from(self.usage.output).saturating_sub(reasoning);
+        let segment = |segment_type: SegmentType, tokens: u64| ContextWindowSegment {
+            segment_type: segment_type as i32,
+            token_count: u32::try_from(tokens).unwrap_or(u32::MAX),
+        };
+        Some(
+            api::response_event::stream_finished::ConversationUsageMetadata {
+                total_input_tokens: self.usage.input,
+                context_window_segments: vec![
+                    segment(
+                        SegmentType::ConversationHistory,
+                        u64::from(self.usage.input),
+                    ),
+                    segment(SegmentType::Other, kept_output),
+                ],
+                ..Default::default()
+            },
+        )
+    }
+
     /// The usage the provider reported, if it reported any.
     fn token_usage(&self) -> Option<api::response_event::stream_finished::TokenUsage> {
         (self.usage != TokenUsage::default()).then(|| {
@@ -252,10 +322,13 @@ impl Emitter {
             );
         }
         let mut actions = Vec::new();
+        // A reply cut off by the context window is not run or kept as a finished summary: its tool
+        // arguments may be incomplete, and the summary may be partial.
+        let overflowed = reason == StopReason::ContextWindowExceeded;
 
         // A summary is text only. A tool call that came with it has nothing to run it.
         let pending_tools = std::mem::take(&mut self.pending_tools);
-        let pending_tools = if self.summary_message_id.is_some() {
+        let pending_tools = if self.summary_message_id.is_some() || overflowed {
             BTreeMap::new()
         } else {
             pending_tools
@@ -279,7 +352,7 @@ impl Emitter {
             ));
         }
 
-        if let Some(id) = self.summary_message_id.as_ref() {
+        if let Some(id) = self.summary_message_id.as_ref().filter(|_| !overflowed) {
             let elapsed = prost_types::Duration {
                 seconds: (chrono::Utc::now() - self.started_at).num_seconds().max(0),
                 nanos: 0,
@@ -303,7 +376,13 @@ impl Emitter {
             ));
         }
 
-        actions.push(Action::CommitTransaction(Default::default()));
+        // A summary cut off by the window is undone, so the task holds no summary that never
+        // finishes; anything else keeps what it stored, as a failed request does.
+        if overflowed && self.summary_message_id.is_some() {
+            actions.push(Action::RollbackTransaction(Default::default()));
+        } else {
+            actions.push(Action::CommitTransaction(Default::default()));
+        }
 
         vec![
             actions_event(actions),
@@ -311,6 +390,7 @@ impl Emitter {
                 api::response_event::StreamFinished {
                     reason: Some(finish_reason(reason)),
                     token_usage: self.token_usage().into_iter().collect(),
+                    conversation_usage_metadata: self.context_usage(),
                     ..Default::default()
                 },
             )),
@@ -346,6 +426,7 @@ impl Emitter {
     }
 
     fn on_reasoning(&mut self, reasoning: String) -> Vec<Action> {
+        self.reasoning_chars += reasoning.chars().count() as u64;
         match self.reasoning_message_id.clone() {
             Some(id) => vec![append_action(
                 &self.task_id,
@@ -648,6 +729,7 @@ fn finish_reason(reason: StopReason) -> api::response_event::stream_finished::Re
 
     match reason {
         StopReason::MaxTokens => Reason::MaxTokenLimit(Default::default()),
+        StopReason::ContextWindowExceeded => Reason::ContextWindowExceeded(Default::default()),
         // A tool-use stop is a normal end of the reply: the client runs the tools and sends the
         // results back in the next request.
         StopReason::EndTurn | StopReason::ToolUse => Reason::Done(Default::default()),

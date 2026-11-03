@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 
+use agent_harness::budget::ContextUsage;
 use anyhow::Context as _;
 use chrono::{DateTime, Local, TimeZone};
 use itertools::Itertools as _;
@@ -153,6 +154,8 @@ pub struct AIConversation {
 
     token_usage: ConversationTokenUsage,
 
+    context_usage: ContextUsage,
+
     /// Whether the AIConversation is being used as a vehicle for a CLI conversation, that
     /// doesn't have a full internal representation but uses an AIConversationId to render
     /// in the agent view.
@@ -181,6 +184,7 @@ impl AIConversation {
             fallback_display_title: None,
             artifacts: Vec::new(),
             token_usage: Default::default(),
+            context_usage: Default::default(),
         }
     }
 
@@ -303,6 +307,7 @@ impl AIConversation {
             artifacts,
             autoexecute_override,
             token_usage,
+            context_usage,
         ) = if let Some(data) = conversation_data {
             let server_conversation_token = data
                 .server_conversation_token
@@ -339,6 +344,9 @@ impl AIConversation {
                 artifacts,
                 autoexecute_override,
                 data.token_usage.unwrap_or_default(),
+                data.context_tokens
+                    .map(ContextUsage::from_tokens)
+                    .unwrap_or_default(),
             )
         } else {
             (
@@ -348,6 +356,7 @@ impl AIConversation {
                 Vec::new(),
                 AIConversationAutoexecuteMode::default(),
                 ConversationTokenUsage::default(),
+                ContextUsage::default(),
             )
         };
 
@@ -371,6 +380,7 @@ impl AIConversation {
             fallback_display_title: None,
             artifacts,
             token_usage,
+            context_usage,
         })
     }
 
@@ -1995,7 +2005,12 @@ impl AIConversation {
         self.token_usage
     }
 
-    /// Adds the usage that one response stream reported.
+    /// How much of the model's context the conversation occupies.
+    pub fn context_usage(&self) -> ContextUsage {
+        self.context_usage
+    }
+
+    /// Adds the usage that one response stream reported to the conversation's running totals.
     pub fn add_token_usage(&mut self, usage: &[api::response_event::stream_finished::TokenUsage]) {
         for model_usage in usage {
             self.token_usage.input += u64::from(model_usage.total_input);
@@ -2003,6 +2018,37 @@ impl AIConversation {
             self.token_usage.cache_write += u64::from(model_usage.input_cache_write);
             self.token_usage.output += u64::from(model_usage.output);
         }
+    }
+
+    /// Takes how full the context is from one response stream's report.
+    ///
+    /// `local_inference` reports it as the request's input (`total_input_tokens`) and the context
+    /// segments: the request itself, and the part of the reply later requests carry (an `Other`
+    /// segment, the output less reasoning that is not sent back). Each request resends the whole
+    /// conversation, so this replaces the previous value rather than adding to it.
+    pub fn record_context_usage(
+        &mut self,
+        metadata: &api::response_event::stream_finished::ConversationUsageMetadata,
+    ) {
+        use api::response_event::stream_finished::ContextWindowSegmentType;
+
+        let input = u64::from(metadata.total_input_tokens);
+        if input == 0 {
+            return;
+        }
+        let kept_output = metadata
+            .context_window_segments
+            .iter()
+            .filter(|segment| segment.segment_type == ContextWindowSegmentType::Other as i32)
+            .map(|segment| u64::from(segment.token_count))
+            .sum();
+        self.context_usage.record_report(input, kept_output);
+    }
+
+    /// Sets the estimate for the request in flight, until its report replaces it with an exact
+    /// count. See [`ContextUsage::set_estimate`].
+    pub fn set_pending_context_estimate(&mut self, tokens: u64) {
+        self.context_usage.set_estimate(tokens);
     }
 
     pub(crate) fn write_updated_conversation_state(
@@ -2076,6 +2122,10 @@ impl AIConversation {
                 autoexecute_override: Some(self.autoexecute_override.into()),
                 token_usage: (self.token_usage != ConversationTokenUsage::default())
                     .then_some(self.token_usage),
+                context_tokens: self
+                    .context_usage
+                    .has_report()
+                    .then(|| self.context_usage.used_tokens()),
             }),
         };
         ctx.spawn(

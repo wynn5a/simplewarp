@@ -14,7 +14,7 @@ use crate::config::Schema;
 use crate::emit::Emitter;
 use crate::mcp::McpCatalog;
 use crate::provider::{Delta, StopReason};
-use crate::{Error, OutputStream, config, convert, prompt, provider, tools};
+use crate::{Error, OutputStream, config, convert, overflow, prompt, provider, tools};
 
 /// Sends one agent request to the user's own provider, and streams the reply back as the
 /// response events that the client applies.
@@ -55,7 +55,7 @@ pub async fn generate_local_output(request: &api::Request) -> Result<OutputStrea
             body: error.to_string(),
         })?;
 
-    let mut emitter = Emitter::new(request);
+    let mut emitter = Emitter::new(request).replaying_reasoning(target.replays_reasoning());
     let opening = emitter.start();
 
     let state = State {
@@ -81,6 +81,19 @@ struct State {
     done: bool,
 }
 
+impl State {
+    /// Ends the reply as one that did not fit in the context window.
+    fn finish_overflowed(&mut self) {
+        log::info!(
+            "the provider rejected a request to {} for exceeding the context window",
+            self.emitter.model_id()
+        );
+        self.queue
+            .extend(self.emitter.finish(StopReason::ContextWindowExceeded));
+        self.done = true;
+    }
+}
+
 /// Pulls the next event, reading more of the provider stream when the queue runs dry.
 async fn next_event(mut state: State) -> Option<(Result<api::ResponseEvent, Error>, State)> {
     loop {
@@ -97,6 +110,12 @@ async fn next_event(mut state: State) -> Option<(Result<api::ResponseEvent, Erro
                 for delta in provider::parse_event(state.schema, &message.event, &message.data) {
                     match delta {
                         Delta::Stop(reason) => state.stop = Some(reason),
+                        Delta::Error { code, message }
+                            if overflow::is_overflow_error(&code, &message) =>
+                        {
+                            state.finish_overflowed();
+                            break;
+                        }
                         Delta::Error { code, message } => {
                             state.done = true;
                             return Some((Err(Error::ProviderStream { code, message }), state));
@@ -114,6 +133,10 @@ async fn next_event(mut state: State) -> Option<(Result<api::ResponseEvent, Erro
             }
             Some(Err(reqwest_eventsource::Error::InvalidStatusCode(status, response))) => {
                 let body = response.text().await.unwrap_or_default();
+                if overflow::is_overflow_response(status.as_u16(), &body) {
+                    state.finish_overflowed();
+                    continue;
+                }
                 state.done = true;
                 return Some((
                     Err(Error::ProviderStatus {

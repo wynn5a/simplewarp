@@ -241,6 +241,7 @@ fn usage(usage: &Value) -> Option<TokenUsage> {
         output: count(&usage["output_tokens"]),
         cache_read: count(&usage["input_tokens_details"]["cached_tokens"]),
         cache_write: 0,
+        reasoning: count(&usage["output_tokens_details"]["reasoning_tokens"]),
     })
 }
 

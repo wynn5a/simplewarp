@@ -1036,6 +1036,10 @@ pub struct AgentConversationData {
     pub autoexecute_override: Option<PersistedAutoexecuteMode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub token_usage: Option<ConversationTokenUsage>,
+    /// Tokens the conversation occupied in the model's context after its newest reply, so a
+    /// restored conversation can show how full its context is before it sends again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_tokens: Option<u64>,
 }
 
 /// Tokens the AI provider reported for a conversation, summed over its requests.

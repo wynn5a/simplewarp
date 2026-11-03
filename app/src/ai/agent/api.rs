@@ -14,7 +14,7 @@ pub use convert_from::{
     MessageToAIAgentOutputMessageError,
 };
 use futures_lite::Stream;
-pub use r#impl::generate_multi_agent_output;
+pub use r#impl::{estimate_input_tokens, generate_multi_agent_output};
 use mcp::TemplatableMCPServerInfo;
 use serde::Serialize;
 use warp_core::execution_mode::AppExecutionMode;

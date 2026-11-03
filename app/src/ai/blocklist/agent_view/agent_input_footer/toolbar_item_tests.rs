@@ -17,3 +17,20 @@ fn file_explorer_is_not_an_agent_view_default() {
     assert!(!AgentToolbarItemKind::default_left().contains(&AgentToolbarItemKind::FileExplorer));
     assert!(!AgentToolbarItemKind::default_right().contains(&AgentToolbarItemKind::FileExplorer));
 }
+
+/// Context usage shows by default, next to the model it is measured against.
+#[test]
+fn context_window_usage_is_an_agent_view_default() {
+    assert!(
+        AgentToolbarItemKind::ContextWindowUsage
+            .available_in()
+            .is_available_for_agent_view()
+    );
+    assert!(
+        AgentToolbarItemKind::all_available().contains(&AgentToolbarItemKind::ContextWindowUsage)
+    );
+    assert_eq!(
+        AgentToolbarItemKind::default_right().first(),
+        Some(&AgentToolbarItemKind::ContextWindowUsage)
+    );
+}

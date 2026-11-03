@@ -362,6 +362,7 @@ fn server_llm(id: &str, disable_reason: Option<DisableReason>) -> LLMInfo {
         spec: None,
         provider: LLMProvider::Unknown,
         host_configs: HashMap::new(),
+        context_window: None,
     }
 }
 
@@ -564,6 +565,7 @@ fn agent_llm(id: &str, display_name: &str) -> LLMInfo {
         spec: None,
         provider: LLMProvider::Unknown,
         host_configs: HashMap::new(),
+        context_window: None,
     }
 }
 
@@ -597,4 +599,87 @@ fn shared_model_picker_query_orders_filters_and_marks_disabled_choices() {
         assert!(filtered[0].name_match_result.is_some());
         assert!(filtered[0].is_selectable());
     });
+}
+
+#[test]
+fn a_custom_endpoint_model_counts_as_128k_and_the_profile_limit_caps_it() {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        app.add_singleton_model(|_| ServerApiProvider::new_for_test());
+        app.add_singleton_model(|_| NetworkStatus::new());
+        app.add_singleton_model(CloudModel::mock);
+        app.add_singleton_model(|_| UpdateManager::mock());
+        app.add_singleton_model(|_| TemplatableMCPServerManager::default());
+
+        let profiles_model = app.add_singleton_model(|ctx| {
+            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
+        });
+        let llm_preferences = app.add_singleton_model(LLMPreferences::new);
+
+        let custom_model_id = LLMId::from("custom-model-config-key");
+        ApiKeyManager::handle(&app).update(&mut app, |api_key_manager, ctx| {
+            api_key_manager.add_custom_endpoint(
+                ai::api_keys::CustomEndpointParams {
+                    name: "local".to_string(),
+                    url: "https://example.com/v1".to_string(),
+                    api_key: "test-key".to_string(),
+                    models: vec![(
+                        "custom-model".to_string(),
+                        None,
+                        Some(custom_model_id.to_string()),
+                    )],
+                    schema: ai::api_keys::CustomEndpointSchema::default(),
+                },
+                ctx,
+            );
+        });
+        let default_profile_id =
+            profiles_model.read(&app, |profiles, _| profiles.default_profile_id());
+        profiles_model.update(&mut app, |profiles, ctx| {
+            profiles.set_base_model(&default_profile_id, Some(custom_model_id.clone()), ctx);
+        });
+
+        llm_preferences.read(&app, |preferences, ctx| {
+            assert_eq!(
+                preferences
+                    .custom_llm_info_for_id(&custom_model_id)
+                    .and_then(|info| info.context_window),
+                Some(128_000)
+            );
+            assert_eq!(preferences.active_context_window(ctx, None), Some(128_000));
+        });
+
+        profiles_model.update(&mut app, |profiles, ctx| {
+            profiles.set_context_window_limit(&default_profile_id, Some(32_000), ctx);
+        });
+        llm_preferences.read(&app, |preferences, ctx| {
+            assert_eq!(preferences.active_context_window(ctx, None), Some(32_000));
+        });
+
+        profiles_model.update(&mut app, |profiles, ctx| {
+            profiles.set_context_window_limit(&default_profile_id, Some(500_000), ctx);
+        });
+        llm_preferences.read(&app, |preferences, ctx| {
+            assert_eq!(
+                preferences.active_context_window(ctx, None),
+                Some(128_000),
+                "the limit only lowers the window"
+            );
+        });
+    });
+}
+
+#[test]
+fn built_in_models_carry_their_window() {
+    let built_in = builtin_available_llms();
+    let window = |id: &str| {
+        built_in
+            .choices
+            .iter()
+            .find(|info| info.id.as_str() == id)
+            .and_then(|info| info.context_window)
+    };
+    assert_eq!(window("claude-sonnet-4-5"), Some(200_000));
+    assert_eq!(window("gpt-5.4"), Some(272_000));
+    assert_eq!(window("gemini-2.5-pro"), Some(1_048_576));
 }

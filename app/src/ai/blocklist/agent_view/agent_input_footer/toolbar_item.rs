@@ -49,7 +49,7 @@ pub enum AgentToolbarItemKind {
     // Agent view only
     ModelSelector,
     NLDToggle,
-    // Never rendered; the variant stays so persisted toolbar layouts that list it still parse.
+    // Agent view only – how full the active conversation's context window is.
     ContextWindowUsage,
 
     // CLI agent only
@@ -134,10 +134,7 @@ impl AgentToolbarItemKind {
             // was folded permanently off (round 4an) — it required a Warp
             // account/server, which this build never has. The variant stays
             // for persisted-toolbar-layout backwards compatibility.
-            Self::HandoffToCloud
-            | Self::RichInput
-            | Self::VoiceInput
-            | Self::ContextWindowUsage => false,
+            Self::HandoffToCloud | Self::RichInput | Self::VoiceInput => false,
             // Matches the gating on every other project explorer entry point, so the chip
             // cannot open a tool view the rest of the app hides. See
             // `Workspace::compute_left_panel_views` and the `SHOW_PROJECT_EXPLORER`
@@ -162,7 +159,11 @@ impl AgentToolbarItemKind {
 
     /// Default right-side items for the agent view footer.
     pub fn default_right() -> Vec<Self> {
-        vec![Self::ModelSelector, Self::FileAttach]
+        vec![
+            Self::ContextWindowUsage,
+            Self::ModelSelector,
+            Self::FileAttach,
+        ]
     }
 
     /// All items available for the agent view footer configurator.
@@ -172,6 +173,7 @@ impl AgentToolbarItemKind {
             .map(Self::ContextChip)
             .collect();
         items.extend([
+            Self::ContextWindowUsage,
             Self::ModelSelector,
             Self::NLDToggle,
             Self::FileAttach,

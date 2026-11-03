@@ -38,6 +38,13 @@ pub struct ProviderTarget {
 }
 
 impl ProviderTarget {
+    /// True when the reasoning a reply streamed is sent back with it in later requests, so it
+    /// stays in the conversation's context. Only a custom Chat Completions endpoint gets it back,
+    /// as `reasoning_content`; see [`crate::provider::openai`].
+    pub fn replays_reasoning(&self) -> bool {
+        self.is_custom && self.schema == Schema::OpenaiChatCompletions
+    }
+
     /// The full URL of the chat/messages endpoint.
     pub fn endpoint_url(&self) -> String {
         match self.schema {

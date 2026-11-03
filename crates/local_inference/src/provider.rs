@@ -46,6 +46,8 @@ pub struct TokenUsage {
     pub output: u32,
     pub cache_read: u32,
     pub cache_write: u32,
+    /// The part of `output` the model spent reasoning, when the provider reports it.
+    pub reasoning: u32,
 }
 
 impl TokenUsage {
@@ -57,6 +59,7 @@ impl TokenUsage {
             (&mut self.output, later.output),
             (&mut self.cache_read, later.cache_read),
             (&mut self.cache_write, later.cache_write),
+            (&mut self.reasoning, later.reasoning),
         ] {
             if later != 0 {
                 *field = later;
@@ -74,6 +77,8 @@ pub enum StopReason {
     ToolUse,
     /// The model hit its output limit.
     MaxTokens,
+    /// The request, or the request and the reply together, did not fit in the context window.
+    ContextWindowExceeded,
     /// Anything else, including a reason that this crate does not know.
     Other,
 }

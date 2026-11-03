@@ -20,7 +20,7 @@ Layers, top to bottom (spec'd boundaries link by id):
 | Product shell | `app` | [`app`](../../app/SPEC.md) |
 | UI framework (MIT) | `warpui`, `warpui_core`, `warpui_extras`, `ui_components` | [`ui-framework`](../../crates/warpui/SPEC.md) |
 | Terminal core | `warp_terminal` | [`terminal-core`](../../crates/warp_terminal/SPEC.md) |
-| AI domain | `ai`, `local_inference` | [`ai-core`](../../crates/ai/SPEC.md), [`local-inference`](../../crates/local_inference/SPEC.md) |
+| AI domain | `ai`, `local_inference`, `agent_harness` | [`ai-core`](../../crates/ai/SPEC.md), [`local-inference`](../../crates/local_inference/SPEC.md), [`agent-harness`](../../crates/agent_harness/SPEC.md) |
 | Local object store | `cloud_objects`, `cloud_object_models`, `cloud_object_persistence`, `persistence` | [`object-store`](../../crates/cloud_objects/SPEC.md) |
 | Settings | `settings`, `settings_value`, `settings_value_derive` | [`settings`](../../crates/settings/SPEC.md) |
 | Long-tail shared libs | `editor`, `command`, `sum_tree`, `languages`, `syntax_tree`, `markdown_parser`, `ipynb_parser`, `lsp`, `mcp`, `node_runtime`, `vim`, `fuzzy_match`, `warp_search_core`, `warp_ripgrep`, `warp_completer`, `input_classifier`, `virtual-fs`, `watcher`, `http_client`, `ipc`, `jsonrpc`, `isolation_platform`, `warp_core`, `warp_util`, `warp_files`, `warp_errors`, `warp_logging`, `repo_metadata`, … | none (one boundary each, stable, no spec needed) |
@@ -29,11 +29,12 @@ Layers, top to bottom (spec'd boundaries link by id):
 Real dependency edges between spec'd nodes:
 
 ```
-app ──► ui-framework, terminal-core, ai-core, local-inference, object-store, settings
+app ──► ui-framework, terminal-core, ai-core, local-inference, agent-harness, object-store, settings
 app-terminal ──► terminal-core        (submodule of app)
-app-ai ──► ai-core, local-inference   (submodule of app)
+app-ai ──► ai-core, local-inference, agent-harness   (submodule of app)
 ai-core ──► ui-framework              (warpui_core dependency)
-local-inference ──► (external) warp_multi_agent_api   [git dep, warp-proto-apis]
+local-inference ──► agent-harness, (external) warp_multi_agent_api   [git dep, warp-proto-apis]
+agent-harness ──► (nothing)
 ```
 
 ## Invariants

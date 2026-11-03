@@ -25,6 +25,7 @@ publish = false
 
 [workspace.dependencies]
 # Local workspace crates. This lets us reference them in other crates without specifying a path.
+agent_harness = { path = "crates/agent_harness" }
 ai = { path = "crates/ai" }
 asset_cache = { path = "crates/asset_cache" }
 asset_macro = { path = "crates/asset_macro" }

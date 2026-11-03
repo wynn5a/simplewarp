@@ -1230,11 +1230,15 @@ impl BlocklistAIController {
         let input_contains_user_query = request_input
             .all_inputs()
             .any(|input| input.is_user_query());
+        let estimated_input_tokens = api::estimate_input_tokens(request_params.input.clone());
         ctx.subscribe_to_model(&response_stream, move |me, _, event, ctx| {
             me.handle_response_stream_event(event, &response_stream_clone, ctx);
         });
 
         history_model.update(ctx, |history_model, ctx| {
+            if let Some(conversation) = history_model.conversation_mut(&conversation_data.id) {
+                conversation.set_pending_context_estimate(estimated_input_tokens);
+            }
             match history_model.update_conversation_for_new_request_input(
                 request_input,
                 response_stream_id.clone(),
@@ -1799,10 +1803,15 @@ impl BlocklistAIController {
     ) {
         let history_model = BlocklistAIHistoryModel::handle(ctx);
         // Added before the completion below, which persists the conversation.
-        if !finished_event.token_usage.is_empty() {
+        if !finished_event.token_usage.is_empty()
+            || finished_event.conversation_usage_metadata.is_some()
+        {
             history_model.update(ctx, |history_model, _| {
                 if let Some(conversation) = history_model.conversation_mut(&conversation_id) {
                     conversation.add_token_usage(&finished_event.token_usage);
+                    if let Some(metadata) = &finished_event.conversation_usage_metadata {
+                        conversation.record_context_usage(metadata);
+                    }
                 }
             });
         }

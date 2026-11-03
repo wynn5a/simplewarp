@@ -377,7 +377,7 @@ struct ExecutionProfileFile {
     #[schemars(description = "Optional full-terminal-use model override.")]
     cli_agent_model: Option<String>,
     #[schemars(
-        description = "Optional context window limit in tokens. The valid range is model-dependent and determined server-side; the value is automatically clamped to the selected model's supported context window. Consult the selected model's documentation for its actual supported range."
+        description = "Optional context window limit in tokens. Agent mode measures context usage against the smaller of this limit and the selected model's own window, which is model-dependent; use it to set the window of a custom-endpoint model, which otherwise counts as 128000 tokens."
     )]
     context_window_limit: Option<u32>,
     #[schemars(description = "Unused; kept so existing profile files still load.")]

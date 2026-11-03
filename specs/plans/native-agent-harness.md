@@ -143,8 +143,11 @@ memory 会进入以后每次请求的 system prompt，写错的代价比一次�
 
 ### P1 上下文记账（规模：S）
 
+实现规格：[`native-agent-harness/p1-context-accounting.md`](native-agent-harness/p1-context-accounting.md)。
+
 1. **模型窗口。** `crates/local_inference/src/models.rs` 给内置模型加上 `context_window`，自定义端点
-   在设置里可以填，否则用保守默认值 128k。执行配置的 `context_window_limit` 接通，作为上限覆盖。
+   用保守默认值 128k（不加每模型设置项，理由见 P1 规格）。执行配置的 `context_window_limit` 接通，
+   作为上限覆盖，自定义端点窗口更小时用它设置。
 2. **记账。** 新 crate `crates/agent_harness` 的 `budget` 模块提供两样东西：
    - `estimate_tokens(text)`：按字符数除以 4 估算。
    - `ContextUsage { last_reported_input, estimated_since }`：用上一轮 provider 报告的输入 token

@@ -157,6 +157,7 @@ fn test_initialize_historical_conversations_uses_root_task_description_title() {
                     root_task_is_optimistic: None,
                     autoexecute_override: None,
                     token_usage: None,
+                    context_tokens: None,
                 })
                 .expect("conversation data should serialize"),
                 last_modified_at: now,
@@ -1341,6 +1342,7 @@ fn test_find_by_token_after_insert_forked_conversation_from_tasks() {
             root_task_is_optimistic: None,
             autoexecute_override: None,
             token_usage: None,
+            context_tokens: None,
         };
         let tasks = vec![warp_multi_agent_api::Task {
             id: "root-task".to_string(),
@@ -1509,6 +1511,7 @@ fn test_fork_conversation_preserves_task_ids_when_requested() {
                 root_task_is_optimistic: None,
                 autoexecute_override: None,
                 token_usage: None,
+                context_tokens: None,
             }),
         )
         .expect("restored source conversation should build");
@@ -1590,6 +1593,7 @@ fn test_fork_conversation_title_override_replaces_prefix() {
                 root_task_is_optimistic: None,
                 autoexecute_override: None,
                 token_usage: None,
+                context_tokens: None,
             }),
         )
         .expect("restored source conversation should build");
@@ -2264,6 +2268,7 @@ fn straddle_rewind_followup_requests_are_clean_and_durable() {
                 root_task_is_optimistic: None,
                 autoexecute_override: None,
                 token_usage: None,
+                context_tokens: None,
             }),
         )
         .expect("conversation should build");

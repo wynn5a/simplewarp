@@ -2127,6 +2127,23 @@ cache writes are counted. Independent review: no blockers; four follow-ups appli
 clippy runs, `local_inference` 221/221, `-p warp` lib 3,736/3,736, `integration_tests` compiles.
 Not run against a live provider.
 
+### Round: harness P1 — context accounting (2026-11-03)
+
+Spec: [../specs/plans/native-agent-harness/p1-context-accounting.md](../specs/plans/native-agent-harness/p1-context-accounting.md).
+New pure crate `agent_harness` (`budget`: chars/4 estimate, `ContextUsage`, effective window).
+Models carry an input-token window (a prefix table, lowered by Anthropic `/models`
+`max_input_tokens`; custom endpoints 128k), capped by the now-read `context_window_limit`. Each
+conversation keeps the newest request's input + the reply part kept in context (output less
+reasoning that is not resent, carried in `ConversationUsageMetadata`) + an estimate of the request
+in flight from the text the model sees, persisted as `context_tokens`; the agent footer shows
+`used / window`, warning color at 80%. Provider context-overflow 400s (Anthropic incl. the older
+"exceed context limit", OpenAI Chat/Responses incl. in-stream, vLLM wording, Gemini) now finish the
+stream with `ContextWindowExceeded`; an overflowed `/compact` rolls back. Chat Completions in-stream
+error chunks are no longer swallowed, and a numeric `429` among them is a rate limit. No per-model
+window field in the custom-endpoint modal. Review: ten follow-ups applied. Format, three clippy
+runs, `agent_harness` + `local_inference` 270/270, `-p warp` lib 3,749/3,749, `integration_tests`
+compiles. Not run against a live provider or in the GUI.
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the

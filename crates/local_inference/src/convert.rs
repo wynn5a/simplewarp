@@ -83,6 +83,31 @@ pub fn turns_from_request(request: &api::Request) -> Vec<Turn> {
     turns
 }
 
+/// The text a request's input adds to what the model sees: the question with its attachments, each
+/// tool result as rendered for the model, or the expansion of another input. The newest-turn
+/// environment (`current_state`) is left out, because no later request carries it.
+pub fn input_text(input: &api::request::Input) -> String {
+    let mut turns = Vec::new();
+    push_input(&mut turns, input, &HashSet::new());
+    let mut text = String::new();
+    for turn in turns {
+        let parts = match turn {
+            Turn::User(user) => vec![user],
+            Turn::ToolResults(results) => {
+                results.into_iter().map(|result| result.content).collect()
+            }
+            Turn::Assistant { .. } => Vec::new(),
+        };
+        for part in parts {
+            if !text.is_empty() {
+                text.push_str("\n\n");
+            }
+            text.push_str(&part);
+        }
+    }
+    text
+}
+
 /// The text that stands in for a tool result the conversation no longer holds.
 const RESULT_NOT_KEPT: &str = "This call already ran. Its output was not kept in the conversation history, so it cannot be \
      shown again. Do not run it a second time unless the answer needs it.";

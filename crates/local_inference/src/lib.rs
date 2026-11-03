@@ -28,10 +28,11 @@ pub mod provider;
 pub mod tools;
 
 mod emit;
+mod overflow;
 mod stream;
 
 pub use config::{ProviderTarget, Schema};
-pub use models::{Provider, ProviderModel, list_models};
+pub use models::{Provider, ProviderModel, context_window, list_models};
 pub use stream::generate_local_output;
 
 /// A response event stream, in the shape that the client already consumes.

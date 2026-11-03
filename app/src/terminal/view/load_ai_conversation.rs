@@ -753,6 +753,7 @@ impl TerminalView {
             root_task_is_optimistic: None,
             autoexecute_override: None,
             token_usage: None,
+            context_tokens: None,
         };
 
         // We already early-return for empty `tasks` above, so the strict

@@ -96,6 +96,7 @@ fn test_from_conversation_populates_local_conversation_fields() {
                 autoexecute_override: None,
                 root_task_is_optimistic: None,
                 token_usage: None,
+                context_tokens: None,
             },
         );
 
@@ -143,6 +144,7 @@ fn test_from_conversation_carries_restored_token_usage() {
             autoexecute_override: None,
             root_task_is_optimistic: None,
             token_usage: Some(usage),
+            context_tokens: None,
         },
     );
 

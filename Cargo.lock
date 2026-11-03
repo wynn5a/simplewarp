@@ -61,6 +61,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "agent_harness"
+version = "0.1.0"
+
+[[package]]
 name = "aha-reqwest-eventsource"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5301,6 +5305,7 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 name = "local_inference"
 version = "0.1.0"
 dependencies = [
+ "agent_harness",
  "aha-reqwest-eventsource",
  "chrono",
  "futures",
@@ -10500,6 +10505,7 @@ name = "warp"
 version = "0.1.0"
 dependencies = [
  "addr",
+ "agent_harness",
  "aho-corasick",
  "ai",
  "alphanumeric-sort",

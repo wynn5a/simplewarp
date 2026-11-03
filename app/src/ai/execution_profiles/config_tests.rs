@@ -20,8 +20,8 @@ fn context_window_limit_schema_has_description() {
         "description should mention model-dependent range, got: {description}"
     );
     assert!(
-        description.contains("server-side"),
-        "description should mention server-side determination, got: {description}"
+        description.contains("custom-endpoint"),
+        "description should say it sets a custom-endpoint model's window, got: {description}"
     );
 }
 

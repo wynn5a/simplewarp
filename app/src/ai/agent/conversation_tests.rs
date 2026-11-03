@@ -442,3 +442,88 @@ fn restored_conversation_keeps_persisted_token_usage() {
         }
     );
 }
+
+fn context_report(
+    input: u32,
+    kept_output: u32,
+) -> api::response_event::stream_finished::ConversationUsageMetadata {
+    use api::response_event::stream_finished::{ContextWindowSegment, ContextWindowSegmentType};
+
+    api::response_event::stream_finished::ConversationUsageMetadata {
+        total_input_tokens: input,
+        context_window_segments: vec![
+            ContextWindowSegment {
+                segment_type: ContextWindowSegmentType::ConversationHistory as i32,
+                token_count: input,
+            },
+            ContextWindowSegment {
+                segment_type: ContextWindowSegmentType::Other as i32,
+                token_count: kept_output,
+            },
+        ],
+        ..Default::default()
+    }
+}
+
+#[test]
+fn context_usage_is_the_newest_request_not_the_sum() {
+    let mut conversation = restored_conversation(None);
+    conversation.record_context_usage(&context_report(10_000, 300));
+    conversation.record_context_usage(&context_report(12_000, 400));
+
+    assert_eq!(conversation.context_usage().used_tokens(), 12_400);
+}
+
+#[test]
+fn the_pending_estimate_counts_until_the_next_report() {
+    let mut conversation = restored_conversation(None);
+    conversation.record_context_usage(&context_report(10_000, 300));
+    conversation.set_pending_context_estimate(500);
+    assert_eq!(conversation.context_usage().used_tokens(), 10_800);
+
+    conversation.record_context_usage(&context_report(11_000, 100));
+    assert_eq!(conversation.context_usage().used_tokens(), 11_100);
+}
+
+#[test]
+fn sending_the_same_request_again_does_not_count_it_twice() {
+    let mut conversation = restored_conversation(None);
+    conversation.record_context_usage(&context_report(10_000, 0));
+    conversation.set_pending_context_estimate(500);
+    conversation.set_pending_context_estimate(500);
+
+    assert_eq!(conversation.context_usage().used_tokens(), 10_500);
+}
+
+#[test]
+fn a_report_without_input_leaves_the_context_usage_alone() {
+    let mut conversation = restored_conversation(None);
+    conversation.record_context_usage(&context_report(10_000, 300));
+    conversation.record_context_usage(&context_report(0, 50));
+
+    assert_eq!(conversation.context_usage().used_tokens(), 10_300);
+}
+
+#[test]
+fn restored_conversation_keeps_its_context_usage() {
+    let conversation_data: AgentConversationData =
+        serde_json::from_str(r#"{"server_conversation_token":null,"context_tokens":42000}"#)
+            .unwrap();
+
+    let usage = restored_conversation(Some(conversation_data)).context_usage();
+
+    assert!(usage.has_report());
+    assert_eq!(usage.used_tokens(), 42_000);
+}
+
+#[test]
+fn an_old_conversation_has_no_context_usage() {
+    let conversation_data: AgentConversationData =
+        serde_json::from_str(r#"{"server_conversation_token":null}"#).unwrap();
+
+    assert!(
+        !restored_conversation(Some(conversation_data))
+            .context_usage()
+            .has_report()
+    );
+}

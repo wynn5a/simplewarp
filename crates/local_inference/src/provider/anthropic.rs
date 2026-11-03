@@ -261,6 +261,8 @@ fn usage(usage: &Value) -> Option<TokenUsage> {
         output: count("output_tokens"),
         cache_read,
         cache_write,
+        // Anthropic counts thinking inside `output_tokens` and reports no split.
+        reasoning: 0,
     })
 }
 
@@ -277,6 +279,7 @@ fn stop_reason(reason: &str) -> StopReason {
         "end_turn" | "stop_sequence" => StopReason::EndTurn,
         "tool_use" => StopReason::ToolUse,
         "max_tokens" => StopReason::MaxTokens,
+        "model_context_window_exceeded" => StopReason::ContextWindowExceeded,
         _ => StopReason::Other,
     }
 }
