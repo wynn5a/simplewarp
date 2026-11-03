@@ -1,0 +1,18 @@
+edition = "2023";
+
+package warp.multi_agent.v1;
+
+import "google/protobuf/go_features.proto";
+
+import "options.proto";
+import "file_content.proto";
+
+option go_package = "github.com/warpdotdev/warp-proto-apis/apis/multi_agent/v1/gen/go;v1";
+option features.(pb.go).api_level = API_OPAQUE;
+
+// A representation of text content within a document.
+message DocumentContent {
+  string document_id = 1;
+  string content = 2 [ (sensitive) = true ];
+  FileContentLineRange line_range = 3;
+}

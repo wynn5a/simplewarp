@@ -2144,6 +2144,15 @@ window field in the custom-endpoint modal. Review: ten follow-ups applied. Forma
 runs, `agent_harness` + `local_inference` 270/270, `-p warp` lib 3,749/3,749, `integration_tests`
 compiles. Not run against a live provider or in the GUI.
 
+### Round: harness P2a — vendor `warp_multi_agent_api` (2026-11-03)
+
+Spec: [../specs/plans/native-agent-harness/p2a-vendor-proto.md](../specs/plans/native-agent-harness/p2a-vendor-proto.md).
+The proto crate moves from the `warpdotdev/warp-proto-apis@b0886a9` git dependency to
+`crates/warp_multi_agent_api` (protos byte-identical, AGPL-3 license kept, additive-only changes
+from here on). Generated `OUT_DIR` output is identical before and after. Format, three clippy runs,
+`local_inference`/`agent_harness`/`persistence` 282/282, `-p warp` lib 3,749/3,749,
+`integration_tests` compiles.
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the

@@ -1,0 +1,156 @@
+edition = "2023";
+
+package warp.multi_agent.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/go_features.proto";
+
+import "file_content.proto";
+import "attachment.proto";
+import "options.proto";
+import "skill.proto";
+import "lsp.proto";
+
+option go_package = "github.com/warpdotdev/warp-proto-apis/apis/multi_agent/v1/gen/go;v1";
+option features.(pb.go).api_level = API_OPAQUE;
+
+// Context that may be relevant to the input in a request.
+message InputContext {
+  Directory directory = 1;
+  OperatingSystem operating_system = 2;
+  Shell shell = 3;
+  google.protobuf.Timestamp current_time = 4;
+  repeated Codebase codebases = 8;
+  repeated ProjectRules project_rules = 10;
+  Git git = 11;
+  // Sent on each request when scoped skills change
+  SkillsContext updated_skills_context = 12;
+  // Sent on each request when LSP servers change
+  LspServersContext updated_lsp_servers_context = 13;
+
+  // TODO: these fields should be _attachments_, not part of the input context.
+  repeated ExecutedShellCommand executed_shell_commands = 5 [deprecated = true];
+  repeated SelectedText selected_text = 6;
+  repeated Image images = 7;
+  repeated File files = 9;
+  // END TODO
+
+  message SelectedText { string text = 1 [ (sensitive) = true ]; }
+
+  // Information about the user's directories.
+  message Directory {
+    string pwd = 1 [ (sensitive) = true ];
+    string home = 2 [ (sensitive) = true ];
+    bool pwd_file_symbols_indexed = 3;
+  }
+
+  // Information about the user's terminal shell.
+  message Shell {
+    string name = 1;
+    string version = 2;
+  }
+
+  // Information about the user's operating system.
+  message OperatingSystem {
+    // The OS "category", e.g. "MacOS" or "Linux".
+    string platform = 1;
+
+    // The OS distribution, which is typically only populated for Linux,
+    // e.g. Fedora or Ubuntu.
+    string distribution = 2;
+  }
+
+  // Any attached images.
+  message Image {
+    // The image payload.
+    //
+    // TODO: the client should NOT base64 encode the image data.
+    // It should send up raw binary data and the server should
+    // do what it needs to (e.g. b64 encode before sending to LLM).
+    bytes data = 1 [ (sensitive) = true ];
+
+    // MIME type of the image content (e.g., "image/jpeg", "image/png").
+    string mime_type = 2;
+  }
+
+  // Information about a codebase on the user's machine that we can search.
+  message Codebase {
+    // The name of the codebase.
+    string name = 1 [ (sensitive) = true ];
+    // The absolute path to the codebase on the user's machine.
+    string path = 2 [ (sensitive) = true ];
+  }
+
+  message File {
+    FileContent content = 1;
+  }
+
+  message ProjectRules {
+    string root_path = 1;
+    // Active rules that should be eagerly applied to the conversation.
+    repeated FileContent active_rule_files = 2;
+    // Additional rules that are available to be retrieved.
+    repeated string additional_rule_file_paths = 3;
+  }
+
+  // Context about the repo in the user's working directory.
+  message Git {
+    // The user's current head (i.e. branch name or commit hash).
+    string head = 1 [ (sensitive) = true ];
+
+    // The current branch name, populated only from `git symbolic-ref --short HEAD`.
+    // Empty/absent when in detached HEAD state.
+    string branch = 2 [ (sensitive) = true ];
+
+    // Metadata about the repository in the user's working directory.
+    Repository repository = 3;
+
+    // Metadata about the pull request associated with the current branch.
+    PullRequest pull_request = 4;
+
+    message Repository {
+      // The repository name.
+      string name = 1 [ (sensitive) = true ];
+
+      // The repository owner or organization, if known.
+      string owner = 2 [ (sensitive) = true ];
+
+      // The repository host, e.g. "github.com". Parsed from the origin remote.
+      string host = 3 [ (sensitive) = true ];
+    }
+
+    message PullRequest {
+      enum State {
+        STATE_UNSPECIFIED = 0;
+        STATE_OPEN_DRAFT = 1;
+        STATE_OPEN = 2;
+        STATE_CLOSED = 3;
+        STATE_MERGED = 4;
+      }
+
+      reserved 3;
+      reserved draft;
+
+      // The pull request number.
+      int32 number = 1;
+
+      // The pull request state.
+      State state = 2;
+
+      // The target branch for the pull request.
+      string base_branch = 4 [ (sensitive) = true ];
+
+      // The full URL of the pull request, e.g.
+      // "https://github.com/owner/repo/pull/123".
+      string url = 5 [ (sensitive) = true ];
+    }
+  }
+
+  message SkillsContext {
+    repeated SkillDescriptor available_skills = 1;
+  }
+
+  message LspServersContext {
+    repeated LspDescriptor available_lsp_servers = 1;
+  }
+}

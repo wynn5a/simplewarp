@@ -1,0 +1,26 @@
+// Common types used in request and response for the multi-agent API.
+edition = "2023";
+
+package warp.multi_agent.v1;
+
+import "google/protobuf/go_features.proto";
+
+option go_package = "github.com/warpdotdev/warp-proto-apis/apis/multi_agent/v1/gen/go;v1";
+option features.(pb.go).api_level = API_OPAQUE;
+
+message Suggestions {
+  repeated SuggestedRule rules = 1;
+  repeated SuggestedAgentModeWorkflow workflows = 2;
+}
+
+message SuggestedRule {
+  string name = 1;
+  string content = 2;
+  string logging_id = 3;
+}
+
+message SuggestedAgentModeWorkflow {
+  string name = 1;
+  string prompt = 2;
+  string logging_id = 3;
+}

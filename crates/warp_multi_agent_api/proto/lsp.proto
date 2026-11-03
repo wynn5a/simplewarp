@@ -1,0 +1,19 @@
+edition = "2023";
+
+package warp.multi_agent.v1;
+
+import "google/protobuf/go_features.proto";
+
+import "options.proto";
+
+option go_package = "github.com/warpdotdev/warp-proto-apis/apis/multi_agent/v1/gen/go;v1";
+option features.(pb.go).api_level = API_OPAQUE;
+
+// A descriptor for an LSP server instance that the client can report as available.
+message LspDescriptor {
+  // Workspace root this server is associated with (repo/workspace path on the user's machine).
+  string workspace_root = 1 [ (sensitive) = true ];
+
+  // The LSP server name (e.g. "rust-analyzer", "gopls", "pyright-langserver").
+  string server_name = 2;
+}

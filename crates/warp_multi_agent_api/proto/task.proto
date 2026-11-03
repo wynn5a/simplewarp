@@ -1,0 +1,2129 @@
+edition = "2023";
+
+package warp.multi_agent.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/go_features.proto";
+import "google/protobuf/descriptor.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+import "citations.proto";
+import "input_context.proto";
+import "attachment.proto";
+import "file_content.proto";
+import "document_content.proto";
+import "options.proto";
+import "todo.proto";
+import "skill.proto";
+import "orchestration.proto";
+
+option go_package = "github.com/warpdotdev/warp-proto-apis/apis/multi_agent/v1/gen/go;v1";
+option features.(pb.go).api_level = API_OPAQUE;
+
+// A task represents a unit of work with messages
+message Task {
+  reserved status;
+  reserved 4;
+
+  // Unique identifier for the task.
+  string id = 1;
+
+  // Short description for the task.
+  string description = 2;
+
+  // Dependencies for task hierarchy and execution order.
+  Dependencies dependencies = 3;
+
+  // Messages associated with this task
+  repeated Message messages = 5;
+
+  // The task summary. Differs from the task description in that it summarizes
+  // what has been done to accomplish the task.
+  string summary = 6;
+
+  // Dependencies for task hierarchy and execution order.
+  message Dependencies {
+    reserved sibling_dependencies;
+    reserved 2;
+
+    // ID of the parent task, may be null for root tasks.  This task cannot
+    // start executing until the parent has started executing.
+    string parent_task_id = 1;
+  }
+
+  // An opaque payload that the client should simply roundtrip.
+  string server_data = 8;
+}
+
+// Lifecycle event types emitted by child agents and routed to lead agents.
+// These align with task states to provide a consistent lifecycle model.
+enum LifecycleEventType {
+  LIFECYCLE_EVENT_TYPE_UNSPECIFIED = 0;
+  // Deprecated: use LIFECYCLE_EVENT_TYPE_IN_PROGRESS instead.
+  LIFECYCLE_EVENT_TYPE_STARTED = 1 [ deprecated = true ];
+  // Deprecated: use LIFECYCLE_EVENT_TYPE_SUCCEEDED instead.
+  LIFECYCLE_EVENT_TYPE_IDLE = 2 [ deprecated = true ];
+  // Deprecated: use LIFECYCLE_EVENT_TYPE_IN_PROGRESS instead. Restart is no
+  // longer distinguished from start.
+  LIFECYCLE_EVENT_TYPE_RESTARTED = 3 [ deprecated = true ];
+  LIFECYCLE_EVENT_TYPE_ERRORED = 4;
+  LIFECYCLE_EVENT_TYPE_CANCELLED = 5;
+  LIFECYCLE_EVENT_TYPE_BLOCKED = 6;
+  LIFECYCLE_EVENT_TYPE_IN_PROGRESS = 7;
+  LIFECYCLE_EVENT_TYPE_SUCCEEDED = 8;
+  LIFECYCLE_EVENT_TYPE_FAILED = 9;
+}
+
+// A generic event emitted by an agent and routed to other agents.
+message AgentEvent {
+  // Unique identifier for idempotency and deduplication.
+  string event_id = 1;
+  // Timestamp the event occurred.
+  google.protobuf.Timestamp occurred_at = 2;
+
+  oneof event { LifecycleEvent lifecycle_event = 3; }
+
+  // Lifecycle event payload emitted by a sender agent.
+  message LifecycleEvent {
+    // The sender agent ID (conversation ID in V0).
+    string sender_agent_id = 1;
+    // Lifecycle detail payload. Empty variants represent enum-like lifecycle
+    // states while still allowing future expansion of per-state metadata.
+    oneof detail {
+      Errored errored = 2;
+      // Deprecated: use in_progress instead.
+      google.protobuf.Empty started = 3 [ deprecated = true ];
+      // Deprecated: use succeeded instead.
+      google.protobuf.Empty idle = 4 [ deprecated = true ];
+      // Deprecated: use in_progress instead. Restart is no longer distinguished
+      // from start.
+      google.protobuf.Empty restarted = 5 [ deprecated = true ];
+      google.protobuf.Empty cancelled = 6;
+      Blocked blocked = 7;
+      google.protobuf.Empty in_progress = 8;
+      google.protobuf.Empty succeeded = 9;
+      Failed failed = 10;
+    }
+
+    message Errored {
+      string stage = 1;
+      string reason = 2;
+      string error_message = 3 [ (sensitive) = true ];
+    }
+
+    message Blocked { string blocked_action = 1 [ (sensitive) = true ]; }
+
+    message Failed {
+      string reason = 1;
+      string error_message = 2 [ (sensitive) = true ];
+    }
+  }
+}
+
+message ReviewComments {
+  repeated ReviewComment pending_comments = 1;
+  repeated ReviewComment completed_comments = 2;
+  DiffSet diff_set = 3;
+}
+
+message ReviewComment {
+  // Unique identifier for the review comment.
+  string id = 1;
+
+  string comment = 2 [ (sensitive) = true ];
+
+  // The context this comment is associated with. At least one of these must be
+  // provided.
+  oneof comment_target {
+    // The exact file location and line content that this comment is associated
+    // with. We need a diff hunk rather than just a starting and ending line
+    // number because the latter cannot uniquely identify a deleted line.
+    DiffHunk commented_line = 3;
+
+    // The file path that this comment is associated with.
+    CommentedFile commented_file = 4;
+
+    // Indicates this comment is associated with the entire diff set.
+    CommentedDiffset commented_diffset = 5;
+  }
+
+  // File-level comment with current and base reference information.
+  message CommentedFile {
+    string file_path = 1 [ (sensitive) = true ];
+    CurrentRef current = 2;
+    BaseRef base = 3;
+  }
+
+  // Diffset-level comment with current and base reference information.
+  message CommentedDiffset {
+    CurrentRef current = 1;
+    BaseRef base = 2;
+  }
+}
+
+// A message within a task
+message Message {
+  reserved started_child_task;
+  reserved 12;
+
+  // Globally-unique identifier for the message.
+  string id = 1;
+
+  // The ID of the task this message belongs to.
+  string task_id = 11;
+
+  // The ID of the request that originally added this message to the task.
+  string request_id = 13;
+
+  // The timestamp that this message was produced.
+  // For input messages, this is the timestamp the server received the request.
+  // For output messages, this is the timestamp the server finished the response
+  // for the request.
+  google.protobuf.Timestamp timestamp = 14;
+
+  // An opaque payload that the client should simply roundtrip.
+  string server_message_data = 7;
+
+  // Citations associated with this message
+  repeated Citation citations = 8;
+
+  // Memories retrieved server-side from attached memory stores, set on the
+  // user message that triggered retrieval. Client-visible so the UI can
+  // surface which memories informed the conversation.
+  repeated FetchedMemory fetched_memories = 29;
+
+  // The type of message with its specific content
+  oneof message {
+    UserQuery user_query = 2;
+    AgentOutput agent_output = 3;
+    ToolCall tool_call = 4;
+    ToolCallResult tool_call_result = 5;
+    ServerEvent server_event = 6;
+    SystemQuery system_query = 9;
+    UpdateTodos update_todos = 10;
+    AgentReasoning agent_reasoning = 15;
+    Summarization summarization = 16;
+    CodeReview code_review = 17;
+    UpdateReviewComments update_review_comments = 18;
+    WebSearch web_search = 19;
+    WebFetch web_fetch = 20;
+    DebugOutput debug_output = 21;
+    ArtifactEvent artifact_event = 22;
+    InvokeSkill invoke_skill = 23;
+    MessagesReceivedFromAgents messages_received_from_agents = 24;
+    ModelUsed model_used = 25;
+    EventsFromAgents events_from_agents = 26;
+    PassiveSuggestionResult passive_suggestion_result = 27;
+    OrchestrationConfigSnapshot orchestration_config_snapshot = 28;
+  }
+
+  message PassiveSuggestionResult {
+    PassiveSuggestionResultType result = 1;
+    InputContext context = 2;
+  }
+
+  // A batch of messages received from other agents, persisted in conversation
+  // history. The full message contents are stored here so that server-side
+  // tools (ListMessages, ReadMessages) can scan them. When formatted for the
+  // LLM, only a summary (count + headers) is shown.
+  message MessagesReceivedFromAgents {
+    repeated ReceivedMessage messages = 1;
+
+    message ReceivedMessage {
+      string message_id = 1;
+      string sender_agent_id = 2;
+      repeated string addresses = 3;
+      string subject = 4 [ (sensitive) = true ];
+      string message_body = 5 [ (sensitive) = true ];
+    }
+  }
+
+  // A batch of events received from agents.
+  message EventsFromAgents { repeated AgentEvent agent_events = 1; }
+
+  // A memory retrieved from an attached memory store for this message.
+  message FetchedMemory {
+    string memory_id = 1;
+
+    string content = 2 [ (sensitive) = true ];
+
+    // The memory store this memory belongs to.
+    string memory_store_id = 3;
+
+    // Where the memory originated. Always set by the server.
+    oneof source {
+      Conversation conversation = 4;
+      Manual manual = 5;
+    }
+
+    // The memory was synthesized from an AI conversation.
+    message Conversation { string conversation_id = 1; }
+
+    // The memory was created directly by a user.
+    message Manual {}
+  }
+
+  // User query message type
+  message UserQuery {
+    string query = 1 [ (sensitive) = true ];
+
+    // Context that the client supplied as part of the user query input.
+    InputContext context = 2;
+
+    map<string, Attachment> referenced_attachments = 3;
+
+    UserQueryMode mode = 4;
+
+    AgentType intended_agent = 5;
+  }
+
+  // System queries represent prompts from the Warp client that were
+  // not explicitly sent by the end-user e.g. automatic code diff
+  // suggestions for errors.
+  message SystemQuery {
+    oneof type {
+      AutoCodeDiff auto_code_diff = 1;
+      ResumeConversation resume_conversation = 3;
+      GeneratePassiveSuggestions generate_passive_suggestions = 4;
+      CreateNewProject create_new_project = 5;
+      CloneRepository clone_repository = 6;
+      SummarizeConversation summarize_conversation = 7;
+      FetchReviewComments fetch_review_comments = 8;
+      // Injected by the server when restoring a handed-off conversation.
+      // Carries the rehydration context the agent needs but should never
+      // be rendered as user-visible input on the client.
+      HandoffRehydration handoff_rehydration = 9;
+    }
+
+    InputContext context = 2;
+  }
+
+  message AutoCodeDiff { string query = 1 [ (sensitive) = true ]; }
+
+  message ResumeConversation {}
+
+  // Injected by the server when a conversation is handed off to a new agent.
+  // Contains rehydration instructions for the agent to restore handoff state.
+  // Clients should treat this as hidden/non-displayed.
+  message HandoffRehydration {
+    // The rehydration instructions for the agent.
+    string instructions = 1 [ (sensitive) = true ];
+  }
+
+  // An input type to generate passive suggestions (e.g. prompt suggestions).
+  // If any suggestions are generated, they will be produced as tool calls.
+  message GeneratePassiveSuggestions {
+    // Deprecated; remove once prompt suggestions via MAA is fully rolled out.
+    repeated Attachment attachments = 1;
+
+    oneof trigger {
+      // Deprecated; remove once prompt suggestions via MAA is fully rolled out.
+      google.protobuf.Empty files_changed = 2;
+      // Deprecated; remove once prompt suggestions via MAA is fully rolled out.
+      google.protobuf.Empty command_run = 3;
+      // Triggered when a manually run shell command completes.
+      ShellCommandCompleted shell_command_completed = 4;
+      // Triggered when an agent completes a response.
+      AgentResponseCompleted agent_response_completed = 5;
+    }
+
+    message ShellCommandCompleted {
+      ExecutedShellCommand executed_shell_command = 1;
+      repeated AnyFileContent relevant_files = 2;
+    }
+
+    message AgentResponseCompleted {}
+  }
+
+  message CreateNewProject { string query = 1 [ (sensitive) = true ]; }
+
+  message CloneRepository { string url = 1 [ (sensitive) = true ]; }
+
+  // A user-requested summarization.
+  message SummarizeConversation {
+    // Optional user-specified instructions to focus or augment the summary.
+    string prompt = 1 [ (sensitive) = true ];
+  }
+
+  // Agent output message type
+  message AgentOutput {
+    // Text to be shown to the user.
+    string text = 1;
+
+    // Previously used for internal "reasoning tokens" produced by the LLM.
+    // Use the dedicated [AgentReasoning] type instead.
+    reserved 2;
+    reserved reasoning;
+  }
+
+  message AgentReasoning {
+    // The user-visible reasoning tokens.
+    string reasoning = 1;
+
+    // How long the agent spent reasoning.
+    // Only set when the reasoning is finished.
+    google.protobuf.Duration finished_duration = 2;
+  }
+
+  message Summarization {
+    // How long the agent spent summarizing
+    // Only set when the summarization is finished.
+    google.protobuf.Duration finished_duration = 2;
+
+    // Type of summarization being performed.
+    oneof summary_type {
+      ConversationSummary conversation_summary = 1;
+      ToolCallResultSummary tool_call_result_summary = 3;
+    }
+
+    // A summary of the overall conversation.
+    message ConversationSummary {
+      string summary = 1;
+      int32 token_count = 2;
+    }
+
+    // Summarize the result of a tool call.
+    message ToolCallResultSummary {}
+  }
+
+  message CodeReview { ReviewComments comments = 1; }
+
+  message FetchReviewComments { string repo_path = 1 [ (sensitive) = true ]; }
+
+  // Tool call message type
+  message ToolCall {
+    reserved 29, 33; // Removed: StartAgent, StartAgentV2
+    reserved start_agent, start_agent_v2;
+
+    string tool_call_id = 1;
+
+    // The specific tool being called
+    oneof tool {
+      RunShellCommand run_shell_command = 2;
+      SearchCodebase search_codebase = 3;
+      Server server = 4;
+      ReadFiles read_files = 5;
+      ApplyFileDiffs apply_file_diffs = 6;
+      SuggestPlan suggest_plan = 7;
+      SuggestCreatePlan suggest_create_plan = 8;
+      Grep grep = 9;
+      // DEPRECATED: Being replaced by FileGlobV2.
+      FileGlob file_glob = 10 [ deprecated = true ];
+      ReadMCPResource read_mcp_resource = 11;
+      CallMCPTool call_mcp_tool = 12;
+      WriteToLongRunningShellCommand write_to_long_running_shell_command = 13;
+      SuggestNewConversation suggest_new_conversation = 14;
+      FileGlobV2 file_glob_v2 = 15;
+      SuggestPrompt suggest_prompt = 16;
+      OpenCodeReview open_code_review = 17;
+      InitProject init_project = 18;
+      Subagent subagent = 19;
+      ReadDocuments read_documents = 20;
+      EditDocuments edit_documents = 21;
+      CreateDocuments create_documents = 22;
+      ReadShellCommandOutput read_shell_command_output = 23;
+      UseComputer use_computer = 24;
+      InsertReviewComments insert_review_comments = 25;
+      ReadSkill read_skill = 26;
+      RequestComputerUse request_computer_use = 27;
+      FetchConversation fetch_conversation = 28;
+      SendMessageToAgent send_message_to_agent = 30;
+      TransferShellCommandControlToUser transfer_shell_command_control_to_user =
+          31;
+      AskUserQuestion ask_user_question = 32;
+      UploadFileArtifact upload_file_artifact = 34;
+      RunAgents run_agents = 35;
+      WaitForEvents wait_for_events = 36;
+      StartRecording start_recording = 37;
+      StopRecording stop_recording = 38;
+    }
+
+    // A tool call to fetch a conversation's tasks from the client.
+    // Used by subagents that need to access a different conversation's data.
+    message FetchConversation {
+      // The ID of the conversation to fetch.
+      string conversation_id = 1;
+    }
+
+    // A tool call that is totally resolved server-side and hence opaque to
+    // clients. It's included in the message history for bookkeeping purposes.
+    message Server { string payload = 1; }
+
+    // A tool call to run a shell command.
+    message RunShellCommand {
+      string command = 1;
+
+      // DEPRECATED: Being replaced by risk_category
+      bool is_read_only = 2;
+      bool uses_pager = 3;
+      repeated Citation citations = 4;
+      // Whether the agent thinks this command is risky and therefore should be
+      // passed by the user first.
+      // DEPRECATED: Being replaced by risk_category
+      bool is_risky = 5;
+
+      // Whether or not the harness should wait until the command is complete to
+      // report a result.
+      //
+      // This is wrapped in a oneof to preserve field presence, which isn't
+      // preserved for scalar fields in prost-generated rust bindings. If unset,
+      // the client should wait until completion.
+      oneof wait_until_complete_value { bool wait_until_complete = 6; }
+
+      // Finer-grained classification of command risk. When present, clients
+      // should prefer this over is_read_only and is_risky.
+      RiskCategory risk_category = 7;
+    }
+
+    // A tool call to write bytes to the PTY when a command is running in the
+    // foreground.
+    message WriteToLongRunningShellCommand {
+      // The exact set of bytes that the client should write to PTY.
+      bytes input = 1;
+
+      // The "mode" for the write.
+      Mode mode = 2;
+
+      // The 'ID' of the command to write to, taken from the initial
+      // `LongRunningShellCommandSnapshot` for the command.
+      string command_id = 3;
+
+      message Mode {
+        oneof mode {
+          // Write raw bytes directly.
+          google.protobuf.Empty raw = 1;
+
+          // Write a line of text input.
+          //
+          // This write mode is designed to be used with REPLs/shell-like TUIs.
+          // Ensures the cursor is at the beginnning of the input buffer and
+          // sends an enter keystroke after `line`.
+          google.protobuf.Empty line = 2;
+
+          // Writes a block of multi-line text input.
+          //
+          // Under the hood, this uses bracketed paste to insert the text as-is.
+          google.protobuf.Empty block = 3;
+        }
+      }
+    }
+
+    // A tool call to explicitly transfer control of a running shell command to
+    // the user.
+    message TransferShellCommandControlToUser { string reason = 1; }
+
+    message SuggestNewConversation {
+      // The id of the message where we'd branch a new conversation.
+      string message_id = 1;
+    }
+
+    // A tool call to read files.
+    message ReadFiles {
+      repeated File files = 1;
+      message File {
+        string name = 1;
+        // If empty, the entire file is retrieved.
+        repeated FileContentLineRange line_ranges = 2;
+      }
+    }
+
+    // A tool call to search a codebase.
+    message SearchCodebase {
+      string query = 1;
+      repeated string path_filters = 2;
+      // Optional. The absolute path to the codebase that we want to search. If
+      // not provided, we will use the codebase in the user's current directory.
+      string codebase_path = 3;
+    }
+
+    // A tool call to apply diffs to files.
+    message ApplyFileDiffs {
+      string summary = 1 [ (sensitive) = true ];
+      repeated FileDiff diffs = 2;
+      repeated NewFile new_files = 3;
+      repeated DeleteFile deleted_files = 4;
+      repeated V4AFileUpdate v4a_updates = 5;
+
+      message FileDiff {
+        string file_path = 1 [ (sensitive) = true ];
+        // The content to be replaced.
+        string search = 2 [ (sensitive) = true ];
+        // The content that replaces `search`.
+        string replace = 3 [ (sensitive) = true ];
+      }
+
+      message V4AFileUpdate {
+        string file_path = 1 [ (sensitive) = true ];
+
+        // Optional file rename.
+        string move_to = 2 [ (sensitive) = true ];
+
+        repeated Hunk hunks = 3;
+
+        // A V4A hunk represents a single change block in a file update.
+        // See here for more details on the semantic meaning of the fields:
+        // https://cookbook.openai.com/examples/gpt4-1_prompting_guide#apply-patch
+        message Hunk {
+          // Context to quickly identify the location of the change (i.e. the
+          // `@@` statements).
+          repeated string change_context = 1 [ (sensitive) = true ];
+          // The context lines right before the change.
+          string pre_context = 2 [ (sensitive) = true ];
+          // The old content that is being replaced.
+          // Empty if lines are only being added.
+          string old = 3 [ (sensitive) = true ];
+          // The new content that replaces the old content.
+          // Empty if lines are only being deleted.
+          string new = 4 [ (sensitive) = true ];
+          // The context lines right after the change.
+          string post_context = 5 [ (sensitive) = true ];
+        }
+      }
+
+      message NewFile {
+        // Path of the file to create.
+        string file_path = 1 [ (sensitive) = true ];
+        // The new file contents.
+        string content = 2 [ (sensitive) = true ];
+      }
+
+      message DeleteFile { string file_path = 1 [ (sensitive) = true ]; }
+    }
+
+    // A tool call to suggest a plan.
+    message SuggestPlan {
+      // A high-level summary.
+      string summary = 1;
+      // A set of tasks that form the proposed execution plan.
+      repeated Task proposed_tasks = 2;
+    }
+
+    // A tool call to suggest creating a plan (i.e. autoplanning).
+    message SuggestCreatePlan {}
+
+    // A tool call to perform a grep search.
+    message Grep {
+      // The search terms or patterns to look for.
+      repeated string queries = 1;
+      // The relative path to the file or directory to search in.
+      string path = 2;
+    }
+
+    // A tool call to find files matching glob patterns.
+    message FileGlob {
+      // The glob patterns to match file names against.
+      repeated string patterns = 1;
+      // The relative path to the directory to search in.
+      string path = 2;
+    }
+
+    // A tool call to find files with names matching patterns.
+    message FileGlobV2 {
+      // The patterns to match file names against. Supports ?, *, [].
+      repeated string patterns = 1;
+      // The relative path to the directory to search in.
+      string search_dir = 2;
+      // The maximum number of matches to return. Zero indicates no limit.
+      int32 max_matches = 3;
+      // The maximum depth to search in. Zero indicates no limit. A max depth of
+      // 1 will match children of the path directory only.
+      int32 max_depth = 4;
+      // The minimum depth to search in. Zero indicates no limit.
+      int32 min_depth = 5;
+    }
+
+    // A tool call to read an MCP resource identified by its URI.
+    message ReadMCPResource {
+      string uri = 1;
+
+      // Optional identifier of the MCP server that provides this tool.
+      // If set, this should match the `id` of an MCPServer in the request's
+      // MCPContext.
+      string server_id = 2;
+    }
+
+    // A tool call to execute an MCP tool.
+    message CallMCPTool {
+      // Name of the tool call.
+      string name = 1;
+      // An MCP tool call specifies args as named JSON arguments
+      // (not arbitrary JSON, e.g. a string).
+      google.protobuf.Struct args = 2;
+
+      // Optional identifier of the MCP server that provides this tool.
+      // If set, this should match the `id` of an MCPServer in the request's
+      // MCPContext.
+      string server_id = 3;
+    }
+
+    // A tool call to suggest a prompt for the user to run.
+    message SuggestPrompt {
+      oneof display_mode {
+        InlineQueryBanner inline_query_banner = 1;
+        PromptChip prompt_chip = 2;
+      }
+
+      // Whether the trigger for this suggestion is not actually relevant to the
+      // suggestion itself.
+      bool is_trigger_irrelevant = 3;
+
+      // Deprecated; remove once prompt suggestions via MAA is fully rolled out.
+      // This was previously used for passive unit test suggestions.
+      message InlineQueryBanner {
+        string title = 1;
+        string description = 2;
+        string query = 3;
+      }
+
+      message PromptChip {
+        string prompt = 1;
+
+        // Optional. If supplied, this will be used as the label for the chip,
+        // while the `prompt` will be used as the actual prompt sent to the
+        // agent.
+        //
+        // This can be useful if the prompt is long and a shorter label is more
+        // appropriate for display.
+        string label = 2;
+      }
+    }
+
+    // Trigger the client to open the code review pane.
+    message OpenCodeReview {}
+
+    // Initialize project setup flow on the client.
+    message InitProject {}
+
+    message Subagent {
+      string task_id = 1;
+      string payload = 2;
+
+      // Optional metadata about the subagent required to render the appropriate
+      // UI.
+      oneof metadata {
+        CLISubagent cli = 3;
+        google.protobuf.Empty research = 4;
+        google.protobuf.Empty advice = 5;
+        google.protobuf.Empty computer_use = 6;
+        google.protobuf.Empty summarization = 7;
+        ConversationSearchMetadata conversation_search = 8;
+        google.protobuf.Empty warp_documentation_search = 9;
+      }
+
+      message CLISubagent { string command_id = 1; }
+
+      message ConversationSearchMetadata {
+        // The natural language query describing what to find in conversation
+        // history.
+        string query = 1;
+        // The explicit target for the search, if it is not searching the
+        // current conversation. If unset, the search targets the current
+        // conversation. `conversation_id` directly identifies a conversation;
+        // `agent_run_id` identifies an orchestrated child agent run that the
+        // server resolves to that run's conversation for execution.
+        oneof target {
+          // The ID of the conversation being searched.
+          string conversation_id = 2;
+          // The ID of the agent run being searched.
+          string agent_run_id = 3;
+        }
+      }
+    }
+
+    // A tool call to read documents.
+    message ReadDocuments {
+      repeated Document documents = 1;
+      message Document {
+        string document_id = 1;
+        // If empty, the entire document is retrieved.
+        repeated FileContentLineRange line_ranges = 2;
+      }
+    }
+
+    // A tool call to edit one or more existing documents.
+    message EditDocuments {
+      repeated DocumentDiff diffs = 1;
+
+      message DocumentDiff {
+        string document_id = 1;
+        // The content to be replaced.
+        string search = 2;
+        // The content that replaces `search`.
+        string replace = 3;
+      }
+    }
+
+    // A tool call to create one or more new documents.
+    message CreateDocuments {
+      repeated NewDocument new_documents = 1;
+
+      message NewDocument {
+        // The new document contents.
+        string content = 1;
+        string title = 2;
+      }
+    }
+
+    // A tool call to read the output of a shell command.
+    message ReadShellCommandOutput {
+      // The 'ID' of the command to write to, taken from the initial
+      // `LongRunningShellCommandSnapshot` for the command.
+      string command_id = 1;
+
+      oneof delay {
+        // Return the output after a certain delay.
+        google.protobuf.Duration duration = 2;
+        // Return the output when the command completes.
+        google.protobuf.Empty on_completion = 3;
+      }
+    }
+
+    message InsertReviewComments {
+      string repo_path = 1 [ (sensitive) = true ];
+      repeated Comment comments = 2;
+      string base_branch = 3 [ (sensitive) = true ];
+
+      message Comment {
+        string comment_id = 1;
+        string author = 2 [ (sensitive) = true ];
+        string last_modified_timestamp = 3;
+        string comment_body = 4 [ (sensitive) = true ];
+        string parent_comment_id = 5;
+        CommentLocation location = 6;
+        // The URL to view this comment in GitHub's web UI.
+        string html_url = 7 [ (sensitive) = true ];
+      }
+
+      message CommentLocation {
+        string file_path = 1 [ (sensitive) = true ];
+        CommentLineRange line = 2;
+      }
+
+      // The side of the diff the comment is attached to.
+      enum CommentSide {
+        NEW = 0; // Right side, current file state, additions
+        OLD = 1; // Left side, past file state, deletions
+      }
+
+      message CommentLineRange {
+        string diff_hunk = 1 [ (sensitive) = true ];
+        FileContentLineRange range = 2;
+        CommentSide side = 3;
+      }
+    }
+
+    // A tool call to run a Skill.
+    message ReadSkill {
+      oneof skill_reference {
+        // The path to the SKILL.md to be read.
+        string skill_path = 1;
+        // The unique identifier for a skill bundled with the client.
+        string bundled_skill_id = 2;
+      }
+
+      // The name of the skill.
+      string name = 3;
+    }
+
+    message UseComputer {
+      // A series of actions to execute on the machine.
+      repeated Action actions = 1;
+      // If set, a screenshot will be captured after the actions are executed.
+      //
+      // The parameters specify what constraints, if any, the client must apply
+      // to the screenshot.
+      ScreenshotParams post_actions_screenshot_params = 2;
+      // User-facing message of what the actions are doing.
+      string action_summary = 3 [ (sensitive) = true ];
+
+      message Action {
+        oneof type {
+          MouseMove mouse_move = 1;
+          MouseDown mouse_down = 2;
+          MouseUp mouse_up = 3;
+          MouseWheel mouse_wheel = 4;
+          Wait wait = 5;
+          TypeText type_text = 6;
+          KeyDown key_down = 7;
+          KeyUp key_up = 8;
+        }
+
+        // Optional window this action targets. If unset, the action targets the
+        // screen / frontmost application (legacy full-screen behavior).
+        ComputerUseTarget target = 9;
+
+        enum MouseButton {
+          LEFT = 0;
+          RIGHT = 1;
+          MIDDLE = 2;
+          BACK = 3;
+          FORWARD = 4;
+        }
+
+        message MouseMove { Coordinates to = 1; }
+
+        message MouseDown {
+          MouseButton button = 1;
+          Coordinates at = 2;
+        }
+
+        message MouseUp { MouseButton button = 1; }
+
+        message MouseWheel {
+          enum Direction {
+            UP = 0;
+            DOWN = 1;
+            LEFT = 2;
+            RIGHT = 3;
+          }
+
+          Coordinates at = 1;
+          Direction direction = 2;
+
+          // The model providers can provide a scroll distance either in pixels
+          // or clicks.
+          oneof distance {
+            // The number of pixels to scroll.
+            int32 pixels = 3;
+            // The number of times the scroll button is clicked.
+            int32 clicks = 4;
+          }
+        }
+
+        message Wait { google.protobuf.Duration duration = 1; }
+
+        message TypeText { string text = 1 [ (sensitive) = true ]; }
+
+        // Representation of a single key on the keyboard.
+        message Key {
+          oneof data {
+            // Representation of a non-character key (e.g. "Tab", "Enter"). On
+            // MacOS and Windows, this is a keycode that represents the physical
+            // key. On Linux, this is an X11 keysym.
+            int32 keycode = 1;
+            // A character key (e.g. "a", "+").
+            string char = 2;
+          }
+        }
+
+        message KeyDown { Key key = 1; }
+
+        message KeyUp { Key key = 2; }
+      }
+    }
+
+    // A tool call to check with the client that the agent is allowed to
+    // initiate computer use.
+    message RequestComputerUse {
+      // A brief description of what the agent wants to do with computer use.
+      string task_summary = 1 [ (sensitive) = true ];
+      // The parameters that specify the constrains the client must apply to the
+      // screenshot.
+      ScreenshotParams screenshot_params = 2;
+    }
+
+    // A tool call to start recording a video of the computer-use session. The
+    // server owns capture configuration (frame rate, limits) and sends it here;
+    // the agent authors the summary and description.
+    message StartRecording {
+      // Capture frame rate in frames per second.
+      int32 frame_rate = 1;
+      // Limits the runtime enforces; reaching one auto-stops capture.
+      Limits limits = 2;
+      // A short, agent-authored title for the recording, shown as the badge
+      // label in Oz web and the blocklist.
+      string summary = 3;
+      // How many times faster the recorded video should play back relative to
+      // real time. For example, 4 makes a 4-minute recording play in 1 minute.
+      // A value of 0 or 1 means real-time (no speedup). The client applies this
+      // via an ffmpeg presentation-timestamp rescale filter.
+      uint32 playback_speed_multiplier = 4;
+      // The surface to record. If unset or set to screen, record the full
+      // screen (legacy behavior).
+      ComputerUseTarget target = 5;
+      // An optional, longer agent-authored description of what the recording
+      // captures, shown below the recording in detail views such as the video
+      // lightbox.
+      string description = 6;
+
+      // Limits the runtime enforces on a recording.
+      message Limits {
+        // Maximum duration before the runtime auto-stops the recording.
+        google.protobuf.Duration max_duration = 1;
+        // Maximum output size in bytes before the runtime auto-stops the
+        // recording.
+        int64 max_size_bytes = 2;
+      }
+    }
+
+    // A tool call to stop an in-progress recording and publish the resulting
+    // video as a file artifact.
+    message StopRecording {
+      // The recording to stop, as returned by `StartRecordingResult`.
+      string recording_id = 1;
+
+      // Whether the finalized recording should be discarded instead of
+      // uploaded as a file artifact. Defaults to false (persist/upload), so
+      // omitting it preserves legacy behavior; set true only when the agent
+      // explicitly wants to throw the recording away.
+      bool discard = 2;
+    }
+
+    message ScreenshotParams {
+      // The maximum length of the long edge of the screenshot in pixels.
+      int32 max_long_edge_px = 1;
+      // The maximum total number of pixels in the screenshot.
+      int32 max_total_px = 2;
+      // Capture a rectangular sub-region of the selected target. If unset,
+      // capture the full target.
+      Region region = 3;
+
+      // The source to capture. If unset, capture the screen / main display
+      // (legacy behavior).
+      ComputerUseTarget target = 4;
+
+      // A rectangular region defined by its top-left and bottom-right corners.
+      // Coordinates are physical pixels relative to `target`: screen-local for
+      // a screen target and window-local for a window target.
+      message Region {
+        Coordinates top_left = 1;
+        Coordinates bottom_right = 2;
+      }
+    }
+
+    // The surface a computer-use action or screenshot targets.
+    message ComputerUseTarget {
+      oneof target {
+        // Target the whole screen / frontmost application (legacy behavior).
+        Screen screen = 1;
+        // Target a specific background window of a specific process.
+        Window window = 2;
+      }
+
+      message Screen {}
+
+      message Window {
+        // An opaque, platform-specific identifier for the target window. Sent
+        // as a string so window IDs that cannot be represented as an integer on
+        // some platforms are still supported. The client interprets it.
+        string window_id = 1;
+        // The pid of the process that owns the window.
+        int32 pid = 2;
+      }
+    }
+
+    // A tool call indicating the agent has yielded and is waiting for inbound
+    // events (a user message, an inbound message from another agent, or a
+    // lifecycle event). The wait ends when either (a) a new inbound input
+    // supersedes the call or (b) `idle_timeout_seconds` elapses without any
+    // inbound input arriving.
+    message WaitForEvents {
+      // Upper bound on how long the client should wait. Unset means the client
+      // should fall back to its default waiting policy.
+      int32 idle_timeout_seconds = 1;
+    }
+  }
+
+  // Entry in the message log representing the result of a tool call.
+  message ToolCallResult {
+    reserved 13, 33, 37;
+    reserved refine, start_agent, start_agent_v2;
+
+    string tool_call_id = 1;
+
+    // Context that the client supplied as part of the tool call result input.
+    //
+    // Not included for `ServerResult`s.
+    InputContext context = 11;
+
+    oneof result {
+      RunShellCommandResult run_shell_command = 2;
+      SearchCodebaseResult search_codebase = 3;
+      ServerResult server = 4;
+      ReadFilesResult read_files = 5;
+      ApplyFileDiffsResult apply_file_diffs = 6;
+      SuggestPlanResult suggest_plan = 7;
+      SuggestCreatePlanResult suggest_create_plan = 8;
+      GrepResult grep = 9;
+      // DEPRECATED: Being replaced by FileGlobV2Result.
+      FileGlobResult file_glob = 10 [ deprecated = true ];
+      google.protobuf.Empty cancel = 14;
+      ReadMCPResourceResult read_mcp_resource = 15;
+      CallMCPToolResult call_mcp_tool = 16;
+      WriteToLongRunningShellCommandResult write_to_long_running_shell_command =
+          17;
+      SuggestNewConversationResult suggest_new_conversation = 18;
+      FileGlobV2Result file_glob_v2 = 19;
+      SuggestPromptResult suggest_prompt = 20;
+      OpenCodeReviewResult open_code_review = 21;
+      InitProjectResult init_project = 22;
+      SubagentResult subagent = 23;
+      ReadDocumentsResult read_documents = 24;
+      EditDocumentsResult edit_documents = 25;
+      CreateDocumentsResult create_documents = 26;
+      ReadShellCommandOutputResult read_shell_command_output = 27;
+      UseComputerResult use_computer = 28;
+      InsertReviewCommentsResult insert_review_comments = 29;
+      ReadSkillResult read_skill = 30;
+      RequestComputerUseResult request_computer_use_result = 31;
+      FetchConversationResult fetch_conversation = 32;
+      SendMessageToAgentResult send_message_to_agent = 34;
+      TransferShellCommandControlToUserResult
+          transfer_shell_command_control_to_user = 35;
+      AskUserQuestionResult ask_user_question = 36;
+      UploadFileArtifactResult upload_file_artifact = 38;
+      RunAgentsResult run_agents_result = 39;
+      WaitForEventsResult wait_for_events = 40;
+      StartRecordingResult start_recording = 41;
+      StopRecordingResult stop_recording = 42;
+    }
+
+    // Result of a server-side tool call.
+    // Provided by the server to simply roundtrip.
+    message ServerResult { string serialized_result = 1; }
+
+    message SubagentResult { string payload = 1; }
+  }
+
+  // An event that is preserved in message history
+  // for server-side processing.
+  //
+  // The client should treat the `payload` as an opaque blob.
+  message ServerEvent { string payload = 1; }
+
+  // Message for TODO list operations.
+  message UpdateTodos {
+    oneof operation {
+      CreateTodoList create_todo_list = 1;
+      UpdatePendingTodos update_pending_todos = 2;
+      MarkTodosCompleted mark_todos_completed = 3;
+    }
+  }
+
+  // Message for review comment operations.
+  message UpdateReviewComments {
+    oneof operation { AddressReviewComments address_review_comments = 1; }
+
+    message AddressReviewComments { repeated string comment_ids = 1; }
+  }
+
+  message WebSearch {
+    Status status = 1;
+
+    message Status {
+      oneof type {
+        Searching searching = 1;
+        Success success = 2;
+        google.protobuf.Empty error = 3;
+      }
+
+      message Searching { string query = 1 [ (sensitive) = true ]; }
+
+      message Success {
+        string query = 1 [ (sensitive) = true ];
+        repeated SearchedPage pages = 2;
+
+        message SearchedPage {
+          string url = 1 [ (sensitive) = true ];
+          string title = 2 [ (sensitive) = true ];
+        }
+      }
+    }
+  }
+
+  message WebFetch {
+    Status status = 1;
+
+    message Status {
+      oneof type {
+        Fetching fetching = 1;
+        Success success = 2;
+        google.protobuf.Empty error = 3;
+      }
+
+      message Fetching { repeated string urls = 1 [ (sensitive) = true ]; }
+
+      message Success {
+        repeated FetchedPage pages = 1;
+
+        message FetchedPage {
+          string url = 1 [ (sensitive) = true ];
+          string title = 2 [ (sensitive) = true ];
+          bool success = 3;
+        }
+      }
+    }
+  }
+
+  // Debug output message type for staging/local development only.
+  // These messages are emitted by the server for debugging purposes
+  // and should only be displayed on WarpDev client builds.
+  message DebugOutput { string text = 1; }
+
+  // Message for artifact-related events.
+  message ArtifactEvent {
+    oneof event {
+      ArtifactCreated created = 1;
+      ForkArtifacts fork_artifacts = 2;
+    }
+
+    message PullRequestArtifact {
+      string url = 1 [ (sensitive) = true ];
+      string branch = 2 [ (sensitive) = true ];
+    }
+
+    message ScreenshotArtifact {
+      string artifact_uid = 1;
+      string mime_type = 2;
+      string description = 3 [ (sensitive) = true ];
+    }
+
+    message FileArtifact {
+      string artifact_uid = 1;
+      string filepath = 2;
+      string mime_type = 3;
+      int64 size_bytes = 4;
+      string description = 5 [ (sensitive) = true ];
+    }
+
+    message PlanArtifact {
+      string document_id = 1;
+      string notebook_uid = 2;
+      string title = 3 [ (sensitive) = true ];
+    }
+
+    // An artifact associated with a conversation, used by ForkArtifacts.
+    message ConversationArtifact {
+      oneof artifact {
+        PullRequestArtifact pull_request = 1;
+        ScreenshotArtifact screenshot = 2;
+        PlanArtifact plan = 3;
+        FileArtifact file = 4;
+      }
+    }
+
+    // Notifies the client that an artifact was created (e.g. a PR or file).
+    message ArtifactCreated {
+      // We do not use this event to notify the client about plan artifact
+      // creation, which happens when we sync a plan to Warp Drive, so we
+      // explicitly list the supported created artifact types instead of reusing
+      // the `ConversationArtifact` type.
+      oneof artifact {
+        PullRequestArtifact pull_request = 1;
+        ScreenshotArtifact screenshot = 2;
+        FileArtifact file = 3;
+      }
+    }
+
+    // Sets conversation artifacts on fork.
+    message ForkArtifacts { repeated ConversationArtifact artifacts = 1; }
+  }
+
+  message InvokeSkill {
+    Skill skill = 1;
+    // This field is used to either pass in arguments for the skill invocation
+    // (if the skill contents have any arguments) or pass a query to be added at
+    // the same time as the skill invocation (in the case of 0-arg skills).
+    UserQuery user_query = 2;
+  }
+
+  // Notifies the client which model was used for this turn.
+  message ModelUsed {
+    string model_id = 1;
+    string model_display_name = 2;
+    bool is_fallback = 3;
+    // The time at which the provider-side prompt cache for this request is
+    // expected to expire. Absent means unknown / no cache-expiry info.
+    google.protobuf.Timestamp prompt_cache_expires_at = 4 [ (internal) = true ];
+  }
+}
+
+// Result of a `RunShellCommand` tool call.
+message RunShellCommandResult {
+  // The command that was actually run. This might be different
+  // from the command in the corresponding tool-call payload if the user
+  // edited it before running.
+  string command = 3 [ (sensitive) = true ];
+
+  oneof result {
+    // The command is now considered long-running and this is it's latest
+    // snapshot.
+    LongRunningShellCommandSnapshot long_running_command_snapshot = 4;
+
+    // The command completed.
+    ShellCommandFinished command_finished = 5;
+
+    // The command was denied permission to run.
+    PermissionDenied permission_denied = 6;
+  }
+
+  // Deprecated; use [ShellCommandFinished::output] instead;
+  string output = 1 [ deprecated = true, (sensitive) = true ];
+
+  // Deprecated; use [ShellCommandFinished::exit_code] instead;
+  int32 exit_code = 2 [ deprecated = true ];
+}
+
+// Result of a `ReadFiles` tool call.
+// "success" means at least one file was read successfully.
+// "error" means no files were read successfully.
+message ReadFilesResult {
+  oneof result {
+    TextFilesSuccess text_files_success = 1;
+    AnyFilesSuccess any_files_success = 3;
+    Error error = 2;
+  }
+
+  message FailedRead {
+    string path = 1 [ (sensitive) = true ];
+    string message = 2 [ (sensitive) = true ];
+  }
+
+  message TextFilesSuccess {
+    repeated FileContent files = 1;
+    repeated FailedRead failed_reads = 2;
+  }
+
+  message AnyFilesSuccess {
+    repeated AnyFileContent files = 1;
+    repeated FailedRead failed_reads = 2;
+  }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+// Result of a `SearchCodebase` tool call.
+message SearchCodebaseResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success { repeated FileContent files = 1; }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+// Result of a `ApplyFileDiffs` tool call.
+message ApplyFileDiffsResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success {
+    // Deprecated: Use updated_files_v2 instead. This field is kept for backward
+    // compatibility with older clients and will be removed in a future version.
+    repeated FileContent updated_files = 1 [ deprecated = true ];
+
+    repeated UpdatedFileContent updated_files_v2 = 2;
+    repeated DeletedFile deleted_files = 3;
+
+    message UpdatedFileContent {
+      // Content of the updated file.
+      FileContent file = 1;
+      // Whether the applied update contains user edit.
+      bool was_edited_by_user = 2;
+    }
+
+    message DeletedFile { string file_path = 1 [ (sensitive) = true ]; }
+  }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+// Result of a `SuggestCreatePlan` tool call.
+message SuggestCreatePlanResult { bool accepted = 1; }
+
+// Result of a `SuggestPlan` tool call.
+message SuggestPlanResult {
+  oneof result {
+    // The user accepted the plan as-is.
+    google.protobuf.Empty accepted = 1;
+    // The user provided a manually-edited plan to execute.
+    UserEditedPlan user_edited_plan = 2;
+  }
+
+  // A plan that was provided by the user.
+  message UserEditedPlan {
+    // The plan text provided by the user.
+    string plan_text = 1 [ (sensitive) = true ];
+  }
+}
+
+// Result of a `Grep` tool call.
+message GrepResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success {
+    // List of files containing lines that matched the grep query.
+    repeated GrepFileMatch matched_files = 1;
+
+    message GrepFileMatch {
+      // The path to the file that matched the grep query.
+      string file_path = 1 [ (sensitive) = true ];
+      // List of line matches within this file.
+      repeated GrepLineMatch matched_lines = 2;
+
+      message GrepLineMatch {
+        // The matched line within the file. This currently only includes the
+        // line number, but could be extended to include the line content in the
+        // future.
+        uint32 line_number = 1;
+      }
+    }
+  }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+// Result of a `FileGlob` tool call.
+message FileGlobResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success {
+    // String containing list of file paths matching the glob patterns.
+    string matched_files = 1 [ (sensitive) = true ];
+  }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+// Result of a `FileGlobV2` tool call.
+message FileGlobV2Result {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success {
+    // List of file paths matching the file name patterns.
+    repeated FileGlobMatch matched_files = 1;
+    message FileGlobMatch {
+      // The path to the file that matched a file name pattern.
+      string file_path = 1 [ (sensitive) = true ];
+    }
+    // Optional warnings from the file glob operation (e.g. permission errors).
+    // These warnings are typically from stderr when the find succeeded but
+    // encountered non-fatal issues.
+    string warnings = 2 [ (sensitive) = true ];
+  }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+message MCPResourceContent {
+  // Every MCP resource is uniquely identified by a URI.
+  string uri = 1 [ (sensitive) = true ];
+
+  // The type of content that this MCP resource contains.
+  oneof content_type {
+    Text text = 2;
+    Binary binary = 3;
+  }
+
+  message Text {
+    string content = 1 [ (sensitive) = true ];
+    string mime_type = 2;
+  }
+
+  message Binary {
+    // The raw binary payload.
+    //
+    // This should be b64-encoded already because of the MCP contract:
+    // https://github.com/modelcontextprotocol/modelcontextprotocol/blob/4161f02acc841010004b7357b7907e6a270ad093/schema/2025-03-26/schema.json#L54
+    bytes data = 1 [ (sensitive) = true ];
+    string mime_type = 2;
+  }
+}
+
+message ReadMCPResourceResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success {
+    // Reading a single MCP resource can result in multiple resources.
+    // See
+    // https://modelcontextprotocol.io/docs/concepts/resources#reading-resources.
+    repeated MCPResourceContent contents = 1;
+  }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+message WriteToLongRunningShellCommandResult {
+  oneof result {
+    LongRunningShellCommandSnapshot long_running_command_snapshot = 1;
+    ShellCommandFinished command_finished = 2;
+    ShellCommandError error = 3;
+  }
+}
+
+message TransferShellCommandControlToUserResult {
+  oneof result {
+    LongRunningShellCommandSnapshot long_running_command_snapshot = 1;
+    ShellCommandFinished command_finished = 2;
+    ShellCommandError error = 3;
+  }
+}
+
+message SuggestNewConversationResult {
+  oneof result {
+    Accepted accepted = 1;
+    Rejected rejected = 2;
+  }
+
+  message Accepted { string message_id = 1; }
+
+  message Rejected {}
+}
+
+// The output when a shell command is finished.
+message ShellCommandFinished {
+  string output = 1 [ (sensitive) = true ];
+  int32 exit_code = 2;
+  string command_id = 3;
+  google.protobuf.Timestamp start_ts = 4;
+  google.protobuf.Timestamp finish_ts = 5;
+}
+
+// The reason why a shell command was denied permission to run.
+message PermissionDenied {
+  oneof reason { google.protobuf.Empty denylisted_command = 1; }
+}
+
+message CallMCPToolResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success {
+    repeated Result results = 1;
+
+    message Result {
+      oneof result {
+        Text text = 1;
+        Image image = 2;
+        // An MCP tool call can produce an embedded resource.
+        MCPResourceContent resource = 3;
+      }
+
+      message Text { string text = 1 [ (sensitive) = true ]; }
+      message Image {
+        // The image payload.
+        //
+        // This should be b64-encoded already because of the MCP contract:
+        // https://github.com/modelcontextprotocol/modelcontextprotocol/blob/42273f11b9b3d5d5a93d3af8fd9a942b220adc01/schema/2025-03-26/schema.json#L566
+        bytes data = 1 [ (sensitive) = true ];
+        string mime_type = 2;
+      }
+    }
+  }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+message SuggestPromptResult {
+  oneof result {
+    google.protobuf.Empty accepted = 1;
+    google.protobuf.Empty rejected = 2;
+  }
+}
+
+// Result of an `OpenCodeReview` tool call.
+message OpenCodeReviewResult {}
+
+// Result of an `InitProject` tool call.
+message InitProjectResult {}
+
+// Result of a `ReadDocuments` tool call.
+message ReadDocumentsResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success { repeated DocumentContent documents = 1; }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+// Result of an `EditDocuments` tool call.
+message EditDocumentsResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success { repeated DocumentContent updated_documents = 1; }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+// Result of a `CreateDocuments` tool call.
+message CreateDocumentsResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success { repeated DocumentContent created_documents = 1; }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+message ReadShellCommandOutputResult {
+  string command = 1 [ (sensitive) = true ];
+  oneof result {
+    LongRunningShellCommandSnapshot long_running_command_snapshot = 2;
+    ShellCommandFinished command_finished = 3;
+    ShellCommandError error = 4;
+  }
+}
+
+message InsertReviewCommentsResult {
+  string repo_path = 1 [ (sensitive) = true ];
+  oneof result {
+    Success success = 2;
+    Error error = 3;
+  }
+
+  message Success {}
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+// Physical pixel coordinates relative to the selected computer-use target.
+message Coordinates {
+  int32 x = 1;
+  int32 y = 2;
+}
+
+message UseComputerResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success {
+    RawImage screenshot = 1;
+    Coordinates cursor_position = 2;
+
+    // Metadata about the window that the screenshot captured. Set only when a
+    // window target was used (it lets the agent map window-local coordinates to
+    // the screenshot image); unset for full-screen captures.
+    CapturedWindow captured_window = 3;
+
+    // The current set of on-screen windows, refreshed after the actions run, so
+    // the agent always has a fresh list to target.
+    repeated WindowInfo windows = 4;
+
+    // Metadata about a captured window.
+    message CapturedWindow {
+      // An opaque, platform-specific window identifier (see ComputerUseTarget).
+      string window_id = 1;
+      // The captured image's dimensions in native physical pixels, before any
+      // downscaling applied for the model. For a region capture, these are the
+      // region's dimensions rather than the full window's dimensions.
+      int32 width_px = 2;
+      int32 height_px = 3;
+    }
+  }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+message ReadSkillResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success {
+    // The content of the SKILL.md file that was read.
+    FileContent content = 1;
+  }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+// The dimensions of a user's screen, used for computer use.
+message ScreenDimensions {
+  int32 width_px = 1;
+  int32 height_px = 2;
+}
+
+// Metadata about an on-screen window, so the agent can select a window to
+// target.
+message WindowInfo {
+  // An opaque, platform-specific identifier for the window.
+  string window_id = 1;
+  // The pid of the process that owns the window.
+  int32 pid = 2;
+  // The owning application's name (e.g. "Arc", "Notes").
+  string app_name = 3 [ (sensitive) = true ];
+  // The window title, if available.
+  string title = 4 [ (sensitive) = true ];
+  // The window layer (0 is a normal application window).
+  int32 layer = 5;
+}
+
+// Result of a `RequestComputerUse` tool call.
+message RequestComputerUseResult {
+  oneof result {
+    // The user approved this computer use.
+    Approved approved = 1;
+    // The user rejected this comptuer use.
+    Rejected rejected = 2;
+    // There was an error requesting computer use.
+    Error error = 3;
+  }
+
+  message Approved {
+    // The dimensions of the screen that we are using computer use on.
+    ScreenDimensions screen_dimensions = 1;
+
+    // The screenshot that captures the initial state of the computer.
+    RawImage initial_screenshot = 2;
+
+    // That platform that computer use is running on.
+    Platform platform = 3;
+
+    enum Platform {
+      MACOS = 0;
+      WINDOWS = 1;
+      LINUX_X11 = 2;
+      LINUX_WAYLAND = 3;
+    }
+
+    // The current set of on-screen windows the agent may target.
+    repeated WindowInfo windows = 4;
+  }
+
+  message Rejected {}
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+// Result of a `StartRecording` tool call.
+message StartRecordingResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success {
+    // Identifier for the started recording, used to stop it later.
+    string recording_id = 1;
+    // When the recording started.
+    google.protobuf.Timestamp started_at = 2;
+    // The capture dimensions the client resolved from the display.
+    CaptureSettings settings = 3;
+  }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+
+  // The capture dimensions the client resolved from the display.
+  message CaptureSettings {
+    int32 width_px = 1;
+    int32 height_px = 2;
+  }
+}
+
+// Result of a `StopRecording` tool call.
+message StopRecordingResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+    // The agent chose not to persist the recording, so no artifact was
+    // produced. This is not an error.
+    Discarded discarded = 3;
+  }
+
+  message Discarded {}
+
+  message Success {
+    // The UID of the uploaded video file artifact.
+    string artifact_uid = 1;
+    // Total duration of the recording.
+    google.protobuf.Duration duration = 2;
+    int32 width_px = 3;
+    int32 height_px = 4;
+    // Size of the recorded video file in bytes.
+    int64 size_bytes = 5;
+    // Whether the recording finalized cleanly or was cut short.
+    CompletionStatus completion_status = 6;
+    // Human-readable reason the recording terminated.
+    string termination_reason = 7;
+  }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+
+  // Indicates whether the recording captured the full requested flow.
+  enum CompletionStatus {
+    COMPLETION_STATUS_UNSPECIFIED = 0;
+    COMPLETION_STATUS_COMPLETE = 1;
+    COMPLETION_STATUS_INCOMPLETE = 2;
+  }
+}
+
+// Result of a `FetchConversation` tool call.
+message FetchConversationResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success {
+    reserved 1;
+    reserved tasks;
+    // The path to the directory containing the materialized conversation YAML
+    // files.
+    string directory_path = 2;
+  }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+message ShellCommandError {
+  oneof type {
+    // There was no command execution found with the given command_id in the
+    // tool call.
+    google.protobuf.Empty command_not_found = 1;
+  }
+}
+
+// An enumeration of the different types of client-server tools.
+// This must map 1:1 with the list of structured tool call / tool call result
+// types.
+//
+// Note that the `Server` tool is omitted from this list as an exception;
+// it's not a tool call understood by the client.
+enum ToolType {
+  reserved 26, 30;
+  reserved START_AGENT, START_AGENT_V2;
+
+  RUN_SHELL_COMMAND = 0;
+  SEARCH_CODEBASE = 1;
+  READ_FILES = 2;
+  APPLY_FILE_DIFFS = 3;
+  SUGGEST_PLAN = 4;
+  SUGGEST_CREATE_PLAN = 5;
+  GREP = 6;
+  FILE_GLOB = 7;
+  READ_MCP_RESOURCE = 8;
+  CALL_MCP_TOOL = 9;
+  WRITE_TO_LONG_RUNNING_SHELL_COMMAND = 10;
+  SUGGEST_NEW_CONVERSATION = 11;
+  FILE_GLOB_V2 = 12;
+  SUGGEST_PROMPT = 13;
+  OPEN_CODE_REVIEW = 14;
+  INIT_PROJECT = 15;
+  SUBAGENT = 16;
+  READ_DOCUMENTS = 17;
+  EDIT_DOCUMENTS = 18;
+  CREATE_DOCUMENTS = 19;
+  READ_SHELL_COMMAND_OUTPUT = 20;
+  USE_COMPUTER = 21;
+  INSERT_REVIEW_COMMENTS = 22;
+  READ_SKILL = 23;
+  REQUEST_COMPUTER_USE = 24;
+  FETCH_CONVERSATION = 25;
+  SEND_MESSAGE_TO_AGENT = 27;
+  TRANSFER_SHELL_COMMAND_CONTROL_TO_USER = 28;
+  ASK_USER_QUESTION = 29;
+  UPLOAD_FILE_ARTIFACT = 31;
+  RUN_AGENTS = 32;
+  WAIT_FOR_EVENTS = 33;
+  START_RECORDING = 34;
+  STOP_RECORDING = 35;
+}
+
+message UserQueryMode {
+  oneof type {
+    // We can change this to a non-empty `Plan` type later, this is backwards
+    // compatible
+    google.protobuf.Empty plan = 1;
+    google.protobuf.Empty orchestrate = 2;
+  }
+}
+
+enum AgentType {
+  AGENT_TYPE_UNKNOWN = 0;
+  AGENT_TYPE_PRIMARY = 1;
+  AGENT_TYPE_CLI = 2;
+}
+
+// Classifies the risk level of a shell command.
+enum RiskCategory {
+  RISK_CATEGORY_UNSPECIFIED = 0;
+  RISK_CATEGORY_READ_ONLY = 1;
+  RISK_CATEGORY_TRIVIAL_LOCAL_CHANGE = 2;
+  RISK_CATEGORY_NONTRIVIAL_LOCAL_CHANGE = 3;
+  RISK_CATEGORY_EXTERNAL_CHANGE = 4;
+  RISK_CATEGORY_RISKY = 5;
+}
+
+// A client tool call to start a batch of child agents that share run-wide
+// configuration (model, harness, execution mode).
+message RunAgents {
+  message Local {}
+  message Remote {
+    string environment_id = 1;
+    string worker_host = 2;
+    // LLM-set per call based on whether the children need computer use
+    // (browser automation, visual inspection, etc.). Not a user preference.
+    bool computer_use_enabled = 3;
+    // Optional UID of the runner (OS and resource configuration) for the
+    // remote children.
+    string runner_id = 4;
+  }
+
+  message ExecutionMode {
+    oneof mode {
+      Local local = 1;
+      Remote remote = 2;
+    }
+  }
+
+  // Configuration for a single child agent in the batch.
+  message AgentRunConfig {
+    // Display name for the child agent. Required: must be non-empty and
+    // unique across the entries in a single RunAgents call. The server
+    // rejects violations with
+    // RunAgentsResult.Failure { error: "agent names must be non-empty and
+    // unique" }.
+    string name = 1 [ (sensitive) = true ];
+    string prompt = 2 [ (sensitive) = true ];
+    // Title for the spawned agent's task.
+    string title = 3 [ (sensitive) = true ];
+    // Optional UID of the named agent (service account) the child run should
+    // execute as. Only valid for factory agents dispatching sibling factory
+    // agents; enforced server-side at dispatch time.
+    string agent_identity_uid = 4;
+
+    // Optional, per-agent overrides.
+    string model_id = 5;
+    Harness harness = 6;
+    ExecutionMode execution_mode = 7;
+  }
+
+  string summary = 1 [ (sensitive) = true ];
+  string base_prompt = 2 [ (sensitive) = true ];
+  repeated SkillRef skills = 3;
+  string model_id = 4;
+  Harness harness = 5;
+  oneof execution_mode {
+    Local local = 6;
+    Remote remote = 7;
+  }
+  repeated AgentRunConfig agent_run_configs = 8;
+  // Optional plan ID. When set and matches an OrchestrationConfigSnapshot's
+  // plan_id, run-wide fields inherit from that config.
+  string plan_id = 9;
+}
+
+// The result of a RunAgents tool call.
+message RunAgentsResult {
+  oneof outcome {
+    Launched launched = 1;
+    Denied denied = 2;
+    Failure failure = 3;
+  }
+
+  // Orchestration launched. Carries the resolved configuration and
+  // per-agent outcomes.
+  message Launched {
+    repeated AgentOutcome agents = 5;
+
+    // Deprecated: use per-agent configurations in AgentOutcome instead.
+    string resolved_model_id = 1 [ deprecated = true ];
+    Harness resolved_harness = 2 [ deprecated = true ];
+    oneof resolved_execution_mode {
+      RunAgents.Local local = 3 [ deprecated = true ];
+      RunAgents.Remote remote = 4 [ deprecated = true ];
+    }
+  }
+
+  // Declined for a non-error reason.
+  message Denied { string reason = 1; }
+
+  // Actual error: server-side validation rejected the call, or the client
+  // could not begin the launch sequence. NOT used for user-driven outcomes
+  // (disapproval, cancellation) -- those have their own variants.
+  message Failure { string error = 1 [ (sensitive) = true ]; }
+
+  // Per-agent outcome. Clients correlate entries to AgentRunConfig inputs by
+  // `name`.
+  message AgentOutcome {
+    string name = 1 [ (sensitive) = true ];
+    oneof result {
+      LaunchedAgent launched = 2;
+      FailedAgent failed = 3;
+    }
+
+    // How the agent was ultimately configured.
+    string model_id = 4;
+    Harness harness = 5;
+    RunAgents.ExecutionMode execution_mode = 6;
+  }
+
+  message LaunchedAgent { string agent_id = 1; }
+  message FailedAgent { string error = 1 [ (sensitive) = true ]; }
+}
+
+// A client tool call to send a message to one or more agents.
+message SendMessageToAgent {
+  // The agent IDs of the recipients.
+  repeated string addresses = 1;
+  // The subject line of the message.
+  string subject = 2 [ (sensitive) = true ];
+  // The body of the message.
+  string message = 3 [ (sensitive) = true ];
+}
+
+// The result of a SendMessageToAgent tool call.
+message SendMessageToAgentResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success {
+    // The client-generated message ID.
+    string message_id = 1;
+  }
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+// A client tool call to present one or more questions to the user.
+message AskUserQuestion {
+  repeated Question questions = 1;
+
+  // A selectable option presented to the user.
+  message Option { string label = 1; }
+
+  // A multiple-choice question configuration.
+  message MultipleChoice {
+    repeated Option options = 1;
+    // Zero-based index into `options` identifying the recommended choice.
+    int32 recommended_option_index = 2;
+    // If true, the user may select more than one option.
+    bool is_multiselect = 3;
+    // If true, the user may provide free-form input in addition to the options.
+    bool supports_other = 4;
+  }
+
+  // A single question to present to the user.
+  message Question {
+    string question_id = 1;
+    string question = 2;
+    oneof question_type { MultipleChoice multiple_choice = 3; }
+  }
+}
+
+// The result of an AskUserQuestion tool call.
+message AskUserQuestionResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success { repeated AnswerItem answers = 1; }
+
+  message Error { string message = 1; }
+
+  // The user's answer to a single question.
+  message AnswerItem {
+    string question_id = 1;
+    oneof answer {
+      MultipleChoiceAnswer multiple_choice = 2;
+      google.protobuf.Empty skipped = 3;
+    }
+
+    message MultipleChoiceAnswer {
+      repeated string selected_options = 1;
+      // Populated if the user provided free-form "Other" input.
+      string other_text = 2;
+    }
+  }
+}
+
+// A client tool call to upload a local file as a conversation artifact.
+message UploadFileArtifact {
+  FilePathReference file = 1;
+  // Client/agent-provided description; non-sensitive by design.
+  string description = 2;
+}
+
+// The result of an UploadFileArtifact tool call.
+message UploadFileArtifactResult {
+  oneof result {
+    Success success = 1;
+    Error error = 2;
+  }
+
+  message Success {
+    string artifact_uid = 1;
+    string mime_type = 2;
+    int64 size_bytes = 3;
+  }
+
+  message Error { string message = 1 [ (sensitive) = true ]; }
+}
+
+message WaitForEventsResult {}
+
+message PassiveSuggestionResultType {
+  oneof trigger {
+    ExecutedShellCommand executed_shell_command = 1;
+    AgentResponseCompleted agent_response_completed = 2;
+  }
+
+  oneof suggestion {
+    Prompt prompt = 3;
+    CodeDiff code_diff = 4;
+  }
+
+  message AgentResponseCompleted {}
+
+  message Prompt { string prompt = 1; }
+
+  message CodeDiff {
+    // The suggested diffs.
+    repeated Diff diffs = 1;
+    // A brief description of the change, if any.
+    string summary = 2;
+    // Passive code diffs can be rejected but brought into context for further
+    // iteration.
+    bool accepted = 3;
+
+    message Diff {
+      string file_path = 1;
+      string search = 2;
+      string replace = 3;
+    }
+  }
+}
+
+message RawImage {
+  // Raw image bytes.
+  bytes data = 1 [ (sensitive) = true ];
+  // MIME type of the image content (e.g., "image/png").
+  string mime_type = 2;
+  // The width of the image, in pixels.
+  int32 width = 3;
+  // The height of the image, in pixels.
+  int32 height = 4;
+}

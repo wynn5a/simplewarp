@@ -1,0 +1,17 @@
+[package]
+name = "warp_multi_agent_api"
+version = "0.0.0"
+edition = "2021"
+authors.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Vendored warp.multi_agent.v1 protobuf types (from warp-proto-apis) used as the agent wire and persistence contract"
+
+[dependencies]
+prost.workspace = true
+prost-reflect = { workspace = true, features = ["derive"] }
+prost-types.workspace = true
+
+[build-dependencies]
+prost-reflect-build.workspace = true
+regex.workspace = true

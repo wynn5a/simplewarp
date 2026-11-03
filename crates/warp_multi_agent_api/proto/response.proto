@@ -1,0 +1,380 @@
+// The response types for the multi-agent API.
+edition = "2023";
+
+package warp.multi_agent.v1;
+
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/go_features.proto";
+
+import "options.proto";
+import "suggestions.proto";
+import "task.proto";
+
+option go_package = "github.com/warpdotdev/warp-proto-apis/apis/multi_agent/v1/gen/go;v1";
+option features.(pb.go).api_level = API_OPAQUE;
+
+// A single streamed event returned by the multi-agent API.
+message ResponseEvent {
+  // The type of the event.
+  oneof type {
+    // An event to indicate the stream has successfully started.
+    // Sent exactly once as the first streamed event.
+    StreamInit init = 1;
+
+    // An event to relay actions that the client should apply.
+    ClientActions client_actions = 2;
+
+    // Sent exactly once as the final event for streams that finished
+    // gracefully.
+    StreamFinished finished = 3;
+  }
+
+  message StreamInit {
+    // A unique ID for this conversation.
+    //
+    // If the request started a new conversation, this is a newly generated ID.
+    // Else, if it continued an existing conversation, this is the same
+    // conversation ID provided in the request.
+    //
+    // This should be round-tripped back to the server for any subsequent
+    // requests that continue this conversation.
+    string conversation_id = 1;
+
+    // A unique ID for this request.
+    //
+    // This is mainly used for logging and analytics, so we can join client
+    // telemetry events on this ID.
+    string request_id = 2;
+
+    // A stable Oz run identifier for this conversation.
+    //
+    // This always identifies the ai_tasks row backing the run.
+    // If a local conversation enters agent mode for the first time, that row is
+    // created when the request starts.
+    // If the request is already associated with an ambient/cloud run, this reuses
+    // that existing run row ID.
+    string run_id = 3;
+  }
+
+  message ClientActions { repeated ClientAction actions = 1; }
+
+  message StreamFinished {
+    oneof reason {
+      Other other = 1;
+      Done done = 2;
+      ReachedMaxTokenLimit max_token_limit = 3;
+      QuotaLimit quota_limit = 4;
+      ContextWindowExceeded context_window_exceeded = 5;
+      LLMUnavailable llm_unavailable = 6;
+      InternalError internal_error = 7;
+      InvalidApiKey invalid_api_key = 12;
+    }
+
+    // Internal-only field containing per-model token usage incurred in producing the response
+    // stream.
+    repeated TokenUsage token_usage = 8 [ (internal) = true];
+
+    // `true` if the client should refresh its model config, typically if the model config in the
+    // request implies the client's model config is stale.
+    bool should_refresh_model_config = 9;
+
+    // Describes what we charged the user for this AM request.
+    RequestCost request_cost = 10;
+
+    // Aggregated usage metadata for a given conversation.
+    ConversationUsageMetadata conversation_usage_metadata = 11;
+
+    message ConversationUsageMetadata {
+      // The fraction of the base model's context window that is used in the current conversation (i.e. total tokens / model context window).
+      float context_window_usage = 1;
+      // Input tokens of the latest primary-agent LLM call in the latest successfully persisted
+      // top-level request, when that request had Warp-charged or BYOK usage; 0 otherwise.
+      uint32 total_input_tokens = 10;
+
+      // Whether messages were summarized for the agent because the conversation got too big (i.e. the context window was too full)
+      bool summarized = 2;
+
+      // The total number of inference credits spent so far in the conversation.
+      float credits_spent = 3;
+
+      // Token usage across every model used so far in the conversation.
+      // This has been deprecated. Use warp_token_usage and byok_token_usage instead.
+      repeated ModelTokenUsage token_usage = 4 [deprecated = true];
+
+      // Tool usage data across every tool the agent could use (excluding some passive and server tools).
+      ToolUsageMetadata tool_usage_metadata = 5;
+
+      // Token usage using the warp API key.
+      map<string, ModelTokenUsage> warp_token_usage = 6;
+
+      // Token usage using a user's API key.
+      map<string, ModelTokenUsage> byok_token_usage = 7;
+
+      // The total number of platform credits spent so far in the conversation.
+      float platform_credits_spent = 8;
+
+      // Token usage using a custom endpoint.
+      // The model id used in custom_endpoint_token_usage is the config_key of custom model
+      map<string, ModelTokenUsage> custom_endpoint_token_usage = 9;
+
+      // A breakdown of the context window usage into segments
+      // (e.g. system prompt, tool definitions, conversation history, latest
+      // input). The segment token counts add up to the token total represented
+      // by `context_window_usage`. The client derives per-segment percentages
+      // from these token counts; the API does not guarantee any ordering.
+      repeated ContextWindowSegment context_window_segments = 11 [ (internal) = true ];
+    }
+
+    // A single portion of the context window, described by its kind and an
+    // estimated token count.
+    message ContextWindowSegment {
+      // The kind of context window segment this entry represents.
+      ContextWindowSegmentType segment_type = 1;
+
+      // The estimated number of tokens this segment contributes to the
+      // current context window usage.
+      uint32 token_count = 2;
+    }
+
+    // The kind of a ContextWindowSegment.
+    enum ContextWindowSegmentType {
+      // Unknown or unclassified segment.
+      UNKNOWN = 0;
+      // The system prompt.
+      SYSTEM_PROMPT = 1;
+      // Tool definitions provided to the model.
+      TOOL_DEFINITIONS = 2;
+      // Prior conversation history.
+      CONVERSATION_HISTORY = 3;
+      // The latest user input.
+      LATEST_INPUT = 4;
+      // Image attachments.
+      IMAGES = 5;
+      // Any other segment not covered by the values above.
+      OTHER = 6;
+    }
+
+    // Token usage by model.
+    // We maintain this message type in addition to the more detailed TokenUsage
+    // type as this message is used to track simple token usage stats on a per-model
+    // basis, while TokenUsage is used to track much more granular data.
+    message ModelTokenUsage {
+      // The internal id of the model.
+      // This has been deprecated, as we now use the model id as a key to access this value.
+      string model_id = 1 [deprecated = true];
+
+      // The total tokens that we have used with the given model in this conversation.
+      uint32 total_tokens = 2;
+
+      // Breakdown of total_tokens by usage category (e.g. "primary_agent", "compaction", etc.).
+      map<string, uint32> token_usage_by_category = 3;
+    }
+
+    // Tool usage by tool.
+    message ToolUsageMetadata {
+      RunCommandStats     run_command_stats = 1;
+      ToolCallStats       read_files_stats = 2;
+      ToolCallStats       search_codebase_stats = 3;
+      ToolCallStats       grep_stats = 4;
+      ToolCallStats       file_glob_stats = 5;
+      ApplyFileDiffStats  apply_file_diff_stats = 6;
+      ToolCallStats       write_to_long_running_shell_command_stats = 7;
+      ToolCallStats       read_mcp_resource_stats = 8;
+      ToolCallStats       call_mcp_tool_stats = 9;
+      ToolCallStats       suggest_plan_stats = 10;
+      ToolCallStats       suggest_create_plan_stats = 11;
+      ToolCallStats       read_shell_command_output_stats = 12;
+      ToolCallStats       use_computer_stats = 13;
+    }
+
+    message ToolCallStats {
+      // The number of times this tool has been called in the conversation thus far.
+      // This includes tool calls that were rejected or cancelled by the user.
+      int32 count = 1;
+    }
+
+    message ApplyFileDiffStats {
+      int32 count = 1;
+      int32 lines_added = 2;
+      int32 lines_removed = 3;
+
+      // The total number of unique files that have been changed in this conversation.
+      int32 files_changed = 4;
+    }
+
+    message RunCommandStats {
+      int32 count = 1;
+
+      // The number of commands that have been succesfully executed
+      // (i.e. accepted by the user and run)
+      int32 command_executed = 2;
+    }
+
+    message RequestCost {
+        // The exact, fractional cost of the request in inference credits.
+        float exact = 1;
+
+        // How many platform credits this request incurred.
+        float platform_credits = 2;
+    }
+
+    // We maintain this message type in addition to the more sparse ModelTokenUsage
+    // type as that message is used to track simple token usage stats on a per-model
+    // basis, while this is used to track much more granular data.
+    message TokenUsage {
+        string model_id = 1;
+
+        // The total number of input tokens incurred for this model.
+        uint32 total_input = 2;
+
+        // The total number of output tokens incurred for this model.
+        uint32 output = 3;
+
+        // The total number of input cache read tokens incurred for this model.
+        //
+        // This is only populated for Anthropic models, which have the only API which provides such
+        // granular cached token usage information.
+        uint32 input_cache_read = 4;
+
+        // The total number of input cache write tokens incurred for this model.
+        //
+        // This is only populated for Anthropic models, which have the only API which provides such
+        // granular cached token usage information.
+        uint32 input_cache_write = 5;
+
+        // The cost of this model's token usage in cents.
+        float cost_in_cents = 6;
+    }
+
+    message Other {}
+    message Done {}
+    message ReachedMaxTokenLimit {}
+    message QuotaLimit {}
+    message ContextWindowExceeded {}
+    message LLMUnavailable {}
+    message InvalidApiKey {
+      LLMProvider provider = 1;
+      string model_name = 2;
+    }
+    message InternalError { string message = 1; }
+  }
+}
+
+// Client actions that can be requested in a response
+message ClientAction {
+  reserved update_task_status;
+  reserved 2;
+
+  oneof action {
+    CreateTask create_task = 1;
+    AddMessagesToTask add_messages_to_task = 3;
+    UpdateTaskMessage update_task_message = 4;
+    AppendToMessageContent append_to_message_content = 5;
+    Suggestions show_suggestions = 6;
+    UpdateTaskSummary update_task_summary = 7;
+    UpdateTaskDescription update_task_description = 8;
+    BeginTransaction begin_transaction = 9;
+    CommitTransaction commit_transaction = 10;
+    RollbackTransaction rollback_transaction = 11;
+    StartNewConversation start_new_conversation = 12;
+    UpdateTaskServerData update_task_server_data = 13;
+    MoveMessagesToNewTask move_messages_to_new_task = 14;
+  }
+
+  // Create task action
+  message CreateTask { Task task = 1; }
+
+  // TODO(matthew): Ought to be able to combine
+  // UpdateTask{Description,Summary} at least.
+
+  message UpdateTaskServerData {
+    string task_id = 1;
+    string server_data = 2;
+  }
+
+  // Update task description action
+  message UpdateTaskDescription {
+    string task_id = 1;
+    string description = 2;
+  }
+
+  // Add message to task action
+  message AddMessagesToTask {
+    string task_id = 1;
+    repeated Message messages = 2;
+  }
+
+  // Update task message action
+  message UpdateTaskMessage {
+    // ID of the task containing the message.
+    string task_id = 3;
+    Message message = 1;
+    google.protobuf.FieldMask mask = 2;
+  }
+
+  // Append to message content action
+  message AppendToMessageContent {
+    // ID of the task containing the message.
+    string task_id = 3;
+    Message message = 1;
+    // Fields in mask must be of type string; content is appended
+    google.protobuf.FieldMask mask = 2;
+  }
+
+  // Updates the summary of a task
+  message UpdateTaskSummary {
+    string task_id = 1;
+    string summary = 2;
+  }
+
+  // Begins a transaction - messages created and updated during a transaction
+  // are provisional and subject to rollback if the server or client encounters
+  // an error.
+  message BeginTransaction {}
+
+  // Commits the active transaction - provisional messages are made permanent.
+  message CommitTransaction {}
+
+  // Rolls back the active transaction - provisional messages are discarded.
+  message RollbackTransaction {}
+
+  // Tells the client that a new conversation is started hereafter.
+  message StartNewConversation {
+    string start_from_message_id = 1;
+  }
+
+  // Moves a contiguous range of messages into a new task, replacing them
+  // in the source task with new messages.
+  message MoveMessagesToNewTask {
+    // ID of the task containing the messages to replace.
+    string source_task_id = 1;
+
+    // A new task to move the messages into.
+    Task new_task = 2;
+
+    // ID of the first message in the range to replace (inclusive).
+    string first_message_id = 3;
+
+    // ID of the last message in the range to replace (inclusive).
+    string last_message_id = 4;
+
+    // The expected number of messages in the range being moved. Acts as a
+    // checksum to verify client and server agree on the range contents.
+    uint32 expected_message_count = 5;
+
+    // The new messages to insert in place of the source range.  If empty,
+    // the messages are simply moved.
+    repeated Message replacement_messages = 6;
+  }
+}
+
+enum LLMProvider {
+  LLM_PROVIDER_UNKNOWN = 0;
+  LLM_PROVIDER_ANTHROPIC = 1;
+  LLM_PROVIDER_OPENAI = 2;
+  LLM_PROVIDER_GOOGLE = 3;
+  LLM_PROVIDER_XAI = 4;
+  LLM_PROVIDER_OPENROUTER = 5;
+  LLM_PROVIDER_AWS_BEDROCK = 6;
+  LLM_PROVIDER_GEMINI_ENTERPRISE = 7;
+}

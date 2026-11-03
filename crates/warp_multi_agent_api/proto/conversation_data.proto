@@ -1,0 +1,24 @@
+// Contains types used for loading conversation data.
+edition = "2023";
+
+package warp.multi_agent.v1;
+
+import "google/protobuf/go_features.proto";
+import "task.proto";
+
+option go_package = "github.com/warpdotdev/warp-proto-apis/apis/multi_agent/v1/gen/go;v1";
+option features.(pb.go).api_level = API_OPAQUE;
+
+// Contains the data needed to save and continue a conversation on another machine.
+// This is the type stored in the ai_conversations GCS bucket.
+// It is also used as the response type for serving the final task list 
+// after applying client actions in an MAA debug API.
+message ConversationData {
+  repeated Task tasks = 1;
+  // The linearized message IDs from the tasks above.
+  // The client cannot derive this from tasks because
+  // starting child tasks is a ServerEvent opaque to the client,
+  // and those events are necessary to know the ordering of messages.
+  // DEPRECATED: the Tasks themselves contain the information needed to linearize now.
+  repeated string ordered_message_ids = 2 [deprecated = true];
+}

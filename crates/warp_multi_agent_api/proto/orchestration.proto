@@ -1,0 +1,68 @@
+// Plan-attached orchestration config types for the multi-agent API.
+edition = "2023";
+
+package warp.multi_agent.v1;
+
+import "google/protobuf/go_features.proto";
+
+option go_package = "github.com/warpdotdev/warp-proto-apis/apis/multi_agent/v1/gen/go;v1";
+option features.(pb.go).api_level = API_OPAQUE;
+
+// The harness that runs an agent. Modeled as a oneof so future per-variant
+// configuration (e.g. an embedded model_id on a third-party harness) can
+// be added without breaking the wire format.
+message Harness {
+  oneof variant {
+    Oz oz = 1;
+    ClaudeCode claude_code = 2;
+    OpenCode open_code = 3;
+    Gemini gemini = 4;
+    Codex codex = 5;
+  }
+  message Oz {}
+  message ClaudeCode {}
+  message OpenCode {}
+  message Gemini {}
+  message Codex {}
+}
+
+// Plan-level orchestration settings.
+message OrchestrationConfig {
+  message Local {}
+  message Remote {
+    string environment_id = 1;
+    string worker_host = 2;
+    string runner_id = 3;
+  }
+  string model_id = 1;
+  Harness harness = 2;
+  oneof execution_mode {
+    Local local = 3;
+    Remote remote = 4;
+  }
+}
+
+// User's approval status for orchestration on a plan.
+message OrchestrationStatus {
+  message Approved {}
+  message Disapproved {}
+  oneof status {
+    Approved approved = 1;
+    Disapproved disapproved = 2;
+  }
+}
+
+// Inbound transport: client sends on its next outbound request after the
+// user edits the plan card.
+message OrchestrationConfigUpdate {
+  string plan_id = 1;
+  OrchestrationConfig config = 2;
+  OrchestrationStatus status = 3;
+}
+
+// Canonical in-history record of an orchestration config update.
+message OrchestrationConfigSnapshot {
+  string plan_id = 1;
+  OrchestrationConfig config = 2;
+  OrchestrationStatus status = 3;
+}

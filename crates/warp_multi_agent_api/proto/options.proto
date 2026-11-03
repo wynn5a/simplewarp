@@ -1,0 +1,22 @@
+edition = "2023";
+
+package warp.multi_agent.v1;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "github.com/warpdotdev/warp-proto-apis/apis/multi_agent/v1/gen/go;v1";
+
+extend google.protobuf.FieldOptions {
+  // Indicates that the field might contain sensitive information (e.g. PII).
+  //
+  // Can be applied to:
+  // scalars: strings, bytes
+  // repeated fields where the repeated item is a supported scalar
+  // map fields where the value is a supported scalar
+  bool sensitive = 50000;
+
+  // Indicates the field should only be populated when the request is made by an internal user.
+  //
+  // E.g., comes from a WarpDev or WarpLocal client.
+  bool internal = 50001;
+}

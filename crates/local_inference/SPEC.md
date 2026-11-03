@@ -46,7 +46,7 @@ input adds to what the model sees, for estimates.
 ## Boundary
 
 It depends on [`agent-harness`](../agent_harness/SPEC.md) for the token-estimate rule only. The wire
-contract is the external `warp_multi_agent_api` crate (git dependency,
-`warp-proto-apis`): the adapter must keep speaking that request/response shape so the client side
-stays unchanged. API keys never leave the machine; the configured provider is the only network
+contract is [`warp_multi_agent_api`](../warp_multi_agent_api/SPEC.md), vendored from
+`warp-proto-apis` and changed additively only: the adapter must keep speaking that request/response
+shape so the client side stays unchanged. API keys never leave the machine; the configured provider is the only network
 destination this crate may talk to.

@@ -165,6 +165,9 @@ memory 会进入以后每次请求的 system prompt，写错的代价比一次�
 
 ### P2 自动压缩（规模：M–L，依赖 D1）
 
+前置步骤 P2a（vendor proto，行为不变）的规格：
+[`native-agent-harness/p2a-vendor-proto.md`](native-agent-harness/p2a-vendor-proto.md)。
+
 1. **proto 加字段**（vendor 之后）：
    - `ConversationSummary.first_kept_message_id`
    - `ConversationSummary.read_files` / `modified_files`

@@ -1,0 +1,689 @@
+// The request types for the multi-agent API.
+edition = "2023";
+
+package warp.multi_agent.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/go_features.proto";
+import "google/protobuf/struct.proto";
+
+import "input_context.proto";
+import "attachment.proto";
+import "file_content.proto";
+import "options.proto";
+import "suggestions.proto";
+import "task.proto";
+import "skill.proto";
+import "orchestration.proto";
+
+option go_package = "github.com/warpdotdev/warp-proto-apis/apis/multi_agent/v1/gen/go;v1";
+option features.(pb.go).api_level = API_OPAQUE;
+
+// The main request type. Every multi-agent API call begins with a `Request`.
+message Request {
+  // The task state.
+  TaskContext task_context = 1;
+
+  // User input to progress the task state.
+  Input input = 2;
+
+  // Supported configuration for the request.
+  Settings settings = 3;
+
+  // General metadata for the request.
+  Metadata metadata = 4;
+
+  // The list of suggestions received from the previous request.
+  Suggestions existing_suggestions = 5;
+
+  // Information about the client's MCP capabilities.
+  MCPContext mcp_context = 6;
+
+  message TaskContext {
+    reserved active_task_id;
+    reserved 2;
+
+    // List of all known tasks.
+    repeated Task tasks = 1;
+  }
+
+  message Input {
+    InputContext context = 1;
+
+    // The type of input from the user.
+    oneof type {
+      UserInputs user_inputs = 6;
+      QueryWithCannedResponse query_with_canned_response = 4;
+      AutoCodeDiffQuery auto_code_diff_query = 5;
+      ResumeConversation resume_conversation = 7;
+      InitProjectRules init_project_rules = 8;
+      GeneratePassiveSuggestions generate_passive_suggestions = 9;
+      CreateNewProject create_new_project = 10;
+      CloneRepository clone_repository = 11;
+      CodeReview code_review = 12;
+      SummarizeConversation summarize_conversation = 13;
+      CreateEnvironment create_environment = 14;
+      FetchReviewComments fetch_review_comments = 15;
+      StartFromAmbientRunPrompt start_from_ambient_run_prompt = 16;
+      InvokeSkill invoke_skill = 17;
+
+      UserQuery user_query = 2 [ deprecated = true ];
+      ToolCallResult tool_call_result = 3 [ deprecated = true ];
+    }
+
+    message UserQuery {
+      string query = 1 [ (sensitive) = true ];
+      // An attachment referenced by key in the query text.
+      map<string, Attachment> referenced_attachments = 2;
+      UserQueryMode mode = 3;
+      AgentType intended_agent = 4;
+    }
+
+    // Initial query to spawn the CLI (long-running command) subagent on a
+    // running command.
+    message CLIAgentUserQuery {
+      // The user query to send to the subagent.
+      UserQuery user_query = 1;
+
+      // The active (long-)running command.
+      RunningShellCommand running_command = 2;
+
+      // The tool call ID of the RunShellCommand tool call that ran this
+      // command, if any.
+      //
+      // In most cases, this is not populated, because the user is actively
+      // 'spawning' the subagent for a command they ran themself.
+      //
+      // If, however, the agent runs a command (via `RunShellCommand`) and the
+      // user eagerly sends a query just after command execution but prior to
+      // the subagent being autumatically spawned (e.g. interrupts the response
+      // stream issuing client actions that are spawning the agent), this is
+      // populated. This enables the server to imperatively spawn the subagent
+      // on this request, along with the eagerly-sent user query, continuing
+      // execution in the same way as it would have had the original stream not
+      // been interrupted, albeit with the additional user query.
+      string run_shell_command_tool_call_id = 3;
+    }
+
+    message UserInputs {
+      repeated UserInput inputs = 1;
+
+      message UserInput {
+        oneof input {
+          UserQuery user_query = 1;
+          ToolCallResult tool_call_result = 2;
+          CLIAgentUserQuery cli_agent_user_query = 3;
+          MessagesReceivedFromAgents messages_received_from_agents = 4;
+          EventsFromAgents events_from_agents = 5;
+
+          // Resolution of a passive suggestion that should be brought into
+          // context.
+          PassiveSuggestionResultInput passive_suggestion_result = 6;
+
+          // Plan-card edits to plan orchestration config. Sent on the next
+          // outbound request after the user edits the plan card.
+          OrchestrationConfigUpdate orchestration_config_update = 7;
+
+          // Marker signaling that a cloud conversation has been continued
+          // locally. When present, it is always the first entry in `inputs`,
+          // preceding the other user inputs sent with the handoff (e.g. the
+          // first local user query).
+          ConversationHandoff conversation_handoff = 8;
+        }
+      }
+
+      // Batch of messages received from other agents.
+      message MessagesReceivedFromAgents {
+        repeated ReceivedMessage messages = 1;
+
+        message ReceivedMessage {
+          string message_id = 1;
+          string sender_agent_id = 2;
+          repeated string addresses = 3;
+          string subject = 4 [ (sensitive) = true ];
+          string message_body = 5 [ (sensitive) = true ];
+        }
+      }
+
+      // Batch of events received from agents.
+      message EventsFromAgents { repeated AgentEvent agent_events = 1; }
+
+      message PassiveSuggestionResultInput {
+        PassiveSuggestionResultType result = 1;
+      }
+
+      // Signals that a cloud conversation has been continued locally.
+      message ConversationHandoff {}
+    }
+
+    // Tool call result
+    message ToolCallResult {
+      reserved 10, 28, 32;  
+      reserved refine, start_agent, start_agent_v2;
+
+      string tool_call_id = 1;
+
+      oneof result {
+        RunShellCommandResult run_shell_command = 2;
+        ReadFilesResult read_files = 3;
+        SearchCodebaseResult search_codebase = 4;
+        ApplyFileDiffsResult apply_file_diffs = 5;
+        SuggestPlanResult suggest_plan = 6;
+        SuggestCreatePlanResult suggest_create_plan = 7;
+        GrepResult grep = 8;
+        FileGlobResult file_glob = 9;
+        ReadMCPResourceResult read_mcp_resource = 11;
+        CallMCPToolResult call_mcp_tool = 12;
+        WriteToLongRunningShellCommandResult
+            write_to_long_running_shell_command = 13;
+        SuggestNewConversationResult suggest_new_conversation = 14;
+        FileGlobV2Result file_glob_v2 = 15;
+        SuggestPromptResult suggest_prompt = 16;
+        OpenCodeReviewResult open_code_review = 17;
+        InitProjectResult init_project = 18;
+        ReadDocumentsResult read_documents = 19;
+        EditDocumentsResult edit_documents = 20;
+        CreateDocumentsResult create_documents = 21;
+        ReadShellCommandOutputResult read_shell_command_output = 22;
+        UseComputerResult use_computer = 23;
+        InsertReviewCommentsResult insert_review_comments = 24;
+        RequestComputerUseResult request_computer_use = 25;
+        ReadSkillResult read_skill = 26;
+        FetchConversationResult fetch_conversation = 27;
+        SendMessageToAgentResult send_message_to_agent = 29;
+        TransferShellCommandControlToUserResult
+            transfer_shell_command_control_to_user = 30;
+        AskUserQuestionResult ask_user_question = 31;
+        UploadFileArtifactResult upload_file_artifact = 33;
+        RunAgentsResult run_agents_result = 34;
+        WaitForEventsResult wait_for_events = 35;
+        StartRecordingResult start_recording = 36;
+        StopRecordingResult stop_recording = 37;
+      }
+    }
+
+    // Canned responses correspond to hardcoded predefined responses from
+    // Agent Mode e.g. the zero-state chip for "Install" has a predefined
+    // initial response asking the user for more information, before passing it
+    // off to "real AI".
+    message QueryWithCannedResponse {
+      string query = 1;
+      oneof type {
+        Install install = 2;
+        Code code = 3;
+        Deploy deploy = 4;
+        SomethingElse something_else = 5;
+        CustomOnboardingRequest custom_onboarding_request = 6;
+        AgenticOnboardingKickoff agentic_onboarding_kickoff = 7;
+      }
+
+      message Install {}
+      message Code {}
+      message Deploy {}
+      message SomethingElse {}
+      message CustomOnboardingRequest {}
+      message AgenticOnboardingKickoff {}
+    }
+
+    // A query to perform an automatic code diff e.g. Warp detects compilation
+    // errors in the last run block, and surfaces relevant a code diff to show
+    // to the user.
+    message AutoCodeDiffQuery { string query = 1 [ (sensitive) = true ]; }
+
+    // An input to resume a conversation.
+    message ResumeConversation {}
+
+    // An input to generate project rules. This will override the query with a
+    // hardcoded prompt and pass the model's response back.
+    message InitProjectRules {}
+
+    // An input to create a new project. When present, the runtime will prepend
+    // a predefined prefix to the user-provided description and send that as the
+    // effective user query.
+    message CreateNewProject { string query = 1 [ (sensitive) = true ]; }
+
+    // An input to clone a repository. Similar to CreateNewProject, it adds a
+    // prefix to the user input.
+    message CloneRepository { string url = 1 [ (sensitive) = true ]; }
+
+    // An input to create a development environment. This will override the
+    // query with a hardcoded prompt to set up a warp environment.
+    message CreateEnvironment {
+      repeated string repo_paths = 1 [ (sensitive) = true ];
+    }
+
+    // An input type to generate passive suggestions (e.g. prompt suggestions).
+    // If any suggestions are generated, they will be produced as tool calls.
+    message GeneratePassiveSuggestions {
+      // Deprecated; remove once prompt suggestions via MAA is fully rolled out.
+      repeated Attachment attachments = 1;
+
+      oneof trigger {
+        // Deprecated; remove once prompt suggestions via MAA is fully rolled
+        // out.
+        google.protobuf.Empty files_changed = 2;
+        // Deprecated; remove once prompt suggestions via MAA is fully rolled
+        // out.
+        google.protobuf.Empty command_run = 3;
+        // Triggered when a manually run shell command completes.
+        ShellCommandCompleted shell_command_completed = 4;
+        // Triggered when an agent completes a response.
+        AgentResponseCompleted agent_response_completed = 5;
+      }
+
+      message ShellCommandCompleted {
+        ExecutedShellCommand executed_shell_command = 1;
+        repeated AnyFileContent relevant_files = 2;
+      }
+
+      message AgentResponseCompleted {}
+    }
+
+    message OnShellCommandCompletion {
+      string command = 1 [ (sensitive) = true ];
+    }
+
+    message CodeReview {
+      oneof operation { InitialReviewComments initial_review_comments = 1; }
+
+      message InitialReviewComments {
+        repeated ReviewComment review_comments = 1;
+        DiffSet diff_set = 2;
+      }
+    }
+
+    message FetchReviewComments { string repo_path = 1 [ (sensitive) = true ]; }
+
+    // An input to summarize the active conversation.
+    message SummarizeConversation {
+      // Optional user-specified instructions to focus or augment the summary.
+      string prompt = 1 [ (sensitive) = true ];
+    }
+
+    // A special input type used to start an ambient agent run where the initial
+    // prompt is retrieved at runtime as the latest prompt known for the run.
+    // This is only valid when supplied at the start of a conversation.
+    message StartFromAmbientRunPrompt {
+      // The ambient agent run ID to resolve the prompt from.
+      string ambient_run_id = 1;
+
+      // Optional runtime base prompt / instructions (e.g., from file-based
+      // agent config). When provided, this is prepended to the user-visible
+      // prompt.
+      string runtime_base_prompt = 2 [ (sensitive) = true ];
+
+      // Optional skill to use as base context.
+      // When provided, creates an InvokeSkill message (content hidden from user
+      // in UI).
+      Skill runtime_skill = 3;
+
+      // Optional directory path where the client downloaded task attachments.
+      // When provided, the server uses this to construct file paths for the LLM
+      // instead of hardcoding a directory.
+      string attachments_dir = 4;
+    }
+
+    message InvokeSkill {
+      Skill skill = 1;
+      // This field is used to either pass in arguments for the skill invocation
+      // (if the skill contents have any arguments) or pass a user query to be
+      // added at the same time as the skill invocation (in the case of 0-arg
+      // skills).
+      UserQuery user_query = 2;
+    }
+  }
+
+  message Metadata {
+    // Optional conversation ID.
+    //
+    // If this request continues an existing conversation, this is expected to
+    // be the same conversation ID received in a previous AI response earlier in
+    // the conversation.
+    string conversation_id = 1;
+
+    // Map of metadata to inline in server analytic events for this request.
+    // Values in the map should be valid JSON values.
+    map<string, google.protobuf.Value> logging = 2;
+
+    // Optional ambient agent task ID.
+    //
+    // This is set if the client is working autonomously on an ambient agent
+    // task.
+    string ambient_agent_task_id = 3;
+
+    // Optional forked-from conversation ID.
+    //
+    // Only populated when starting a new conversation (conversation_id is
+    // empty) that was created by forking an existing conversation. Value is the
+    // source conversation's server conversation ID.
+    string forked_from_conversation_id = 4;
+
+    // The versioned orchestration address of the parent agent that spawned this
+    // child agent.
+    // When orchestration_v2 is disabled, this is the parent conversation ID.
+    // When orchestration_v2 is enabled, this is the parent run ID.
+    string parent_agent_id = 5;
+
+    // The display name for this agent (e.g. "Agent 1"), assigned by the
+    // orchestrator via StartAgent.name.
+    string agent_name = 6 [ (sensitive) = true ];
+  }
+
+  message Settings {
+    ModelConfig model_config = 1;
+    bool rules_enabled = 2;
+    bool web_context_retrieval_enabled = 3;
+    bool supports_parallel_tool_calls = 4;
+
+    // Internal-only field for client to opt-in to using the Anthropic text
+    // editor tools. This will be deprecated before launching MAA.
+    bool use_anthropic_text_editor_tools = 5;
+
+    // If `true`, planning is never suggested.
+    bool planning_enabled = 6;
+
+    // If `true`, the user's Warp Drive contents can be used as Agent Mode
+    // context.
+    bool warp_drive_context_enabled = 7;
+
+    // If `true`, the `ApplyFileDiffs` tool call may use the `new_files`
+    // argument for creating files. Otherwise, new files are created by emitting
+    // a diff with an empty `search` field.
+    bool supports_create_files = 8;
+
+    // The set of tools that are supported by the client.
+    //
+    // By contract, the server will only emit tool calls that are in this list.
+    // If the list is empty / unspecified, the server can use any tool.
+    repeated ToolType supported_tools = 9;
+
+    // If `true`, the client generally supports long-running commands.
+    //
+    // This is different from declaring tool support for
+    // `WriteToLongRunningShellCommand`; that should be used on a per-request
+    // basis to indicate if the client can consume that tool in its current
+    // state.
+    bool supports_long_running_commands = 10;
+
+    // `true` if the server should preserve file contents in conversation
+    // history, instead of eliding old file contents and marking them as stale.
+    //
+    // This is the default behavior for clients released 7/3/2025 and newer.
+    bool should_preserve_file_content_in_history = 11;
+
+    // If `true`, the client supports the todos UI and should receive
+    // todo-related public API messages. If `false`, todo-related public API
+    // messages should not be sent to the client.
+    bool supports_todos_ui = 12;
+
+    // If `true`, the client supports rendering linked code blocks, and the
+    // agent will prefer to output them in its responses. If `false` or unset,
+    // the agent will use plain text code block formatting in its responses.
+    bool supports_linked_code_blocks = 13;
+
+    // If 'true', the client supports the StartedChildTask message.
+    // If 'false', the server needs to use the legacy
+    // ServerEvent.StartedChildTask, since the client can't deserialize and pass
+    // back up the new message.
+    bool supports_started_child_task_message = 14;
+
+    // If `true`, the client supports suggested/passive prompts.
+    bool supports_suggest_prompt = 15;
+
+    // If `true`, the client supports using `read_files` to read images.
+    bool supports_read_image_files = 16;
+
+    // If `true`, the client supports the `Reasoning` message type.
+    bool supports_reasoning_message = 17;
+
+    // Optional user-provided API keys for LLM providers.
+    // If provided, these keys will be used instead of Warp's default keys.
+    ApiKeys api_keys = 18;
+
+    AutonomyLevel autonomy_level = 19;
+    IsolationLevel isolation_level = 20;
+
+    // If `true`, the agent may use web search when helpful for completing
+    // tasks. Controlled by the user's execution profile settings.
+    bool web_search_enabled = 21;
+
+    // The set of CLI subagent tools that are supported by the client.
+    repeated ToolType supported_cli_agent_tools = 22;
+
+    // If `true`, the client supports V4A-style diffs.
+    bool supports_v4a_file_diffs = 23;
+
+    // If `true`, the client supports the new summarization approach where
+    // messages are moved to a subtask and replaced with a subagent tool call +
+    // result.
+    bool supports_summarization_via_message_replacement = 24;
+
+    // If `true`, the client supports reading bundled skills that are
+    // distributed alongside it.
+    bool supports_bundled_skills = 25;
+
+    // If `true`, the client supports the research agent.
+    bool supports_research_agent = 26;
+
+    // If `true`, the client supports orchestration v2 durable messaging.
+    bool supports_orchestration_v2 = 27;
+
+    // A registry of custom model providers configured by the user.
+    CustomModelProviders custom_model_providers = 28;
+
+    // If `true`, the client supports background, per-window computer use
+    // (window targeting via set_computer_use_target, window-scoped screenshots,
+    // and window enumeration). When `false` or unset, the computer-use agent
+    // uses the legacy full-screen / frontmost-application behavior.
+    bool supports_background_computer_use = 29;
+
+    // A registry of user-defined model routers (named routers) configured by
+    // the user. Team-level model routers are _not_ supplied here; those are
+    // already known to the server and the client should simply supply the
+    // corresponding LLM ID for those models.
+    //
+    // Like `custom_model_providers`, this is an inline registry: when a custom
+    // model router is selected, `ModelConfig.base`/`coding` carry that router's
+    // `config_key`, which indexes into this registry.
+    CustomModelRouters custom_model_routers = 30;
+
+    // If `true`, the client supports selecting and propagating a remote
+    // `runner_id` for orchestrated child agents.
+    bool supports_orchestration_runners = 31;
+
+    // The model IDs provided in the model config can either be a warp-hosted
+    // model ID (e.g. "gemini-2.5-pro") or the `config_key` for a model provided
+    // in `custom_model_providers`.
+    message ModelConfig {
+      // The LLM of preference for general tasks.
+      string base = 1;
+
+      // DEPRECATED: The LLM of preference for reasoning tasks.
+      string planning = 2 [ deprecated = true ];
+
+      // The LLM of preference for coding tasks.
+      string coding = 3;
+
+      // The LLM of preference for CLI agent.
+      string cli_agent = 4;
+
+      // The LLM of preference for the Computer Use agent.
+      string computer_use_agent = 5;
+
+      // User-selected max input-token context window for the base model.
+      // Zero or unset means "use the model's default max".
+      uint32 base_model_context_window_limit = 6;
+    }
+
+    message ApiKeys {
+      string anthropic = 1 [ (sensitive) = true ];
+      string openai = 2 [ (sensitive) = true ];
+      string google = 3 [ (sensitive) = true ];
+      string open_router = 4 [ (sensitive) = true ];
+
+      // If `true`, the client allows LLM calls to fall back to Warp credits.
+      // Note that this setting applies to both user-provided keys and custom
+      // endpoints. It lives on the ApiKeys message for legacy reasons.
+      bool allow_use_of_warp_credits = 5;
+
+      // Optional AWS credentials (e.g. for Bedrock).
+      AWSCredentials aws_credentials = 6;
+
+      message AWSCredentials {
+        string access_key = 1 [ (sensitive) = true ];
+        string secret_key = 2 [ (sensitive) = true ];
+        string session_token = 3 [ (sensitive) = true ];
+        string region = 4;
+      }
+
+      // Optional GCP Credentials (for Gemini Enterprise Agent Platform)
+      GoogleCloudCredentials google_cloud_credentials = 7;
+
+      message GoogleCloudCredentials {
+        string access_token = 1 [ (sensitive) = true ];
+      }
+
+      // Optional xAI/Grok OAuth access token from a connected Grok (SuperGrok)
+      // subscription. When set, the server's xAI harness authenticates with
+      // this bearer token instead of Warp's org-wide xAI API key.
+      string grok_oauth_access_token = 8 [ (sensitive) = true ];
+
+      // TODO(isaiah): Add Azure
+    }
+
+    message CustomModelProviders {
+      repeated CustomModelProvider providers = 1;
+      enum CustomEndpointSchema {
+        OPENAI_CHAT_COMPLETIONS = 0;
+        OPENAI_RESPONSES = 1;
+        ANTHROPIC_MESSAGES = 2;
+      }
+
+      message CustomModelProvider {
+        // The base URL for the custom model provider.
+        string base_url = 1;
+        // The API key used to authenticate with the provider.
+        string api_key = 2 [ (sensitive) = true ];
+        // The list of custom models made available on the provider.
+        repeated CustomModel models = 3;
+        // The request/response protocol spoken by this provider.
+        CustomEndpointSchema schema = 4;
+      }
+
+      message CustomModel {
+        // The slug of the model (e.g. "gemini-2.5-pro").
+        string slug = 1;
+        // The key to use in the ModelConfig message (e.g. "base"). The client
+        // must guarantee this is unique across all custom models.
+        string config_key = 2;
+      }
+    }
+
+    // A custom model router routes either by Warp-determined task complexity
+    // (`ComplexityRouting`) or by user-authored prompt categories
+    // (`PromptRouting`). Routing targets are always concrete (non-auto) model
+    // IDs, identical to the IDs shown in Warp's model picker (e.g.
+    // "claude-4-5-sonnet", "gpt-5-mini").
+    message CustomModelRouters {
+      repeated CustomModelRouter routers = 1;
+
+      message CustomModelRouter {
+        // The key referenced by `ModelConfig` when this custom model router is
+        // selected. The client must guarantee this is unique across all custom
+        // model routers (and custom models).
+        string config_key = 1;
+
+        // The user-facing name shown in the model picker.
+        string name = 2 [ (sensitive) = true ];
+
+        oneof router {
+          ComplexityBasedRouter complexity = 3;
+          PromptBasedRouter prompt = 4;
+        }
+      }
+
+      // Routes by Warp-determined task complexity. Each bucket maps to a
+      // concrete model ID. The default will be used when task complexity cannot
+      // be determined.
+      message ComplexityBasedRouter {
+        string default = 1;
+        string easy = 2;
+        string medium = 3;
+        string hard = 4;
+      }
+
+      // Routes by classifying the incoming prompt against the set of `rules`.
+      // The rules should be supplied in order of precedence; an earlier matching
+      // rule will take precedence over another matching rule later on in the list.
+      // If no rule matches, routes to `default_model` (the required catch-all).
+      message PromptBasedRouter {
+        string default = 1;
+
+        repeated PromptRule rules = 2;
+
+        message PromptRule {
+          string rule = 1 [ (sensitive) = true ];
+          string model = 2;
+        }
+      }
+    }
+  }
+
+  message MCPContext {
+    // DEPRECATED: Use `servers` field instead for server-attributed
+    // tools/resources. Kept for backwards compatibility with older clients.
+    repeated MCPResource resources = 1 [ deprecated = true ];
+    repeated MCPTool tools = 2 [ deprecated = true ];
+
+    // Server-grouped MCP context. Each entry represents a single MCP server
+    // summary.
+    repeated MCPServer servers = 3;
+
+    message MCPResource {
+      string uri = 1 [ (sensitive) = true ];
+      string name = 2 [ (sensitive) = true ];
+      string description = 3 [ (sensitive) = true ];
+      string mime_type = 4;
+    }
+
+    message MCPTool {
+      string name = 1 [ (sensitive) = true ];
+      string description = 2 [ (sensitive) = true ];
+      // The input schema for an MCP Tool is specified as
+      // as JSON schema, which is a JSON struct at root.
+      google.protobuf.Struct input_schema = 3;
+    }
+
+    message MCPServer {
+      // The name of the MCP server (e.g., "Sentry", "Linear", "GitHub").
+      string name = 1 [ (sensitive) = true ];
+
+      // Optional description of the server's purpose.
+      string description = 2 [ (sensitive) = true ];
+
+      // Unique identifier for this MCP server.
+      string id = 5;
+
+      // Resources provided by this server.
+      repeated MCPResource resources = 3;
+
+      // Tools provided by this server.
+      repeated MCPTool tools = 4;
+    }
+  }
+}
+
+enum AutonomyLevel {
+  // This is the default and lowest level of autonomy. This assumes a user is
+  // present to answer clarifying questions, approve requested commands, etc.
+  SUPERVISED = 0;
+  // No user is available to answer questions.
+  UNSUPERVISED = 1;
+}
+
+enum IsolationLevel {
+  // i.e. on a user's machine with no isolation from their environment.
+  NONE = 0;
+  // Fully sandboxed.
+  SANDBOX = 1;
+}

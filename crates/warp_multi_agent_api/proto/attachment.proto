@@ -1,0 +1,162 @@
+edition = "2023";
+
+package warp.multi_agent.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/go_features.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/warpdotdev/warp-proto-apis/apis/multi_agent/v1/gen/go;v1";
+option features.(pb.go).api_level = API_OPAQUE;
+
+// Context that may be relevant to the input in a request.
+import "document_content.proto";
+import "options.proto";
+import "file_content.proto";
+
+message Attachment {
+  oneof value {
+    string plain_text = 1 [ (sensitive) = true ];
+    ExecutedShellCommand executed_shell_command = 2;
+    RunningShellCommand running_shell_command = 3;
+    DriveObject drive_object = 4;
+    // Deprecated: Represent a hunk as a DiffSet of size 1.
+    DiffHunk diff_hunk = 5 [deprecated = true];
+    DiffSet diff_set = 6;
+    DocumentContent document_content = 7;
+    FilePathReference file_path_reference = 8;
+  }
+}
+
+// Information about shell commands that the user has executed.
+message ExecutedShellCommand {
+  string command = 1 [ (sensitive) = true ];
+  string output = 2 [ (sensitive) = true ];
+  int32 exit_code = 3;
+  string command_id = 4;
+  google.protobuf.Timestamp started_ts = 5;
+  google.protobuf.Timestamp finished_ts = 6;
+
+  // `true` if the command was auto-attached.
+  //
+  // This is done by clients with `supports_auto_attached_commands` for user-executed commands in
+  // the agent view.
+  bool is_auto_attached = 7;
+}
+
+message RunningShellCommand {
+  string command = 1 [ (sensitive) = true ];
+  LongRunningShellCommandSnapshot snapshot = 2;
+}
+
+// A snapshot of the terminal grid for a long-running command.
+message LongRunningShellCommandSnapshot {
+  // Raw output grid contents.
+  string output = 1 [ (sensitive) = true ];
+
+  // The substring in 'output' used to represent the current cursor.
+  //
+  // This may be used by the server to find the cursor in `output` and change its formatting.
+  string cursor = 2;
+
+  // "ID" of the command execution to be included in tool calls to write to or read from the
+  // snapshotted command.
+  string command_id = 3;
+
+  // Whether the terminal alternate screen buffer is active (e.g., pager, TUI application).
+  // When true, the output is from the alternate screen buffer (like 'less', 'vim', 'top').
+  // When false, the output is from the normal scrollback history.
+  bool is_alt_screen_active = 4;
+
+  // Whether this snapshot was produced by preempting the agent's wait rather than by the command
+  // completing or a scheduled timer expiring.
+  //
+  // Set to `true` when:
+  //   - The agent requested `on_completion` but the client's 120s cap was hit before the command
+  //     finished (the command is still running).
+  //   - The user explicitly triggered an early snapshot (e.g. "Check now" affordance).
+  //
+  // When `true`, the server should inform the agent that the command is still running and that
+  // it should not treat this as a completion signal.
+  bool is_preempted = 5;
+}
+
+message DriveObject {
+  string uid = 1 [ (sensitive) = true ];
+  oneof object_payload  {
+    Workflow workflow = 2;
+    Notebook notebook = 3;
+    GenericStringObject generic_string_object = 4;
+  }
+}
+
+message Workflow {
+  string name = 1 [ (sensitive) = true ];
+  string description = 2 [ (sensitive) = true ];
+  string command = 3 [ (sensitive) = true ];
+}
+
+message Notebook {
+  string title = 1 [ (sensitive) = true ];
+  string content = 2 [ (sensitive) = true ];
+}
+
+message GenericStringObject {
+  string payload = 1 [ (sensitive) = true ];
+  // Refers to the JSON type of the object such as "JsonEnvVarCollection" or "JsonAIFact"
+  string object_type = 2;
+}
+
+// This has been deprecated.  Use DiffSets of size 1 instead.
+message DiffHunk {
+  string file_path = 1 [ (sensitive) = true ];
+  FileContentLineRange line_range = 2;
+  string diff_content = 3 [ (sensitive) = true ];
+  uint32 lines_added = 4;
+  uint32 lines_removed = 5;
+  oneof current {
+    string current_branch_name = 6 [ (sensitive) = true ];
+    string current_headless_commit_sha = 7;
+  }
+  oneof base {
+    string base_branch_name = 8 [ (sensitive) = true ];
+    string base_headless_commit_sha = 9;
+    google.protobuf.Empty uncommitted_changes = 10;
+  }
+}
+
+// Reference to the current state (branch or commit)
+message CurrentRef {
+  oneof ref {
+      string branch_name = 1 [ (sensitive) = true ];
+      string headless_commit_sha = 2;
+  }
+}
+
+// Reference to the base state (branch, commit, or uncommitted changes)
+message BaseRef {
+  oneof ref {
+      string branch_name = 1 [ (sensitive) = true ];
+      string headless_commit_sha = 2;
+      google.protobuf.Empty uncommitted_changes = 3;
+  }
+}
+
+message DiffSet {
+  message DiffHunk {
+    string file_path = 1 [ (sensitive) = true ];
+    FileContentLineRange line_range = 2;
+    string diff_content = 3 [ (sensitive) = true ];
+    uint32 lines_added = 4;
+    uint32 lines_removed = 5;
+  }
+
+  repeated DiffHunk hunks = 1;
+  CurrentRef curr_ref = 2;
+  BaseRef base_ref = 3;
+}
+
+// Reference to a file on the filesystem (e.g., downloaded attachments on VM)
+message FilePathReference {
+  string file_path = 1 [ (sensitive) = true ];
+}

@@ -1,0 +1,66 @@
+edition = "2023";
+
+package warp.multi_agent.v1;
+
+import "google/protobuf/go_features.proto";
+import "google/protobuf/empty.proto";
+import "file_content.proto";
+
+option go_package = "github.com/warpdotdev/warp-proto-apis/apis/multi_agent/v1/gen/go;v1";
+option features.(pb.go).api_level = API_OPAQUE;
+
+// A complete descriptor of a skill without file content.
+message SkillDescriptor {
+  oneof skill_reference {
+    // Path to the SKILL.md file defining this skill.
+    string path = 1;
+    // Unique identifier for a skill bundled with the client.
+    string bundled_skill_id = 4;
+  }
+
+  string name = 2;
+  string description = 3;
+  Provider provider = 5;
+  Scope scope = 6;
+
+  message Provider {
+    oneof type {
+      google.protobuf.Empty warp = 1;
+      google.protobuf.Empty agents = 2;
+      google.protobuf.Empty claude = 3;
+      google.protobuf.Empty codex = 4;
+      google.protobuf.Empty cursor = 5;
+      google.protobuf.Empty gemini = 6;
+      google.protobuf.Empty copilot = 7;
+      google.protobuf.Empty droid = 8;
+      google.protobuf.Empty github = 9;
+      google.protobuf.Empty open_code = 10;
+      google.protobuf.Empty kiro = 11;
+    }
+  }
+
+  message Scope {
+    oneof type {
+      google.protobuf.Empty home = 1;
+      google.protobuf.Empty project = 2;
+      google.protobuf.Empty bundled = 3;
+    }
+  }
+}
+// A lightweight reference to a skill.
+// Unlike Skill, this does not include resolved metadata or file content.
+message SkillRef {
+  oneof skill_reference {
+    // Path to the SKILL.md file defining this skill.
+    string path = 1;
+    // Unique identifier for a skill bundled with the client.
+    string bundled_skill_id = 2;
+  }
+}
+
+// A full representation of a skill, including file content.
+// This should contain all the information necessary to recreate a ParsedSkill in the client.
+message Skill {
+  SkillDescriptor descriptor = 1;
+  FileContent content = 2;
+}
