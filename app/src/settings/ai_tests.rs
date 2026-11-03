@@ -25,6 +25,17 @@ fn auto_approve_denylist_bypass_defaults_on_and_is_available_in_gui_settings() {
     assert!(surfaces.includes(SettingsMode::Gui));
 }
 
+#[test]
+fn compaction_settings_default_to_the_approved_values() {
+    assert!(*AutoCompactionEnabled::new(None).value());
+    assert_eq!(*CompactionReserveTokens::new(None).value(), 16_384);
+    assert_eq!(*CompactionKeepRecentTokens::new(None).value(), 20_000);
+    assert_eq!(
+        AutoCompactionEnabled::toml_path(),
+        Some("agents.warp_agent.context.auto_compaction_enabled")
+    );
+}
+
 // ToolbarCommandMap Tests
 
 #[test]

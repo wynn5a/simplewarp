@@ -4,9 +4,11 @@
 //! input behavior, credentials (BYO keys, custom endpoints) and the
 //! miscellaneous agent display settings.
 
+use std::collections::HashSet;
 use std::ops::Not;
 
 use ::ai::api_keys::{ApiKeyManager, CustomEndpointParams};
+use agent_harness::compaction::{MAX_TOKEN_SETTING, MIN_TOKEN_SETTING};
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_geometry::vector::vec2f;
 use settings::{Setting, ToggleableSetting};
@@ -46,8 +48,8 @@ use super::remove_custom_endpoint_confirmation_dialog::{
 };
 use super::settings_page::{
     CONTENT_FONT_SIZE, HEADER_PADDING, MatchData, PageType, SettingsPageMeta,
-    SettingsPageViewHandle, SettingsWidget, TOGGLE_BUTTON_RIGHT_PADDING, build_sub_header,
-    render_dropdown_item, render_separator,
+    SettingsPageViewHandle, SettingsWidget, TOGGLE_BUTTON_RIGHT_PADDING, ToggleState,
+    build_sub_header, render_body_item, render_dropdown_item, render_separator,
 };
 use super::{
     SettingActionPairContexts, SettingActionPairDescriptions, SettingsAction, SettingsSection,
@@ -76,6 +78,7 @@ use crate::view_components::{Dropdown, DropdownItem};
 const PRIMARY_HEADER_FONT_SIZE: f32 = 24.;
 
 const AI_SETTINGS_DROPDOWN_WIDTH: f32 = 250.;
+const TOKEN_COUNT_INPUT_WIDTH: f32 = 100.;
 const AI_SETTINGS_DROPDOWN_MAX_HEIGHT: f32 = 250.;
 
 const NEXT_COMMAND_DESCRIPTION: &str = "Let AI suggest the next command to run based on your command history, outputs, and common workflows.";
@@ -321,6 +324,15 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             )
             .with_group(bindings::BindingGroup::WarpAi),
             ToggleSettingActionPair::new(
+                "auto-compaction",
+                builder(SettingsAction::WarpAgent(
+                    WarpAgentPageAction::ToggleAutoCompaction,
+                )),
+                &(context.clone() & id!(flags::IS_ANY_AI_ENABLED)),
+                flags::AUTO_COMPACTION_ENABLED_FLAG,
+            )
+            .with_group(bindings::BindingGroup::WarpAi),
+            ToggleSettingActionPair::new(
                 "conversation history in tools panel",
                 builder(SettingsAction::WarpAgent(
                     WarpAgentPageAction::ToggleShowConversationHistory,
@@ -362,6 +374,50 @@ pub struct WarpAgentPageView {
     pending_remove_custom_endpoint_index: Option<usize>,
     custom_inference_add_button: ViewHandle<ActionButton>,
     custom_endpoint_edit_buttons: Vec<ViewHandle<ActionButton>>,
+
+    compaction_reserve_editor: ViewHandle<EditorView>,
+    compaction_keep_recent_editor: ViewHandle<EditorView>,
+    /// The token-count fields whose text is not a token count in range.
+    invalid_token_fields: HashSet<CompactionTokenField>,
+}
+
+/// A token-count setting of the Context section.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum CompactionTokenField {
+    Reserve,
+    KeepRecent,
+}
+
+impl CompactionTokenField {
+    const MIN: u32 = MIN_TOKEN_SETTING;
+    const MAX: u32 = MAX_TOKEN_SETTING;
+
+    fn value(self, app: &AppContext) -> u32 {
+        let ai_settings = AISettings::as_ref(app);
+        match self {
+            Self::Reserve => *ai_settings.compaction_reserve_tokens,
+            Self::KeepRecent => *ai_settings.compaction_keep_recent_tokens,
+        }
+    }
+
+    /// The setting's value, when `text` is one in range.
+    fn parse(text: &str) -> Option<u32> {
+        text.trim()
+            .parse::<u32>()
+            .ok()
+            .filter(|value| (Self::MIN..=Self::MAX).contains(value))
+    }
+
+    /// Whether the field can be edited: the reserve only matters to auto-compaction, the kept
+    /// tokens to `/compact` too.
+    fn is_editable(self, app: &AppContext) -> bool {
+        let ai_settings = AISettings::as_ref(app);
+        ai_settings.is_any_ai_enabled()
+            && match self {
+                Self::Reserve => *ai_settings.auto_compaction_enabled,
+                Self::KeepRecent => true,
+            }
+    }
 }
 
 impl WarpAgentPageView {
@@ -468,6 +524,16 @@ impl WarpAgentPageView {
                     );
 
                     me.sync_custom_endpoint_buttons(ctx);
+                    me.sync_token_count_editors(ctx);
+                }
+                AISettingsChangedEvent::AutoCompactionEnabled => {
+                    me.sync_token_count_editors(ctx);
+                }
+                AISettingsChangedEvent::CompactionReserveTokens => {
+                    me.reset_token_count_editor(CompactionTokenField::Reserve, ctx);
+                }
+                AISettingsChangedEvent::CompactionKeepRecentTokens => {
+                    me.reset_token_count_editor(CompactionTokenField::KeepRecent, ctx);
                 }
                 AISettingsChangedEvent::ThinkingDisplayMode => {
                     let current_mode = *AISettings::as_ref(ctx).thinking_display_mode.value();
@@ -509,6 +575,11 @@ impl WarpAgentPageView {
         ctx.subscribe_to_model(&InputSettings::handle(ctx), |_, _, _, ctx| {
             ctx.notify();
         });
+
+        let compaction_reserve_editor =
+            Self::create_token_count_editor(CompactionTokenField::Reserve, ctx);
+        let compaction_keep_recent_editor =
+            Self::create_token_count_editor(CompactionTokenField::KeepRecent, ctx);
 
         let custom_inference_controls_enabled = is_any_ai_enabled;
         let custom_inference_add_button = ctx.add_typed_action_view(|_| {
@@ -601,6 +672,138 @@ impl WarpAgentPageView {
             pending_remove_custom_endpoint_index: None,
             custom_inference_add_button,
             custom_endpoint_edit_buttons,
+            compaction_reserve_editor,
+            compaction_keep_recent_editor,
+            invalid_token_fields: HashSet::new(),
+        }
+    }
+
+    fn create_token_count_editor(
+        field: CompactionTokenField,
+        ctx: &mut ViewContext<Self>,
+    ) -> ViewHandle<EditorView> {
+        let editor = ctx.add_typed_action_view(|ctx| {
+            let options = SingleLineEditorOptions {
+                text: TextOptions::ui_font_size(Appearance::as_ref(ctx)),
+                ..Default::default()
+            };
+            let mut editor = EditorView::single_line(options, ctx);
+            editor.set_buffer_text(&field.value(ctx).to_string(), ctx);
+            editor
+        });
+        update_editor_interaction_state(editor.clone(), field.is_editable(ctx), ctx);
+        ctx.subscribe_to_view(&editor, move |me, _, event, ctx| {
+            me.handle_token_count_editor_event(field, event, ctx);
+        });
+        editor
+    }
+
+    fn token_count_editor(&self, field: CompactionTokenField) -> &ViewHandle<EditorView> {
+        match field {
+            CompactionTokenField::Reserve => &self.compaction_reserve_editor,
+            CompactionTokenField::KeepRecent => &self.compaction_keep_recent_editor,
+        }
+    }
+
+    fn handle_token_count_editor_event(
+        &mut self,
+        field: CompactionTokenField,
+        event: &EditorEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            EditorEvent::Edited(_) => {
+                let text = self.token_count_editor(field).as_ref(ctx).buffer_text(ctx);
+                if CompactionTokenField::parse(&text).is_some() {
+                    self.invalid_token_fields.remove(&field);
+                } else {
+                    self.invalid_token_fields.insert(field);
+                }
+                ctx.notify();
+            }
+            EditorEvent::Enter | EditorEvent::Blurred => {
+                let text = self.token_count_editor(field).as_ref(ctx).buffer_text(ctx);
+                let Some(value) = CompactionTokenField::parse(&text) else {
+                    // Leaving the field with a value that is not saved would show a setting that
+                    // is not in effect.
+                    if matches!(event, EditorEvent::Blurred) {
+                        self.reset_token_count_editor(field, ctx);
+                        ctx.notify();
+                    }
+                    return;
+                };
+                if value == field.value(ctx) {
+                    return;
+                }
+                AISettings::handle(ctx).update(ctx, |settings, ctx| match field {
+                    CompactionTokenField::Reserve => {
+                        report_if_error!(settings.compaction_reserve_tokens.set_value(value, ctx));
+                    }
+                    CompactionTokenField::KeepRecent => {
+                        report_if_error!(
+                            settings.compaction_keep_recent_tokens.set_value(value, ctx)
+                        );
+                    }
+                });
+            }
+            EditorEvent::Escape => ctx.emit(WarpAgentPageEvent::FocusModal),
+            EditorEvent::Activate
+            | EditorEvent::Focused
+            | EditorEvent::SelectionChanged
+            | EditorEvent::AutosuggestionAccepted { .. }
+            | EditorEvent::Navigate(_)
+            | EditorEvent::ShiftEnter
+            | EditorEvent::AltEnter
+            | EditorEvent::CtrlEnter
+            | EditorEvent::BackspaceAtBeginningOfBuffer
+            | EditorEvent::BackspaceOnEmptyBuffer
+            | EditorEvent::CtrlC { .. }
+            | EditorEvent::BufferReplaced
+            | EditorEvent::BufferReinitialized
+            | EditorEvent::CmdUpOnFirstRow
+            | EditorEvent::Copy
+            | EditorEvent::UnhandledModifierKeyOnEditor(_)
+            | EditorEvent::ClearParentSelections
+            | EditorEvent::CmdEnter
+            | EditorEvent::TryToShowXRay(_)
+            | EditorEvent::HideXRay
+            | EditorEvent::InsertLastWordPrevCommand
+            | EditorEvent::Search { .. }
+            | EditorEvent::ExCommand
+            | EditorEvent::VimStatusUpdate
+            | EditorEvent::Paste
+            | EditorEvent::MiddleClickPaste
+            | EditorEvent::DeleteAllLeft
+            | EditorEvent::EmacsBindingUsed
+            | EditorEvent::SetAIContextMenuOpen(_)
+            | EditorEvent::AcceptAIContextMenuItem(_)
+            | EditorEvent::SelectAIContextMenuCategory(_)
+            | EditorEvent::ProcessingAttachedImages(_)
+            | EditorEvent::DroppedImageFiles(_)
+            | EditorEvent::IgnoreAutosuggestion { .. } => {}
+        }
+    }
+
+    /// Puts the stored value back in a token-count field.
+    fn reset_token_count_editor(
+        &mut self,
+        field: CompactionTokenField,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let value = field.value(ctx).to_string();
+        self.token_count_editor(field).update(ctx, |editor, ctx| {
+            editor.set_buffer_text(&value, ctx);
+        });
+        self.invalid_token_fields.remove(&field);
+    }
+
+    fn sync_token_count_editors(&mut self, ctx: &mut ViewContext<Self>) {
+        for field in [
+            CompactionTokenField::Reserve,
+            CompactionTokenField::KeepRecent,
+        ] {
+            let editable = field.is_editable(ctx);
+            update_editor_interaction_state(self.token_count_editor(field).clone(), editable, ctx);
         }
     }
 
@@ -915,6 +1118,7 @@ impl WarpAgentPageView {
         }
         widgets.push(Box::new(AIInputWidget::default()));
         widgets.push(Box::new(ApiKeysWidget::new(ctx)));
+        widgets.push(Box::new(ContextCompactionWidget::default()));
         widgets.push(Box::new(OtherAIWidget::default()));
 
         // This page is multi-section: it renders its own subheader-sized
@@ -987,6 +1191,7 @@ pub enum WarpAgentPageAction {
     ToggleFileBasedMcp,
     ToggleIncludeAgentCommandsInHistory,
     ToggleAutoApproveBypassesCommandDenylist,
+    ToggleAutoCompaction,
 
     // Custom inference
     OpenAddCustomEndpointModal,
@@ -1158,6 +1363,12 @@ impl TypedActionView for WarpAgentPageView {
                             .auto_approve_bypasses_command_denylist
                             .toggle_and_save_value(ctx)
                     );
+                });
+                ctx.notify();
+            }
+            WarpAgentPageAction::ToggleAutoCompaction => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    report_if_error!(settings.auto_compaction_enabled.toggle_and_save_value(ctx));
                 });
                 ctx.notify();
             }
@@ -1401,6 +1612,120 @@ impl SettingsWidget for ActiveAIWidget {
         }
 
         column.finish()
+    }
+}
+
+#[derive(Default)]
+struct ContextCompactionWidget {
+    auto_compaction_toggle: SwitchStateHandle,
+}
+
+impl ContextCompactionWidget {
+    fn render_token_count_field(
+        view: &WarpAgentPageView,
+        field: CompactionTokenField,
+        label: &str,
+        description: &str,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let border_color = view
+            .invalid_token_fields
+            .contains(&field)
+            .then(|| ThemeFill::error().into());
+        let input = appearance
+            .ui_builder()
+            .text_input(view.token_count_editor(field).clone())
+            .with_style(UiComponentStyles {
+                width: Some(TOKEN_COUNT_INPUT_WIDTH),
+                padding: Some(Coords {
+                    top: 4.,
+                    bottom: 4.,
+                    left: 6.,
+                    right: 6.,
+                }),
+                background: Some(appearance.theme().surface_2().into()),
+                border_color,
+                ..Default::default()
+            })
+            .build()
+            .finish();
+        let toggle_state = if field.is_editable(app) {
+            ToggleState::Enabled
+        } else {
+            ToggleState::Disabled
+        };
+        render_body_item::<WarpAgentPageAction>(
+            label.to_string(),
+            None,
+            toggle_state,
+            appearance,
+            input,
+            Some(description.to_string()),
+        )
+    }
+}
+
+impl SettingsWidget for ContextCompactionWidget {
+    type View = WarpAgentPageView;
+
+    fn search_terms(&self) -> &str {
+        "context window compaction compact auto-compaction summary summarize reserve keep recent tokens"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let ai_settings = AISettings::as_ref(app);
+        let is_any_ai_enabled = ai_settings.is_any_ai_enabled();
+
+        let header = build_sub_header(
+            appearance,
+            "Context",
+            Some(styles::header_font_color(is_any_ai_enabled, app)),
+        )
+        .with_padding_bottom(HEADER_PADDING)
+        .finish();
+
+        Flex::column()
+            .with_child(render_separator(appearance))
+            .with_child(header)
+            .with_child(render_ai_setting_toggle(
+                "Compact conversations automatically",
+                WarpAgentPageAction::ToggleAutoCompaction,
+                *ai_settings.auto_compaction_enabled,
+                is_any_ai_enabled,
+                self.auto_compaction_toggle.clone(),
+                app,
+            ))
+            .with_child(render_ai_setting_description(
+                "When a conversation nears the model's context window, older messages are \
+                 replaced with a summary so the agent can keep working.",
+                is_any_ai_enabled,
+                app,
+            ))
+            .with_child(Self::render_token_count_field(
+                view,
+                CompactionTokenField::Reserve,
+                "Reserve tokens",
+                "Auto-compaction starts when fewer than this many tokens of the context window \
+                 remain.",
+                appearance,
+                app,
+            ))
+            .with_child(Self::render_token_count_field(
+                view,
+                CompactionTokenField::KeepRecent,
+                "Keep recent tokens",
+                "About this many tokens of the newest conversation are kept word for word when \
+                 compacting, including with /compact.",
+                appearance,
+                app,
+            ))
+            .finish()
     }
 }
 

@@ -285,6 +285,7 @@ fn with_state(current_state: &str) -> Prompt {
     Prompt {
         system: "be helpful".to_string(),
         current_state: current_state.to_string(),
+        ..Default::default()
     }
 }
 
@@ -384,4 +385,21 @@ fn reasoning_tokens_are_read_from_the_completion_details() {
     };
     assert_eq!(usage.output, 400);
     assert_eq!(usage.reasoning, 320);
+}
+
+#[test]
+fn a_prompt_output_cap_is_not_sent() {
+    let capped = Prompt {
+        max_output_tokens: Some(8_000),
+        ..Default::default()
+    };
+    let custom = ProviderTarget {
+        is_custom: true,
+        ..target()
+    };
+    for target in [target(), custom] {
+        let body = build_body(&target, &capped, &[], &[]);
+        assert!(body.get("max_tokens").is_none());
+        assert!(body.get("max_completion_tokens").is_none());
+    }
 }

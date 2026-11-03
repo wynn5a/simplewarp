@@ -2153,6 +2153,32 @@ from here on). Generated `OUT_DIR` output is identical before and after. Format,
 `local_inference`/`agent_harness`/`persistence` 282/282, `-p warp` lib 3,749/3,749,
 `integration_tests` compiles.
 
+### Round: harness P2 — auto-compaction (2026-11-03)
+
+Spec: [../specs/plans/native-agent-harness/p2-auto-compaction.md](../specs/plans/native-agent-harness/p2-auto-compaction.md).
+pi's compaction, ported. `agent_harness::compaction` holds the policy (trigger past
+`window − reserve`, keep-recent capped at half the threshold, cut at a user/assistant entry never
+between a call and its results, split-turn detection, cumulative file lists, labelled transcript
+with tool results cut to 2,000 characters, pi's initial/update/turn-prefix prompts). A summary
+request is now built by `local_inference::compaction` from the conversation it carries: only the
+span since the previous summary and before the cut, as text, with the previous summary to update,
+no tools; split turns ask for both sections in one request. Proto, additive: the summarize input
+carries `keep_recent_tokens`/`context_tokens`; `ConversationSummary` records
+`first_kept_message_id`, read/modified files, tokens before/after. Replay keeps the tail after
+`first_kept` (old summaries still replace everything), drops the stored `/compact` instruction and
+turns orphaned results into user text. The controller compacts before a request past the
+threshold (holding it back until the summary is done) and after an overflow (then one resume, so
+the question is never stored twice); the footer drops when the summary finishes. Settings > AI >
+Context: toggle (+ Command Palette pair), reserve 16,384, keep-recent 20,000. Summary block header
+"Compacted: X → Y tokens". Review follow-ups: a summary counts only when it ends normally with
+text (otherwise rolled back and reported as an error, never a finished compaction) and gets an
+output cap on Anthropic only (4/5 of the reserve, ≤ window/4); a held question whose compaction is
+cancelled goes back to the head of the queue with its attachments; a failed compaction waits for
+new content before retrying; split turns with no prior history are summarized as the history; the
+overflow trigger has the root-task gate. Format, three clippy runs, `agent_harness`/`local_inference`/
+`warp_multi_agent_api`/`persistence` 325/325, `-p warp` lib 3,760/3,760, `integration_tests`
+compiles. Not run against a live provider or in the GUI.
+
 ## Risks
 
 - **The agent loop lives on the client.** The system prompt, tool schemas, and loop control the

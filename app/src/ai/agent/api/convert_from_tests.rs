@@ -204,3 +204,68 @@ fn a_tool_call_result_has_no_client_representation() {
         MaybeAIAgentOutputMessage::NoClientRepresentation
     ));
 }
+
+fn conversation_summary_message(tokens_before: u64, tokens_after: u64) -> api::Message {
+    api::Message {
+        id: "summary-id".to_string(),
+        task_id: "task-id".to_string(),
+        message: Some(api::message::Message::Summarization(
+            api::message::Summarization {
+                finished_duration: Some(prost_types::Duration {
+                    seconds: 2,
+                    nanos: 0,
+                }),
+                summary_type: Some(
+                    api::message::summarization::SummaryType::ConversationSummary(
+                        api::message::summarization::ConversationSummary {
+                            summary: "## Goal\nShip it.".to_string(),
+                            tokens_before,
+                            tokens_after,
+                            ..Default::default()
+                        },
+                    ),
+                ),
+            },
+        )),
+        ..Default::default()
+    }
+}
+
+fn compacted_tokens_of(message: api::Message) -> Option<crate::ai::agent::CompactedTokens> {
+    let task_id = TaskId::new("task-id".to_string());
+    let MaybeAIAgentOutputMessage::Message(output) = message
+        .to_client_output_message(ConversionParams {
+            task_id: &task_id,
+            active_code_review: None,
+        })
+        .expect("conversion should succeed")
+    else {
+        panic!("expected an output message");
+    };
+    let AIAgentOutputMessageType::Summarization {
+        compacted_tokens, ..
+    } = output.message
+    else {
+        panic!("expected a summarization");
+    };
+    compacted_tokens
+}
+
+#[test]
+fn a_compacted_summary_carries_its_token_change() {
+    assert_eq!(
+        compacted_tokens_of(conversation_summary_message(182_000, 24_000)),
+        Some(crate::ai::agent::CompactedTokens {
+            before: 182_000,
+            after: 24_000,
+        })
+    );
+    assert_eq!(
+        compacted_tokens_of(conversation_summary_message(0, 0)),
+        None
+    );
+    assert_eq!(
+        compacted_tokens_of(conversation_summary_message(182_000, 0)),
+        None
+    );
+}

@@ -123,6 +123,7 @@ fn current_state_follows_the_newest_user_message_uncached() {
     let prompt = Prompt {
         system: "be helpful".to_string(),
         current_state: "Current environment:\n- Working directory: /work\n".to_string(),
+        ..Default::default()
     };
 
     let body = build_body(&target(), &prompt, &[Turn::User("hi".to_string())], &[]);
@@ -154,6 +155,7 @@ fn current_state_after_the_agent_is_a_new_user_message() {
     let prompt = Prompt {
         system: String::new(),
         current_state: "Current environment:\n".to_string(),
+        ..Default::default()
     };
     let turns = vec![
         Turn::User("hi".to_string()),
@@ -339,6 +341,7 @@ fn empty_current_state_changes_nothing() {
     let prompt = Prompt {
         system: "be helpful".to_string(),
         current_state: String::new(),
+        ..Default::default()
     };
     let body = build_body(&target(), &prompt, &turns, &[]);
     assert_eq!(
@@ -395,5 +398,25 @@ fn a_fully_cached_input_still_counts() {
             cache_write: 0,
             reasoning: 0,
         })]
+    );
+}
+
+#[test]
+fn a_prompt_output_cap_lowers_max_tokens_but_never_raises_it() {
+    let capped = Prompt {
+        max_output_tokens: Some(8_000),
+        ..Default::default()
+    };
+    assert_eq!(
+        build_body(&target(), &capped, &[], &[])["max_tokens"],
+        8_000
+    );
+    let above = Prompt {
+        max_output_tokens: Some(100_000),
+        ..Default::default()
+    };
+    assert_eq!(
+        build_body(&target(), &above, &[], &[])["max_tokens"],
+        32_000
     );
 }

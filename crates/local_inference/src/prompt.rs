@@ -27,6 +27,8 @@ pub struct Prompt {
     /// Each provider puts it after the newest turn and it is never stored, so a change to it does
     /// not touch the cached prefix.
     pub current_state: String,
+    /// The most output tokens the reply may take, when the request sets a cap of its own.
+    pub max_output_tokens: Option<u32>,
 }
 
 impl Prompt {
@@ -50,6 +52,7 @@ impl Prompt {
         Self {
             system,
             current_state,
+            max_output_tokens: None,
         }
     }
 }

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::path::{Component, Path};
 use std::rc::Rc;
 
+use agent_harness::budget::format_tokens;
 use ai::agent::file_locations::group_file_contexts_for_display;
 use indexmap::IndexMap;
 use itertools::Itertools;
@@ -40,8 +41,8 @@ use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionResult, AIAgentActionResultType,
     AIAgentActionType, AIAgentOutputMessage, AIAgentOutputMessageType, AIAgentText,
-    AIAgentTextSection, MessageId, ReadFilesFailedFile, ReadFilesRequest, ReadFilesResult,
-    RequestCommandOutputResult, SubagentCall, SubagentType, SummarizationType,
+    AIAgentTextSection, CompactedTokens, MessageId, ReadFilesFailedFile, ReadFilesRequest,
+    ReadFilesResult, RequestCommandOutputResult, SubagentCall, SubagentType, SummarizationType,
 };
 use crate::ai::blocklist::action_model::AIActionStatus;
 use crate::ai::blocklist::block::model::{AIBlockModel, AIBlockModelHelper, AIBlockOutputStatus};
@@ -521,13 +522,14 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             text,
                             finished_duration,
                             summarization_type,
+                            compacted_tokens,
                             ..
                         } if matches!(
                             summarization_type,
                             SummarizationType::ConversationSummary
                         ) && !are_all_text_sections_empty(&text.sections) =>
                         {
-                            let header_text = "Conversation summarized".to_string();
+                            let header_text = summary_header_text(*compacted_tokens);
                             if let Some(element) = render_collapsible_block(
                                 output_message,
                                 header_text,
@@ -1874,6 +1876,20 @@ pub fn are_all_text_sections_empty(text_sections: &[AIAgentTextSection]) -> bool
     text_sections
         .iter()
         .all(|section: &AIAgentTextSection| section.is_empty())
+}
+
+/// The header of a finished conversation summary.
+fn summary_header_text(compacted_tokens: Option<CompactedTokens>) -> String {
+    match compacted_tokens {
+        Some(CompactedTokens { before, after }) => {
+            format!(
+                "Compacted: {} \u{2192} {} tokens",
+                format_tokens(before),
+                format_tokens(after)
+            )
+        }
+        None => "Conversation summarized".to_string(),
+    }
 }
 
 /// Helper to render collapsible reasoning or summarization blocks.

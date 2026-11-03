@@ -202,3 +202,25 @@ fn transfer_control_finished_result_converts_to_tool_call_result_input() {
         other => panic!("Expected tool-call-result input, got {other:?}"),
     }
 }
+
+#[test]
+fn a_summarize_input_carries_the_compaction_budget() {
+    let input = super::convert_input(vec![
+        crate::ai::agent::AIAgentInput::SummarizeConversation {
+            prompt: Some("the tests".to_string()),
+            keep_recent_tokens: 8_192,
+            context_tokens: 30_000,
+            max_output_tokens: 8_192,
+            context: Default::default(),
+        },
+    ])
+    .unwrap();
+
+    let Some(api::request::input::Type::SummarizeConversation(summarize)) = input.r#type else {
+        panic!("expected a summarize input");
+    };
+    assert_eq!(summarize.prompt, "the tests");
+    assert_eq!(summarize.keep_recent_tokens, 8_192);
+    assert_eq!(summarize.context_tokens, 30_000);
+    assert_eq!(summarize.max_output_tokens, 8_192);
+}

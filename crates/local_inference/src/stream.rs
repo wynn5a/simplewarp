@@ -6,6 +6,7 @@
 
 use std::collections::VecDeque;
 
+use agent_harness::compaction::SUMMARIZATION_SYSTEM_PROMPT;
 use futures::{StreamExt, stream};
 use reqwest_eventsource::{Event, EventSource, RequestBuilderExt};
 use warp_multi_agent_api as api;
@@ -14,31 +15,45 @@ use crate::config::Schema;
 use crate::emit::Emitter;
 use crate::mcp::McpCatalog;
 use crate::provider::{Delta, StopReason};
-use crate::{Error, OutputStream, config, convert, overflow, prompt, provider, tools};
+use crate::{Error, OutputStream, compaction, config, convert, overflow, prompt, provider, tools};
 
 /// Sends one agent request to the user's own provider, and streams the reply back as the
 /// response events that the client applies.
 pub async fn generate_local_output(request: &api::Request) -> Result<OutputStream, Error> {
     let target = config::resolve_target(request)?;
-    let turns = convert::turns_from_request(request);
+    let compaction = compaction::plan(request);
+    // A summary request shows the model the conversation as text to summarize, with a prompt of
+    // its own and no tools, so that it writes the summary instead of carrying on.
+    let (prompt, turns, tool_schemas) = match compaction.as_ref() {
+        Some(plan) => (
+            prompt::Prompt {
+                system: SUMMARIZATION_SYSTEM_PROMPT.to_string(),
+                current_state: String::new(),
+                max_output_tokens: plan.max_output_tokens,
+            },
+            vec![convert::Turn::User(plan.prompt_text.clone())],
+            Vec::new(),
+        ),
+        None => {
+            let supported_tools = request
+                .settings
+                .as_ref()
+                .map(|settings| settings.supported_tools.clone())
+                .unwrap_or_default();
+            let mut tool_schemas = tools::schemas_for(&supported_tools);
+            tool_schemas.extend(McpCatalog::from_request(request).schemas(&supported_tools));
+            (
+                prompt::Prompt::for_request(request),
+                convert::turns_from_request(request),
+                tool_schemas,
+            )
+        }
+    };
     if turns.is_empty() {
         return Err(Error::NoInput);
     }
 
-    let supported_tools = request
-        .settings
-        .as_ref()
-        .map(|settings| settings.supported_tools.clone())
-        .unwrap_or_default();
-    let mut tool_schemas = tools::schemas_for(&supported_tools);
-    tool_schemas.extend(McpCatalog::from_request(request).schemas(&supported_tools));
-
-    let body = provider::build_body(
-        &target,
-        &prompt::Prompt::for_request(request),
-        &turns,
-        &tool_schemas,
-    );
+    let body = provider::build_body(&target, &prompt, &turns, &tool_schemas);
 
     let mut builder = reqwest::Client::new()
         .post(target.endpoint_url())
@@ -56,6 +71,9 @@ pub async fn generate_local_output(request: &api::Request) -> Result<OutputStrea
         })?;
 
     let mut emitter = Emitter::new(request).replaying_reasoning(target.replays_reasoning());
+    if let Some(plan) = compaction {
+        emitter = emitter.with_compaction(plan.outcome);
+    }
     let opening = emitter.start();
 
     let state = State {

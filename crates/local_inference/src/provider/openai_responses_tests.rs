@@ -388,6 +388,7 @@ fn with_state(current_state: &str) -> Prompt {
     Prompt {
         system: "be helpful".to_string(),
         current_state: current_state.to_string(),
+        ..Default::default()
     }
 }
 

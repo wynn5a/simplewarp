@@ -29,6 +29,10 @@ pub fn headers(target: &ProviderTarget) -> Vec<(&'static str, String)> {
 /// OpenAI caches a request prefix of 1024 tokens or more on its own, with no marker to set. All
 /// that matters is that the prefix stays the same from one request to the next, which is why the
 /// current state goes at the very end. See [`Prompt`].
+///
+/// A prompt's `max_output_tokens` is not sent: OpenAI's reasoning models reject `max_tokens`, even
+/// behind a custom endpoint, and their `max_completion_tokens` counts reasoning too, so a cap that
+/// fits a summary can be spent on thinking alone.
 pub fn build_body(
     target: &ProviderTarget,
     prompt: &Prompt,

@@ -298,6 +298,17 @@ message Request {
     message SummarizeConversation {
       // Optional user-specified instructions to focus or augment the summary.
       string prompt = 1 [ (sensitive) = true ];
+
+      // SimpleWarp: estimated tokens at the end of the conversation to keep verbatim instead of
+      // summarizing. 0 summarizes the whole conversation.
+      uint32 keep_recent_tokens = 2;
+
+      // SimpleWarp: the conversation's context usage when compaction started, reported back as
+      // the summary's `tokens_before`. 0 means unknown.
+      uint64 context_tokens = 3;
+
+      // SimpleWarp: the most output tokens the summary may take. 0 leaves the provider default.
+      uint32 max_output_tokens = 4;
     }
 
     // A special input type used to start an ambient agent run where the initial

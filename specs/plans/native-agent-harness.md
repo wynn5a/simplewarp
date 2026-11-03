@@ -167,6 +167,7 @@ memory 会进入以后每次请求的 system prompt，写错的代价比一次�
 
 前置步骤 P2a（vendor proto，行为不变）的规格：
 [`native-agent-harness/p2a-vendor-proto.md`](native-agent-harness/p2a-vendor-proto.md)。
+P2 正文的实现规格：[`native-agent-harness/p2-auto-compaction.md`](native-agent-harness/p2-auto-compaction.md)。
 
 1. **proto 加字段**（vendor 之后）：
    - `ConversationSummary.first_kept_message_id`

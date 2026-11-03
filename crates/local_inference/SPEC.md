@@ -43,6 +43,21 @@ first-party model's input-token window (`context_window`: a prefix table, lowere
 `/models` `max_input_tokens` when that is smaller), and `convert::input_text` gives the text an
 input adds to what the model sees, for estimates.
 
+A summary request (`SummarizeConversation`) does not show the model the conversation as turns: the
+history since the previous summary is cut by `agent-harness`'s rule at `keep_recent_tokens`
+(0 means summarize everything), the part before the cut is sent as one labelled transcript with the
+previous summary to update and the user's `/compact` focus, under a summarization system prompt and
+with no tools; the client's output cap is sent to Anthropic only (OpenAI reasoning models reject
+`max_tokens` and count reasoning in `max_completion_tokens`, and the Responses plan endpoint rejects
+`max_output_tokens`). A summary counts
+only when the model ends it normally with some text; otherwise it is rolled back like an
+overflowed one and the stream ends in an error. The finished summary records the first message it kept, the cumulative read and
+modified files (also appended to its text) and the context before and after, and its stream reports
+the compacted estimate as the context usage. On replay a summary drops only the turns before its
+first kept message (an older summary without one still drops everything before it); the stored
+`/compact` instruction is not replayed, and a tool result whose call was summarized away is sent as
+user text.
+
 ## Boundary
 
 It depends on [`agent-harness`](../agent_harness/SPEC.md) for the token-estimate rule only. The wire

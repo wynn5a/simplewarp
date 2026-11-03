@@ -27,5 +27,12 @@ each conversation keeps the newest request's reported input and kept reply (from
 `ConversationUsageMetadata`) plus an estimate of the request in flight, taken from the text the
 model sees ([`agent-harness`](../../../crates/agent_harness/SPEC.md) owns the rule), persists the
 total, and the input footer shows it against the active model's window (capped by the execution
-profile's `context_window_limit`; custom-endpoint models count as 128k). No Warp-server concepts
+profile's `context_window_limit`; custom-endpoint models count as 128k). The controller compacts a
+conversation on its own (Settings > AI > Context, on by default): before a request once the context
+is within the reserve of the window, holding the request back until the summary is written, and
+after a request overflows the window, then resuming once; `/compact`, `/compact-and` and
+`/fork-and-compact` send the same summary request (how much to keep verbatim and the current
+usage), and the finished summary resets the usage to its compacted estimate. A held request is
+sent even when its compaction fails; when the compaction is cancelled its question goes back to the
+head of the queued prompts, and a failed compaction waits for new content before trying again. No Warp-server concepts
 (conversation links, cloud runs, ambient agents) may reappear here.

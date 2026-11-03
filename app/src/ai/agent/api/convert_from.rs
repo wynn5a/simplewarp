@@ -10,7 +10,8 @@ use crate::ai::agent::task::TaskId;
 use crate::ai::agent::util::parse_markdown_into_text_and_code_sections;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionType, AIAgentAttachment, AIAgentOutputMessage, AIAgentText,
-    ArtifactCreatedData, MessageId, SubagentCall, SubagentType, SummarizationType, UserQueryMode,
+    ArtifactCreatedData, CompactedTokens, MessageId, SubagentCall, SubagentType, SummarizationType,
+    UserQueryMode,
 };
 use crate::ai::artifact_download::sanitized_basename;
 
@@ -138,10 +139,18 @@ impl ConvertAPIMessageToClientOutputMessage for api::Message {
                 let duration = summarization
                     .finished_duration
                     .map(|d| Duration::from_secs(d.seconds as u64));
-                let (text, summarization_type, token_count) = match summarization.summary_type {
+                let (text, summarization_type, token_count, compacted_tokens) = match summarization
+                    .summary_type
+                {
                     Some(api::message::summarization::SummaryType::ConversationSummary(
                         conv_summary,
                     )) => {
+                        let compacted_tokens = (conv_summary.tokens_before > 0
+                            && conv_summary.tokens_after > 0)
+                            .then_some(CompactedTokens {
+                                before: conv_summary.tokens_before,
+                                after: conv_summary.tokens_after,
+                            });
                         let token_count = if conv_summary.token_count > 0 {
                             Some(conv_summary.token_count as u32)
                         } else {
@@ -156,11 +165,17 @@ impl ConvertAPIMessageToClientOutputMessage for api::Message {
                         } else {
                             AIAgentText { sections: vec![] }
                         };
-                        (text, SummarizationType::ConversationSummary, token_count)
+                        (
+                            text,
+                            SummarizationType::ConversationSummary,
+                            token_count,
+                            compacted_tokens,
+                        )
                     }
                     Some(api::message::summarization::SummaryType::ToolCallResultSummary(_)) => (
                         AIAgentText { sections: vec![] },
                         SummarizationType::ToolCallResultSummary,
+                        None,
                         None,
                     ),
                     None => {
@@ -168,6 +183,7 @@ impl ConvertAPIMessageToClientOutputMessage for api::Message {
                         (
                             AIAgentText { sections: vec![] },
                             SummarizationType::ConversationSummary,
+                            None,
                             None,
                         )
                     }
@@ -179,6 +195,7 @@ impl ConvertAPIMessageToClientOutputMessage for api::Message {
                         duration,
                         summarization_type,
                         token_count,
+                        compacted_tokens,
                     ),
                 ))
             }

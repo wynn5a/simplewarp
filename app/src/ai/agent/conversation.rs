@@ -156,6 +156,9 @@ pub struct AIConversation {
 
     context_usage: ContextUsage,
 
+    /// The context usage the newest compaction left, while the app runs.
+    last_compacted_to: Option<u64>,
+
     /// Whether the AIConversation is being used as a vehicle for a CLI conversation, that
     /// doesn't have a full internal representation but uses an AIConversationId to render
     /// in the agent view.
@@ -185,6 +188,7 @@ impl AIConversation {
             artifacts: Vec::new(),
             token_usage: Default::default(),
             context_usage: Default::default(),
+            last_compacted_to: None,
         }
     }
 
@@ -381,6 +385,7 @@ impl AIConversation {
             artifacts,
             token_usage,
             context_usage,
+            last_compacted_to: None,
         })
     }
 
@@ -543,6 +548,17 @@ impl AIConversation {
             update: ConversationStatusUpdate::Changed { prev_status },
             new_status,
         });
+    }
+
+    /// Whether every exchange a response stream added belongs to the root task.
+    pub fn is_root_task_response(&self, stream_id: &ResponseStreamId) -> bool {
+        self.added_exchanges_by_response
+            .get(stream_id)
+            .is_some_and(|added| {
+                added
+                    .iter()
+                    .all(|exchange| &exchange.task_id == self.get_root_task_id())
+            })
     }
 
     pub fn is_processing_response_stream(&self, stream_id: &ResponseStreamId) -> bool {
@@ -2043,6 +2059,16 @@ impl AIConversation {
             .map(|segment| u64::from(segment.token_count))
             .sum();
         self.context_usage.record_report(input, kept_output);
+    }
+
+    /// Records that a compaction just finished, leaving the current context usage.
+    pub fn note_compaction(&mut self) {
+        self.last_compacted_to = Some(self.context_usage.used_tokens());
+    }
+
+    /// The context usage the newest compaction left, if one finished while the app runs.
+    pub fn last_compacted_to(&self) -> Option<u64> {
+        self.last_compacted_to
     }
 
     /// Sets the estimate for the request in flight, until its report replaces it with an exact

@@ -51,18 +51,90 @@ pub struct ToolResult {
     pub is_error: bool,
 }
 
+/// The conversation a request carries before its input, as the model sees it.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(crate) struct History {
+    /// The turns after the newest summary, or all of them when there is none.
+    pub turns: Vec<Turn>,
+    /// For each turn, the id of the message that opened it.
+    pub openers: Vec<String>,
+    /// The newest finished summary, which stands in for everything before `turns`.
+    pub summary: Option<StoredSummary>,
+}
+
+/// A finished conversation summary in the history.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct StoredSummary {
+    pub text: String,
+    pub read_files: Vec<String>,
+    pub modified_files: Vec<String>,
+}
+
+impl History {
+    fn push_message(&mut self, proto_message: &api::Message) {
+        if let Some(message::Message::Summarization(summarization)) = proto_message.message.as_ref()
+        {
+            self.apply_summary(summarization);
+            return;
+        }
+        let before = self.turns.len();
+        push_message(&mut self.turns, proto_message);
+        self.openers
+            .extend((before..self.turns.len()).map(|_| proto_message.id.clone()));
+    }
+
+    /// A finished summary stands in for everything before the message it names as the first one
+    /// kept, or for everything before it when it names none (or one no turn opens, which a summary
+    /// written by an older build can do). A summary still being written stands in for nothing yet.
+    fn apply_summary(&mut self, summarization: &message::Summarization) {
+        let Some(summary) = finished_summary(summarization) else {
+            return;
+        };
+        let first_kept = (!summary.first_kept_message_id.is_empty())
+            .then(|| {
+                self.openers
+                    .iter()
+                    .position(|opener| *opener == summary.first_kept_message_id)
+            })
+            .flatten()
+            .unwrap_or(self.turns.len());
+        self.turns.drain(..first_kept);
+        self.openers.drain(..first_kept);
+        self.summary = Some(StoredSummary {
+            text: summary.summary.clone(),
+            read_files: summary.read_files.clone(),
+            modified_files: summary.modified_files.clone(),
+        });
+    }
+}
+
+/// Reads the history out of a request.
+pub(crate) fn history_from_request(request: &api::Request) -> History {
+    let mut history = History::default();
+    if let Some(context) = request.task_context.as_ref() {
+        for task in &context.tasks {
+            for proto_message in &task.messages {
+                history.push_message(proto_message);
+            }
+        }
+    }
+    history
+}
+
 /// Flattens a request into a turn list.
 ///
 /// Adjacent messages of the same kind are merged, because a provider rejects two assistant turns
 /// in a row, and the proto history splits one agent reply across several messages.
 pub fn turns_from_request(request: &api::Request) -> Vec<Turn> {
+    let history = history_from_request(request);
     let mut turns = Vec::new();
-
-    if let Some(context) = request.task_context.as_ref() {
-        for task in &context.tasks {
-            for proto_message in &task.messages {
-                push_message(&mut turns, proto_message);
-            }
+    if let Some(summary) = history.summary.as_ref() {
+        push_user(&mut turns, &inputs::summary_turn(&summary.text));
+    }
+    for turn in history.turns {
+        match turn {
+            Turn::User(text) => push_user(&mut turns, &text),
+            turn @ (Turn::Assistant { .. } | Turn::ToolResults(_)) => turns.push(turn),
         }
     }
 
@@ -79,8 +151,54 @@ pub fn turns_from_request(request: &api::Request) -> Vec<Turn> {
         push_input(&mut turns, input, &answered);
     }
 
+    let mut turns = unorphan_results(turns);
     pair_tool_calls(&mut turns);
     turns
+}
+
+/// Turns a tool result whose call is not in the conversation into user text.
+///
+/// After a compaction the call a result answers can be in the summary rather than in the turns,
+/// and a provider rejects a result that answers no call. The results that do answer a call stay
+/// first, so they still follow it directly.
+fn unorphan_results(turns: Vec<Turn>) -> Vec<Turn> {
+    let mut called = HashSet::new();
+    let mut fixed = Vec::with_capacity(turns.len());
+    for turn in turns {
+        match turn {
+            Turn::User(text) => push_user(&mut fixed, &text),
+            Turn::Assistant {
+                text,
+                reasoning,
+                tool_calls,
+            } => {
+                called.extend(tool_calls.iter().map(|call| call.id.clone()));
+                fixed.push(Turn::Assistant {
+                    text,
+                    reasoning,
+                    tool_calls,
+                });
+            }
+            Turn::ToolResults(results) => {
+                let (answering, orphans) = results
+                    .into_iter()
+                    .partition::<Vec<_>, _>(|result| called.contains(&result.id));
+                if !answering.is_empty() {
+                    fixed.push(Turn::ToolResults(answering));
+                }
+                for orphan in orphans {
+                    push_user(
+                        &mut fixed,
+                        &format!(
+                            "Result of a tool call made before the summary ({}):\n{}",
+                            orphan.id, orphan.content
+                        ),
+                    );
+                }
+            }
+        }
+    }
+    fixed
 }
 
 /// The text a request's input adds to what the model sees: the question with its attachments, each
@@ -311,16 +429,8 @@ fn push_message(turns: &mut Vec<Turn>, proto_message: &api::Message) {
                 );
             }
         }
-        // A finished summary stands in for everything before it, so the history starts over
-        // from the summary. A summary still being written has nothing to stand in with yet.
-        Some(message::Message::Summarization(summarization)) => {
-            if let Some(summary) = finished_summary(summarization) {
-                turns.clear();
-                push_user(turns, &inputs::summary_turn(summary));
-            }
-        }
         // Todos and server events carry no instruction that the model needs replayed, so they
-        // are left out.
+        // are left out. A summary is placed by [`History`].
         _ => {}
     }
 }
@@ -330,7 +440,8 @@ fn system_query_text(query: &message::SystemQuery) -> Option<String> {
     use message::system_query::Type;
 
     Some(match query.r#type.as_ref()? {
-        Type::SummarizeConversation(summarize) => inputs::summarize_conversation(&summarize.prompt),
+        // The instruction was for the model that wrote the summary, not part of the conversation.
+        Type::SummarizeConversation(_) => return None,
         Type::ResumeConversation(_) => inputs::RESUME_CONVERSATION.to_string(),
         Type::CreateNewProject(project) => inputs::create_new_project(&project.query),
         Type::CloneRepository(clone) => inputs::clone_repository(&clone.url),
@@ -339,14 +450,16 @@ fn system_query_text(query: &message::SystemQuery) -> Option<String> {
     })
 }
 
-/// The summary text of a conversation summary that has finished, if this is one.
-fn finished_summary(summarization: &message::Summarization) -> Option<&str> {
+/// The conversation summary, if this is one that has finished.
+fn finished_summary(
+    summarization: &message::Summarization,
+) -> Option<&message::summarization::ConversationSummary> {
     summarization.finished_duration?;
     match summarization.summary_type.as_ref()? {
         message::summarization::SummaryType::ConversationSummary(summary)
             if !summary.summary.trim().is_empty() =>
         {
-            Some(summary.summary.as_str())
+            Some(summary)
         }
         _ => None,
     }

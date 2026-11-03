@@ -1352,6 +1352,8 @@ pub enum AIAgentOutputMessageType {
         /// Number of tokens in the summarization.
         /// Only populated for ConversationSummary during/after summarization.
         token_count: Option<u32>,
+        /// The context usage before and after, when the summary compacted the conversation.
+        compacted_tokens: Option<CompactedTokens>,
     },
     Subagent(SubagentCall),
     Action(AIAgentAction),
@@ -1385,6 +1387,13 @@ pub enum ArtifactCreatedData {
         description: Option<String>,
         size_bytes: i64,
     },
+}
+
+/// Estimated context tokens a conversation used before and after a compaction.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct CompactedTokens {
+    pub before: u64,
+    pub after: u64,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -1555,6 +1564,7 @@ impl AIAgentOutputMessage {
         duration: Option<Duration>,
         summarization_type: SummarizationType,
         token_count: Option<u32>,
+        compacted_tokens: Option<CompactedTokens>,
     ) -> Self {
         Self {
             id,
@@ -1563,6 +1573,7 @@ impl AIAgentOutputMessage {
                 finished_duration: duration,
                 summarization_type,
                 token_count,
+                compacted_tokens,
             },
         }
     }
@@ -2019,6 +2030,12 @@ pub enum AIAgentInput {
 
     SummarizeConversation {
         prompt: Option<String>,
+        /// Estimated tokens at the end of the conversation kept verbatim; 0 summarizes it all.
+        keep_recent_tokens: u32,
+        /// The conversation's context usage when the compaction started; 0 when unknown.
+        context_tokens: u64,
+        /// The most output tokens the summary may take; 0 leaves the provider default.
+        max_output_tokens: u32,
         context: Arc<[AIAgentContext]>,
     },
 

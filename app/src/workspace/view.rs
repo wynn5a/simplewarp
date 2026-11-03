@@ -1921,7 +1921,8 @@ impl Workspace {
             AISettingsChangedEvent::IsActiveAIEnabled
             | AISettingsChangedEvent::ThinkingDisplayMode
             | AISettingsChangedEvent::PromptSubmissionMode
-            | AISettingsChangedEvent::AutoApproveBypassesCommandDenylist => {
+            | AISettingsChangedEvent::AutoApproveBypassesCommandDenylist
+            | AISettingsChangedEvent::AutoCompactionEnabled => {
                 ctx.notify();
             }
             _ => (),
@@ -14957,6 +14958,10 @@ impl Workspace {
             context
                 .set
                 .insert(flags::INCLUDE_AGENT_COMMANDS_IN_HISTORY_FLAG);
+        }
+
+        if *ai_settings.auto_compaction_enabled.value() {
+            context.set.insert(flags::AUTO_COMPACTION_ENABLED_FLAG);
         }
 
         if *ai_settings.auto_approve_bypasses_command_denylist.value() {

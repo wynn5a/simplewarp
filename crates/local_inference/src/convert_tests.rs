@@ -742,6 +742,7 @@ fn compact_becomes_the_summarize_prompt() {
         api::request::input::Type::SummarizeConversation(
             api::request::input::SummarizeConversation {
                 prompt: "the tests".to_string(),
+                ..Default::default()
             },
         ),
     );
@@ -810,7 +811,7 @@ fn summary_message(text: &str, finished: bool) -> api::Message {
         summary_type: Some(message::summarization::SummaryType::ConversationSummary(
             message::summarization::ConversationSummary {
                 summary: text.to_string(),
-                token_count: 0,
+                ..Default::default()
             },
         )),
     }))
@@ -833,6 +834,148 @@ fn a_finished_summary_replaces_everything_before_it() {
     assert!(text.contains("We fixed the build."));
     assert!(text.ends_with("next question"));
     assert!(!text.contains("old question"));
+}
+
+fn with_id(id: &str, mut proto_message: api::Message) -> api::Message {
+    proto_message.id = id.to_string();
+    proto_message
+}
+
+fn compacted_summary(text: &str, first_kept: &str) -> api::Message {
+    let mut summary = summary_message(text, true);
+    if let Some(message::Message::Summarization(summarization)) = summary.message.as_mut()
+        && let Some(message::summarization::SummaryType::ConversationSummary(conversation)) =
+            summarization.summary_type.as_mut()
+    {
+        conversation.first_kept_message_id = first_kept.to_string();
+    }
+    summary
+}
+
+#[test]
+fn a_summary_with_a_first_kept_message_keeps_the_tail() {
+    let history = vec![
+        with_id("q1", user_message("old question")),
+        with_id("a1", agent_message("old answer")),
+        with_id("q2", user_message("go on")),
+        with_id("c2", shell_call("call-2", "ls")),
+        with_id("r2", shell_result("call-2", "file.txt", 0)),
+        with_id("a3", agent_message("kept answer")),
+        compacted_summary("We read the files.", "c2"),
+        with_id("q4", user_message("next question")),
+    ];
+    let turns = turns_from_request(&request_with_messages(history));
+
+    assert_eq!(turns.len(), 5, "{turns:?}");
+    let Turn::User(summary) = &turns[0] else {
+        panic!("expected the summary first, got {turns:?}");
+    };
+    assert!(summary.contains("We read the files."));
+    assert!(!user_text(&turns).contains("old question"));
+    assert!(!user_text(&turns).contains("go on"));
+    assert!(
+        matches!(&turns[1], Turn::Assistant { tool_calls, .. } if tool_calls[0].id == "call-2")
+    );
+    assert!(matches!(&turns[2], Turn::ToolResults(results) if results[0].id == "call-2"));
+    assert!(matches!(&turns[3], Turn::Assistant { text, .. } if text == "kept answer"));
+    assert_eq!(turns[4], Turn::User("next question".to_string()));
+}
+
+#[test]
+fn a_kept_tail_that_opens_with_the_user_absorbs_the_summary() {
+    let history = vec![
+        with_id("q1", user_message("old question")),
+        with_id("a1", agent_message("old answer")),
+        with_id("q2", user_message("kept question")),
+        with_id("a2", agent_message("kept answer")),
+        compacted_summary("Summary text.", "q2"),
+    ];
+    let turns = turns_from_request(&request_with_messages(history));
+
+    assert_eq!(turns.len(), 2, "{turns:?}");
+    let Turn::User(text) = &turns[0] else {
+        panic!("expected a user turn");
+    };
+    assert!(text.contains("Summary text."));
+    assert!(text.ends_with("kept question"));
+}
+
+#[test]
+fn an_unknown_first_kept_message_falls_back_to_replacing_everything() {
+    let history = vec![
+        with_id("q1", user_message("old question")),
+        with_id("a1", agent_message("old answer")),
+        compacted_summary("Summary text.", "missing"),
+        with_id("q2", user_message("new question")),
+    ];
+    let turns = turns_from_request(&request_with_messages(history));
+
+    assert_eq!(turns.len(), 1, "{turns:?}");
+    assert!(!user_text(&turns).contains("old question"));
+}
+
+#[test]
+fn a_second_summary_replaces_the_first() {
+    let history = vec![
+        with_id("q1", user_message("first question")),
+        with_id("a1", agent_message("first answer")),
+        with_id("q2", user_message("second question")),
+        with_id("a2", agent_message("second answer")),
+        compacted_summary("First summary.", "q2"),
+        with_id("q3", user_message("third question")),
+        with_id("a3", agent_message("third answer")),
+        compacted_summary("Second summary.", "q3"),
+    ];
+    let turns = turns_from_request(&request_with_messages(history));
+
+    let text = user_text(&turns);
+    assert!(text.contains("Second summary."));
+    assert!(!text.contains("First summary."));
+    assert!(!text.contains("second question"));
+    assert!(text.contains("third question"));
+    assert_eq!(turns.len(), 2, "{turns:?}");
+}
+
+#[test]
+fn the_stored_compact_instruction_is_not_replayed() {
+    let instruction = message(message::Message::SystemQuery(message::SystemQuery {
+        r#type: Some(message::system_query::Type::SummarizeConversation(
+            message::SummarizeConversation {
+                prompt: "focus".to_string(),
+            },
+        )),
+        ..Default::default()
+    }));
+    let turns = turns_from_request(&request_with_messages(vec![
+        user_message("question"),
+        agent_message("answer"),
+        instruction,
+        summary_message("unfinished", false),
+    ]));
+
+    assert!(!user_text(&turns).contains("Summarize this conversation"));
+    assert_eq!(turns.len(), 2, "{turns:?}");
+}
+
+#[test]
+fn a_result_whose_call_was_summarized_becomes_user_text() {
+    let history = vec![
+        with_id("q1", user_message("question")),
+        with_id("c1", shell_call("call-1", "ls")),
+        compacted_summary("We ran ls.", ""),
+        with_id("r1", shell_result("call-1", "file.txt", 0)),
+    ];
+    let turns = turns_from_request(&request_with_messages(history));
+
+    assert!(
+        turns
+            .iter()
+            .all(|turn| !matches!(turn, Turn::ToolResults(_))),
+        "{turns:?}"
+    );
+    let text = user_text(&turns);
+    assert!(text.contains("Result of a tool call made before the summary (call-1)"));
+    assert!(text.contains("file.txt"));
 }
 
 #[test]

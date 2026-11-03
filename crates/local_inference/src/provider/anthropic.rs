@@ -75,7 +75,9 @@ pub fn build_body(
 
     let mut body = json!({
         "model": target.model,
-        "max_tokens": MAX_OUTPUT_TOKENS,
+        "max_tokens": prompt
+            .max_output_tokens
+            .map_or(MAX_OUTPUT_TOKENS, |cap| cap.min(MAX_OUTPUT_TOKENS)),
         "stream": true,
         "messages": messages,
     });

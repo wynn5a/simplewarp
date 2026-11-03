@@ -31,7 +31,8 @@ pub fn headers(target: &ProviderTarget) -> Vec<(&'static str, String)> {
 }
 
 /// The system prompt goes in `instructions`: the ChatGPT-plan endpoint rejects a system-role
-/// input item. `temperature` and `max_output_tokens` are left out for the same reason.
+/// input item. `temperature` and `max_output_tokens` are left out for the same reason, so a
+/// prompt's `max_output_tokens` is not sent here.
 ///
 /// Caching works as for Chat Completions: automatic, on a stable prefix. See
 /// [`crate::provider::openai::build_body`].

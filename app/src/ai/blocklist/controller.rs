@@ -3,16 +3,18 @@
 //!
 //! The `BlocklistAIController` orchestrates state updates and service calls to power the
 //! Agent Mode UI.
+mod compaction;
 pub mod input_context;
 mod pending_response_streams;
 pub mod response_stream;
 mod slash_command;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use ai::skills::{ParsedSkill, SkillPathOrigin, SkillReference};
 use anyhow::anyhow;
 use chrono::{DateTime, Local};
+use compaction::{Continuation, StreamOutcome};
 use input_context::{input_context_for_request, parse_context_attachments};
 use itertools::Itertools;
 use parking_lot::FairMutex;
@@ -226,6 +228,15 @@ pub struct BlocklistAIController {
     /// Pending auto-resume tasks that are waiting for network connectivity.
     /// These should be cancelled when a new request is sent for the same conversation.
     pending_auto_resume_handles: HashMap<AIConversationId, SpawnedFutureHandle>,
+
+    /// Summary streams in flight, with what to send when each one ends.
+    compactions: HashMap<ResponseStreamId, Continuation>,
+
+    /// Streams that overflowed the context window, compacted once they end.
+    compact_after_overflow: HashSet<ResponseStreamId>,
+
+    /// Resumes sent after an overflow was compacted. Another overflow on one is an error.
+    overflow_retries: HashSet<ResponseStreamId>,
 }
 
 enum InputQueryType {
@@ -421,6 +432,9 @@ impl BlocklistAIController {
             in_flight_response_streams: PendingResponseStreams::new(),
             terminal_view_id,
             pending_auto_resume_handles: HashMap::new(),
+            compactions: HashMap::new(),
+            compact_after_overflow: HashSet::new(),
+            overflow_retries: HashSet::new(),
         }
     }
 
@@ -1020,14 +1034,46 @@ impl BlocklistAIController {
         additional_context: Vec<AIAgentContext>,
         ctx: &mut ModelContext<Self>,
     ) {
+        let request_input =
+            match self.resume_request_input(conversation_id, additional_context, ctx) {
+                Ok(request_input) => request_input,
+                Err(error) => {
+                    report_error!(
+                        error.context("Tried to resume non-existent conversation"),
+                        extra: { "conversation_id" => ?conversation_id }
+                    );
+                    return;
+                }
+            };
+        let metadata = if is_auto_resume_after_error {
+            Some(RequestMetadata {
+                is_autodetected_user_query: false,
+                entrypoint: EntrypointType::ResumeConversation,
+                is_auto_resume_after_error: true,
+            })
+        } else {
+            None
+        };
+        let _ = self.send_request_input(
+            request_input,
+            metadata,
+            can_attempt_resume_on_error,
+            /*is_queued_prompt*/ false,
+            ctx,
+        );
+    }
+
+    /// The request that resumes `conversation_id` on the task the agent was last working in.
+    fn resume_request_input(
+        &self,
+        conversation_id: AIConversationId,
+        additional_context: Vec<AIAgentContext>,
+        ctx: &ModelContext<Self>,
+    ) -> anyhow::Result<RequestInput> {
         let Some(conversation) =
             BlocklistAIHistoryModel::as_ref(ctx).conversation(&conversation_id)
         else {
-            report_error!(
-                "Tried to resume non-existent conversation",
-                extra: { "conversation_id" => ?conversation_id }
-            );
-            return;
+            return Err(anyhow!("no conversation to resume"));
         };
         let task_id = {
             let terminal_model = self.terminal_model.lock();
@@ -1056,30 +1102,14 @@ impl BlocklistAIController {
             ctx,
         );
 
-        let inputs = vec![AIAgentInput::ResumeConversation { context }];
-        let metadata = if is_auto_resume_after_error {
-            Some(RequestMetadata {
-                is_autodetected_user_query: false,
-                entrypoint: EntrypointType::ResumeConversation,
-                is_auto_resume_after_error: true,
-            })
-        } else {
-            None
-        };
-        let _ = self.send_request_input(
-            RequestInput::for_task(
-                inputs,
-                task_id,
-                &self.active_session,
-                conversation_id,
-                self.terminal_view_id,
-                ctx,
-            ),
-            metadata,
-            can_attempt_resume_on_error,
-            /*is_queued_prompt*/ false,
+        Ok(RequestInput::for_task(
+            vec![AIAgentInput::ResumeConversation { context }],
+            task_id,
+            &self.active_session,
+            conversation_id,
+            self.terminal_view_id,
             ctx,
-        );
+        ))
     }
 
     /// Schedules an auto-resume-after-error for the conversation once the network is online.
@@ -1141,7 +1171,9 @@ impl BlocklistAIController {
     /// input) for an existing conversation. Consider calling [`Self::send_custom_ai_input_query`] if
     /// you're trying to send a query with a custom [`AIAgentInput`] type where you'd like the "normal"
     /// flow that handles existing conversations properly.
-    fn send_request_input(
+    ///
+    /// Unlike [`Self::send_request_input`], this never compacts the conversation first.
+    fn send_request_input_now(
         &mut self,
         request_input: RequestInput,
         query_metadata: Option<RequestMetadata>,
@@ -1231,6 +1263,13 @@ impl BlocklistAIController {
             .all_inputs()
             .any(|input| input.is_user_query());
         let estimated_input_tokens = api::estimate_input_tokens(request_params.input.clone());
+        if request_input
+            .all_inputs()
+            .any(|input| matches!(input, AIAgentInput::SummarizeConversation { .. }))
+        {
+            self.compactions
+                .insert(response_stream_id.clone(), Continuation::Done);
+        }
         ctx.subscribe_to_model(&response_stream, move |me, _, event, ctx| {
             me.handle_response_stream_event(event, &response_stream_clone, ctx);
         });
@@ -1674,6 +1713,7 @@ impl BlocklistAIController {
                             log::warn!(
                                 "Could not find conversation for response stream: {stream_id:?}"
                             );
+                            self.forget_stream(&stream_id);
                             return;
                         };
                         id
@@ -1684,18 +1724,28 @@ impl BlocklistAIController {
                 let Some(conversation) = history_model.as_ref(ctx).conversation(&conversation_id)
                 else {
                     log::warn!("Conversation not found.");
+                    self.forget_stream(&stream_id);
                     return;
                 };
                 let new_exchange_ids = conversation.new_exchange_ids_for_response(&stream_id);
                 let mut is_any_exchange_unfinished = false;
+                let mut all_exchanges_succeeded = true;
                 let mut actions_to_queue = vec![];
 
                 for new_exchange_id in new_exchange_ids {
                     let Some(exchange) = conversation.exchange_with_id(new_exchange_id) else {
                         log::warn!("Exchange not found.");
+                        self.forget_stream(&stream_id);
                         return;
                     };
                     is_any_exchange_unfinished |= !exchange.output_status.is_finished();
+                    all_exchanges_succeeded &= matches!(
+                        exchange.output_status,
+                        AIAgentOutputStatus::Finished {
+                            finished_output: FinishedAIAgentOutput::Success { .. },
+                            ..
+                        }
+                    );
 
                     if let AIAgentOutputStatus::Finished {
                         finished_output: FinishedAIAgentOutput::Success { output },
@@ -1771,6 +1821,16 @@ impl BlocklistAIController {
                 });
                 ctx.unsubscribe_from_model(response_stream);
 
+                let outcome = if cancellation.is_some() {
+                    StreamOutcome::Cancelled
+                } else if all_exchanges_succeeded && !is_any_exchange_unfinished {
+                    StreamOutcome::Succeeded
+                } else {
+                    StreamOutcome::Failed
+                };
+                // Before the event below, so that a queued prompt waits for what this sends.
+                self.continue_after_stream(&stream_id, conversation_id, outcome, ctx);
+
                 ctx.emit(BlocklistAIControllerEvent::FinishedReceivingOutput { conversation_id });
             }
         }
@@ -1802,6 +1862,11 @@ impl BlocklistAIController {
         ctx: &mut ModelContext<Self>,
     ) {
         let history_model = BlocklistAIHistoryModel::handle(ctx);
+        let is_finished_compaction = self.is_compaction_stream(stream_id)
+            && matches!(
+                finished_event.reason,
+                Some(warp_multi_agent_api::response_event::stream_finished::Reason::Done(_))
+            );
         // Added before the completion below, which persists the conversation.
         if !finished_event.token_usage.is_empty()
             || finished_event.conversation_usage_metadata.is_some()
@@ -1811,6 +1876,9 @@ impl BlocklistAIController {
                     conversation.add_token_usage(&finished_event.token_usage);
                     if let Some(metadata) = &finished_event.conversation_usage_metadata {
                         conversation.record_context_usage(metadata);
+                        if is_finished_compaction {
+                            conversation.note_compaction();
+                        }
                     }
                 }
             });
@@ -1846,10 +1914,15 @@ impl BlocklistAIController {
             }
             Some(warp_multi_agent_api::response_event::stream_finished::Reason::ContextWindowExceeded(_)) => {
                 let error_message = "Input exceeded context window limit.";
+                let recovery_pending =
+                    self.will_compact_after_overflow(stream_id, conversation_id, ctx);
+                if recovery_pending {
+                    self.compact_after_overflow.insert(stream_id.clone());
+                }
                 history_model.update(ctx, |history_model, ctx| {
                     history_model.mark_response_stream_completed_with_error(
                         RenderableAIError::ContextWindowExceeded(error_message.to_owned()),
-                        /*recovery_pending*/ false,
+                        recovery_pending,
                         stream_id,
                         conversation_id,
                         self.terminal_view_id,

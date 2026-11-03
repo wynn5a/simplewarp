@@ -27,6 +27,7 @@ pub mod prompt;
 pub mod provider;
 pub mod tools;
 
+mod compaction;
 mod emit;
 mod overflow;
 mod stream;

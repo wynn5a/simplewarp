@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use agent_harness::compaction::CompactionSettings;
 pub use cloud_object_models::{
     AgentModeCommandExecutionPredicate, DEFAULT_COMMAND_EXECUTION_ALLOWLIST,
     DEFAULT_COMMAND_EXECUTION_DENYLIST,
@@ -725,6 +726,37 @@ define_settings_group!(AISettings, settings: [
         toml_path: "agents.warp_agent.other.show_conversation_history",
         description: "Whether conversation history appears in the tools panel.",
     }
+
+    // Whether the agent compacts a conversation on its own when its context fills up.
+    auto_compaction_enabled: AutoCompactionEnabled {
+        type: bool,
+        default: true,
+        supported_platforms: SupportedPlatforms::ALL,
+        surface: settings::SettingSurfaces::GUI,
+        private: false,
+        toml_path: "agents.warp_agent.context.auto_compaction_enabled",
+        description: "Whether the agent compacts a conversation automatically when its context window fills up.",
+    }
+
+    compaction_reserve_tokens: CompactionReserveTokens {
+        type: u32,
+        default: agent_harness::compaction::DEFAULT_RESERVE_TOKENS,
+        supported_platforms: SupportedPlatforms::ALL,
+        surface: settings::SettingSurfaces::GUI,
+        private: false,
+        toml_path: "agents.warp_agent.context.compaction_reserve_tokens",
+        description: "Tokens left free below the context window; auto-compaction starts when fewer remain.",
+    }
+
+    compaction_keep_recent_tokens: CompactionKeepRecentTokens {
+        type: u32,
+        default: agent_harness::compaction::DEFAULT_KEEP_RECENT_TOKENS,
+        supported_platforms: SupportedPlatforms::ALL,
+        surface: settings::SettingSurfaces::GUI,
+        private: false,
+        toml_path: "agents.warp_agent.context.compaction_keep_recent_tokens",
+        description: "Approximate tokens of the newest conversation kept verbatim when compacting.",
+    }
 ]);
 
 impl AISettings {
@@ -735,6 +767,16 @@ impl AISettings {
 
     pub fn is_any_ai_enabled(&self) -> bool {
         *self.is_any_ai_enabled
+    }
+
+    /// The compaction settings, with token counts from a hand-edited file clamped to range.
+    pub fn compaction_settings(&self) -> CompactionSettings {
+        CompactionSettings {
+            enabled: *self.auto_compaction_enabled,
+            reserve_tokens: *self.compaction_reserve_tokens,
+            keep_recent_tokens: *self.compaction_keep_recent_tokens,
+        }
+        .clamped()
     }
 
     /// Returns whether conversation history is available for the current

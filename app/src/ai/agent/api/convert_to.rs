@@ -107,12 +107,21 @@ pub(super) fn convert_input(
                     )),
                 });
             }
-            AIAgentInput::SummarizeConversation { prompt, context } => {
+            AIAgentInput::SummarizeConversation {
+                prompt,
+                keep_recent_tokens,
+                context_tokens,
+                max_output_tokens,
+                context,
+            } => {
                 return Ok(api::request::Input {
                     context: Some(convert_context(context.as_ref())),
                     r#type: Some(api::request::input::Type::SummarizeConversation(
                         api::request::input::SummarizeConversation {
                             prompt: prompt.unwrap_or_default(),
+                            keep_recent_tokens,
+                            context_tokens,
+                            max_output_tokens,
                         },
                     )),
                 });

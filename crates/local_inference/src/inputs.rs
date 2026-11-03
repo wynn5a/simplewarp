@@ -36,10 +36,10 @@ put in it.";
 pub const RESUME_CONVERSATION: &str =
     "Continue from where you left off. If the last step failed, correct the cause and carry on.";
 
-/// What the summary is for, and how it should read, when the user runs `/compact`.
+/// What `/compact` asks for, as the text of the input.
 ///
-/// The summary replaces the conversation, so it has to hold what the model needs to carry on
-/// without the rest. See [`summary_turn`].
+/// The request the model answers is built by [`crate::compaction`] instead; this text only stands
+/// for the input where its size is estimated.
 const SUMMARIZE_CONVERSATION: &str = "\
 Summarize this conversation so that the work can continue from your summary alone. Everything \
 before it will be dropped.

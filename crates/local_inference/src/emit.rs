@@ -25,11 +25,13 @@
 use std::collections::{BTreeMap, HashSet};
 
 use agent_harness::budget::estimate_tokens_for_chars;
+use agent_harness::compaction::format_file_lists;
 use serde_json::Value;
 use uuid::Uuid;
 use warp_multi_agent_api as api;
 use warp_multi_agent_api::client_action::Action;
 
+use crate::compaction::Outcome;
 use crate::mcp::McpCatalog;
 use crate::provider::{Delta, StopReason, TokenUsage};
 use crate::{convert, inputs, tools};
@@ -58,6 +60,12 @@ pub struct Emitter {
     /// client shows it as a summary, and a later request reads it back as the start of the
     /// conversation. See [`crate::convert`].
     summary_message_id: Option<String>,
+    /// What a compacting summary records when it finishes. See [`crate::compaction`].
+    compaction: Option<Outcome>,
+    /// Characters of summary streamed so far.
+    summary_chars: u64,
+    /// Whether the streamed summary holds anything but whitespace.
+    summary_has_text: bool,
     /// When the reply began, for the duration that a finished summary carries.
     started_at: chrono::DateTime<chrono::Utc>,
     /// Tool calls being assembled, keyed by the index in the reply.
@@ -112,6 +120,9 @@ impl Emitter {
             reasoning_message_id: None,
             stored_inputs: stored_inputs_from_request(request),
             summary_message_id: is_summarize_request(request).then(new_id),
+            compaction: None,
+            summary_chars: 0,
+            summary_has_text: false,
             started_at: chrono::Utc::now(),
             pending_tools: BTreeMap::new(),
             mcp: McpCatalog::from_request(request),
@@ -131,6 +142,12 @@ impl Emitter {
     /// [`crate::ProviderTarget::replays_reasoning`].
     pub fn replaying_reasoning(mut self, replays_reasoning: bool) -> Self {
         self.replays_reasoning = replays_reasoning;
+        self
+    }
+
+    /// Records the cut, files and token counts that a summary request's summary finishes with.
+    pub(crate) fn with_compaction(mut self, outcome: Outcome) -> Self {
+        self.compaction = Some(outcome);
         self
     }
 
@@ -352,53 +369,128 @@ impl Emitter {
             ));
         }
 
-        if let Some(id) = self.summary_message_id.as_ref().filter(|_| !overflowed) {
-            let elapsed = prost_types::Duration {
-                seconds: (chrono::Utc::now() - self.started_at).num_seconds().max(0),
-                nanos: 0,
-            };
+        // A summary only counts when the model ended it on its own and wrote something: one cut
+        // off (by the window or the output limit) or empty would stand in for the conversation
+        // with less than it held.
+        let summary_failure = self
+            .summary_message_id
+            .is_some()
+            .then(|| summary_failure(reason, self.summary_has_text))
+            .flatten();
+
+        let mut compacted_context = None;
+        if let Some(id) = self
+            .summary_message_id
+            .clone()
+            .filter(|_| summary_failure.is_none())
+        {
+            let (finished, paths, tokens_after) = self.finished_summary(&id, &mut actions);
+            compacted_context = tokens_after;
             actions.push(Action::UpdateTaskMessage(
                 api::client_action::UpdateTaskMessage {
                     task_id: self.task_id.clone(),
                     message: Some(api::Message {
-                        id: id.clone(),
+                        id,
                         task_id: self.task_id.clone(),
-                        message: Some(api::message::Message::Summarization(summarization(
-                            String::new(),
-                            Some(elapsed),
-                        ))),
+                        message: Some(api::message::Message::Summarization(finished)),
                         ..Default::default()
                     }),
-                    mask: Some(prost_types::FieldMask {
-                        paths: vec!["summarization.finished_duration".to_string()],
-                    }),
+                    mask: Some(prost_types::FieldMask { paths }),
                 },
             ));
         }
 
-        // A summary cut off by the window is undone, so the task holds no summary that never
-        // finishes; anything else keeps what it stored, as a failed request does.
-        if overflowed && self.summary_message_id.is_some() {
+        // A failed summary is undone, so the task holds no summary that never finishes or that
+        // stands in for the conversation with too little; anything else keeps what it stored, as
+        // a failed request does.
+        if summary_failure.is_some() {
             actions.push(Action::RollbackTransaction(Default::default()));
         } else {
             actions.push(Action::CommitTransaction(Default::default()));
         }
+        let finish = summary_failure.unwrap_or_else(|| finish_reason(reason));
+        // A summary request's own input is not the conversation, so only a finished compaction
+        // reports how full the context is.
+        let conversation_usage_metadata = match (compacted_context, &self.summary_message_id) {
+            (Some(tokens), _) => Some(compacted_context_usage(tokens)),
+            (None, Some(_)) => None,
+            (None, None) => self.context_usage(),
+        };
 
         vec![
             actions_event(actions),
             event(api::response_event::Type::Finished(
                 api::response_event::StreamFinished {
-                    reason: Some(finish_reason(reason)),
+                    reason: Some(finish),
                     token_usage: self.token_usage().into_iter().collect(),
-                    conversation_usage_metadata: self.context_usage(),
+                    conversation_usage_metadata,
                     ..Default::default()
                 },
             )),
         ]
     }
 
+    /// The finished form of the summary, the mask paths that set it, and the context the
+    /// conversation uses after it when it compacted the conversation. A compacting summary's file
+    /// lists are appended to its text first, so a later request shows them to the model too.
+    fn finished_summary(
+        &self,
+        id: &str,
+        actions: &mut Vec<Action>,
+    ) -> (api::message::Summarization, Vec<String>, Option<u64>) {
+        let elapsed = prost_types::Duration {
+            seconds: (chrono::Utc::now() - self.started_at).num_seconds().max(0),
+            nanos: 0,
+        };
+        let mut finished = summarization(String::new(), Some(elapsed));
+        let mut paths = vec!["summarization.finished_duration".to_string()];
+        let Some(outcome) = self.compaction.as_ref() else {
+            return (finished, paths, None);
+        };
+
+        let file_lists = format_file_lists(&outcome.read_files, &outcome.modified_files);
+        if !file_lists.is_empty() {
+            actions.push(append_action(
+                &self.task_id,
+                id,
+                api::message::Message::Summarization(summarization(file_lists.clone(), None)),
+                "summarization.conversation_summary.summary",
+            ));
+        }
+        let summary_chars = self.summary_chars
+            + file_lists.chars().count() as u64
+            + inputs::summary_turn("").chars().count() as u64;
+        let tokens_after = outcome
+            .tokens_before
+            .saturating_sub(outcome.summarized_tokens)
+            + estimate_tokens_for_chars(summary_chars);
+
+        if let Some(api::message::summarization::SummaryType::ConversationSummary(summary)) =
+            finished.summary_type.as_mut()
+        {
+            summary.first_kept_message_id = outcome.first_kept_message_id.clone();
+            summary.read_files = outcome.read_files.clone();
+            summary.modified_files = outcome.modified_files.clone();
+            summary.tokens_before = outcome.tokens_before;
+            summary.tokens_after = tokens_after;
+        }
+        paths.extend(
+            [
+                "first_kept_message_id",
+                "read_files",
+                "modified_files",
+                "tokens_before",
+                "tokens_after",
+            ]
+            .map(|field| format!("summarization.conversation_summary.{field}")),
+        );
+        (finished, paths, Some(tokens_after))
+    }
+
     fn on_text(&mut self, text: String) -> Vec<Action> {
         if let Some(id) = self.summary_message_id.as_ref() {
+            self.summary_chars += text.chars().count() as u64;
+            self.summary_has_text |= !text.trim().is_empty();
             return vec![append_action(
                 &self.task_id,
                 id,
@@ -427,6 +519,10 @@ impl Emitter {
 
     fn on_reasoning(&mut self, reasoning: String) -> Vec<Action> {
         self.reasoning_chars += reasoning.chars().count() as u64;
+        // A summary's reasoning would replay as an empty reply after the summary.
+        if self.summary_message_id.is_some() {
+            return Vec::new();
+        }
         match self.reasoning_message_id.clone() {
             Some(id) => vec![append_action(
                 &self.task_id,
@@ -635,6 +731,31 @@ fn is_summarize_request(request: &api::Request) -> bool {
     )
 }
 
+/// How full the context is after a compaction: the summary request's own input is not the
+/// conversation, so the compacted estimate is reported in its place.
+fn compacted_context_usage(
+    tokens: u64,
+) -> api::response_event::stream_finished::ConversationUsageMetadata {
+    use api::response_event::stream_finished::{
+        ContextWindowSegment, ContextWindowSegmentType as SegmentType,
+    };
+
+    let tokens = u32::try_from(tokens).unwrap_or(u32::MAX);
+    api::response_event::stream_finished::ConversationUsageMetadata {
+        total_input_tokens: tokens,
+        context_window_segments: [
+            (SegmentType::ConversationHistory, tokens),
+            (SegmentType::Other, 0),
+        ]
+        .map(|(segment_type, token_count)| ContextWindowSegment {
+            segment_type: segment_type as i32,
+            token_count,
+        })
+        .to_vec(),
+        ..Default::default()
+    }
+}
+
 /// A conversation summary message, with `finished_duration` set once the summary is done.
 fn summarization(
     text: String,
@@ -646,7 +767,7 @@ fn summarization(
             api::message::summarization::SummaryType::ConversationSummary(
                 api::message::summarization::ConversationSummary {
                     summary: text,
-                    token_count: 0,
+                    ..Default::default()
                 },
             ),
         ),
@@ -722,6 +843,26 @@ fn actions_event(actions: Vec<Action>) -> api::ResponseEvent {
                 .collect(),
         },
     ))
+}
+
+/// Why a summary that stopped for `reason` failed, as the finish reason the client gets, or
+/// `None` when it finished.
+fn summary_failure(
+    reason: StopReason,
+    has_text: bool,
+) -> Option<api::response_event::stream_finished::Reason> {
+    use api::response_event::stream_finished::{InternalError, Reason};
+
+    let message = match reason {
+        StopReason::EndTurn if has_text => return None,
+        StopReason::ContextWindowExceeded => return Some(finish_reason(reason)),
+        StopReason::EndTurn => "The model returned an empty summary.",
+        StopReason::MaxTokens => "The summary reached its output limit before it was finished.",
+        StopReason::ToolUse | StopReason::Other => "The model did not finish the summary.",
+    };
+    Some(Reason::InternalError(InternalError {
+        message: message.to_string(),
+    }))
 }
 
 fn finish_reason(reason: StopReason) -> api::response_event::stream_finished::Reason {

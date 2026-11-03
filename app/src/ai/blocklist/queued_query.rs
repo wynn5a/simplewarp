@@ -40,6 +40,8 @@ pub enum QueuedQueryOrigin {
     /// Filed as the follow-up prompt of a `/fork-and-compact <prompt>` slash command on the
     /// forked conversation, waiting for the fork's summarize to finish.
     ForkAndCompactSlashCommand,
+    /// A prompt held back for an automatic compaction that was cancelled before it was sent.
+    HeldForCompaction,
 }
 
 /// Whether a queued row is an agent prompt or a shell command. Attachments live inside the
@@ -521,6 +523,24 @@ impl QueuedQueryModel {
         let query_id = query.id;
         let state = self.queues.entry(conversation_id).or_default();
         state.queue.push(query);
+        ctx.emit(QueuedQueryEvent::Appended {
+            conversation_id,
+            query_id,
+        });
+        query_id
+    }
+
+    /// Puts a row at the head of `conversation_id`'s queue, for a prompt that was submitted before
+    /// the rows already queued.
+    pub fn push_front(
+        &mut self,
+        conversation_id: AIConversationId,
+        query: QueuedQuery,
+        ctx: &mut ModelContext<Self>,
+    ) -> QueuedQueryId {
+        let query_id = query.id;
+        let state = self.queues.entry(conversation_id).or_default();
+        state.queue.insert(0, query);
         ctx.emit(QueuedQueryEvent::Appended {
             conversation_id,
             query_id,

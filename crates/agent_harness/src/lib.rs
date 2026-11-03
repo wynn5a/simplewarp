@@ -5,3 +5,4 @@
 //! every rule here is unit-tested in isolation.
 
 pub mod budget;
+pub mod compaction;

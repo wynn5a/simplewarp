@@ -32,7 +32,12 @@ It is no longer synced with upstream.
 
 ## Local changes
 
-None yet.
+- `Request.Input.SummarizeConversation`: `keep_recent_tokens = 2` (0 = summarize everything, the
+  old behavior), `context_tokens = 3` (0 = unknown) and `max_output_tokens = 4` (0 = provider
+  default), for compaction (harness P2).
+- `Message.Summarization.ConversationSummary`: `first_kept_message_id = 3` (empty = the summary
+  replaces everything before it, the old behavior), `read_files = 4`, `modified_files = 5`,
+  `tokens_before = 6`, `tokens_after = 7` (0 = unknown).
 
 ## Boundary
 

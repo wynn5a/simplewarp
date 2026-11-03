@@ -382,6 +382,20 @@ message Message {
     message ConversationSummary {
       string summary = 1;
       int32 token_count = 2;
+
+      // SimpleWarp: the first message kept verbatim after the summary. Empty means the summary
+      // stands in for everything before it.
+      string first_kept_message_id = 3;
+
+      // SimpleWarp: files read but not modified, accumulated across compactions.
+      repeated string read_files = 4;
+
+      // SimpleWarp: files modified, accumulated across compactions.
+      repeated string modified_files = 5;
+
+      // SimpleWarp: estimated context tokens before and after the compaction. 0 means unknown.
+      uint64 tokens_before = 6;
+      uint64 tokens_after = 7;
     }
 
     // Summarize the result of a tool call.

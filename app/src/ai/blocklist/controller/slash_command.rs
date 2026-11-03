@@ -3,6 +3,7 @@ use std::sync::Arc;
 use warp_errors::report_error;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
+use super::compaction::CompactionBudget;
 use super::{
     BlocklistAIController, BlocklistAIControllerEvent, RequestInput, add_pending_file_attachments,
     input_context_for_request, parse_context_attachments,
@@ -107,9 +108,11 @@ impl SlashCommandRequest {
         );
         let entrypoint = self.entrypoint();
         let is_summarize = matches!(self, Self::Summarize { .. });
+        let compaction_budget = controller.compaction_budget(conversation_id, ctx);
         let inputs = self.input(
             context,
             prompt_files,
+            compaction_budget,
             controller.context_model.as_ref(ctx),
             ctx,
         );
@@ -214,6 +217,7 @@ impl SlashCommandRequest {
         self,
         context: Arc<[AIAgentContext]>,
         prompt_files: Vec<PendingFile>,
+        compaction_budget: CompactionBudget,
         context_model: &BlocklistAIContextModel,
         app: &AppContext,
     ) -> Vec<AIAgentInput> {
@@ -225,8 +229,8 @@ impl SlashCommandRequest {
                 context,
                 display_query: Some("/init".to_string()),
             }],
-            SlashCommandRequest::Summarize { prompt, .. } => {
-                vec![AIAgentInput::SummarizeConversation { prompt, context }]
+            SlashCommandRequest::Summarize { prompt } => {
+                vec![compaction_budget.summarize_input(prompt, context)]
             }
             SlashCommandRequest::InvokeSkill { skill, user_query } => {
                 let user_query = {

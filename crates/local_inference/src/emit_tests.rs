@@ -500,6 +500,7 @@ fn compact_is_stored_as_a_system_query() {
         api::request::input::Type::SummarizeConversation(
             api::request::input::SummarizeConversation {
                 prompt: "focus on tests".to_string(),
+                ..Default::default()
             },
         ),
     );
@@ -567,6 +568,7 @@ fn finishing_a_summary_sets_its_duration_and_drops_tool_calls() {
     );
     let mut emitter = Emitter::new(&request);
     let _ = emitter.start();
+    let _ = emitter.on_delta(Delta::Text("We did X.".to_string()));
     let _ = emitter.on_delta(Delta::ToolCallStart {
         index: 0,
         id: "call-1".to_string(),
@@ -1073,4 +1075,215 @@ fn a_reply_without_an_input_count_reports_no_context() {
     );
 
     assert_eq!(context_split(&events), None);
+}
+
+fn compacting_emitter() -> Emitter {
+    let request = request_with_input_type(
+        "task-1",
+        api::request::input::Type::SummarizeConversation(Default::default()),
+    );
+    Emitter::new(&request).with_compaction(Outcome {
+        first_kept_message_id: "kept-1".to_string(),
+        read_files: vec!["a.rs".to_string()],
+        modified_files: vec!["b.rs".to_string()],
+        tokens_before: 180_000,
+        summarized_tokens: 160_000,
+    })
+}
+
+#[test]
+fn a_finished_compaction_records_its_boundary_and_files() {
+    let mut emitter = compacting_emitter();
+    let _ = emitter.start();
+    let _ = emitter.on_delta(Delta::Text("## Goal\nShip it.".to_string()));
+
+    let actions = actions_of(&emitter.finish(StopReason::EndTurn));
+    let appended = actions
+        .iter()
+        .filter_map(|action| match action {
+            Action::AppendToMessageContent(append) => append.message.as_ref(),
+            _ => None,
+        })
+        .filter_map(|message| match message.message.as_ref()? {
+            api::message::Message::Summarization(summarization) => {
+                match summarization.summary_type.as_ref()? {
+                    api::message::summarization::SummaryType::ConversationSummary(summary) => {
+                        Some(summary.summary.clone())
+                    }
+                    api::message::summarization::SummaryType::ToolCallResultSummary(_) => None,
+                }
+            }
+            _ => None,
+        })
+        .collect::<String>();
+    assert_eq!(
+        appended,
+        "\n\n<read-files>\na.rs\n</read-files>\n\n<modified-files>\nb.rs\n</modified-files>"
+    );
+
+    let Some(Action::UpdateTaskMessage(update)) = actions
+        .iter()
+        .find(|action| matches!(action, Action::UpdateTaskMessage(_)))
+    else {
+        panic!("expected the summary to be finished: {actions:?}");
+    };
+    let paths = &update.mask.as_ref().expect("mask").paths;
+    for path in [
+        "summarization.finished_duration",
+        "summarization.conversation_summary.first_kept_message_id",
+        "summarization.conversation_summary.read_files",
+        "summarization.conversation_summary.modified_files",
+        "summarization.conversation_summary.tokens_before",
+        "summarization.conversation_summary.tokens_after",
+    ] {
+        assert!(paths.iter().any(|existing| existing == path), "{path}");
+    }
+    let Some(api::message::Message::Summarization(api::message::Summarization {
+        summary_type: Some(api::message::summarization::SummaryType::ConversationSummary(summary)),
+        ..
+    })) = update.message.as_ref().and_then(|m| m.message.as_ref())
+    else {
+        panic!("expected a conversation summary");
+    };
+    assert_eq!(summary.first_kept_message_id, "kept-1");
+    assert_eq!(summary.read_files, vec!["a.rs"]);
+    assert_eq!(summary.modified_files, vec!["b.rs"]);
+    assert_eq!(summary.tokens_before, 180_000);
+    assert!(summary.tokens_after > 20_000 && summary.tokens_after < 20_200);
+    assert!(matches!(actions.last(), Some(Action::CommitTransaction(_))));
+}
+
+#[test]
+fn a_finished_compaction_reports_the_compacted_context() {
+    let mut emitter = compacting_emitter();
+    let _ = emitter.start();
+    let _ = emitter.on_delta(Delta::Text("## Goal\nShip it.".to_string()));
+    let _ = emitter.on_delta(Delta::Usage(TokenUsage {
+        input: 9_000,
+        output: 700,
+        ..Default::default()
+    }));
+
+    let events = emitter.finish(StopReason::EndTurn);
+    let (input, kept) = context_split(&events).expect("a context report");
+    assert!(input > 20_000 && input < 20_200, "{input}");
+    assert_eq!(kept, 0);
+    // The billed usage is the summary request's own.
+    assert_eq!(finished_of(&events).token_usage[0].total_input, 9_000);
+}
+
+#[test]
+fn an_overflowed_compaction_is_still_rolled_back() {
+    let mut emitter = compacting_emitter();
+    let _ = emitter.start();
+
+    let events = emitter.finish(StopReason::ContextWindowExceeded);
+    assert!(matches!(
+        actions_of(&events).as_slice(),
+        [Action::RollbackTransaction(_)]
+    ));
+    assert_eq!(context_split(&events), None);
+}
+
+#[test]
+fn a_summary_streams_no_reasoning_message() {
+    let mut emitter = compacting_emitter();
+    let _ = emitter.start();
+    assert!(
+        emitter
+            .on_delta(Delta::Reasoning("thinking".to_string()))
+            .is_empty()
+    );
+}
+
+#[test]
+fn a_retry_after_compaction_stores_no_second_question() {
+    let mut request = request_with_input_type(
+        "task-1",
+        api::request::input::Type::ResumeConversation(Default::default()),
+    );
+    request.task_context = Some(api::request::TaskContext {
+        tasks: vec![api::Task {
+            id: "task-1".to_string(),
+            messages: vec![api::Message {
+                id: "q1".to_string(),
+                message: Some(api::message::Message::UserQuery(api::message::UserQuery {
+                    query: "the question".to_string(),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }],
+    });
+
+    let stored = stored_messages(&Emitter::new(&request).start());
+    assert!(
+        matches!(
+            stored.as_slice(),
+            [api::message::Message::SystemQuery(
+                api::message::SystemQuery {
+                    r#type: Some(api::message::system_query::Type::ResumeConversation(_)),
+                    ..
+                }
+            )]
+        ),
+        "{stored:?}"
+    );
+}
+
+fn assert_failed_summary(events: &[api::ResponseEvent], expected_message: &str) {
+    assert!(
+        matches!(
+            actions_of(events).as_slice(),
+            [Action::RollbackTransaction(_)]
+        ),
+        "a failed summary leaves nothing behind: {:?}",
+        actions_of(events)
+    );
+    let Some(api::response_event::stream_finished::Reason::InternalError(error)) =
+        finished_of(events).reason.as_ref()
+    else {
+        panic!(
+            "expected an internal error, got {:?}",
+            finished_of(events).reason
+        );
+    };
+    assert_eq!(error.message, expected_message);
+    assert_eq!(context_split(events), None);
+}
+
+#[test]
+fn a_summary_cut_off_by_the_output_limit_is_rolled_back() {
+    let mut emitter = compacting_emitter();
+    let _ = emitter.start();
+    let _ = emitter.on_delta(Delta::Text("## Goal\nShip".to_string()));
+    assert_failed_summary(
+        &emitter.finish(StopReason::MaxTokens),
+        "The summary reached its output limit before it was finished.",
+    );
+}
+
+#[test]
+fn an_empty_summary_is_rolled_back() {
+    let mut emitter = compacting_emitter();
+    let _ = emitter.start();
+    let _ = emitter.on_delta(Delta::Text("  \n ".to_string()));
+    assert_failed_summary(
+        &emitter.finish(StopReason::EndTurn),
+        "The model returned an empty summary.",
+    );
+}
+
+#[test]
+fn a_summary_that_stopped_for_another_reason_is_rolled_back() {
+    for reason in [StopReason::Other, StopReason::ToolUse] {
+        let mut emitter = compacting_emitter();
+        let _ = emitter.start();
+        let _ = emitter.on_delta(Delta::Text("## Goal".to_string()));
+        assert_failed_summary(
+            &emitter.finish(reason),
+            "The model did not finish the summary.",
+        );
+    }
 }

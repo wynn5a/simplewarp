@@ -475,6 +475,19 @@ fn context_usage_is_the_newest_request_not_the_sum() {
 }
 
 #[test]
+fn a_compaction_report_lowers_the_context_usage() {
+    let mut conversation = restored_conversation(None);
+    conversation.record_context_usage(&context_report(180_000, 2_000));
+    assert_eq!(conversation.last_compacted_to(), None);
+
+    conversation.record_context_usage(&context_report(24_000, 0));
+    conversation.note_compaction();
+
+    assert_eq!(conversation.context_usage().used_tokens(), 24_000);
+    assert_eq!(conversation.last_compacted_to(), Some(24_000));
+}
+
+#[test]
 fn the_pending_estimate_counts_until_the_next_report() {
     let mut conversation = restored_conversation(None);
     conversation.record_context_usage(&context_report(10_000, 300));

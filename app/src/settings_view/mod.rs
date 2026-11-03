@@ -430,6 +430,7 @@ pub mod flags {
     pub const INTELLIGENT_AUTOSUGGESTIONS_FLAG: &str = "Intelligent_Autosuggestions";
     pub const PROMPT_SUGGESTIONS_FLAG: &str = "Prompt_Suggestions";
     pub const INCLUDE_AGENT_COMMANDS_IN_HISTORY_FLAG: &str = "Include_Agent_Commands_In_History";
+    pub const AUTO_COMPACTION_ENABLED_FLAG: &str = "Auto_Compaction_Enabled";
     pub const AUTO_APPROVE_BYPASSES_COMMAND_DENYLIST_FLAG: &str =
         "Auto_Approve_Bypasses_Command_Denylist";
     pub const AI_RULES_FLAG: &str = "AI_Rules";
