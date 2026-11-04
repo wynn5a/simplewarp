@@ -27,10 +27,12 @@ each conversation keeps the newest request's reported input and kept reply (from
 `ConversationUsageMetadata`) plus an estimate of the request in flight, taken from the text the
 model sees ([`agent-harness`](../../../crates/agent_harness/SPEC.md) owns the rule), persists the
 total, and the input footer shows it against the active model's window (capped by the execution
-profile's `context_window_limit`; custom-endpoint models count as 128k) as a bar and percentage
-that turns the warning color at 80% and the error color past the auto-compaction threshold; its
-tooltip gives the token counts and that threshold, and clicking it on an idle conversation sends
-the same summary request as `/compact`. The controller compacts a
+profile's `context_window_limit`; custom-endpoint models count as 128k) as a `ctx` capsule with a
+bar, percentage and `used/window` that turns the warning color at 80% and the error color past the
+auto-compaction threshold; its tooltip gives the token counts and that threshold, and clicking it on
+an idle conversation sends the same summary request as `/compact`. Beside it, two capsules show the
+conversation's summed input and output tokens, with the cache split in the input tooltip. The
+controller compacts a
 conversation on its own (Settings > AI > Context, on by default): before a request once the context
 is within the reserve of the window, holding the request back until the summary is written, and
 after a request overflows the window, then resuming once; `/compact`, `/compact-and` and

@@ -1,8 +1,11 @@
-//! What the footer's context meter shows for a conversation: how full the window is, how urgent
-//! that is, and whether clicking it compacts the conversation.
+//! What the footer's usage capsules show for a conversation: how full the context window is, how
+//! urgent that is, whether clicking it compacts the conversation, and the tokens sent and received.
 
 use agent_harness::budget::{ContextUsage, WARNING_FRACTION, format_tokens};
 use agent_harness::compaction::CompactionSettings;
+use persistence::model::ConversationTokenUsage;
+
+use crate::ai::conversation_details_panel::format_token_count;
 
 /// What the active conversation is doing, as far as compacting it on demand is concerned.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,6 +30,8 @@ pub(super) struct ContextMeter {
     pub fill: f32,
     pub level: MeterLevel,
     pub label: String,
+    /// "used/window", e.g. `104.8k/1M`.
+    pub usage_label: String,
     pub tooltip: String,
     pub tooltip_detail: String,
     pub can_compact: bool,
@@ -71,6 +76,11 @@ pub(super) fn context_meter(
         fill: fraction.clamp(0., 1.) as f32,
         level,
         label,
+        usage_label: format!(
+            "{}/{}",
+            format_token_count(used),
+            format_tokens(u64::from(window))
+        ),
         tooltip: format!(
             "Context: {} of {} tokens ({percent}%)",
             format_tokens(used),
@@ -79,6 +89,57 @@ pub(super) fn context_meter(
         tooltip_detail: format!("{auto_compaction} · {action}"),
         can_compact: activity == ConversationActivity::Idle,
     }
+}
+
+/// One of the capsules counting the tokens a conversation has sent or received so far.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct TokenCapsule {
+    pub label: String,
+    pub tooltip: String,
+    pub tooltip_detail: String,
+}
+
+/// The input and output capsules, or `None` before any request has reported its usage.
+pub(super) fn token_capsules(usage: ConversationTokenUsage) -> Option<[TokenCapsule; 2]> {
+    if usage == ConversationTokenUsage::default() {
+        return None;
+    }
+    let mut cache = Vec::new();
+    if usage.cached_input != 0 {
+        cache.push(format!(
+            "{} read from cache",
+            format_token_count(usage.cached_input)
+        ));
+    }
+    if usage.cache_write != 0 {
+        cache.push(format!(
+            "{} written to cache",
+            format_token_count(usage.cache_write)
+        ));
+    }
+    let input_detail = if cache.is_empty() {
+        "Summed over every request, each of which resends the conversation".to_owned()
+    } else {
+        cache.join(" · ")
+    };
+    Some([
+        TokenCapsule {
+            label: format_token_count(usage.input),
+            tooltip: format!(
+                "Input: {} tokens sent in this conversation",
+                format_token_count(usage.input)
+            ),
+            tooltip_detail: input_detail,
+        },
+        TokenCapsule {
+            label: format_token_count(usage.output),
+            tooltip: format!(
+                "Output: {} tokens generated in this conversation",
+                format_token_count(usage.output)
+            ),
+            tooltip_detail: "Summed over every reply".to_owned(),
+        },
+    ])
 }
 
 #[cfg(test)]

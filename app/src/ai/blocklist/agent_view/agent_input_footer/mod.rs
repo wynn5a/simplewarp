@@ -5,7 +5,9 @@ pub mod toolbar_item;
 
 use std::sync::Arc;
 
-use context_meter::{ContextMeter, ConversationActivity, MeterLevel, context_meter};
+use context_meter::{
+    ContextMeter, ConversationActivity, MeterLevel, TokenCapsule, context_meter, token_capsules,
+};
 use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::{Vector2F, vec2f};
@@ -23,6 +25,7 @@ use warpui::elements::{
     MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds,
     Percentage, Radius, Rect, Shrinkable, Stack, Text, Wrap, WrapFill, WrapFillEntireRun,
 };
+use warpui::fonts::{Properties, Weight};
 use warpui::platform::Cursor;
 use warpui::ui_components::components::UiComponent;
 use warpui::{
@@ -117,7 +120,7 @@ pub struct AgentInputFooter {
     // Fast-forward (auto-approve) toggle button shown in the agent view footer.
     fast_forward_button: ViewHandle<ActionButton>,
 
-    context_meter_mouse_state: MouseStateHandle,
+    usage_capsule_mouse_states: UsageCapsuleMouseStates,
 }
 
 impl AgentInputFooter {
@@ -345,7 +348,7 @@ impl AgentInputFooter {
             cli_display_chips: vec![],
             display_chip_config,
             fast_forward_button,
-            context_meter_mouse_state: Default::default(),
+            usage_capsule_mouse_states: Default::default(),
         };
         me.sync_fast_forward_button(ctx);
         me.update_display_chips(&prompt, ctx);
@@ -693,34 +696,43 @@ impl AgentInputFooter {
         }
     }
 
-    /// A bar and percentage showing how full the active conversation's context window is, with
-    /// the token breakdown on hover; clicking it compacts an idle conversation. Hidden until a
-    /// request has reported its usage, and when the window is unknown.
+    /// Capsules for the active conversation: how full its context window is (with the token
+    /// breakdown on hover; clicking it compacts an idle conversation) and the tokens it has sent
+    /// and received. The context capsule is hidden until a request has reported its usage and
+    /// while the window is unknown; the token capsules until a request has reported its usage.
     fn render_context_window_usage(&self, app: &AppContext) -> Option<Box<dyn Element>> {
         let conversation =
             BlocklistAIHistoryModel::as_ref(app).active_conversation(self.terminal_view_id)?;
         let usage = conversation.context_usage();
-        if !usage.has_report() {
+        let meter = usage
+            .has_report()
+            .then(|| {
+                LLMPreferences::as_ref(app).active_context_window(app, Some(self.terminal_view_id))
+            })
+            .flatten()
+            .map(|window| {
+                let activity = if conversation.is_summarizing() {
+                    ConversationActivity::Compacting
+                } else if conversation.status().is_in_progress() {
+                    ConversationActivity::Running
+                } else {
+                    ConversationActivity::Idle
+                };
+                context_meter(
+                    usage,
+                    window,
+                    AISettings::as_ref(app).compaction_settings(),
+                    activity,
+                )
+            });
+        let tokens = token_capsules(conversation.token_usage());
+        if meter.is_none() && tokens.is_none() {
             return None;
         }
-        let window =
-            LLMPreferences::as_ref(app).active_context_window(app, Some(self.terminal_view_id))?;
-        let activity = if conversation.is_summarizing() {
-            ConversationActivity::Compacting
-        } else if conversation.status().is_in_progress() {
-            ConversationActivity::Running
-        } else {
-            ConversationActivity::Idle
-        };
-        let meter = context_meter(
-            usage,
-            window,
-            AISettings::as_ref(app).compaction_settings(),
-            activity,
-        );
-        Some(render_context_meter(
+        Some(render_usage_capsules(
             meter,
-            self.context_meter_mouse_state.clone(),
+            tokens,
+            &self.usage_capsule_mouse_states,
             Appearance::as_ref(app),
         ))
     }
@@ -914,75 +926,212 @@ impl Entity for AgentInputFooter {
 
 const CONTEXT_METER_BAR_WIDTH: f32 = 28.;
 const CONTEXT_METER_BAR_HEIGHT: f32 = 4.;
+const CAPSULE_ICON_SIZE: f32 = 12.;
+/// Opacity of a capsule's tint, as a percentage of its accent color.
+const CAPSULE_TINT_OPACITY: u8 = 16;
 
-fn render_context_meter(
+/// Mouse states of the context, input and output usage capsules.
+#[derive(Default)]
+struct UsageCapsuleMouseStates {
+    context: MouseStateHandle,
+    input: MouseStateHandle,
+    output: MouseStateHandle,
+}
+
+/// The context meter and token capsules in one row, either of which may be absent.
+fn render_usage_capsules(
+    meter: Option<ContextMeter>,
+    tokens: Option<[TokenCapsule; 2]>,
+    mouse_states: &UsageCapsuleMouseStates,
+    appearance: &Appearance,
+) -> Box<dyn Element> {
+    let mut row = Flex::row()
+        .with_cross_axis_alignment(CrossAxisAlignment::Center)
+        .with_main_axis_size(MainAxisSize::Min)
+        .with_spacing(4.);
+    if let Some(meter) = meter {
+        row.add_child(render_context_capsule(
+            meter,
+            mouse_states.context.clone(),
+            appearance,
+        ));
+    }
+    if let Some([input, output]) = tokens {
+        let theme = appearance.theme();
+        row.add_child(render_token_capsule(
+            input,
+            Icon::Upload,
+            theme.ansi_fg_red(),
+            mouse_states.input.clone(),
+            appearance,
+        ));
+        row.add_child(render_token_capsule(
+            output,
+            Icon::Download,
+            theme.ansi_fg_green(),
+            mouse_states.output.clone(),
+            appearance,
+        ));
+    }
+    row.finish()
+}
+
+fn render_context_capsule(
     meter: ContextMeter,
     mouse_state: MouseStateHandle,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
-    let ui_builder = appearance.ui_builder().clone();
     let font_family = appearance.ui_font_family();
     let font_size = udi_font_size(appearance);
     let muted_color = context_chips::readable_chip_label_color(theme, theme.surface_1());
-    let (label_color, fill_color) = match meter.level {
-        MeterLevel::Normal => (muted_color, muted_color),
-        MeterLevel::Warning => (theme.ui_warning_color(), theme.ui_warning_color()),
-        MeterLevel::Critical => (theme.ui_error_color(), theme.ui_error_color()),
-    };
+    let accent_color = match meter.level {
+        MeterLevel::Normal => theme.ansi_fg_cyan(),
+        MeterLevel::Warning => theme.ui_warning_color(),
+        MeterLevel::Critical => theme.ui_error_color(),
+    }
+    .on_background(theme.surface_1().into_solid(), MinimumAllowedContrast::Text);
     let track_color = internal_colors::neutral_3(theme);
-    let hover_background = theme.surface_2();
-    let can_compact = meter.can_compact;
     let bar_radius = CornerRadius::with_all(Radius::Pixels(CONTEXT_METER_BAR_HEIGHT / 2.));
 
-    Hoverable::new(mouse_state, move |state| {
-        let bar = ConstrainedBox::new(
-            Stack::new()
-                .with_child(
+    let bar = ConstrainedBox::new(
+        Stack::new()
+            .with_child(
+                Rect::new()
+                    .with_background_color(track_color)
+                    .with_corner_radius(bar_radius)
+                    .finish(),
+            )
+            .with_child(
+                Percentage::width(
+                    meter.fill,
                     Rect::new()
-                        .with_background_color(track_color)
+                        .with_background_color(accent_color)
                         .with_corner_radius(bar_radius)
                         .finish(),
                 )
-                .with_child(
-                    Percentage::width(
-                        meter.fill,
-                        Rect::new()
-                            .with_background_color(fill_color)
-                            .with_corner_radius(bar_radius)
-                            .finish(),
-                    )
-                    .finish(),
-                )
                 .finish(),
-        )
-        .with_width(CONTEXT_METER_BAR_WIDTH)
-        .with_height(CONTEXT_METER_BAR_HEIGHT)
+            )
+            .finish(),
+    )
+    .with_width(CONTEXT_METER_BAR_WIDTH)
+    .with_height(CONTEXT_METER_BAR_HEIGHT)
+    .finish();
+    let text = |text: String, color: ColorU| {
+        Text::new_inline(text, font_family, font_size).with_color(color)
+    };
+    let divider = ConstrainedBox::new(Rect::new().with_background_color(track_color).finish())
+        .with_width(1.)
+        .with_height(font_size)
         .finish();
-        let label = Text::new_inline(meter.label.clone(), font_family, font_size)
-            .with_color(label_color)
-            .finish();
-        let mut content = Container::new(
+
+    let children = vec![
+        capsule_icon(Icon::FileText, muted_color),
+        text("ctx".to_owned(), muted_color).finish(),
+        bar,
+        text(meter.label, accent_color)
+            .with_style(Properties::default().weight(Weight::Bold))
+            .finish(),
+        divider,
+        text(meter.usage_label, muted_color).finish(),
+    ];
+    let background = theme.surface_2().into_solid();
+    let compact_action = meter
+        .can_compact
+        .then_some(AgentInputFooterAction::CompactConversation);
+    render_capsule(
+        children,
+        background,
+        compact_action
+            .as_ref()
+            .map(|_| theme.surface_3().into_solid()),
+        (meter.tooltip, meter.tooltip_detail),
+        compact_action,
+        mouse_state,
+        appearance,
+    )
+}
+
+fn render_token_capsule(
+    capsule: TokenCapsule,
+    icon: Icon,
+    accent: ColorU,
+    mouse_state: MouseStateHandle,
+    appearance: &Appearance,
+) -> Box<dyn Element> {
+    let theme = appearance.theme();
+    let surface = theme.surface_1().into_solid();
+    let background = surface.blend(
+        &Fill::Solid(accent)
+            .with_opacity(CAPSULE_TINT_OPACITY)
+            .into_solid(),
+    );
+    let foreground = accent.on_background(background, MinimumAllowedContrast::Text);
+    let children = vec![
+        capsule_icon(icon, foreground),
+        Text::new_inline(
+            capsule.label,
+            appearance.ui_font_family(),
+            udi_font_size(appearance),
+        )
+        .with_color(foreground)
+        .finish(),
+    ];
+    render_capsule(
+        children,
+        background,
+        None,
+        (capsule.tooltip, capsule.tooltip_detail),
+        None,
+        mouse_state,
+        appearance,
+    )
+}
+
+fn capsule_icon(icon: Icon, color: ColorU) -> Box<dyn Element> {
+    ConstrainedBox::new(icon.to_warpui_icon(Fill::Solid(color)).finish())
+        .with_width(CAPSULE_ICON_SIZE)
+        .with_height(CAPSULE_ICON_SIZE)
+        .finish()
+}
+
+/// A pill holding `children`, with a tooltip on hover. With an `on_click` action it takes the
+/// pointing-hand cursor and `hover_background`.
+fn render_capsule(
+    children: Vec<Box<dyn Element>>,
+    background: ColorU,
+    hover_background: Option<ColorU>,
+    (tooltip, tooltip_detail): (String, String),
+    on_click: Option<AgentInputFooterAction>,
+    mouse_state: MouseStateHandle,
+    appearance: &Appearance,
+) -> Box<dyn Element> {
+    let ui_builder = appearance.ui_builder().clone();
+    let radius = (udi_font_size(appearance) + 8.) / 2.;
+    let clickable = on_click.is_some();
+
+    let hoverable = Hoverable::new(mouse_state, move |state| {
+        let background = hover_background
+            .filter(|_| state.is_hovered())
+            .unwrap_or(background);
+        let content = Container::new(
             Flex::row()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .with_main_axis_size(MainAxisSize::Min)
                 .with_spacing(6.)
-                .with_child(bar)
-                .with_child(label)
+                .with_children(children)
                 .finish(),
         )
-        .with_horizontal_padding(6.)
+        .with_horizontal_padding(8.)
         .with_vertical_padding(2.)
-        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)));
-        if can_compact && state.is_hovered() {
-            content = content.with_background(hover_background);
-        }
+        .with_background_color(background)
+        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(radius)));
 
         let mut stack = Stack::new().with_child(content.finish());
         if state.is_hovered() {
             stack.add_positioned_overlay_child(
                 ui_builder
-                    .tool_tip_with_sublabel(meter.tooltip.clone(), meter.tooltip_detail.clone())
+                    .tool_tip_with_sublabel(tooltip, tooltip_detail)
                     .build()
                     .finish(),
                 OffsetPositioning::offset_from_parent(
@@ -995,17 +1144,17 @@ fn render_context_meter(
         }
         stack.finish()
     })
-    .with_cursor(if can_compact {
+    .with_cursor(if clickable {
         Cursor::PointingHand
     } else {
         Cursor::Arrow
-    })
-    .on_click(move |ctx, _, _| {
-        if can_compact {
-            ctx.dispatch_typed_action(AgentInputFooterAction::CompactConversation);
-        }
-    })
-    .finish()
+    });
+    match on_click {
+        Some(action) => hoverable
+            .on_click(move |ctx, _, _| ctx.dispatch_typed_action(action.clone()))
+            .finish(),
+        None => hoverable.finish(),
+    }
 }
 
 pub(crate) struct AgentInputButtonTheme;

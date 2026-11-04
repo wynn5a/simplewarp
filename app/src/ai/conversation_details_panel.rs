@@ -197,7 +197,7 @@ pub struct ConversationDetailsPanel {
 }
 
 /// Formats usage as e.g. `12.3k in (8.0k cached, 1.2k cache write) · 1.1k out`.
-fn format_token_usage(usage: ConversationTokenUsage) -> String {
+pub(crate) fn format_token_usage(usage: ConversationTokenUsage) -> String {
     let input = format_token_count(usage.input);
     let output = format_token_count(usage.output);
     let mut cache = Vec::new();
@@ -217,7 +217,7 @@ fn format_token_usage(usage: ConversationTokenUsage) -> String {
     }
 }
 
-fn format_token_count(count: u64) -> String {
+pub(crate) fn format_token_count(count: u64) -> String {
     match count {
         0..1_000 => count.to_string(),
         // 999,950 and up would round to "1000.0k".
