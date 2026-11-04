@@ -133,7 +133,7 @@ use crate::ai::blocklist::{
     BlocklistAIControllerEvent, BlocklistAIHistoryEvent, BlocklistAIHistoryModel,
     BlocklistAIInputEvent, BlocklistAIInputModel, DIFF_HUNK_ATTACHMENT_REGEX,
     DRIVE_OBJECT_ATTACHMENT_REGEX, InputConfig, InputType, QueuedQuery, QueuedQueryEvent,
-    QueuedQueryId, QueuedQueryModel, QueuedQueryOrigin, ai_indicator_height,
+    QueuedQueryId, QueuedQueryModel, QueuedQueryOrigin, SlashCommandRequest, ai_indicator_height,
 };
 use crate::ai::conversation_export::export_conversation_markdown;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
@@ -1769,6 +1769,14 @@ impl Input {
                 }
                 AgentInputFooterEvent::OpenCodeReview => {
                     ctx.emit(Event::OpenCodeReviewPane);
+                }
+                AgentInputFooterEvent::CompactConversation => {
+                    me.ai_controller.update(ctx, |controller, ctx| {
+                        controller.send_slash_command_request(
+                            SlashCommandRequest::Summarize { prompt: None },
+                            ctx,
+                        );
+                    });
                 }
                 AgentInputFooterEvent::ShowContextMenu { position } => {
                     let position_id = format!("prompt_area_{}", me.view_id);

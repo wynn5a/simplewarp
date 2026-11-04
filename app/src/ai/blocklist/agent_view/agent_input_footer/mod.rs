@@ -1,13 +1,14 @@
 pub(super) mod chips;
+mod context_meter;
 pub mod editor;
 pub mod toolbar_item;
 
 use std::sync::Arc;
 
-use agent_harness::budget::format_tokens;
+use context_meter::{ContextMeter, ConversationActivity, MeterLevel, context_meter};
 use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
-use pathfinder_geometry::vector::Vector2F;
+use pathfinder_geometry::vector::{Vector2F, vec2f};
 use settings::ToggleableSetting;
 use toolbar_item::AgentToolbarItemKind;
 use warp_core::ui::color::ContrastingColor;
@@ -17,10 +18,13 @@ use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_if_error;
 use warpui::elements::{
-    ChildView, Clipped, ConstrainedBox, Container, CrossAxisAlignment, DispatchEventResult,
-    Element, EventHandler, Flex, MainAxisAlignment, MainAxisSize, ParentElement, Shrinkable, Text,
-    Wrap, WrapFill, WrapFillEntireRun,
+    ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
+    DispatchEventResult, Element, EventHandler, Flex, Hoverable, MainAxisAlignment, MainAxisSize,
+    MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds,
+    Percentage, Radius, Rect, Shrinkable, Stack, Text, Wrap, WrapFill, WrapFillEntireRun,
 };
+use warpui::platform::Cursor;
+use warpui::ui_components::components::UiComponent;
 use warpui::{
     AppContext, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle,
@@ -112,6 +116,8 @@ pub struct AgentInputFooter {
 
     // Fast-forward (auto-approve) toggle button shown in the agent view footer.
     fast_forward_button: ViewHandle<ActionButton>,
+
+    context_meter_mouse_state: MouseStateHandle,
 }
 
 impl AgentInputFooter {
@@ -339,6 +345,7 @@ impl AgentInputFooter {
             cli_display_chips: vec![],
             display_chip_config,
             fast_forward_button,
+            context_meter_mouse_state: Default::default(),
         };
         me.sync_fast_forward_button(ctx);
         me.update_display_chips(&prompt, ctx);
@@ -686,43 +693,36 @@ impl AgentInputFooter {
         }
     }
 
-    /// "used / window" for the active conversation, in the warning color once it is near the
-    /// window. Hidden until a request has reported its usage, and when the window is unknown.
+    /// A bar and percentage showing how full the active conversation's context window is, with
+    /// the token breakdown on hover; clicking it compacts an idle conversation. Hidden until a
+    /// request has reported its usage, and when the window is unknown.
     fn render_context_window_usage(&self, app: &AppContext) -> Option<Box<dyn Element>> {
-        let usage = BlocklistAIHistoryModel::as_ref(app)
-            .active_conversation(self.terminal_view_id)?
-            .context_usage();
+        let conversation =
+            BlocklistAIHistoryModel::as_ref(app).active_conversation(self.terminal_view_id)?;
+        let usage = conversation.context_usage();
         if !usage.has_report() {
             return None;
         }
         let window =
             LLMPreferences::as_ref(app).active_context_window(app, Some(self.terminal_view_id))?;
-
-        let appearance = Appearance::as_ref(app);
-        let theme = appearance.theme();
-        let color = if usage.is_near_limit(window) {
-            theme.ui_warning_color()
+        let activity = if conversation.is_summarizing() {
+            ConversationActivity::Compacting
+        } else if conversation.status().is_in_progress() {
+            ConversationActivity::Running
         } else {
-            context_chips::readable_chip_label_color(theme, theme.surface_1())
+            ConversationActivity::Idle
         };
-        let label = format!(
-            "{} / {}",
-            format_tokens(usage.used_tokens()),
-            format_tokens(u64::from(window))
+        let meter = context_meter(
+            usage,
+            window,
+            AISettings::as_ref(app).compaction_settings(),
+            activity,
         );
-        Some(
-            Container::new(
-                Text::new_inline(
-                    label,
-                    appearance.ui_font_family(),
-                    udi_font_size(appearance),
-                )
-                .with_color(color)
-                .finish(),
-            )
-            .with_horizontal_padding(4.)
-            .finish(),
-        )
+        Some(render_context_meter(
+            meter,
+            self.context_meter_mouse_state.clone(),
+            Appearance::as_ref(app),
+        ))
     }
 
     #[cfg(test)]
@@ -829,6 +829,7 @@ pub enum AgentInputFooterAction {
     ToggleAutodetectionSetting,
     OpenCodingAgentSettings,
     ShowContextMenu { position: Vector2F },
+    CompactConversation,
 }
 
 impl TypedActionView for AgentInputFooter {
@@ -871,6 +872,9 @@ impl TypedActionView for AgentInputFooter {
                     widget_id: crate::settings_view::cli_agent_settings_widget_id(),
                 });
             }
+            AgentInputFooterAction::CompactConversation => {
+                ctx.emit(AgentInputFooterEvent::CompactConversation);
+            }
             AgentInputFooterAction::ShowContextMenu { position } => {
                 ctx.emit(AgentInputFooterEvent::ShowContextMenu {
                     position: *position,
@@ -900,10 +904,108 @@ pub enum AgentInputFooterEvent {
     ShowContextMenu {
         position: Vector2F,
     },
+    /// Compact the active conversation now, as `/compact` does.
+    CompactConversation,
 }
 
 impl Entity for AgentInputFooter {
     type Event = AgentInputFooterEvent;
+}
+
+const CONTEXT_METER_BAR_WIDTH: f32 = 28.;
+const CONTEXT_METER_BAR_HEIGHT: f32 = 4.;
+
+fn render_context_meter(
+    meter: ContextMeter,
+    mouse_state: MouseStateHandle,
+    appearance: &Appearance,
+) -> Box<dyn Element> {
+    let theme = appearance.theme();
+    let ui_builder = appearance.ui_builder().clone();
+    let font_family = appearance.ui_font_family();
+    let font_size = udi_font_size(appearance);
+    let muted_color = context_chips::readable_chip_label_color(theme, theme.surface_1());
+    let (label_color, fill_color) = match meter.level {
+        MeterLevel::Normal => (muted_color, muted_color),
+        MeterLevel::Warning => (theme.ui_warning_color(), theme.ui_warning_color()),
+        MeterLevel::Critical => (theme.ui_error_color(), theme.ui_error_color()),
+    };
+    let track_color = internal_colors::neutral_3(theme);
+    let hover_background = theme.surface_2();
+    let can_compact = meter.can_compact;
+    let bar_radius = CornerRadius::with_all(Radius::Pixels(CONTEXT_METER_BAR_HEIGHT / 2.));
+
+    Hoverable::new(mouse_state, move |state| {
+        let bar = ConstrainedBox::new(
+            Stack::new()
+                .with_child(
+                    Rect::new()
+                        .with_background_color(track_color)
+                        .with_corner_radius(bar_radius)
+                        .finish(),
+                )
+                .with_child(
+                    Percentage::width(
+                        meter.fill,
+                        Rect::new()
+                            .with_background_color(fill_color)
+                            .with_corner_radius(bar_radius)
+                            .finish(),
+                    )
+                    .finish(),
+                )
+                .finish(),
+        )
+        .with_width(CONTEXT_METER_BAR_WIDTH)
+        .with_height(CONTEXT_METER_BAR_HEIGHT)
+        .finish();
+        let label = Text::new_inline(meter.label.clone(), font_family, font_size)
+            .with_color(label_color)
+            .finish();
+        let mut content = Container::new(
+            Flex::row()
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_main_axis_size(MainAxisSize::Min)
+                .with_spacing(6.)
+                .with_child(bar)
+                .with_child(label)
+                .finish(),
+        )
+        .with_horizontal_padding(6.)
+        .with_vertical_padding(2.)
+        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)));
+        if can_compact && state.is_hovered() {
+            content = content.with_background(hover_background);
+        }
+
+        let mut stack = Stack::new().with_child(content.finish());
+        if state.is_hovered() {
+            stack.add_positioned_overlay_child(
+                ui_builder
+                    .tool_tip_with_sublabel(meter.tooltip.clone(), meter.tooltip_detail.clone())
+                    .build()
+                    .finish(),
+                OffsetPositioning::offset_from_parent(
+                    vec2f(0., -4.),
+                    ParentOffsetBounds::WindowByPosition,
+                    ParentAnchor::TopRight,
+                    ChildAnchor::BottomRight,
+                ),
+            );
+        }
+        stack.finish()
+    })
+    .with_cursor(if can_compact {
+        Cursor::PointingHand
+    } else {
+        Cursor::Arrow
+    })
+    .on_click(move |ctx, _, _| {
+        if can_compact {
+            ctx.dispatch_typed_action(AgentInputFooterAction::CompactConversation);
+        }
+    })
+    .finish()
 }
 
 pub(crate) struct AgentInputButtonTheme;
