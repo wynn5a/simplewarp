@@ -24,6 +24,12 @@ No account. No cloud. No telemetry. Just a fast, beautiful terminal and an agent
 
 </div>
 
+> **🚀 New in v0.6.0 — a rebuilt local agent.** SimpleWarp's agent loop has been reimplemented from
+> the ground up to run entirely on your machine, modeled on [pi](https://github.com/badlogic/pi-mono):
+> it now remembers every tool result, caches its prompt, tracks its context window, compacts long
+> conversations on its own, takes your steering mid-task and retries flaky providers.
+> [See what changed ↓](#a-rebuilt-local-agent)
+
 ---
 
 ## Standing on Warp's shoulders
@@ -69,8 +75,8 @@ to build, less code to run.
 
 ### 🤖 Bring your own model
 Agent mode talks straight to Anthropic, OpenAI or Google with your key — or to any
-OpenAI-compatible endpoint, such as an aggregator or a model server on your own box. Replies stream
-in; tools run locally.
+OpenAI-compatible endpoint, such as an aggregator or a model server on your own box. A native agent
+loop, rebuilt for v0.6, runs on your machine; replies stream in and tools run locally.
 
 </td>
 <td width="50%" valign="top">
@@ -97,6 +103,28 @@ and the typography — everything Warp does locally works the way Warp made it.
 - **Workflows and notebooks** — reusable commands and runnable docs, with `.ipynb` rendering and
   editable Mermaid diagrams, all stored locally.
 - **Workspaces and sessions** — pick up where you left off.
+
+## A rebuilt local agent
+
+When the Warp server went away, so did the brain behind agent mode: what was left could call a model,
+but it forgot tool output between turns, had no idea how full its context was, and gave up at the
+first rate limit. In v0.6.0 the whole agent loop is **reimplemented natively in SimpleWarp**, porting
+the design of [pi](https://github.com/badlogic/pi-mono) to Rust while keeping what only a terminal can
+do — commands run as blocks in your own shell, file edits go through diff review.
+
+| | Before | Now |
+|---|---|---|
+| **Memory of the task** | Earlier tool results replaced by a placeholder | Every result kept in history (head and tail of long output), and restored with the conversation |
+| **Cost and speed** | The whole conversation resent at full price every turn | Prompt caching (Anthropic cache breakpoints, a stable prefix for OpenAI); cache reads and writes shown in usage |
+| **Context awareness** | No token counting | Per-model context windows and a live usage meter in the input footer |
+| **Long conversations** | Overflow was a hard error; only a manual `/compact` that dropped all history | Automatic compaction before the window fills, keeping recent turns verbatim; an overflow compacts and retries once |
+| **Project memory** | `AGENTS.md` / `WARP.md` only | Also `CLAUDE.md`, `~/.agents/APPEND_SYSTEM.md`, and a `remember` tool that saves facts to Knowledge after you approve them |
+| **Talking to a busy agent** | Wait for the whole task to finish | Steer it: a prompt sent mid-task reaches the model at the next step, without interrupting running tools |
+| **Flaky providers** | A 429 ended the task | Rate limits, overloads and dropped connections retried with backoff (2/4/8 s or `retry-after`) |
+| **Your shell** | Agent commands ran in your session, so a stray `set -e` could close the tab | Each agent command runs in its own subshell, like a fresh `bash -c` |
+
+Everything lives in the client: the policy sits in a small, unit-tested crate
+(`crates/agent_harness`), and the only traffic is still the request to the provider you chose.
 
 ## Where your bytes go
 
