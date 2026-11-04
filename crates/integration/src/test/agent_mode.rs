@@ -9,6 +9,7 @@ use lazy_static::lazy_static;
 use pathfinder_geometry::vector::{Vector2F, vec2f};
 use settings::ToggleableSetting;
 use warp::cmd_or_ctrl_shift;
+use warp::integration_testing::agent_mode::report_conversation_usage;
 use warp::integration_testing::clipboard::assert_clipboard_contains_string;
 use warp::integration_testing::step::new_step_with_default_assertions;
 use warp::integration_testing::terminal::{
@@ -213,6 +214,61 @@ pub fn test_restored_ai_block_renders_mermaid_and_local_images() -> Builder {
                 .set_post_step_pause(Duration::from_secs(3))
                 .with_take_screenshot("restored_ai_block_markdown_visuals.png")
                 .add_assertion(|app, window_id| {
+                    let terminal_view = single_terminal_view_for_tab(app, window_id, 0);
+                    terminal_view.read(app, |view, _ctx| {
+                        async_assert!(
+                            view.last_ai_block().is_some(),
+                            "Restored AI block should exist"
+                        )
+                    })
+                }),
+        )
+}
+
+/// A restored conversation with reported usage shows the context, input and output capsules in
+/// the agent footer, measured against the profile's context window limit.
+pub fn test_agent_footer_shows_usage_capsules() -> Builder {
+    new_builder()
+        .with_real_display()
+        .with_setup(|_| {
+            let path = warp::settings::user_preferences_toml_file_path();
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).expect("should create config dir");
+            }
+            std::fs::write(
+                &path,
+                "[agents.execution_profiles.default]\ncontext_window_limit = 1000000\n",
+            )
+            .expect("should write settings with a context window limit");
+        })
+        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
+        .with_step(clear_blocklist_to_remove_bootstrapped_blocks())
+        .with_step(
+            new_step_with_default_assertions("Restore a conversation with reported usage")
+                .with_action(|app, window_id, _| {
+                    let terminal_view = single_terminal_view_for_tab(app, window_id, 0);
+                    terminal_view.update(app, |view, ctx| {
+                        view.load_conversation_from_tasks(
+                            restored_markdown_visuals_conversation_data(),
+                            ctx,
+                        );
+                        report_conversation_usage(
+                            ctx.view_id(),
+                            104_800,
+                            104_900,
+                            80_000,
+                            8_000,
+                            ctx,
+                        );
+                    });
+                }),
+        )
+        .with_step(
+            TestStep::new("Capture the agent footer's usage capsules")
+                .set_timeout(Duration::from_secs(20))
+                .set_post_step_pause(Duration::from_secs(3))
+                .with_take_screenshot("agent_footer_usage_capsules.png")
+                .add_named_assertion("restored conversation is shown", |app, window_id| {
                     let terminal_view = single_terminal_view_for_tab(app, window_id, 0);
                     terminal_view.read(app, |view, _ctx| {
                         async_assert!(

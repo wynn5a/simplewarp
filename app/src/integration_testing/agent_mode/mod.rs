@@ -9,9 +9,12 @@ use std::sync::Mutex;
 pub use step::*;
 pub use util::*;
 use warp_errors::report_error;
+use warp_multi_agent_api::response_event::stream_finished::{
+    ConversationUsageMetadata, TokenUsage,
+};
 use warpui::integration::PersistedDataMap;
 pub use warpui::integration::RUNTIME_TAG_FAILURE_REASON;
-use warpui::{App, SingletonEntity as _, WindowId};
+use warpui::{App, AppContext, EntityId, SingletonEntity as _, WindowId};
 
 use crate::BlocklistAIHistoryModel;
 use crate::ai::agent::{AIAgentActionType, AIAgentOutputStatus, FinishedAIAgentOutput};
@@ -174,4 +177,35 @@ pub fn open_debug_file_from_env(env_var: &str) -> Option<File> {
     } else {
         None
     }
+}
+
+/// Records usage on the active conversation of `terminal_view_id` as one finished response stream
+/// would report it: `context_tokens` is the request's whole input, and `input`, `cached_input` and
+/// `output` add to the conversation's running totals.
+pub fn report_conversation_usage(
+    terminal_view_id: EntityId,
+    context_tokens: u32,
+    input: u32,
+    cached_input: u32,
+    output: u32,
+    ctx: &mut AppContext,
+) {
+    BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, _| {
+        let Some(conversation) = history
+            .active_conversation_id(terminal_view_id)
+            .and_then(|id| history.conversation_mut(&id))
+        else {
+            return;
+        };
+        conversation.add_token_usage(&[TokenUsage {
+            total_input: input,
+            input_cache_read: cached_input,
+            output,
+            ..Default::default()
+        }]);
+        conversation.record_context_usage(&ConversationUsageMetadata {
+            total_input_tokens: context_tokens,
+            ..Default::default()
+        });
+    });
 }
