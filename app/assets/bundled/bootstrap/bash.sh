@@ -167,6 +167,12 @@
 
          __bp_last_ret_value="$?" BP_PIPESTATUS=("${PIPESTATUS[@]}")
 
+         # Warp: `errexit` left on in the interactive shell (a `set -e` typed or run by the agent)
+         # makes the first failing command in any hook exit the shell, closing the tab.
+         if [[ $- == *e* ]]; then
+           set +e
+         fi
+
          # Don't invoke precmds if we are inside an execution of an "original
          # prompt command" by another precmd execution loop. This avoids infinite
          # recursion.

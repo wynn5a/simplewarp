@@ -169,21 +169,17 @@ impl ShellCommandExecutor {
         }
     }
 
-    /// Decorate the command so that we can turn off pager.
-    fn turn_off_pager_for_command(&self, command: &String, ctx: &mut ModelContext<Self>) -> String {
-        match self.active_session.as_ref(ctx).shell_type(ctx) {
-            // If it's a posix shell, we can use parentheses as the grouping character. Add command to
-            // avoid cases with aliases.
-            Some(ShellType::Zsh) | Some(ShellType::Bash) => format!("({command}) | command cat"),
-            // Fish doesn't have grouping characters. We need to use begin; and end; to ensure the command
-            // gets evaluated first.
-            Some(ShellType::Fish) => format!("begin; {command} ;end | command cat"),
-            // For powershell, we use Out-Host to send paged output to the
-            // console. Add a backslash to avoid executing an alias.
-            Some(ShellType::PowerShell) => format!("({command}) | \\Out-Host"),
-            // If we can't determine a shell type, run command as it is.
-            None => command.clone(),
-        }
+    fn decorate_requested_command(
+        &self,
+        command: &str,
+        pipe_to_cat: bool,
+        ctx: &mut ModelContext<Self>,
+    ) -> String {
+        decorate_requested_command(
+            command,
+            self.active_session.as_ref(ctx).shell_type(ctx),
+            pipe_to_cat,
+        )
     }
 
     pub(super) fn execute(
@@ -231,15 +227,11 @@ impl ShellCommandExecutor {
                         RequestCommandOutputResult::CancelledBeforeExecution,
                     ));
                 }
-                // If the command might use pager and can't be interacted with,
-                // we pipe its output to cat so we can prevent activating the altscreen.
-                // The parentheses here ensures the command always gets evaluated first.
-                let decorated_command =
-                    if uses_pager.is_some_and(|uses_pager| uses_pager) && *wait_until_completion {
-                        self.turn_off_pager_for_command(command, ctx)
-                    } else {
-                        command.clone()
-                    };
+                // A command that might use a pager and can't be interacted with is piped to cat
+                // so it never activates the altscreen.
+                let pipe_to_cat =
+                    uses_pager.is_some_and(|uses_pager| uses_pager) && *wait_until_completion;
+                let decorated_command = self.decorate_requested_command(command, pipe_to_cat, ctx);
                 ctx.emit(ShellCommandExecutorEvent::ExecuteCommand {
                     action_id: action_id.clone(),
                     command: decorated_command,
@@ -684,6 +676,43 @@ impl BlockSelector {
 }
 
 /// Returns the result from executing a requested command.
+/// Prepares an agent-requested command for the user's interactive shell.
+///
+/// POSIX shells run the command in a subshell, so shell state it changes (`set -e`, `exit`,
+/// `exec`, traps) can't leak into the user's session: an `errexit` left behind exits the shell on
+/// the next failing hook and takes the tab with it. Like a fresh `bash -c`, `cd` and `export`
+/// don't persist into later commands either.
+fn decorate_requested_command(
+    command: &str,
+    shell_type: Option<ShellType>,
+    pipe_to_cat: bool,
+) -> String {
+    match shell_type {
+        Some(ShellType::Zsh) | Some(ShellType::Bash) => {
+            let command = command.trim();
+            // A trailing `#` comment would swallow a closing paren on the same line. Single-line
+            // commands otherwise stay on one line, since shells without bracketed paste (Bash
+            // 3.2) split a multi-line command into several blocks.
+            let subshell = if command.contains(['\n', '#']) {
+                format!("(\n{command}\n)")
+            } else {
+                format!("( {command} )")
+            };
+            // `command` skips any user alias for cat.
+            if pipe_to_cat {
+                format!("{subshell} | command cat")
+            } else {
+                subshell
+            }
+        }
+        // Fish has no subshell grouping; begin/end makes the command evaluate before the pipe.
+        Some(ShellType::Fish) if pipe_to_cat => format!("begin; {command} ;end | command cat"),
+        // A backslash skips any alias for Out-Host.
+        Some(ShellType::PowerShell) if pipe_to_cat => format!("({command}) | \\Out-Host"),
+        Some(ShellType::Fish) | Some(ShellType::PowerShell) | None => command.to_string(),
+    }
+}
+
 fn action_result_for_requested_command(
     command: String,
     result: ActionResult,

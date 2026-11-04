@@ -5,13 +5,14 @@ use futures::channel::oneshot;
 use parking_lot::FairMutex;
 use warpui::{App, EntityId};
 
-use super::{BlockSelector, ShellCommandExecutor};
+use super::{BlockSelector, ShellCommandExecutor, decorate_requested_command};
 use crate::terminal::event::{BlockMetadataReceivedEvent, BlockWorkingDirectoryUpdatedEvent};
 use crate::terminal::model::block::{BlockId, BlockMetadata};
 use crate::terminal::model::session::Sessions;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::terminal_model::{BlockIndex, TerminalModel};
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
+use crate::terminal::shell::ShellType;
 
 /// Locks in the contract that `ShellCommandExecutor`'s requested-command finish
 /// detector reacts only to `BlockMetadataReceived` (precmd) and not to
@@ -88,4 +89,51 @@ fn block_working_directory_updated_does_not_drain_finish_senders() {
             "BlockMetadataReceived should drain the finish senders"
         );
     });
+}
+
+#[test]
+fn posix_commands_run_in_a_subshell() {
+    for shell_type in [ShellType::Zsh, ShellType::Bash] {
+        assert_eq!(
+            decorate_requested_command("set -e; make", Some(shell_type), false),
+            "( set -e; make )"
+        );
+        assert_eq!(
+            decorate_requested_command("git log", Some(shell_type), true),
+            "( git log ) | command cat"
+        );
+    }
+}
+
+#[test]
+fn posix_subshell_closes_on_its_own_line_after_comments_and_newlines() {
+    assert_eq!(
+        decorate_requested_command("ls # list", Some(ShellType::Zsh), false),
+        "(\nls # list\n)"
+    );
+    assert_eq!(
+        decorate_requested_command("set -e\n./build.sh\n", Some(ShellType::Bash), false),
+        "(\nset -e\n./build.sh\n)"
+    );
+}
+
+#[test]
+fn non_posix_commands_are_only_decorated_for_the_pager() {
+    assert_eq!(
+        decorate_requested_command("ls", Some(ShellType::Fish), false),
+        "ls"
+    );
+    assert_eq!(
+        decorate_requested_command("git log", Some(ShellType::Fish), true),
+        "begin; git log ;end | command cat"
+    );
+    assert_eq!(
+        decorate_requested_command("ls", Some(ShellType::PowerShell), false),
+        "ls"
+    );
+    assert_eq!(
+        decorate_requested_command("git log", Some(ShellType::PowerShell), true),
+        "(git log) | \\Out-Host"
+    );
+    assert_eq!(decorate_requested_command("ls", None, true), "ls");
 }

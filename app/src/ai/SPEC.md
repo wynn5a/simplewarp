@@ -36,6 +36,12 @@ usage), and the finished summary resets the usage to its compacted estimate. A h
 sent even when its compaction fails; when the compaction is cancelled its question goes back to the
 head of the queued prompts, and a failed compaction waits for new content before trying again.
 
+A command the agent runs in the user's zsh or bash session runs in a subshell, as each command
+does in a fresh `bash -c`: `set -e`, `exit`, `exec`, `cd` and `export` stay in it, so they never
+reach the user's shell, and the shell tool's description tells the model so. The bootstrap scripts
+also clear an `errexit` left in the interactive shell before any precmd hook runs, since a failing
+hook command would otherwise exit the shell and close the tab.
+
 A prompt submitted while the agent works is, by default (also for users who never changed the
 setting, who move from the old Interrupt default), a steer (Settings > AI > Input, "Default
 prompt submission mode"; Interrupt and Queue remain, and a user's explicit choice is kept): it

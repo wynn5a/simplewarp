@@ -1378,7 +1378,15 @@ esac
   # https://github.com/warpdotdev/warp/issues/11520
   zle -A .bracketed-paste bracketed-paste
 
-  precmd_functions+=(warp_precmd warp_update_prompt_vars)
+  # `errexit` left on in the interactive shell (a `set -e` typed or run by the agent) makes the
+  # first failing command in any later hook exit the shell, closing the tab. Clear it before every
+  # other precmd hook runs. The name must keep matching `*warp*` so generator commands keep it.
+  warp_clear_errexit () {
+    if [[ -o errexit ]]; then
+      unsetopt errexit
+    fi
+  }
+  precmd_functions=(warp_clear_errexit $precmd_functions warp_precmd warp_update_prompt_vars)
   preexec_functions+=(warp_preexec)
 
   WARP_BOOTSTRAPPED=1

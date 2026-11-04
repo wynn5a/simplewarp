@@ -94,7 +94,9 @@ fn schema_for(tool: api::ToolType) -> Option<ToolSchema> {
             name: "run_shell_command",
             description: "Run a shell command on the user's machine and read its output. \
                 Prefer a single command over a long pipeline. Mark read-only commands so that \
-                they can run without asking the user.",
+                they can run without asking the user. Each command runs in its own subshell \
+                of the user's current directory: `cd`, `export` and shell options do not carry \
+                over to the next command, so chain them in the same command (`cd dir && make`).",
             input_schema: json!({
                 "type": "object",
                 "properties": {
