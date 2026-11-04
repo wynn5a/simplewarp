@@ -20,10 +20,11 @@ use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_if_error;
 use warpui::elements::{
-    ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-    DispatchEventResult, Element, EventHandler, Flex, Hoverable, MainAxisAlignment, MainAxisSize,
-    MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds,
-    Percentage, Radius, Rect, Shrinkable, Stack, Text, Wrap, WrapFill, WrapFillEntireRun,
+    Border, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius,
+    CrossAxisAlignment, DispatchEventResult, Element, EventHandler, Flex, Hoverable,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
+    ParentElement, ParentOffsetBounds, Percentage, Radius, Rect, Shrinkable, Stack, Text, Wrap,
+    WrapFill, WrapFillEntireRun,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::platform::Cursor;
@@ -40,10 +41,11 @@ use crate::ai::llms::LLMPreferences;
 use crate::appearance::Appearance;
 use crate::completer::SessionContext;
 use crate::context_chips::display_chip::{
-    DisplayChip, DisplayChipConfig, PromptChipShellCommand, udi_font_size,
+    CHIP_BORDER_WIDTH, DisplayChip, DisplayChipConfig, PromptChipShellCommand, chip_container,
+    udi_font_size,
 };
 use crate::context_chips::prompt_type::PromptType;
-use crate::context_chips::{self, ContextChipKind};
+use crate::context_chips::{self, ContextChipKind, spacing};
 use crate::network::NetworkStatus;
 use crate::settings::{AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent};
 use crate::settings_view::SettingsSection;
@@ -926,9 +928,10 @@ impl Entity for AgentInputFooter {
 
 const CONTEXT_METER_BAR_WIDTH: f32 = 28.;
 const CONTEXT_METER_BAR_HEIGHT: f32 = 4.;
-const CAPSULE_ICON_SIZE: f32 = 12.;
-/// Opacity of a capsule's tint, as a percentage of its accent color.
+/// Opacity of a token capsule's background tint, as a percentage of its accent color.
 const CAPSULE_TINT_OPACITY: u8 = 16;
+/// Opacity of a token capsule's border tint, as a percentage of its accent color.
+const CAPSULE_BORDER_TINT_OPACITY: u8 = 40;
 
 /// Mouse states of the context, input and output usage capsules.
 #[derive(Default)]
@@ -1017,8 +1020,11 @@ fn render_context_capsule(
     .with_width(CONTEXT_METER_BAR_WIDTH)
     .with_height(CONTEXT_METER_BAR_HEIGHT)
     .finish();
+    let line_height_ratio = appearance.line_height_ratio();
     let text = |text: String, color: ColorU| {
-        Text::new_inline(text, font_family, font_size).with_color(color)
+        Text::new_inline(text, font_family, font_size)
+            .with_color(color)
+            .with_line_height_ratio(line_height_ratio)
     };
     let divider = ConstrainedBox::new(Rect::new().with_background_color(track_color).finish())
         .with_width(1.)
@@ -1026,7 +1032,7 @@ fn render_context_capsule(
         .finish();
 
     let children = vec![
-        capsule_icon(Icon::FileText, muted_color),
+        capsule_icon(Icon::FileText, muted_color, appearance),
         text("ctx".to_owned(), muted_color).finish(),
         bar,
         text(meter.label, accent_color)
@@ -1035,18 +1041,13 @@ fn render_context_capsule(
         divider,
         text(meter.usage_label, muted_color).finish(),
     ];
-    let background = theme.surface_2().into_solid();
-    let compact_action = meter
-        .can_compact
-        .then_some(AgentInputFooterAction::CompactConversation);
     render_capsule(
         children,
-        background,
-        compact_action
-            .as_ref()
-            .map(|_| theme.surface_3().into_solid()),
+        None,
         (meter.tooltip, meter.tooltip_detail),
-        compact_action,
+        meter
+            .can_compact
+            .then_some(AgentInputFooterAction::CompactConversation),
         mouse_state,
         appearance,
     )
@@ -1059,28 +1060,22 @@ fn render_token_capsule(
     mouse_state: MouseStateHandle,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
-    let theme = appearance.theme();
-    let surface = theme.surface_1().into_solid();
-    let background = surface.blend(
-        &Fill::Solid(accent)
-            .with_opacity(CAPSULE_TINT_OPACITY)
-            .into_solid(),
-    );
+    let background = tint_over_surface(accent, CAPSULE_TINT_OPACITY, appearance);
     let foreground = accent.on_background(background, MinimumAllowedContrast::Text);
     let children = vec![
-        capsule_icon(icon, foreground),
+        capsule_icon(icon, foreground, appearance),
         Text::new_inline(
             capsule.label,
             appearance.ui_font_family(),
             udi_font_size(appearance),
         )
         .with_color(foreground)
+        .with_line_height_ratio(appearance.line_height_ratio())
         .finish(),
     ];
     render_capsule(
         children,
-        background,
-        None,
+        Some(accent),
         (capsule.tooltip, capsule.tooltip_detail),
         None,
         mouse_state,
@@ -1088,46 +1083,61 @@ fn render_token_capsule(
     )
 }
 
-fn capsule_icon(icon: Icon, color: ColorU) -> Box<dyn Element> {
+/// `accent` at `opacity` percent over the chips' surface, as an opaque color.
+fn tint_over_surface(accent: ColorU, opacity: u8, appearance: &Appearance) -> ColorU {
+    appearance
+        .theme()
+        .surface_1()
+        .into_solid()
+        .blend(&Fill::Solid(accent).with_opacity(opacity).into_solid())
+}
+
+fn capsule_icon(icon: Icon, color: ColorU, appearance: &Appearance) -> Box<dyn Element> {
+    let size = udi_font_size(appearance);
     ConstrainedBox::new(icon.to_warpui_icon(Fill::Solid(color)).finish())
-        .with_width(CAPSULE_ICON_SIZE)
-        .with_height(CAPSULE_ICON_SIZE)
+        .with_width(size)
+        .with_height(size)
         .finish()
 }
 
-/// A pill holding `children`, with a tooltip on hover. With an `on_click` action it takes the
-/// pointing-hand cursor and `hover_background`.
+/// A chip like the footer's other chips holding `children`, with a tooltip on hover. A `tint`
+/// colors its background and border; with an `on_click` action it takes the pointing-hand cursor
+/// and the chips' hover background.
 fn render_capsule(
     children: Vec<Box<dyn Element>>,
-    background: ColorU,
-    hover_background: Option<ColorU>,
+    tint: Option<ColorU>,
     (tooltip, tooltip_detail): (String, String),
     on_click: Option<AgentInputFooterAction>,
     mouse_state: MouseStateHandle,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
     let ui_builder = appearance.ui_builder().clone();
-    let radius = (udi_font_size(appearance) + 8.) / 2.;
+    let hover_background = appearance.theme().surface_2();
     let clickable = on_click.is_some();
+    let content = Flex::row()
+        .with_cross_axis_alignment(CrossAxisAlignment::Center)
+        .with_main_axis_size(MainAxisSize::Min)
+        .with_spacing(spacing::UDI_CHIP_ICON_GAP)
+        .with_children(children)
+        .finish();
+    let border = tint.map(|accent| {
+        Border::all(CHIP_BORDER_WIDTH).with_border_color(tint_over_surface(
+            accent,
+            CAPSULE_BORDER_TINT_OPACITY,
+            appearance,
+        ))
+    });
+    let mut chip = chip_container(content, border, appearance);
+    if let Some(accent) = tint {
+        chip =
+            chip.with_background_color(tint_over_surface(accent, CAPSULE_TINT_OPACITY, appearance));
+    }
 
     let hoverable = Hoverable::new(mouse_state, move |state| {
-        let background = hover_background
-            .filter(|_| state.is_hovered())
-            .unwrap_or(background);
-        let content = Container::new(
-            Flex::row()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_main_axis_size(MainAxisSize::Min)
-                .with_spacing(6.)
-                .with_children(children)
-                .finish(),
-        )
-        .with_horizontal_padding(8.)
-        .with_vertical_padding(2.)
-        .with_background_color(background)
-        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(radius)));
-
-        let mut stack = Stack::new().with_child(content.finish());
+        if clickable && state.is_hovered() {
+            chip = chip.with_background(hover_background);
+        }
+        let mut stack = Stack::new().with_child(chip.finish());
         if state.is_hovered() {
             stack.add_positioned_overlay_child(
                 ui_builder
