@@ -435,7 +435,10 @@ impl CodeFooterView {
         ctx.subscribe_to_model(
             &LspManagerModel::handle(ctx),
             move |me, _, event, ctx| match event {
-                LspManagerModelEvent::ServerStarted(path) if path == &workspace_root => {
+                LspManagerModelEvent::ServerRegistered(path)
+                | LspManagerModelEvent::ServerStarted(path)
+                    if path == &workspace_root =>
+                {
                     me.refresh_workspace_servers(ctx);
                 }
                 LspManagerModelEvent::ServerStopped(path) if path == &workspace_root => {
@@ -1420,7 +1423,15 @@ impl CodeFooterView {
     /// Returns a status message for a single server, if any.
     fn server_status_message(server: &LspServerModel) -> Option<String> {
         match server.state() {
-            LspModelState::Available { .. } | LspModelState::Starting => server
+            LspModelState::Starting => Some(
+                server
+                    .latest_progress_update()
+                    .map(|update| update.to_display_message())
+                    .filter(|msg| !msg.trim().is_empty())
+                    .map(|msg| format!("{}: {msg}", server.server_name()))
+                    .unwrap_or_else(|| format!("{}: starting...", server.server_name())),
+            ),
+            LspModelState::Available { .. } => server
                 .latest_progress_update()
                 .map(|update| update.to_display_message())
                 .filter(|msg| !msg.trim().is_empty())

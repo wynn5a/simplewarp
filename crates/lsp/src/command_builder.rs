@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use command::r#async::Command;
 
 /// A wrapper around `path_env_var` that produces correctly-configured commands.
@@ -8,12 +10,24 @@ use command::r#async::Command;
 #[derive(Clone)]
 pub struct CommandBuilder {
     path_env_var: Option<String>,
+    /// Working directory for built commands. Matters for toolchain shims such as rustup's
+    /// `rust-analyzer` proxy, which resolve the binary from the directory's toolchain file.
+    current_dir: Option<PathBuf>,
 }
 
 impl CommandBuilder {
     /// Creates a new CommandBuilder with the given PATH environment variable.
     pub fn new(path_env_var: Option<String>) -> Self {
-        Self { path_env_var }
+        Self {
+            path_env_var,
+            current_dir: None,
+        }
+    }
+
+    /// Runs built commands in `dir`.
+    pub fn with_current_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.current_dir = Some(dir.into());
+        self
     }
 
     /// Returns the PATH environment variable, if set.
@@ -42,6 +56,9 @@ impl CommandBuilder {
         let mut cmd = Command::new(program);
         if let Some(path) = &self.path_env_var {
             cmd.env("PATH", path);
+        }
+        if let Some(dir) = &self.current_dir {
+            cmd.current_dir(dir);
         }
         cmd
     }

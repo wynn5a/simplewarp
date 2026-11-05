@@ -74,10 +74,14 @@ pub struct ServerNotificationEvent {
 
 type Subscription = async_channel::Sender<ServerNotificationEvent>;
 
+/// Requests awaiting a response, keyed by request ID. `None` once the transport has closed: no
+/// response can arrive after that, so requests fail instead of waiting forever.
+type PendingRequests = AsyncMutex<Option<HashMap<RequestId, oneshot::Sender<Result<Value>>>>>;
+
 pub struct JsonRpcService {
     transport: Arc<dyn Transport>,
     request_id_counter: AtomicI32,
-    pending_requests: Arc<AsyncMutex<HashMap<RequestId, oneshot::Sender<Result<Value>>>>>,
+    pending_requests: Arc<PendingRequests>,
     notification_subscriptions: Arc<AsyncMutex<HashMap<String, Subscription>>>,
     executor: Arc<Background>,
 }
@@ -91,7 +95,7 @@ impl JsonRpcService {
         request_error_code: i64,
     ) -> Self {
         let transport: Arc<dyn Transport> = transport.into();
-        let pending_requests = Arc::new(AsyncMutex::new(HashMap::new()));
+        let pending_requests = Arc::new(AsyncMutex::new(Some(HashMap::new())));
         let notification_subscriptions = Arc::new(AsyncMutex::new(HashMap::new()));
 
         let transport_clone = transport.clone();
@@ -100,14 +104,15 @@ impl JsonRpcService {
 
         executor
             .spawn(async move {
-                if let Err(e) = Self::read_loop(
+                let result = Self::read_loop(
                     transport_clone,
-                    pending_requests_clone,
+                    &pending_requests_clone,
                     notification_subscriptions_clone,
                     request_error_code,
                 )
-                .await
-                {
+                .await;
+                Self::fail_pending_requests(&pending_requests_clone).await;
+                if let Err(e) = result {
                     report_error!(e.context("JSON-RPC read loop error"));
                 }
             })
@@ -125,7 +130,7 @@ impl JsonRpcService {
     /// Background loop that reads complete messages from the transport and dispatches them.
     async fn read_loop(
         transport: Arc<dyn Transport>,
-        pending_requests: Arc<AsyncMutex<HashMap<RequestId, oneshot::Sender<Result<Value>>>>>,
+        pending_requests: &PendingRequests,
         notification_subscriptions: Arc<AsyncMutex<HashMap<String, Subscription>>>,
         request_error_code: i64,
     ) -> Result<()> {
@@ -140,7 +145,7 @@ impl JsonRpcService {
             if let Err(e) = Self::handle_message(
                 &transport,
                 &message,
-                &pending_requests,
+                pending_requests,
                 &notification_subscriptions,
                 request_error_code,
             )
@@ -153,11 +158,23 @@ impl JsonRpcService {
         Ok(())
     }
 
+    /// Marks the transport closed and fails every request still awaiting a response.
+    async fn fail_pending_requests(pending_requests: &PendingRequests) {
+        let Some(pending) = pending_requests.lock().await.take() else {
+            return;
+        };
+        for (_, tx) in pending {
+            let _ = tx.send(Err(anyhow!(
+                "JSON-RPC transport closed before a response arrived"
+            )));
+        }
+    }
+
     /// Dispatches a complete JSON-RPC message to the appropriate handler.
     async fn handle_message(
         transport: &Arc<dyn Transport>,
         message: &str,
-        pending_requests: &AsyncMutex<HashMap<RequestId, oneshot::Sender<Result<Value>>>>,
+        pending_requests: &PendingRequests,
         notification_subscriptions: &AsyncMutex<HashMap<String, Subscription>>,
         request_error_code: i64,
     ) -> Result<()> {
@@ -201,7 +218,7 @@ impl JsonRpcService {
 
         if let Ok(response) = serde_json::from_str::<AnyResponse>(message) {
             let mut pending = pending_requests.lock().await;
-            if let Some(tx) = pending.remove(&response.id) {
+            if let Some(tx) = pending.as_mut().and_then(|p| p.remove(&response.id)) {
                 let result = if let Some(result) = response.result {
                     serde_json::from_str(result.get())
                         .map_err(|e| anyhow!("Failed to parse JSON-RPC response result: {e}"))
@@ -276,7 +293,12 @@ impl JsonRpcService {
         };
 
         let (tx, rx) = oneshot::channel();
-        self.pending_requests.lock().await.insert(request_id, tx);
+        self.pending_requests
+            .lock()
+            .await
+            .as_mut()
+            .ok_or_else(|| anyhow!("JSON-RPC transport is closed"))?
+            .insert(request_id, tx);
 
         let content = serde_json::to_string(&request)?;
 
@@ -284,7 +306,9 @@ impl JsonRpcService {
 
         let response_result = rx.await.map_err(|_| anyhow!("Response channel closed"))?;
 
-        self.pending_requests.lock().await.remove(&request_id);
+        if let Some(pending) = self.pending_requests.lock().await.as_mut() {
+            pending.remove(&request_id);
+        }
 
         response_result
     }

@@ -160,7 +160,8 @@ impl LspServerConfig {
     /// and working on PATH, we use that. Otherwise, we fall back to our custom installation.
     pub(crate) async fn command_and_params(self) -> Result<ResolvedLspCommand> {
         // PATH takes precedence - only use custom installation if not working on PATH
-        let executor = crate::CommandBuilder::new(self.path_env_var.clone());
+        let executor = crate::CommandBuilder::new(self.path_env_var.clone())
+            .with_current_dir(&self.initial_workspace);
         let is_working_on_path = self
             .server_type
             .is_working_on_path(&executor, self.client.clone())

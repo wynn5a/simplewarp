@@ -10,6 +10,9 @@ use crate::{LspEvent, LspServerConfig, LspServerModel};
 
 #[derive(Debug)]
 pub enum LspManagerModelEvent {
+    /// A server was registered for the workspace path and is about to start. Subscribers that
+    /// show server state can track it from here, before it finishes (or fails) starting.
+    ServerRegistered(PathBuf),
     /// ServerStarted is fired when the server is successfully started and reports ready status.
     /// ServerStopped is fired when the server has completed its shutdown.
     /// Both are routed from individual LspServerModel events.
@@ -197,7 +200,8 @@ impl LspManagerModel {
             _ => {}
         });
 
-        self.servers.entry(path).or_default().push(lsp);
+        self.servers.entry(path.clone()).or_default().push(lsp);
+        ctx.emit(LspManagerModelEvent::ServerRegistered(path));
         true
     }
 

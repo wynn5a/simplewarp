@@ -3,6 +3,7 @@ mod service_tests {
     use std::sync::{Arc, Mutex};
 
     use async_trait::async_trait;
+    use serde_json::Value;
     use warpui_core::r#async::executor::Background;
 
     use crate::{JsonRpcService, Transport};
@@ -67,6 +68,28 @@ mod service_tests {
         futures::executor::block_on(async {
             let message = mock_transport.incoming_receiver.recv().await.unwrap();
             assert_eq!(message, "test message");
+        });
+    }
+
+    #[test]
+    fn test_requests_fail_once_transport_closes() {
+        let mock_transport = MockTransport::new();
+        let incoming_sender = mock_transport.incoming_sender.clone();
+        let service =
+            JsonRpcService::new(Box::new(mock_transport), Arc::new(Background::default()), 0);
+
+        futures::executor::block_on(async {
+            let in_flight = service.send_request(1, "initialize".to_string(), Value::Null);
+            let close = async {
+                incoming_sender.close();
+            };
+            let (result, ()) = futures::join!(in_flight, close);
+            assert!(result.is_err());
+
+            let after_close = service
+                .send_request(2, "shutdown".to_string(), Value::Null)
+                .await;
+            assert!(after_close.is_err());
         });
     }
 }
