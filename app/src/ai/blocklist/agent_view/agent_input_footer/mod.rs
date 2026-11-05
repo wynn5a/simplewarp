@@ -20,13 +20,11 @@ use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_if_error;
 use warpui::elements::{
-    Border, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius,
-    CrossAxisAlignment, DispatchEventResult, Element, EventHandler, Flex, Hoverable,
-    MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
-    ParentElement, ParentOffsetBounds, Percentage, Radius, Rect, Shrinkable, Stack, Text, Wrap,
-    WrapFill, WrapFillEntireRun,
+    ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
+    DispatchEventResult, Element, EventHandler, Flex, Hoverable, MainAxisAlignment, MainAxisSize,
+    MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds,
+    Percentage, Radius, Rect, Shrinkable, Stack, Text, Wrap, WrapFill, WrapFillEntireRun,
 };
-use warpui::fonts::{Properties, Weight};
 use warpui::platform::Cursor;
 use warpui::ui_components::components::UiComponent;
 use warpui::{
@@ -41,8 +39,7 @@ use crate::ai::llms::LLMPreferences;
 use crate::appearance::Appearance;
 use crate::completer::SessionContext;
 use crate::context_chips::display_chip::{
-    CHIP_BORDER_WIDTH, DisplayChip, DisplayChipConfig, PromptChipShellCommand, chip_container,
-    udi_font_size,
+    DisplayChip, DisplayChipConfig, PromptChipShellCommand, chip_container, udi_font_size,
 };
 use crate::context_chips::prompt_type::PromptType;
 use crate::context_chips::{self, ContextChipKind, spacing};
@@ -928,10 +925,6 @@ impl Entity for AgentInputFooter {
 
 const CONTEXT_METER_BAR_WIDTH: f32 = 28.;
 const CONTEXT_METER_BAR_HEIGHT: f32 = 4.;
-/// Opacity of a token capsule's background tint, as a percentage of its accent color.
-const CAPSULE_TINT_OPACITY: u8 = 16;
-/// Opacity of a token capsule's border tint, as a percentage of its accent color.
-const CAPSULE_BORDER_TINT_OPACITY: u8 = 40;
 
 /// Mouse states of the context, input and output usage capsules.
 #[derive(Default)]
@@ -960,18 +953,15 @@ fn render_usage_capsules(
         ));
     }
     if let Some([input, output]) = tokens {
-        let theme = appearance.theme();
         row.add_child(render_token_capsule(
             input,
             Icon::Upload,
-            theme.ansi_fg_red(),
             mouse_states.input.clone(),
             appearance,
         ));
         row.add_child(render_token_capsule(
             output,
             Icon::Download,
-            theme.ansi_fg_green(),
             mouse_states.output.clone(),
             appearance,
         ));
@@ -989,11 +979,14 @@ fn render_context_capsule(
     let font_size = udi_font_size(appearance);
     let muted_color = context_chips::readable_chip_label_color(theme, theme.surface_1());
     let accent_color = match meter.level {
-        MeterLevel::Normal => theme.ansi_fg_cyan(),
-        MeterLevel::Warning => theme.ui_warning_color(),
-        MeterLevel::Critical => theme.ui_error_color(),
-    }
-    .on_background(theme.surface_1().into_solid(), MinimumAllowedContrast::Text);
+        MeterLevel::Normal => muted_color,
+        MeterLevel::Warning => theme
+            .ui_warning_color()
+            .on_background(theme.surface_1().into_solid(), MinimumAllowedContrast::Text),
+        MeterLevel::Critical => theme
+            .ui_error_color()
+            .on_background(theme.surface_1().into_solid(), MinimumAllowedContrast::Text),
+    };
     let track_color = internal_colors::neutral_3(theme);
     let bar_radius = CornerRadius::with_all(Radius::Pixels(CONTEXT_METER_BAR_HEIGHT / 2.));
 
@@ -1035,15 +1028,12 @@ fn render_context_capsule(
         capsule_icon(Icon::FileText, muted_color, appearance),
         text("ctx".to_owned(), muted_color).finish(),
         bar,
-        text(meter.label, accent_color)
-            .with_style(Properties::default().weight(Weight::Bold))
-            .finish(),
+        text(meter.label, accent_color).finish(),
         divider,
         text(meter.usage_label, muted_color).finish(),
     ];
     render_capsule(
         children,
-        None,
         (meter.tooltip, meter.tooltip_detail),
         meter
             .can_compact
@@ -1056,12 +1046,11 @@ fn render_context_capsule(
 fn render_token_capsule(
     capsule: TokenCapsule,
     icon: Icon,
-    accent: ColorU,
     mouse_state: MouseStateHandle,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
-    let background = tint_over_surface(accent, CAPSULE_TINT_OPACITY, appearance);
-    let foreground = accent.on_background(background, MinimumAllowedContrast::Text);
+    let theme = appearance.theme();
+    let foreground = context_chips::readable_chip_label_color(theme, theme.surface_1());
     let children = vec![
         capsule_icon(icon, foreground, appearance),
         Text::new_inline(
@@ -1075,21 +1064,11 @@ fn render_token_capsule(
     ];
     render_capsule(
         children,
-        Some(accent),
         (capsule.tooltip, capsule.tooltip_detail),
         None,
         mouse_state,
         appearance,
     )
-}
-
-/// `accent` at `opacity` percent over the chips' surface, as an opaque color.
-fn tint_over_surface(accent: ColorU, opacity: u8, appearance: &Appearance) -> ColorU {
-    appearance
-        .theme()
-        .surface_1()
-        .into_solid()
-        .blend(&Fill::Solid(accent).with_opacity(opacity).into_solid())
 }
 
 fn capsule_icon(icon: Icon, color: ColorU, appearance: &Appearance) -> Box<dyn Element> {
@@ -1100,12 +1079,10 @@ fn capsule_icon(icon: Icon, color: ColorU, appearance: &Appearance) -> Box<dyn E
         .finish()
 }
 
-/// A chip like the footer's other chips holding `children`, with a tooltip on hover. A `tint`
-/// colors its background and border; with an `on_click` action it takes the pointing-hand cursor
-/// and the chips' hover background.
+/// A chip like the footer's other chips holding `children`, with a tooltip on hover. With an
+/// `on_click` action it takes the pointing-hand cursor and the chips' hover background.
 fn render_capsule(
     children: Vec<Box<dyn Element>>,
-    tint: Option<ColorU>,
     (tooltip, tooltip_detail): (String, String),
     on_click: Option<AgentInputFooterAction>,
     mouse_state: MouseStateHandle,
@@ -1120,18 +1097,7 @@ fn render_capsule(
         .with_spacing(spacing::UDI_CHIP_ICON_GAP)
         .with_children(children)
         .finish();
-    let border = tint.map(|accent| {
-        Border::all(CHIP_BORDER_WIDTH).with_border_color(tint_over_surface(
-            accent,
-            CAPSULE_BORDER_TINT_OPACITY,
-            appearance,
-        ))
-    });
-    let mut chip = chip_container(content, border, appearance);
-    if let Some(accent) = tint {
-        chip =
-            chip.with_background_color(tint_over_surface(accent, CAPSULE_TINT_OPACITY, appearance));
-    }
+    let mut chip = chip_container(content, None, appearance);
 
     let hoverable = Hoverable::new(mouse_state, move |state| {
         if clickable && state.is_hovered() {
