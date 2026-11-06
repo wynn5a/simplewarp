@@ -388,6 +388,26 @@ impl PersistedWorkspace {
         })
     }
 
+    /// Returns the LSP servers the user has enabled or disabled, grouped by workspace root and
+    /// ordered by path then server name. Workspaces with none are omitted.
+    pub fn configured_lsp_servers(&self) -> Vec<(PathBuf, Vec<(LSPServerType, EnablementState)>)> {
+        self.workspaces
+            .iter()
+            .filter(|(_, workspace)| workspace.is_persisted())
+            .filter_map(|(path, workspace)| {
+                let servers = workspace
+                    .language_servers
+                    .iter()
+                    .filter(|(_, state)| **state != EnablementState::Suggested)
+                    .map(|(server_type, state)| (*server_type, *state))
+                    .sorted_by_key(|(server_type, _)| server_type.binary_name())
+                    .collect_vec();
+                (!servers.is_empty()).then(|| (path.clone(), servers))
+            })
+            .sorted_by(|(a, _), (b, _)| a.cmp(b))
+            .collect()
+    }
+
     /// Asynchronously detects which LSP server types are relevant for the given workspaces
     /// by calling `should_suggest_for_repo` on each `LSPServerType`. Results are stored
     /// as `Suggested` entries in the workspaces map and emitted via `AvailableServersDetected`.

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use anyhow::Result;
 use jsonrpc::{JsonRpcService, RequestId, ServerNotificationEvent};
@@ -110,6 +111,14 @@ impl LspService {
 
         log::debug!("LSP shutdown sequence completed");
         Ok(())
+    }
+
+    /// Kills the server process without the LSP shutdown handshake, for a server that may not be
+    /// responding.
+    pub(crate) async fn terminate(&self) {
+        if let Err(e) = self.jsonrpc_service.shutdown(Duration::ZERO).await {
+            log::warn!("Failed to terminate LSP server: {e}");
+        }
     }
 
     /// Get a handle to text-document related operations and requests

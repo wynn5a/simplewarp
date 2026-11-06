@@ -5,6 +5,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use anyhow::{Error, Result};
+use futures::FutureExt;
+use futures::channel::oneshot;
 use instant::Instant;
 use jsonrpc::ServerNotificationEvent;
 use lsp_types::notification::{self, Notification};
@@ -91,6 +93,12 @@ impl LspState {
 pub struct LspServerModel {
     id: LanguageServerId,
     server_state: LspState,
+    /// Cancels the in-flight start, if any. Dropping it also cancels.
+    cancel_start: Option<oneshot::Sender<()>>,
+    /// Incremented on every start so that a superseded start's result is discarded.
+    start_attempt: u64,
+    /// A cancelled start attempt to start again once its process is gone.
+    restart_after_attempt: Option<u64>,
     config: LspServerConfig,
     // This tracks all in-progress background tasks from the server.
     // Tasks are keyed by their progress token and removed when they finish.
@@ -164,6 +172,9 @@ impl LspServerModel {
             server_state: LspState::Stopped {
                 manually_stopped: false,
             },
+            cancel_start: None,
+            start_attempt: 0,
+            restart_after_attempt: None,
             config,
             in_progress_tasks: HashMap::new(),
             diagnostics_by_path: HashMap::new(),
@@ -262,35 +273,19 @@ impl LspServerModel {
                     }
                     None => None,
                 };
+                let (cancel_tx, cancel_rx) = oneshot::channel();
+                self.cancel_start = Some(cancel_tx);
+                self.start_attempt += 1;
+                let attempt = self.start_attempt;
+                let cancelled = cancel_rx.map(|_| ());
                 ctx.spawn(
-                    async move { spawn_lsp_service(config, executor, logger).await },
-                    move |me, result, ctx| match result {
-                        Ok(LspServiceInitializationResult { service, channel }) => {
-                            ctx.spawn_stream_local(
-                                channel,
-                                |me, notification, ctx| {
-                                    me.handle_server_notification(notification, ctx);
-                                },
-                                |_, _| {},
-                            );
-
-                            // At this point, the server has started and been initialized with its workspace folders
-                            // but it is likely still in the "bootstrapping" phase where it will respond to most
-                            // requests with `null` responses. We capture a reference to the service here
-                            // and set our state to available. We consider it "bootstrapped" when the server notifies us
-                            // that the bootstrap task is complete.
-                            me.server_state = LspState::Available {
-                                service: Arc::new(service),
-                                background_executor: ctx.background_executor(),
-                            };
-
-                            ctx.emit(LspEvent::Started);
-                        }
-                        Err(e) => {
-                            report_error!(&e);
-                            let error = format!("{e:#}");
-                            me.server_state = LspState::Failed { error };
-                            ctx.emit(LspEvent::Failed(e));
+                    async move { spawn_lsp_service(config, executor, logger, cancelled).await },
+                    move |me, result, ctx| {
+                        if me.start_attempt == attempt {
+                            me.cancel_start = None;
+                            me.handle_start_result(result, ctx);
+                        } else {
+                            me.discard_cancelled_start(attempt, result, ctx);
                         }
                     },
                 );
@@ -304,6 +299,88 @@ impl LspServerModel {
         }
 
         Ok(())
+    }
+
+    fn handle_start_result(
+        &mut self,
+        result: Result<LspServiceInitializationResult>,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        match result {
+            Ok(LspServiceInitializationResult { service, channel }) => {
+                ctx.spawn_stream_local(
+                    channel,
+                    |me, notification, ctx| {
+                        me.handle_server_notification(notification, ctx);
+                    },
+                    |_, _| {},
+                );
+
+                // At this point, the server has started and been initialized with its workspace folders
+                // but it is likely still in the "bootstrapping" phase where it will respond to most
+                // requests with `null` responses. We capture a reference to the service here
+                // and set our state to available. We consider it "bootstrapped" when the server notifies us
+                // that the bootstrap task is complete.
+                self.server_state = LspState::Available {
+                    service: Arc::new(service),
+                    background_executor: ctx.background_executor(),
+                };
+
+                ctx.emit(LspEvent::Started);
+            }
+            Err(e) => {
+                report_error!(&e);
+                let error = format!("{e:#}");
+                self.server_state = LspState::Failed { error };
+                ctx.emit(LspEvent::Failed(e));
+            }
+        }
+    }
+
+    /// Abandons an in-flight start, killing the server process if it was already spawned.
+    fn cancel_starting(&mut self, next_state: LspState) {
+        self.start_attempt += 1;
+        if let Some(cancel) = self.cancel_start.take() {
+            let _ = cancel.send(());
+        }
+        self.in_progress_tasks.clear();
+        self.server_state = next_state;
+    }
+
+    /// Shuts down whatever a cancelled start produced, then starts again if a restart is waiting
+    /// on it. The restart waits so the new process doesn't race the old one for its log file.
+    fn discard_cancelled_start(
+        &mut self,
+        attempt: u64,
+        result: Result<LspServiceInitializationResult>,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let restart = self.restart_after_attempt == Some(attempt);
+        if restart {
+            self.restart_after_attempt = None;
+        }
+        let terminate = async move {
+            if let Ok(LspServiceInitializationResult { service, .. }) = result {
+                service.terminate().await;
+            }
+        };
+        ctx.spawn(terminate, move |me, (), ctx| {
+            if restart
+                && matches!(
+                    me.server_state,
+                    LspState::Stopping {
+                        manually_stopped: false
+                    }
+                )
+            {
+                me.server_state = LspState::Stopped {
+                    manually_stopped: false,
+                };
+                if let Err(e) = me.start(ctx) {
+                    log::warn!("Failed to restart LSP server: {e}");
+                }
+            }
+        });
     }
 
     pub fn stop(&mut self, manually_stopped: bool, ctx: &mut ModelContext<Self>) -> Result<()> {
@@ -320,7 +397,11 @@ impl LspServerModel {
                     }
                 });
             }
-            _ => {
+            LspState::Starting => {
+                self.cancel_starting(LspState::Stopped { manually_stopped });
+                ctx.emit(LspEvent::Stopped);
+            }
+            LspState::Stopped { .. } | LspState::Stopping { .. } | LspState::Failed { .. } => {
                 log::debug!(
                     "Unable to stop LSP server in state: {}",
                     self.server_state.name()
@@ -393,7 +474,13 @@ impl LspServerModel {
                     log::warn!("Failed to restart LSP server: {e}");
                 }
             }
-            LspState::Starting | LspState::Stopping { .. } => {
+            LspState::Starting => {
+                self.restart_after_attempt = Some(self.start_attempt);
+                self.cancel_starting(LspState::Stopping {
+                    manually_stopped: false,
+                });
+            }
+            LspState::Stopping { .. } => {
                 log::debug!(
                     "Unable to restart LSP server in state: {}",
                     self.server_state.name()

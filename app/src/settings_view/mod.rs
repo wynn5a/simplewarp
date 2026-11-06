@@ -2,7 +2,9 @@ use about_page::AboutPageView;
 use agent_profiles_page::{AgentProfilesPageAction, AgentProfilesPageEvent, AgentProfilesPageView};
 use appearance_page::{AppearancePageAction, AppearanceSettingsPageView};
 use cli_agents_page::{CLIAgentsPageAction, CLIAgentsPageEvent, CLIAgentsPageView};
-use code_editor_review_page::{EditorAndCodeReviewPageAction, EditorAndCodeReviewPageView};
+use code_editor_review_page::{
+    EditorAndCodeReviewPageAction, EditorAndCodeReviewPageEvent, EditorAndCodeReviewPageView,
+};
 use features_page::{FeaturesPageView, FeaturesSettingsPageEvent};
 use itertools::Itertools as _;
 use keybindings::KeybindingsView;
@@ -70,6 +72,7 @@ mod features;
 mod features_page;
 pub mod keybindings;
 mod knowledge_page;
+mod language_servers_widget;
 pub mod mcp_servers;
 pub mod mcp_servers_page;
 mod nav;
@@ -84,6 +87,7 @@ mod warpify_page;
 
 pub use cli_agents_page::cli_agent_settings_widget_id;
 pub use features_page::FeaturesPageAction;
+pub use language_servers_widget::language_servers_widget_id;
 pub use privacy_page::PrivacyPageAction;
 pub use settings_page::{
     AdditionalInfo, InputListItem, ToggleState, render_body_item_label, render_info_icon,
@@ -179,6 +183,9 @@ pub enum SettingsViewEvent {
     },
     OpenAIFactCollection,
     OpenExecutionProfileEditor(ExecutionProfileId),
+    OpenLspLogs {
+        log_path: PathBuf,
+    },
 }
 
 /// Different navigation sections within the settings view
@@ -202,6 +209,7 @@ pub enum SettingsSection {
 }
 
 use std::fmt::{self, Display};
+use std::path::PathBuf;
 
 use crate::util::bindings::custom_tag_to_keystroke;
 
@@ -1025,6 +1033,13 @@ impl SettingsView {
 
         // Code umbrella pages
         let editor_review_page_handle = ctx.add_typed_action_view(EditorAndCodeReviewPageView::new);
+        ctx.subscribe_to_view(&editor_review_page_handle, |_, _, event, ctx| match event {
+            EditorAndCodeReviewPageEvent::OpenLspLogs { log_path } => {
+                ctx.emit(SettingsViewEvent::OpenLspLogs {
+                    log_path: log_path.clone(),
+                });
+            }
+        });
 
         let warpify_page_handle = ctx.add_typed_action_view(WarpifyPageView::new);
         ctx.subscribe_to_view(&warpify_page_handle, |me, _, event, ctx| {

@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::Utc;
+use futures::future;
 use log::LevelFilter;
 use lsp::supported_servers::LSPServerType;
 use lsp::{LspServerConfig, LspService, LspServiceInitializationResult, spawn_lsp_service};
@@ -130,7 +131,7 @@ async fn async_main(executor: Arc<Background>, workspace_root: PathBuf) -> anyho
     let LspServiceInitializationResult {
         service: lsp_service,
         channel: _rx,
-    } = spawn_lsp_service(config, executor, None).await?;
+    } = spawn_lsp_service(config, executor, None, future::pending()).await?;
 
     if let Some(capabilities) = lsp_service.server_capabilities() {
         println!("Server capabilities received");

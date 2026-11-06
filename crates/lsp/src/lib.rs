@@ -43,9 +43,11 @@ impl std::fmt::Display for LspServerLogLevel {
     }
 }
 
+use std::future::Future;
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
+use futures::future::{self, Either};
 use simple_logger::SimpleLogger;
 use warpui_core::AppContext;
 use warpui_core::r#async::executor::Background;
@@ -58,11 +60,13 @@ pub struct LspServiceInitializationResult {
 /// Creates a complete LspService from an LSP server configuration.
 ///
 /// If `logger` is provided, stderr output from the LSP server will be written
-/// to its file for debugging purposes.
+/// to its file for debugging purposes. Resolving `cancel` before initialization completes kills
+/// the server process and returns an error.
 pub async fn spawn_lsp_service(
     config: LspServerConfig,
     executor: Arc<Background>,
     logger: Option<SimpleLogger>,
+    cancel: impl Future<Output = ()> + Unpin,
 ) -> Result<LspServiceInitializationResult> {
     let resolved = match config.command_and_params().await {
         Ok(resolved) => resolved,
@@ -97,7 +101,19 @@ pub async fn spawn_lsp_service(
     let (notify_tx, notify_rx) = async_channel::unbounded::<ServerNotificationEvent>();
     let mut service = LspService::new(jsonrpc_service, notify_tx, logger.clone())?;
 
-    if let Err(e) = service.initialize(resolved.params).await {
+    let initialized = {
+        let initialize = service.initialize(resolved.params);
+        futures::pin_mut!(initialize);
+        match future::select(initialize, cancel).await {
+            Either::Left((result, _)) => Some(result),
+            Either::Right(((), _)) => None,
+        }
+    };
+    let Some(initialized) = initialized else {
+        service.terminate().await;
+        return Err(anyhow!("LSP server startup was cancelled"));
+    };
+    if let Err(e) = initialized {
         if let Some(ref logger) = logger {
             logger.log(format!("[startup error] {e}"));
         }

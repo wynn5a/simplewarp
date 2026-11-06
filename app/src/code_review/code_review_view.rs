@@ -100,7 +100,7 @@ use crate::pane_group::focus_state::{PaneFocusHandle, PaneGroupFocusEvent};
 use crate::pane_group::pane::{BackingView, PaneEvent, view};
 use crate::quit_warning::UnsavedStateSummary;
 use crate::settings::{AISettings, CodeSettings};
-use crate::settings_view::SettingsSection;
+use crate::settings_view::{SettingsSection, language_servers_widget_id};
 use crate::terminal::input::MenuPositioning;
 use crate::terminal::view::{InitProjectModel, TerminalAction, TerminalView};
 use crate::themes::theme::WarpTheme;
@@ -708,9 +708,10 @@ impl CodeReviewView {
                 }
             }
             CodeFooterViewEvent::ManageServers => {
-                ctx.dispatch_typed_action(&WorkspaceAction::ShowSettingsPage(
-                    SettingsSection::EditorAndCodeReview,
-                ));
+                ctx.dispatch_typed_action(&WorkspaceAction::ScrollToSettingsWidget {
+                    page: SettingsSection::EditorAndCodeReview,
+                    widget_id: language_servers_widget_id(),
+                });
             }
             CodeFooterViewEvent::RestartServer { server } => {
                 server.update(ctx, |server, ctx| {
