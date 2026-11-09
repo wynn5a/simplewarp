@@ -1912,7 +1912,16 @@ fn read_sqlite_data(conn: &mut SqliteConnection) -> Result<PersistedData, Error>
                     let saved_tabs: Vec<_> = tabs_for_window
                         .into_iter()
                         .filter_map(|tab| {
-                            let root = read_root_node(conn, tab.id).ok()?;
+                            let root = match read_root_node(conn, tab.id) {
+                                Ok(root) => root,
+                                Err(err) => {
+                                    log::warn!(
+                                        "Dropping persisted tab {} that failed to load: {err:#}",
+                                        tab.id
+                                    );
+                                    return None;
+                                }
+                            };
                             let panel = db_panels.get(&tab.id);
 
                             let left_panel = panel
@@ -2045,6 +2054,15 @@ fn read_sqlite_data(conn: &mut SqliteConnection) -> Result<PersistedData, Error>
 
         // Load active MCP servers from database
         let running_mcp_servers = load_active_mcp_servers(conn)?;
+
+        log::info!(
+            "Read persisted session: {} window(s), {} tab(s)",
+            saved_windows.len(),
+            saved_windows
+                .iter()
+                .map(|window| window.tabs.len())
+                .sum::<usize>()
+        );
 
         Some(AppState {
             windows: saved_windows,

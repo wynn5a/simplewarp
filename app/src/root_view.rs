@@ -590,7 +590,11 @@ fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
                     },
                 );
             }
+        } else {
+            log::info!("Session restoration is disabled; not restoring the persisted session");
         }
+    } else {
+        log::warn!("No persisted session to restore");
     }
 }
 

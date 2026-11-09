@@ -123,6 +123,7 @@ use warpui::text::SelectionType;
 use warpui::ui_components::components::UiComponent;
 use warpui::units::{IntoLines, IntoPixels, Lines, Pixels};
 use warpui::windowing::WindowManager;
+use warpui::windowing::state::ApplicationStage;
 use warpui::{
     AccessibilityData, AppContext, BlurContext, CursorInfo, Element, Entity, EntityId,
     EventContext, FocusContext, ModelAsRef, ModelHandle, SingletonEntity, Tracked, TypedActionView,
@@ -7492,7 +7493,18 @@ impl TerminalView {
                 // indicator in terminal tabs.
                 ctx.request_user_attention();
             }
-            ModelEvent::Exit { reason: _ } => {
+            ModelEvent::Exit { reason } => {
+                // A restored session whose shell dies takes its tab with it, which can look like
+                // session restoration failed; log it so a lost session can be traced.
+                if ctx.windows().stage() != ApplicationStage::Terminating
+                    && !self.manual_pty_shutdown_requested
+                    && self.model.lock().block_list().is_restored_session()
+                {
+                    log::warn!(
+                        "Restored terminal session exited ({reason:?}, bootstrapped: {})",
+                        self.is_login_shell_bootstrapped
+                    );
+                }
                 ProgramStatusModel::handle(ctx).update(ctx, |model, ctx| {
                     model.drop_running(self.view_id, ctx);
                 });
