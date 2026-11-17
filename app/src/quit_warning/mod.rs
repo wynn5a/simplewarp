@@ -51,6 +51,9 @@ pub struct UnsavedStateSummary<'a> {
 
     /// Whether or not there are unsaved code changes.
     unsaved_code_changes: bool,
+
+    /// Number of tabs that closing a window takes with it; zero outside the window scope.
+    tabs_closing_with_window: usize,
 }
 
 /// Builder for a warning dialog that displays unsaved state.
@@ -98,6 +101,19 @@ impl QuitScope<'_> {
                 .collect_vec(),
             Self::App => SessionNavigationData::all_sessions(ctx).collect_vec(),
             Self::EditorTab { .. } => Vec::new(),
+        }
+    }
+
+    /// Number of tabs in the window being closed.
+    fn tabs_closing_with_window(&self, ctx: &AppContext) -> usize {
+        match self {
+            Self::Window(window_id) => ctx
+                .views_of_type::<Workspace>(*window_id)
+                .into_iter()
+                .flatten()
+                .map(|workspace| workspace.as_ref(ctx).tab_count())
+                .sum(),
+            Self::Pane { .. } | Self::Tabs(_) | Self::App | Self::EditorTab { .. } => 0,
         }
     }
 
@@ -290,6 +306,7 @@ impl<'a> UnsavedStateSummary<'a> {
         let code_review_summary = CodeEditorSummary::new(&code_review_views);
 
         UnsavedStateSummary {
+            tabs_closing_with_window: scope.tabs_closing_with_window(ctx),
             scope,
             total_long_running_commands: sessions_summary.long_running_cmds.len(),
             windows_with_long_running_commands: sessions_summary.windows_running().len(),
@@ -302,7 +319,13 @@ impl<'a> UnsavedStateSummary<'a> {
 
     pub fn should_display_warning(&self, ctx: &AppContext) -> bool {
         *GeneralSettings::as_ref(ctx).show_warning_before_quitting
-            && (self.total_long_running_commands > 0 || self.unsaved_code_changes)
+            && (self.total_long_running_commands > 0
+                || self.unsaved_code_changes
+                || self.closes_multiple_tabs())
+    }
+
+    fn closes_multiple_tabs(&self) -> bool {
+        self.tabs_closing_with_window > 1
     }
 
     /// Auto-save-aware variant of [`Self::should_display_warning`].
@@ -311,8 +334,9 @@ impl<'a> UnsavedStateSummary<'a> {
     /// `should_display_warning` (no side effects). When auto-save is on, it
     /// flushes all saveable unsaved code editors in scope (silently, so no
     /// "File saved." toast) and returns whether a warning is still warranted for
-    /// things auto-save can't handle: running processes, shared sessions, or
-    /// unsaved changes with no backing file (e.g. untitled buffers).
+    /// things auto-save can't handle: running processes, shared sessions,
+    /// unsaved changes with no backing file (e.g. untitled buffers), or a window
+    /// closing with several tabs.
     pub fn save_unsaved_code_and_should_warn(&self, ctx: &mut AppContext) -> bool {
         if !*CodeSettings::as_ref(ctx).auto_save {
             return self.should_display_warning(ctx);
@@ -328,7 +352,9 @@ impl<'a> UnsavedStateSummary<'a> {
         }
 
         *GeneralSettings::as_ref(ctx).show_warning_before_quitting
-            && (self.total_long_running_commands > 0 || unsaveable_changes_remain)
+            && (self.total_long_running_commands > 0
+                || unsaveable_changes_remain
+                || self.closes_multiple_tabs())
     }
 
     pub fn running_sessions(&self) -> RunningSessionSummary<'_> {
@@ -350,6 +376,13 @@ impl<'a> UnsavedStateSummary<'a> {
             QuitScope::Pane { .. } => " in this pane.",
             QuitScope::App | QuitScope::Tabs(_) | QuitScope::EditorTab { .. } => ".",
         };
+
+        if self.closes_multiple_tabs() {
+            info_text_lines.push(format!(
+                "This window has {} tabs open.",
+                self.tabs_closing_with_window
+            ));
+        }
 
         if self.total_long_running_commands > 0 {
             let mut process_info_text = format!(
@@ -537,3 +570,7 @@ fn on_disable_warning_modal(ctx: &mut AppContext) {
         );
     });
 }
+
+#[cfg(test)]
+#[path = "mod_test.rs"]
+mod tests;
